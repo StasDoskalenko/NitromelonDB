@@ -1,4 +1,4 @@
-import { ComponentType, NamedExoticComponent } from 'react'
+import { ComponentType, NamedExoticComponent, JSX } from 'react'
 import { Observable } from 'rxjs'
 import hoistNonReactStatics = require('hoist-non-react-statics')
 
@@ -47,10 +47,9 @@ type GetProps<C> = C extends ComponentType<infer P> ? P : never
  * But any property required by the decorated component must be satisfied by the injected property.
  */
 type Shared<InjectedProps, DecorationTargetProps> = {
-  [P in Extract<
-    keyof InjectedProps,
-    keyof DecorationTargetProps
-  >]?: InjectedProps[P] extends DecorationTargetProps[P] ? DecorationTargetProps[P] : never
+  [
+    P in Extract<keyof InjectedProps, keyof DecorationTargetProps>
+  ]?: InjectedProps[P] extends DecorationTargetProps[P] ? DecorationTargetProps[P] : never
 }
 
 // Applies LibraryManagedAttributes (proper handling of defaultProps

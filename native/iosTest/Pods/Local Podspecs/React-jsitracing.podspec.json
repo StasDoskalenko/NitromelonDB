@@ -1,18 +1,18 @@
 {
   "name": "React-jsitracing",
-  "version": "0.74.6",
+  "version": "0.87.0",
   "summary": "Internal library for JSI debugging.",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
   "authors": "Meta Platforms, Inc. and its affiliates",
   "platforms": {
-    "ios": "13.4"
+    "ios": "15.1"
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.74.6"
+    "tag": "v0.87.0"
   },
-  "source_files": "JSITracing.{cpp,h}",
+  "source_files": "JSITracing.h",
   "header_dir": ".",
   "pod_target_xcconfig": {
     "HEADER_SEARCH_PATHS": "\"${PODS_TARGET_SRCROOT}/../..\"",
@@ -21,8 +21,6 @@
     "GCC_WARN_PEDANTIC": "YES"
   },
   "dependencies": {
-    "React-jsi": [
-
-    ]
+    "React-jsi": []
   }
 }

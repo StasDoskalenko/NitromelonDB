@@ -1,1 +1,1 @@
-../../../../../../../../../node_modules/react-native/ReactCommon/react/renderer/mounting/stubs.h
+../../../../../../../../../node_modules/react-native/ReactCommon/react/renderer/mounting/stubs/stubs.h

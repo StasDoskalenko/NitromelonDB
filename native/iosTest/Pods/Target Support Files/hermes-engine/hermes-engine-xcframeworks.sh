@@ -17,19 +17,28 @@ RSYNC_PROTECT_TMP_FILES=(--filter "P .*.??????")
 variant_for_slice()
 {
   case "$1" in
-  "hermes.xcframework/ios-arm64")
+  "hermesvm.xcframework/ios-arm64")
     echo ""
     ;;
-  "hermes.xcframework/ios-arm64_x86_64-maccatalyst")
+  "hermesvm.xcframework/ios-arm64_x86_64-maccatalyst")
     echo "maccatalyst"
     ;;
-  "hermes.xcframework/ios-arm64_x86_64-simulator")
+  "hermesvm.xcframework/ios-arm64_x86_64-simulator")
     echo "simulator"
     ;;
-  "hermes.xcframework/xros-arm64")
+  "hermesvm.xcframework/macos-arm64_x86_64")
     echo ""
     ;;
-  "hermes.xcframework/xros-arm64-simulator")
+  "hermesvm.xcframework/tvos-arm64")
+    echo ""
+    ;;
+  "hermesvm.xcframework/tvos-arm64_x86_64-simulator")
+    echo "simulator"
+    ;;
+  "hermesvm.xcframework/xros-arm64")
+    echo ""
+    ;;
+  "hermesvm.xcframework/xros-arm64_x86_64-simulator")
     echo "simulator"
     ;;
   esac
@@ -38,20 +47,29 @@ variant_for_slice()
 archs_for_slice()
 {
   case "$1" in
-  "hermes.xcframework/ios-arm64")
+  "hermesvm.xcframework/ios-arm64")
     echo "arm64"
     ;;
-  "hermes.xcframework/ios-arm64_x86_64-maccatalyst")
+  "hermesvm.xcframework/ios-arm64_x86_64-maccatalyst")
     echo "arm64 x86_64"
     ;;
-  "hermes.xcframework/ios-arm64_x86_64-simulator")
+  "hermesvm.xcframework/ios-arm64_x86_64-simulator")
     echo "arm64 x86_64"
     ;;
-  "hermes.xcframework/xros-arm64")
+  "hermesvm.xcframework/macos-arm64_x86_64")
+    echo "arm64 x86_64"
+    ;;
+  "hermesvm.xcframework/tvos-arm64")
     echo "arm64"
     ;;
-  "hermes.xcframework/xros-arm64-simulator")
+  "hermesvm.xcframework/tvos-arm64_x86_64-simulator")
+    echo "arm64 x86_64"
+    ;;
+  "hermesvm.xcframework/xros-arm64")
     echo "arm64"
+    ;;
+  "hermesvm.xcframework/xros-arm64_x86_64-simulator")
+    echo "arm64 x86_64"
     ;;
   esac
 }
@@ -135,5 +153,5 @@ install_xcframework() {
   echo "Copied $source to $destination"
 }
 
-install_xcframework "${PODS_ROOT}/hermes-engine/destroot/Library/Frameworks/universal/hermes.xcframework" "hermes-engine/Pre-built" "framework" "ios-arm64" "ios-arm64_x86_64-maccatalyst" "ios-arm64_x86_64-simulator"
+install_xcframework "${PODS_ROOT}/hermes-engine/destroot/Library/Frameworks/universal/hermesvm.xcframework" "hermes-engine/Pre-built" "framework" "ios-arm64" "ios-arm64_x86_64-maccatalyst" "ios-arm64_x86_64-simulator"
 

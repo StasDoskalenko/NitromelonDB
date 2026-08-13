@@ -10,7 +10,7 @@ Pod::Spec.new do |s|
   s.homepage     = package["homepage"]
   s.license      = package["license"]
   s.author       = { "author" => package["author"] }
-  s.platforms    = { :ios => "12.0", :tvos => "12.0" }
+  s.platforms    = { :ios => "15.1", :tvos => "15.1" }
   s.source = { :git => "https://github.com/Nozbe/WatermelonDB.git", :tag => "v#{s.version}" }
   s.source_files = "native/ios/**/*.{h,m,mm,swift,c,cpp}", "native/shared/**/*.{h,c,cpp}"
   s.public_header_files = [
@@ -30,13 +30,18 @@ Pod::Spec.new do |s|
   # simdjson is annoyingly slow without compiler optimization, disable for debugging
   s.compiler_flags = '-Os'
 
-  s.dependency "React"
-
   s.libraries = 'sqlite3'
 
-  # NOTE: This dependency doesn't seem to be needed anymore (tested on RN 0.66, 0.71), file an issue
-  # if this causes issues for you
-  # s.dependency "React-jsi"
+  s.dependency "React-Core"
+  s.dependency "React-jsi"
+
+  # New Architecture / JSI (RCTTurboModuleWithJSIBindings). Available when the app
+  # Podfile has loaded react_native_pods.rb (standard RN 0.71+ apps).
+  if respond_to?(:install_modules_dependencies, true)
+    install_modules_dependencies(s)
+  else
+    s.dependency "React"
+  end
 
   # NOTE: NPM-vendored @nozbe/simdjson must be used, not the CocoaPods version
   s.dependency "simdjson"

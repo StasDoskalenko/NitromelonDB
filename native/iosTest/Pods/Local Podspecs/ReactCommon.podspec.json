@@ -1,92 +1,71 @@
 {
   "name": "ReactCommon",
   "module_name": "ReactCommon",
-  "version": "0.74.6",
+  "version": "0.87.0",
   "summary": "-",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
   "authors": "Meta Platforms, Inc. and its affiliates",
   "platforms": {
-    "ios": "13.4"
+    "ios": "15.1"
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.74.6"
+    "tag": "v0.87.0"
   },
   "header_dir": "ReactCommon",
-  "compiler_flags": "-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -DFOLLY_CFG_NO_COROUTINES=1 -DFOLLY_HAVE_CLOCK_GETTIME=1 -Wno-comma -Wno-shorten-64-to-32 -Wno-documentation",
   "pod_target_xcconfig": {
-    "HEADER_SEARCH_PATHS": "\"$(PODS_ROOT)/boost\" \"$(PODS_ROOT)/RCT-Folly\" \"$(PODS_ROOT)/DoubleConversion\" \"$(PODS_ROOT)/fmt/include\" \"$(PODS_ROOT)/Headers/Private/React-Core\"",
+    "HEADER_SEARCH_PATHS": [
+      "$(PODS_ROOT)/Headers/Private/React-Core",
+      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
+    ],
     "USE_HEADERMAP": "YES",
     "DEFINES_MODULE": "YES",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
     "GCC_WARN_PEDANTIC": "YES"
+  },
+  "dependencies": {
+    "ReactNativeDependencies": [],
+    "React-Core-prebuilt": []
   },
   "subspecs": [
     {
       "name": "turbomodule",
       "dependencies": {
         "React-callinvoker": [
-          "0.74.6"
+          "0.87.0"
         ],
         "React-perflogger": [
-          "0.74.6"
-        ],
-        "React-cxxreact": [
-          "0.74.6"
+          "0.87.0"
         ],
         "React-jsi": [
-          "0.74.6"
-        ],
-        "RCT-Folly": [
-          "2024.01.01.00"
+          "0.87.0"
         ],
         "React-logger": [
-          "0.74.6"
+          "0.87.0"
         ],
-        "DoubleConversion": [
-
-        ],
-        "fmt": [
-          "9.1.0"
-        ],
-        "glog": [
-
-        ],
-        "hermes-engine": [
-
-        ]
+        "hermes-engine": []
       },
       "subspecs": [
         {
-          "name": "bridging",
-          "dependencies": {
-            "React-jsi": [
-              "0.74.6"
-            ],
-            "hermes-engine": [
-
-            ]
-          },
-          "source_files": "react/bridging/**/*.{cpp,h}",
-          "exclude_files": "react/bridging/tests",
-          "header_dir": "react/bridging",
-          "pod_target_xcconfig": {
-            "HEADER_SEARCH_PATHS": "\"$(PODS_TARGET_SRCROOT)/ReactCommon\" \"$(PODS_ROOT)/RCT-Folly\""
-          }
-        },
-        {
           "name": "core",
-          "source_files": "react/nativemodule/core/ReactCommon/**/*.{cpp,h}",
+          "source_files": "react/nativemodule/core/ReactCommon/**/*.h",
           "pod_target_xcconfig": {
-            "HEADER_SEARCH_PATHS": "\"$(PODS_TARGET_SRCROOT)/ReactCommon\" \"$(PODS_CONFIGURATION_BUILD_DIR)/React-debug/React_debug.framework/Headers\" \"$(PODS_CONFIGURATION_BUILD_DIR)/React-utils/React_utils.framework/Headers\""
+            "HEADER_SEARCH_PATHS": "\"$(PODS_TARGET_SRCROOT)/ReactCommon\" \"$(PODS_CONFIGURATION_BUILD_DIR)/React-debug/React_debug.framework/Headers\" \"$(PODS_CONFIGURATION_BUILD_DIR)/React-debug/React_featureflags.framework/Headers\" \"$(PODS_CONFIGURATION_BUILD_DIR)/React-utils/React_utils.framework/Headers\""
           },
           "dependencies": {
+            "React-bridging": [],
+            "React-cxxreact": [
+              "0.87.0"
+            ],
             "React-debug": [
-              "0.74.6"
+              "0.87.0"
+            ],
+            "React-featureflags": [
+              "0.87.0"
             ],
             "React-utils": [
-              "0.74.6"
+              "0.87.0"
             ]
           }
         }
