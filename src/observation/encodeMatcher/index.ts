@@ -1,4 +1,3 @@
-// @flow
 /* eslint-disable no-use-before-define */
 
 import allPass from '../../utils/fp/allPass'
@@ -8,30 +7,31 @@ import invariant from '../../utils/common/invariant'
 
 import type { QueryDescription, WhereDescription, Where } from '../../QueryDescription'
 import type { RawRecord } from '../../RawRecord'
+import type { Value, CompoundValue } from '../../QueryDescription'
 import type Model from '../../Model'
 
 import operators from './operators'
 import canEncodeMatcher, { forbiddenError } from './canEncode'
 
-// eslint-disable-next-line no-unused-vars
-export type Matcher<Element: Model> = (RawRecord) => boolean
+export type Matcher<_Element extends Model = Model> = (raw: RawRecord) => boolean
 
-const encodeWhereDescription: (WhereDescription) => Matcher<Model> =
-  (description) => (rawRecord) => {
-    const left = (rawRecord: Object)[description.left]
+const encodeWhereDescription =
+  (description: WhereDescription): Matcher =>
+  (rawRecord) => {
+    const left = rawRecord[description.left] as Value
     const { comparison } = description
     const operator = operators[comparison.operator]
 
     const compRight = comparison.right
-    let right
+    let right: CompoundValue
 
     // TODO: What about `undefined`s ?
-    if (compRight.value !== undefined) {
+    if ('value' in compRight && compRight.value !== undefined) {
       right = compRight.value
-    } else if (compRight.values) {
+    } else if ('values' in compRight && compRight.values) {
       right = compRight.values
-    } else if (compRight.column) {
-      right = (rawRecord: Object)[compRight.column]
+    } else if ('column' in compRight && compRight.column) {
+      right = rawRecord[compRight.column] as Value
     } else {
       throw new Error('Invalid comparisonRight')
     }
@@ -39,7 +39,7 @@ const encodeWhereDescription: (WhereDescription) => Matcher<Model> =
     return operator(left, right)
   }
 
-const encodeWhere: (Where) => Matcher<Model> = (where) => {
+const encodeWhere = (where: Where): Matcher => {
   switch (where.type) {
     case 'where':
       return encodeWhereDescription(where)
@@ -56,11 +56,12 @@ const encodeWhere: (Where) => Matcher<Model> = (where) => {
   }
 }
 
-const encodeConditions: (Array<Where>) => Matcher<Model> = (conditions) =>
-  allPass(conditions.map(encodeWhere))
+const encodeConditions = (conditions: Where[]): Matcher => allPass(conditions.map(encodeWhere))
 
-export default function encodeMatcher<Element: Model>(query: QueryDescription): Matcher<Element> {
+export default function encodeMatcher<Element extends Model>(
+  query: QueryDescription,
+): Matcher<Element> {
   invariant(canEncodeMatcher(query), forbiddenError)
 
-  return (encodeConditions(query.where): any)
+  return encodeConditions(query.where)
 }

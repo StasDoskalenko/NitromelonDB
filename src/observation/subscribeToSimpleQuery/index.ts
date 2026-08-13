@@ -1,23 +1,22 @@
-// @flow
-
 import { logError } from '../../utils/common'
 import { type Unsubscribe } from '../../utils/subscriptions'
 
 import type Query from '../../Query'
 import type Model from '../../Model'
+import type { QueryDescription } from '../../QueryDescription'
 
 import type { Matcher } from '../encodeMatcher'
 
-export default function subscribeToSimpleQuery<Record: Model>(
+export default function subscribeToSimpleQuery<Record extends Model>(
   query: Query<Record>,
-  subscriber: (Record[]) => void,
+  subscriber: (records: Record[]) => void,
   // if true, emissions will always be made on collection change -- this is an internal hack needed by
   // observeQueryWithColumns
   alwaysEmit: boolean = false,
 ): Unsubscribe {
-  let matcher: ?Matcher<Record> = null
+  let matcher: Matcher<Record> | null = null
   let unsubscribed = false
-  let unsubscribe = null
+  let unsubscribe: Unsubscribe | null = null
 
   // eslint-disable-next-line prefer-arrow-callback
   query.collection._fetchQuery(query, function observeQueryInitialEmission(result): void {
@@ -49,10 +48,23 @@ export default function subscribeToSimpleQuery<Record: Model>(
       changeSet,
     ): void {
       if (!matcher) {
-        matcher = require('../encodeMatcher').default(query.description)
+        const encodeMatcher = (
+          require('../encodeMatcher') as {
+            default: (description: QueryDescription) => Matcher<Record>
+          }
+        ).default
+        matcher = encodeMatcher(query.description)
       }
-      // $FlowFixMe
-      const shouldEmit = require('./processChangeSet').default(changeSet, matcher, matchingRecords)
+      const processChangeSet = (
+        require('./processChangeSet') as {
+          default: (
+            changeSetArg: typeof changeSet,
+            matcherArg: Matcher<Record>,
+            records: Record[],
+          ) => boolean
+        }
+      ).default
+      const shouldEmit = processChangeSet(changeSet, matcher, matchingRecords)
       if (shouldEmit || alwaysEmit) {
         emitCopy()
       }

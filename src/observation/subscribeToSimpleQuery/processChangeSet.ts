@@ -1,11 +1,9 @@
-// @flow
-
 import type { CollectionChangeSet } from '../../Collection'
 import type Model from '../../Model'
 import type { Matcher } from '../encodeMatcher'
 
 // WARN: Mutates arguments
-export default function processChangeSet<Record: Model>(
+export default function processChangeSet<Record extends Model>(
   changeSet: CollectionChangeSet<Record>,
   matcher: Matcher<Record>,
   mutableMatchingRecords: Record[],

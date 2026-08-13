@@ -1,32 +1,32 @@
-// @flow
-
 import identicalArrays from '../../utils/fp/identicalArrays'
 import { type Unsubscribe } from '../../utils/subscriptions'
+import type { ArrayDiff } from '../../utils/fp/arrayDifference'
 
 import { type Value } from '../../QueryDescription'
 import { type ColumnName } from '../../Schema'
 import type Query from '../../Query'
 import type { CollectionChangeSet } from '../../Collection'
 
-import type Model, { RecordId } from '../../Model'
+import type Model from '../../Model'
+import type { RecordId } from '../../Model'
 import subscribeToSimpleQuery from '../subscribeToSimpleQuery'
 import subscribeToQueryReloading from '../subscribeToQueryReloading'
 import canEncodeMatcher from '../encodeMatcher/canEncode'
 
 type RecordState = Value[]
 
-const getRecordState: (Model, ColumnName[]) => RecordState = (record, columnNames) => {
-  const state = []
+const getRecordState = (record: Model, columnNames: ColumnName[]): RecordState => {
+  const state: Value[] = []
   const raw = record._raw
   for (let i = 0, len = columnNames.length; i < len; i++) {
-    // $FlowFixMe
-    state.push(raw[columnNames[i]])
+    state.push(raw[columnNames[i]] as Value)
   }
   return state
 }
 
 // Invariant: same length and order of keys!
-const recordStatesEqual: (left: RecordState, right: RecordState) => boolean = identicalArrays
+const recordStatesEqual = (left: RecordState, right: RecordState): boolean =>
+  identicalArrays(left, right)
 
 // Observes the given observable list of records, and in those records,
 // changes to given `rawFields`
@@ -40,10 +40,10 @@ const recordStatesEqual: (left: RecordState, right: RecordState) => boolean = id
 //   re-deriving the same thing. For reloadingObserver, a Rx adapter could be fitted
 // - multiple levels of array copying could probably be omitted
 
-export default function subscribeToQueryWithColumns<Record: Model>(
+export default function subscribeToQueryWithColumns<Record extends Model>(
   query: Query<Record>,
   columnNames: ColumnName[],
-  subscriber: (Record[]) => void,
+  subscriber: (records: Record[]) => void,
 ): Unsubscribe {
   // State kept for comparison between emissions
   let unsubscribed = false
@@ -53,7 +53,7 @@ export default function subscribeToQueryWithColumns<Record: Model>(
   let observedRecords: Record[] = []
   const recordStates = new Map<RecordId, RecordState>()
 
-  const emitCopy = (records: Array<Record>) => {
+  const emitCopy = (records: Record[]) => {
     !unsubscribed && subscriber(records.slice(0))
   }
 
@@ -80,10 +80,12 @@ export default function subscribeToQueryWithColumns<Record: Model>(
   // on the other, it would be good to have source provided as Observable, not Query
   // so that we can reuse cached responses -- but they don't have compatible format
   const canUseSimpleObservation = canEncodeMatcher(query.description)
-  const subscribeToSource = canUseSimpleObservation
-    ? (observer: (recordsOrStatus: Array<Record>) => void) =>
-        subscribeToSimpleQuery(query, observer, true)
-    : (observer) => subscribeToQueryReloading(query, observer, true)
+  const subscribeToSource = (
+    observer: (recordsOrStatus: Record[] | false) => void,
+  ): Unsubscribe =>
+    canUseSimpleObservation
+      ? subscribeToSimpleQuery(query, observer as (records: Record[]) => void, true)
+      : subscribeToQueryReloading(query, observer as (records: Record[]) => void, true)
   const asyncSource = !canUseSimpleObservation
 
   // Observe changes to records we have on the list
@@ -129,7 +131,6 @@ export default function subscribeToQueryWithColumns<Record: Model>(
   const sourceUnsubscribe = subscribeToSource(function observeWithColumnsSourceChanged(
     recordsOrStatus,
   ): void {
-    // $FlowFixMe
     if (recordsOrStatus === false) {
       sourceIsFetching = true
       return
@@ -145,7 +146,11 @@ export default function subscribeToQueryWithColumns<Record: Model>(
     firstEmission = false
 
     // Find changes, and save current list for comparison on next emission
-    const arrayDifference = require('../../utils/fp/arrayDifference').default
+    const arrayDifference = (
+      require('../../utils/fp/arrayDifference') as {
+        default: <T>(previousList: T[], nextList: T[]) => ArrayDiff<T>
+      }
+    ).default
     const { added, removed } = arrayDifference(observedRecords, records)
     observedRecords = records
 

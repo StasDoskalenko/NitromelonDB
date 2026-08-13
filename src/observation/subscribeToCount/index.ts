@@ -1,5 +1,3 @@
-// @flow
-
 import { Observable, switchMap, distinctUntilChanged, throttleTime } from '../../utils/rx'
 import { logError } from '../../utils/common'
 import { toPromise } from '../../utils/fp/Result'
@@ -20,19 +18,19 @@ export function experimentalDisableObserveCountThrottling(): void {
 // TODO: Potential optimizations:
 // - increment/decrement counter using matchers on insert/delete
 
-function observeCountThrottled<Record: Model>(query: Query<Record>): Observable<number> {
+function observeCountThrottled<Record extends Model>(query: Query<Record>): Observable<number> {
   const { collection } = query
   return collection.database.withChangesForTables(query.allTables).pipe(
     throttleTime(250), // Note: this has a bug, but we'll delete it anyway
-    switchMap(() => toPromise((callback) => collection._fetchCount(query, callback))),
+    switchMap(() => toPromise<number>((callback) => collection._fetchCount(query, callback))),
     distinctUntilChanged(),
   )
 }
 
-export default function subscribeToCount<Record: Model>(
+export default function subscribeToCount<Record extends Model>(
   query: Query<Record>,
   isThrottled: boolean,
-  subscriber: (number) => void,
+  subscriber: (count: number) => void,
 ): Unsubscribe {
   if (isThrottled && !isThrottlingDisabled) {
     const observable = observeCountThrottled(query)
