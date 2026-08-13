@@ -1,5 +1,6 @@
-import invariant from "../../common/invariant";
-import type { TableName, ColumnName } from "../../../Schema";
+import invariant from '../../common/invariant'
+import type { ColumnName, TableName } from '../../../Schema'
+import type Model from '../../../Model'
 // Asserts that `name` (table or column name) should be safe for inclusion in SQL queries
 // and Loki queries (JS objects)
 //
@@ -20,7 +21,7 @@ import type { TableName, ColumnName } from "../../../Schema";
 // Note that this doesn't throw for Watermelon builtins (id, _changed, _status...)
 const safeNameCharacters = /^[a-zA-Z_]\w*$/;
 const knownSafeNames: Set<string> = new Set();
-export default function checkName<T extends string | TableName<any> | ColumnName>(name: T): T {
+export default function checkName<T extends string | TableName<Model> | ColumnName>(name: T): T {
   if (knownSafeNames.has((name as string))) {
     return name;
   }

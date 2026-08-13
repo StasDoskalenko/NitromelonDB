@@ -1,32 +1,31 @@
 /* eslint-disable no-console */
-const formatMessages = (messages: Array<any>) => {
-  const [first, ...other] = messages;
-  return [typeof first === 'string' ? `[🍉] ${first}` : first, ...other];
-};
+const formatMessages = (messages: unknown[]): unknown[] => {
+  const [first, ...other] = messages
+  return [typeof first === 'string' ? `[🍉] ${first}` : first, ...other]
+}
 
 class Logger {
-  silent: boolean = false;
+  silent: boolean = false
 
-  debug(...messages: any[]): void {
-    !this.silent && console.debug(...formatMessages(messages));
+  debug(...messages: unknown[]): void {
+    !this.silent && console.debug(...formatMessages(messages))
   }
 
-  log(...messages: any[]): void {
-    !this.silent && console.log(...formatMessages(messages));
+  log(...messages: unknown[]): void {
+    !this.silent && console.log(...formatMessages(messages))
   }
 
-  warn(...messages: any[]): void {
-    !this.silent && console.warn(...formatMessages(messages));
+  warn(...messages: unknown[]): void {
+    !this.silent && console.warn(...formatMessages(messages))
   }
 
-  error(...messages: any[]): void {
-    !this.silent && console.error(...formatMessages(messages));
+  error(...messages: unknown[]): void {
+    !this.silent && console.error(...formatMessages(messages))
   }
 
   silence(): void {
-    this.silent = true;
+    this.silent = true
   }
-
 }
 
-export default (new Logger() as Logger);
+export default new Logger()

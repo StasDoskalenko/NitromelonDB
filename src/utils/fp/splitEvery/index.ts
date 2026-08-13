@@ -1,5 +1,5 @@
 export default function splitEvery<T>(n: number, list: T[]): T[][] {
-  const splitted = [];
+  const splitted: T[][] = [];
   let position = 0;
   const {
     length

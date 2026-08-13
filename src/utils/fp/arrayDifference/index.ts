@@ -6,8 +6,8 @@ export type ArrayDiff<T> = {
 const arrayDifference = <A, T extends A>(previousList: T[], nextList: T[]): ArrayDiff<T> => {
   const previous = new Set(previousList);
   const next = new Set(nextList);
-  const added = [];
-  const removed = [];
+  const added: T[] = [];
+  const removed: T[] = [];
   let item;
 
   for (let i = 0, len = previousList.length; i < len; i++) {

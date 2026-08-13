@@ -2,7 +2,7 @@ declare const global: typeof globalThis & {
   nativePerformanceNow?: () => number
 }
 
-declare function require(name: string): any
+declare function require(name: string): unknown
 
 declare const process: {
   env: {

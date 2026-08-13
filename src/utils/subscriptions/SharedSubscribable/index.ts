@@ -12,25 +12,24 @@ import invariant from '../../common/invariant'
 // - Upon subscription, the subscriber receives last value sent by source (if any)
 
 type Subscriber<T> = (value: T) => void
-type SubscriberEntry<T> = [Subscriber<T>, any]
+type SubscriberEntry<T> = [Subscriber<T>, unknown]
 
 export default class SharedSubscribable<T> {
   _source: (subscriber: Subscriber<T>) => Unsubscribe
   _unsubscribeSource: Unsubscribe | null | undefined = null
   _subscribers: SubscriberEntry<T>[] = []
-  _didEmit: boolean = false
-  _lastValue: T = null as any
+  _lastEmission: { value: T } | null = null
 
   constructor(source: (subscriber: Subscriber<T>) => Unsubscribe) {
     this._source = source
   }
 
-  subscribe(subscriber: Subscriber<T>, debugInfo?: any): Unsubscribe {
+  subscribe(subscriber: Subscriber<T>, debugInfo?: unknown): Unsubscribe {
     const entry: SubscriberEntry<T> = [subscriber, debugInfo]
     this._subscribers.push(entry)
 
-    if (this._didEmit) {
-      subscriber(this._lastValue)
+    if (this._lastEmission) {
+      subscriber(this._lastEmission.value)
     }
 
     if (this._subscribers.length === 1) {
@@ -46,8 +45,7 @@ export default class SharedSubscribable<T> {
       this._subscribers.length,
       `SharedSubscribable's source emitted a value after it was unsubscribed from`,
     )
-    this._didEmit = true
-    this._lastValue = value
+    this._lastEmission = { value }
     this._subscribers.forEach(([subscriber]) => {
       subscriber(value)
     })
@@ -60,7 +58,7 @@ export default class SharedSubscribable<T> {
     if (!this._subscribers.length) {
       const unsubscribe = this._unsubscribeSource
       this._unsubscribeSource = null
-      this._didEmit = false
+      this._lastEmission = null
       unsubscribe && unsubscribe()
     }
   }

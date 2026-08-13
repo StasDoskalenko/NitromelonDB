@@ -16,7 +16,7 @@ export default function areRecordsEqual<T extends {}>(left: T, right: T): boolea
   for (let i = 0; i < leftKeysLen; i++) {
     key = leftKeys[i];
 
-    if (left[key] !== right[key]) {
+    if ((left as Record<string, unknown>)[key] !== (right as Record<string, unknown>)[key]) {
       return false;
     }
   }
