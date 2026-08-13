@@ -12,14 +12,14 @@ import com.nozbe.watermelondb.jsi.WatermelonDBJSIPackage
 class MainApplication : Application(), ReactApplication {
 
     override val reactHost: ReactHost by lazy {
+        val packages = PackageList(this).packages.apply {
+            add(NativeModulesPackage())
+            add(WatermelonDBPackage())
+            add(WatermelonDBJSIPackage())
+        }
         getDefaultReactHost(
             context = applicationContext,
-            packageList =
-                PackageList(this).packages.apply {
-                    add(NativeModulesPackage())
-                    add(WatermelonDBPackage())
-                    add(WatermelonDBJSIPackage())
-                },
+            packageList = packages,
             jsMainModulePath = "src/index.integrationTests.native",
         )
     }
