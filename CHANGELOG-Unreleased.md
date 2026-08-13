@@ -10,6 +10,8 @@
 
 ### New features
 
+- [Electron] Added `RemoteAdapter` so SQLite can run in Electron's main process over IPC (or any serializable transport). Cherry-picked from [Nozbe/WatermelonDB#1859](https://github.com/Nozbe/WatermelonDB/pull/1859) by [@feznyng](https://github.com/feznyng)
+
 ### Fixes
 
 - [LokiJS] Multitab sync issue fix
