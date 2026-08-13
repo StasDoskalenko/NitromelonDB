@@ -23,8 +23,9 @@
 
 ### Changes
 
-- Started migrating the JS source from Flow + hand-written `.d.ts` to TypeScript. `src/utils` is now TypeScript and is typechecked with `yarn typecheck` (`noImplicitAny`, no explicit `any`). Flow and tslint are no longer part of `ci:check`.
+- Started migrating the JS source from Flow + hand-written `.d.ts` to TypeScript. `src/utils`, `src/types`, `src/Schema`, `src/RawRecord`, and `src/QueryDescription` are now TypeScript and are typechecked with `yarn typecheck` (`noImplicitAny`, no explicit `any`). Flow and tslint are no longer part of `ci:check`.
 - Metro now strips TypeScript (not Flow) for `.ts` sources, and `yarn test:metro-transform` guards that path in CI.
+- ESLint now lints implementation `.ts` files (`@typescript-eslint/no-explicit-any`) instead of ignoring all TypeScript.
 
 - Updated better-sqlite3 to 13.0.3
 - Support for React Native 0.87 and React 19

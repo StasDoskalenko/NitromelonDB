@@ -1,38 +1,44 @@
-// @flow
 /* eslint-disable no-lonely-if */
 /* eslint-disable no-self-compare */
 
-import { type ColumnName, type ColumnSchema, type TableSchema } from '../Schema'
-import { type RecordId, type SyncStatus } from '../Model'
+import type { ColumnName, ColumnSchema, TableSchema } from '../Schema'
+import type { RecordId, SyncStatus } from '../Model'
 
 import randomId from '../utils/common/randomId'
 
 // Raw object representing a model record, coming from an untrusted source
 // (disk, sync, user data). Before it can be used to create a Model instance
 // it must be sanitized (with `sanitizedRaw`) into a RawRecord
-export type DirtyRaw = Object
+export type DirtyRaw = { [key: string]: unknown }
+
+export type ColumnValue = string | number | boolean | null
 
 // These fields are ALWAYS present in records of any collection.
-type _RawRecord = {
-  id: RecordId,
-  _status: SyncStatus,
-  _changed: string,
+type StandardRawFields = {
+  id: RecordId
+  _status: SyncStatus
+  _changed: string
 }
 
 // Raw object representing a model record. A RawRecord is guaranteed by the type system
-// to be safe to use (sanitied with `sanitizedRaw`):
+// to be safe to use (sanitized with `sanitizedRaw`):
 // - it has exactly the fields described by TableSchema (+ standard fields)
 // - every field is exactly the type described by ColumnSchema (string, number, or boolean)
 // - … and the same optionality (will not be null unless isOptional: true)
-export opaque type RawRecord: _RawRecord = _RawRecord
+export type RawRecord = StandardRawFields & { [column: string]: ColumnValue | undefined }
 
 // a number, but not NaN (NaN !== NaN) or Infinity
-function isValidNumber(value: any): boolean {
+function isValidNumber(value: unknown): value is number {
   return typeof value === 'number' && value === value && value !== Infinity && value !== -Infinity
 }
 
 // Note: This is performance-critical code
-function _setRaw(raw: Object, key: string, value: any, columnSchema: ColumnSchema): void {
+function _setRaw(
+  raw: { [key: string]: ColumnValue | undefined },
+  key: string,
+  value: unknown,
+  columnSchema: ColumnSchema,
+): void {
   const { type, isOptional } = columnSchema
 
   // If the value is wrong type or invalid, it's set to `null` (if optional) or empty value ('', 0, false)
@@ -62,7 +68,7 @@ function _setRaw(raw: Object, key: string, value: any, columnSchema: ColumnSchem
   }
 }
 
-function isValidStatus(value: any): boolean {
+function isValidStatus(value: unknown): value is SyncStatus {
   return value === 'created' || value === 'updated' || value === 'deleted' || value === 'synced'
 }
 
@@ -75,9 +81,11 @@ export function sanitizedRaw(dirtyRaw: DirtyRaw, tableSchema: TableSchema): RawR
   // Also: If an existing has one of those fields broken, we're screwed. Safest to treat it as a
   // new record (so that it gets synced)
 
-  // TODO: Think about whether prototypeless objects are a useful mitigation
-  // const raw = Object.create(null) // create a prototypeless object
-  const raw: $Shape<RawRecord> = {}
+  const raw: RawRecord = {
+    id: '',
+    _status: 'created',
+    _changed: '',
+  }
 
   if (typeof id === 'string') {
     // TODO: Can we trust IDs passed? Maybe we want to split this implementation, depending on whether
@@ -95,14 +103,12 @@ export function sanitizedRaw(dirtyRaw: DirtyRaw, tableSchema: TableSchema): RawR
   const columns = tableSchema.columnArray
   for (let i = 0, len = columns.length; i < len; i += 1) {
     const columnSchema = columns[i]
-    const key = (columnSchema.name: string)
-    // TODO: Check performance
-    // $FlowFixMe
+    const key = columnSchema.name
     const value = Object.prototype.hasOwnProperty.call(dirtyRaw, key) ? dirtyRaw[key] : null
     _setRaw(raw, key, value, columnSchema)
   }
 
-  return (raw: any)
+  return raw
 }
 
 // Modifies passed rawRecord by setting sanitized `value` to `columnName`
@@ -110,7 +116,7 @@ export function sanitizedRaw(dirtyRaw: DirtyRaw, tableSchema: TableSchema): RawR
 export function setRawSanitized(
   rawRecord: RawRecord,
   columnName: ColumnName,
-  value: any,
+  value: unknown,
   columnSchema: ColumnSchema,
 ): void {
   _setRaw(rawRecord, columnName, value, columnSchema)

@@ -1,20 +1,17 @@
-// @flow
-
 // NOTE: Only require files needed (critical path on web)
 import invariant from '../utils/common/invariant'
-import type { $RE } from '../types'
 
 import type Model from '../Model'
 
 /**
  * String that signifies a database table name (mapping to WatermelonDB Models)
  */
-export opaque type TableName<+T: Model>: string = string
+export type TableName<_T extends Model = Model> = string
 
 /**
  * String that signifies a database column name (mapping to WatermelonDB fields)
  */
-export opaque type ColumnName: string = string
+export type ColumnName = string
 
 /**
  * Type of a column
@@ -24,51 +21,51 @@ export type ColumnType = 'string' | 'number' | 'boolean'
 /**
  * Definition of a table column
  */
-export type ColumnSchema = $RE<{
-  name: ColumnName,
-  type: ColumnType,
-  isOptional?: boolean,
-  isIndexed?: boolean,
+export type ColumnSchema = Readonly<{
+  name: ColumnName
+  type: ColumnType
+  isOptional?: boolean
+  isIndexed?: boolean
 }>
 
 export type ColumnMap = { [name: ColumnName]: ColumnSchema }
 
-export type TableSchemaSpec = $Exact<{
-  name: TableName<any>,
-  columns: ColumnSchema[],
-  unsafeSql?: (string) => string,
-}>
+export type TableSchemaSpec = {
+  name: TableName
+  columns: ColumnSchema[]
+  unsafeSql?: (sql: string) => string
+}
 
-export type TableSchema = $RE<{
-  name: TableName<any>,
+export type TableSchema = Readonly<{
+  name: TableName
   // depending on operation, it's faster to use map or array
-  columns: ColumnMap,
-  columnArray: ColumnSchema[],
-  unsafeSql?: (string) => string,
+  columns: ColumnMap
+  columnArray: ColumnSchema[]
+  unsafeSql?: (sql: string) => string
 }>
 
-type TableMap = { [name: TableName<any>]: TableSchema }
+export type TableMap = { [name: TableName]: TableSchema }
 
 export type SchemaVersion = number
 
 export type AppSchemaUnsafeSqlKind = 'setup' | 'create_indices' | 'drop_indices'
 
-export type AppSchemaSpec = $Exact<{
-  version: number,
-  tables: TableSchema[],
-  unsafeSql?: (string, AppSchemaUnsafeSqlKind) => string,
-}>
+export type AppSchemaSpec = {
+  version: number
+  tables: TableSchema[]
+  unsafeSql?: (sql: string, kind: AppSchemaUnsafeSqlKind) => string
+}
 
-export type AppSchema = $RE<{
-  version: SchemaVersion,
-  tables: TableMap,
-  unsafeSql?: (string, AppSchemaUnsafeSqlKind) => string,
+export type AppSchema = Readonly<{
+  version: SchemaVersion
+  tables: TableMap
+  unsafeSql?: (sql: string, kind: AppSchemaUnsafeSqlKind) => string
 }>
 
 /**
  * Creates a typed TableName
  */
-export function tableName<T: Model>(name: string): TableName<T> {
+export function tableName<T extends Model>(name: string): TableName<T> {
   return name
 }
 
@@ -86,7 +83,7 @@ export function appSchema({ version, tables: tableList, unsafeSql }: AppSchemaSp
   if (process.env.NODE_ENV !== 'production') {
     invariant(version > 0, `Schema version must be greater than 0`)
   }
-  const tables: TableMap = tableList.reduce<{ [TableName<any>]: TableSchema }>((map, table) => {
+  const tables: TableMap = tableList.reduce<TableMap>((map, table) => {
     if (process.env.NODE_ENV !== 'production') {
       invariant(typeof table === 'object' && table.name, `Table schema must contain a name`)
     }
@@ -104,7 +101,9 @@ const validateName = (name: string) => {
       !['id', '_changed', '_status', 'local_storage'].includes(name.toLowerCase()),
       `Invalid column or table name '${name}' - reserved by WatermelonDB`,
     )
-    const checkName = require('../utils/fp/checkName').default
+    const checkName = (
+      require('../utils/fp/checkName') as { default: (value: string) => string }
+    ).default
     checkName(name)
   }
 }
@@ -135,17 +134,13 @@ export function validateColumnSchema(column: ColumnSchema): void {
 /**
  * Creates a typed TableSchema
  */
-export function tableSchema({
-  name,
-  columns: columnArray,
-  unsafeSql,
-}: TableSchemaSpec): TableSchema {
+export function tableSchema({ name, columns: columnArray, unsafeSql }: TableSchemaSpec): TableSchema {
   if (process.env.NODE_ENV !== 'production') {
     invariant(name, `Missing table name in schema`)
     validateName(name)
   }
 
-  const columns: ColumnMap = columnArray.reduce<{ [ColumnName]: ColumnSchema }>((map, column) => {
+  const columns: ColumnMap = columnArray.reduce<ColumnMap>((map, column) => {
     if (process.env.NODE_ENV !== 'production') {
       validateColumnSchema(column)
     }

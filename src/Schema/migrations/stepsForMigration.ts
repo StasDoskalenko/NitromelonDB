@@ -1,19 +1,17 @@
-// @flow
-
 import { unnest } from '../../utils/fp'
 
-import { type SchemaMigrations, type MigrationStep } from './index'
-import { type SchemaVersion } from '../index'
+import type { SchemaMigrations, MigrationStep } from './index'
+import type { SchemaVersion } from '../index'
 
 export function stepsForMigration({
   migrations: schemaMigrations,
   fromVersion,
   toVersion,
-}: $Exact<{
-  migrations: SchemaMigrations,
-  fromVersion: SchemaVersion,
-  toVersion: SchemaVersion,
-}>): ?(MigrationStep[]) {
+}: {
+  migrations: SchemaMigrations
+  fromVersion: SchemaVersion
+  toVersion: SchemaVersion
+}): MigrationStep[] | null {
   const { sortedMigrations, minVersion, maxVersion } = schemaMigrations
 
   // see if migrations in this range are available
@@ -26,6 +24,5 @@ export function stepsForMigration({
     ({ toVersion: version }) => version > fromVersion && version <= toVersion,
   )
 
-  const allSteps = unnest(matchingMigrations.map((migration) => migration.steps))
-  return allSteps
+  return unnest(matchingMigrations.map((migration) => migration.steps))
 }
