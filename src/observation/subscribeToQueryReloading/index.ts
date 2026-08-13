@@ -1,5 +1,3 @@
-// @flow
-
 import { logError } from '../../utils/common'
 import identicalArrays from '../../utils/fp/identicalArrays'
 import { type Unsubscribe } from '../../utils/subscriptions'
@@ -11,20 +9,21 @@ import type Model from '../../Model'
 // when any change occurs in any of the relevant Stores.
 // This is inefficient for simple queries, but necessary for complex queries
 
-export default function subscribeToQueryReloading<Record: Model>(
+export default function subscribeToQueryReloading<Record extends Model>(
   query: Query<Record>,
-  subscriber: (Record[]) => void,
+  subscriber: (records: Record[]) => void,
   // Emits `false` when query fetch begins + always emits even if no change - internal trick needed
   // by observeWithColumns
   shouldEmitStatus: boolean = false,
 ): Unsubscribe {
   const { collection } = query
-  let previousRecords: ?(Record[]) = null
+  let previousRecords: Record[] | null = null
   let unsubscribed = false
+  const emit = subscriber as (records: Record[] | false) => void
 
   function reloadingObserverFetch(): void {
     if (shouldEmitStatus) {
-      !unsubscribed && subscriber((false: any))
+      !unsubscribed && emit(false)
     }
 
     collection._fetchQuery(query, (result) => {
@@ -38,7 +37,7 @@ export default function subscribeToQueryReloading<Record: Model>(
         !unsubscribed &&
         (shouldEmitStatus || !previousRecords || !identicalArrays(records, previousRecords))
       previousRecords = records
-      shouldEmit && subscriber(records)
+      shouldEmit && emit(records)
     })
   }
 
