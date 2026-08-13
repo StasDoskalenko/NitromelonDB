@@ -30,13 +30,18 @@ Pod::Spec.new do |s|
   # simdjson is annoyingly slow without compiler optimization, disable for debugging
   s.compiler_flags = '-Os'
 
-  s.dependency "React"
-
   s.libraries = 'sqlite3'
 
-  # NOTE: This dependency doesn't seem to be needed anymore (tested on RN 0.66, 0.71), file an issue
-  # if this causes issues for you
-  # s.dependency "React-jsi"
+  s.dependency "React-Core"
+  s.dependency "React-jsi"
+
+  # New Architecture / JSI (RCTTurboModuleWithJSIBindings). Available when the app
+  # Podfile has loaded react_native_pods.rb (standard RN 0.71+ apps).
+  if respond_to?(:install_modules_dependencies, true)
+    install_modules_dependencies(s)
+  else
+    s.dependency "React"
+  end
 
   # NOTE: NPM-vendored @nozbe/simdjson must be used, not the CocoaPods version
   s.dependency "simdjson"

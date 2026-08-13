@@ -1,46 +1,48 @@
 {
   "name": "React-jsinspector",
-  "version": "0.74.6",
-  "summary": "-",
+  "version": "0.87.0",
+  "summary": "React Native subsystem for modern debugging over the Chrome DevTools Protocol (CDP)",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
   "authors": "Meta Platforms, Inc. and its affiliates",
   "platforms": {
-    "ios": "13.4"
+    "ios": "15.1"
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.74.6"
+    "tag": "v0.87.0"
   },
-  "source_files": "*.{cpp,h}",
+  "source_files": "*.h",
   "header_dir": "jsinspector-modern",
-  "compiler_flags": "-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -DFOLLY_CFG_NO_COROUTINES=1 -DFOLLY_HAVE_CLOCK_GETTIME=1 -Wno-comma -Wno-shorten-64-to-32",
   "pod_target_xcconfig": {
-    "HEADER_SEARCH_PATHS": "\"$(PODS_TARGET_SRCROOT)/..\" \"$(PODS_ROOT)/boost\" \"$(PODS_ROOT)/RCT-Folly\" \"$(PODS_ROOT)/DoubleConversion\" \"$(PODS_ROOT)/fmt/include\"",
+    "HEADER_SEARCH_PATHS": [
+      "${PODS_ROOT}/React-oscompat",
+      "${PODS_ROOT}/React-runtimeexecutor",
+      "${PODS_ROOT}/React-runtimeexecutor/platform/ios",
+      "${PODS_ROOT}/React-jsinspectorcdp",
+      "${PODS_ROOT}/React-jsinspectornetwork",
+      "${PODS_ROOT}/React-jsinspectortracing",
+      "${PODS_ROOT}/React-utils",
+      "${PODS_ROOT}/React-utils/react/utils/platform/ios",
+      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
+    ],
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
     "DEFINES_MODULE": "YES"
   },
   "dependencies": {
-    "glog": [
-
+    "React-oscompat": [],
+    "React-featureflags": [],
+    "React-runtimeexecutor": [],
+    "React-jsi": [],
+    "React-jsinspectorcdp": [],
+    "React-jsinspectornetwork": [],
+    "React-jsinspectortracing": [],
+    "React-perflogger": [
+      "0.87.0"
     ],
-    "RCT-Folly": [
-      "2024.01.01.00"
-    ],
-    "React-featureflags": [
-
-    ],
-    "DoubleConversion": [
-
-    ],
-    "React-runtimeexecutor": [
-      "0.74.6"
-    ],
-    "React-jsi": [
-
-    ],
-    "hermes-engine": [
-
-    ]
+    "React-utils": [],
+    "hermes-engine": [],
+    "ReactNativeDependencies": [],
+    "React-Core-prebuilt": []
   }
 }

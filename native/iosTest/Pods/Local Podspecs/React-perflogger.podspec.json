@@ -1,20 +1,31 @@
 {
   "name": "React-perflogger",
-  "version": "0.74.6",
+  "version": "0.87.0",
   "summary": "-",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
   "authors": "Meta Platforms, Inc. and its affiliates",
   "platforms": {
-    "ios": "13.4"
+    "ios": "15.1"
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.74.6"
+    "tag": "v0.87.0"
   },
-  "source_files": "**/*.{cpp,h}",
+  "source_files": [
+    "reactperflogger/*.h",
+    "fusebox/*.h"
+  ],
   "header_dir": "reactperflogger",
   "pod_target_xcconfig": {
-    "CLANG_CXX_LANGUAGE_STANDARD": "c++20"
+    "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
+    "HEADER_SEARCH_PATHS": [
+      "$(PODS_TARGET_SRCROOT)/..",
+      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
+    ]
+  },
+  "dependencies": {
+    "ReactNativeDependencies": [],
+    "React-Core-prebuilt": []
   }
 }

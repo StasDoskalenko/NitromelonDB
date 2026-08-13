@@ -22,6 +22,7 @@
 
 - Updated better-sqlite3 to 13.0.3
 - Support for React Native 0.87 and React 19
+- [iOS] Install JSI bindings via `RCTTurboModuleWithJSIBindings` (bridgeless / New Architecture). `RCTCxxBridge` is no longer used.
 
 ### Internal
 
@@ -31,3 +32,4 @@
 - [CI] Run iOS tests on macOS 26 / latest stable Xcode / iPhone 17 (iOS 26)
 - [CI] Android tests use JDK 21
 - [CI] Use latest CocoaPods (1.17) without the old 1.15 / xcodeproj / ethon pins
+- Bundle React Native 0.87 with its own Babel preset (Flow parser cannot parse RN's TypeScript-in-JS)

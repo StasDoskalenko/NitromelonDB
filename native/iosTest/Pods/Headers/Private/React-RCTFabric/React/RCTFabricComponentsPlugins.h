@@ -1,1 +1,1 @@
-../../../../../../../node_modules/react-native/React/Fabric/Mounting/ComponentViews/RCTFabricComponentsPlugins.h
+../../../../../build/rncore-facades/React-RCTFabric/RCTFabricComponentsPlugins.h
