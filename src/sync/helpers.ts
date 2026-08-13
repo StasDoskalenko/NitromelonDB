@@ -1,5 +1,3 @@
-// @flow
-
 import type { ColumnName } from '..'
 import type { RawRecord } from '../RawRecord'
 

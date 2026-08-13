@@ -1,5 +1,3 @@
-// @flow
-
 import { invariant } from '../../utils/common'
 
 import {
@@ -12,7 +10,21 @@ import {
   getMigrationInfo,
 } from './index'
 import { ensureSameDatabase, isChangeSetEmpty, changeSetCount } from './helpers'
-import type { SyncArgs, Timestamp, SyncPullStrategy } from '../index'
+import type { SyncArgs, Timestamp, SyncPullStrategy, SyncPullResult } from '../index'
+
+function isChangesResult(
+  result: SyncPullResult,
+): result is Extract<SyncPullResult, { changes: unknown; timestamp: Timestamp }> {
+  return 'changes' in result
+}
+
+function isTurboJsonResult(result: SyncPullResult): result is { syncJson: string } {
+  return 'syncJson' in result
+}
+
+function isTurboJsonIdResult(result: SyncPullResult): result is { syncJsonId: number } {
+  return 'syncJsonId' in result
+}
 
 export default async function synchronize({
   database,
@@ -45,7 +57,6 @@ export default async function synchronize({
   )
   log && (log.phase = 'ready to pull')
 
-  // $FlowFixMe
   const pullResult = await pullChanges({
     lastPulledAt,
     schemaVersion,
@@ -53,8 +64,10 @@ export default async function synchronize({
   })
   log && (log.phase = 'pulled')
 
-  let newLastPulledAt: Timestamp = (pullResult: any).timestamp
-  const remoteChangeCount = pullResult.changes ? changeSetCount(pullResult.changes) : NaN
+  let newLastPulledAt: Timestamp | undefined = isChangesResult(pullResult)
+    ? pullResult.timestamp
+    : undefined
+  const remoteChangeCount = isChangesResult(pullResult) ? changeSetCount(pullResult.changes) : NaN
 
   if (onWillApplyRemoteChanges) {
     await onWillApplyRemoteChanges({ remoteChangeCount })
@@ -73,18 +86,23 @@ export default async function synchronize({
         'unsafeTurbo must not be used with _unsafeBatchPerCollection',
       )
       invariant(
-        'syncJson' in pullResult || 'syncJsonId' in pullResult,
+        isTurboJsonResult(pullResult) || isTurboJsonIdResult(pullResult),
         'missing syncJson/syncJsonId',
       )
       invariant(lastPulledAt === null, 'unsafeTurbo can only be used as the first sync')
 
-      const syncJsonId = pullResult.syncJsonId || Math.floor(Math.random() * 1000000000)
+      const syncJsonId = isTurboJsonIdResult(pullResult)
+        ? pullResult.syncJsonId
+        : Math.floor(Math.random() * 1000000000)
 
-      if (pullResult.syncJson) {
+      if (isTurboJsonResult(pullResult)) {
         await database.adapter.provideSyncJson(syncJsonId, pullResult.syncJson)
       }
 
-      const resultRest = await database.adapter.unsafeLoadFromSync(syncJsonId)
+      const resultRest = (await database.adapter.unsafeLoadFromSync(syncJsonId)) as {
+        timestamp?: Timestamp
+        [key: string]: unknown
+      }
       newLastPulledAt = resultRest.timestamp
       onDidPullChanges && onDidPullChanges(resultRest)
     }
@@ -92,17 +110,17 @@ export default async function synchronize({
     log && (log.newLastPulledAt = newLastPulledAt)
     invariant(
       typeof newLastPulledAt === 'number' && newLastPulledAt > 0,
-      `pullChanges() returned invalid timestamp ${newLastPulledAt}. timestamp must be a non-zero number`,
+      `pullChanges() returned invalid timestamp ${String(newLastPulledAt)}. timestamp must be a non-zero number`,
     )
 
     if (!unsafeTurbo) {
-      // $FlowFixMe
+      invariant(isChangesResult(pullResult), 'pullChanges() must return changes unless unsafeTurbo')
       const { changes: remoteChanges, ...resultRest } = pullResult
       log && (log.remoteChangeCount = remoteChangeCount)
-      // $FlowFixMe
+      const experimentalStrategy: SyncPullStrategy | undefined = pullResult.experimentalStrategy
       await applyRemoteChanges(remoteChanges, {
         db: database,
-        strategy: ((pullResult: any).experimentalStrategy: ?SyncPullStrategy),
+        strategy: experimentalStrategy,
         sendCreatedAsUpdated,
         log,
         conflictResolver,
@@ -131,7 +149,10 @@ export default async function synchronize({
     if (!isChangeSetEmpty(localChanges.changes)) {
       log && (log.phase = 'ready to push')
       const pushResult =
-        (await pushChanges({ changes: localChanges.changes, lastPulledAt: newLastPulledAt })) || {}
+        (await pushChanges({
+          changes: localChanges.changes,
+          lastPulledAt: newLastPulledAt as Timestamp,
+        })) || {}
       log && (log.phase = 'pushed')
       log && (log.rejectedIds = pushResult.experimentalRejectedIds)
 
