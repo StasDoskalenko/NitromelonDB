@@ -17,10 +17,14 @@ const config = {
     'plugin:jest/recommended',
   ],
   parser: '@babel/eslint-parser',
-  ignorePatterns: 'examples/typescript/**/*.ts',
+  ignorePatterns: ['examples/typescript/**/*.ts', 'node_modules/**'],
   settings: {
     flowtype: {
       onlyFilesWithFlowAnnotation: true,
+    },
+    'import/ignore': ['node_modules/react-native'],
+    react: {
+      version: 'detect',
     },
   },
   rules: {

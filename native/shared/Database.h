@@ -47,7 +47,7 @@ private:
     bool initialized_;
     bool isDestroyed_;
     std::mutex mutex_;
-    jsi::Runtime *runtime_; // TODO: std::shared_ptr would be better, but I don't know how to make it from void* in RCTCxxBridge
+    jsi::Runtime *runtime_; // TODO: std::shared_ptr would be better than a raw pointer from the JS runtime
     std::unique_ptr<SqliteDb> db_;
     std::unordered_map<std::string, sqlite3_stmt *> cachedStatements_; // NOTE: may contain null pointers!
     std::unordered_set<std::string> cachedRecords_;

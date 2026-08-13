@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import { ReactNode, JSX } from 'react'
 import Database from '../Database'
 
 export type Props = {

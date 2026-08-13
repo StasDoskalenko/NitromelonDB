@@ -1,14 +1,13 @@
+/**
+ * @jest-environment jsdom
+ */
+
 import React from 'react'
-import * as TestRenderer from 'react-test-renderer'
-import { renderHook } from '@testing-library/react-hooks'
+import { render, renderHook } from '@testing-library/react'
 import useDatabase from './useDatabase'
 import DatabaseProvider from './DatabaseProvider'
 import Database from '../Database'
 import { mockDatabase } from '../__tests__/testModels'
-
-// Note: this uses two testing libraries; react-test-renderer and @testing-library/react-hooks.
-// This is probably overkill for such a simple hook but I will leave these here in case more
-// hooks are added in the future.
 
 describe('useDatabase hook', () => {
   let database
@@ -25,9 +24,10 @@ describe('useDatabase hook', () => {
   test('should throw without Provider', () => {
     const Component = () => {
       useDatabase()
+      return null
     }
     expect(() => {
-      TestRenderer.create(<Component />)
+      render(<Component />)
     }).toThrow(
       /Could not find database context, please make sure the component is wrapped in the <DatabaseProvider>/i,
     )

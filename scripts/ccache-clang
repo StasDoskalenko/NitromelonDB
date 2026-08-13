@@ -28,9 +28,17 @@ done
 
 xcode_toolchain_dir="${xcode_toolchain_dir:?CCACHE_HACK_TOOLCHAIN_DIR not found. See ccache-clang for more details}"
 
-# (debug)
-# echo "and the toolchain is…"
-# echo "$xcode_toolchain_dir"
+# Xcode 26 can pass Metal.xctoolchain as TOOLCHAIN_DIR. That bundle has no clang,
+# which breaks CI with: execute_noreturn of .../Metal.xctoolchain/usr/bin/clang
+clang_bin="${xcode_toolchain_dir}/usr/bin/clang"
+if [ ! -x "$clang_bin" ]; then
+  default_toolchain="$(xcode-select -p 2>/dev/null)/Toolchains/XcodeDefault.xctoolchain"
+  if [ -x "${default_toolchain}/usr/bin/clang" ]; then
+    clang_bin="${default_toolchain}/usr/bin/clang"
+  else
+    clang_bin="$(xcrun --find clang 2>/dev/null || command -v clang)"
+  fi
+fi
 
 if type -p ccache >/dev/null 2>&1; then
   # (debug)
@@ -55,7 +63,7 @@ if type -p ccache >/dev/null 2>&1; then
   #   export CCACHE_PREFIX="distcc"
   # fi
 
-  exec ccache "$xcode_toolchain_dir/usr/bin/clang" "$@"
+  exec ccache "$clang_bin" "$@"
 else
-  exec clang "$@"
+  exec "$clang_bin" "$@"
 fi

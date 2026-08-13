@@ -1,65 +1,86 @@
 {
   "name": "React-CoreModules",
-  "version": "0.74.6",
+  "version": "0.87.0",
   "summary": "-",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
   "authors": "Meta Platforms, Inc. and its affiliates",
   "platforms": {
-    "ios": "13.4"
+    "ios": "15.1"
   },
-  "compiler_flags": "-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -DFOLLY_CFG_NO_COROUTINES=1 -DFOLLY_HAVE_CLOCK_GETTIME=1 -Wno-comma -Wno-shorten-64-to-32 -Wno-nullability-completeness",
+  "compiler_flags": "-Wno-nullability-completeness",
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.74.6"
+    "tag": "v0.87.0"
   },
-  "source_files": "**/*.{c,m,mm,cpp}",
+  "source_files": "**/*.h",
+  "ios": {
+    "exclude_files": "PlatformStubs/**/*"
+  },
+  "osx": {
+    "exclude_files": [
+      "RCTStatusBarManager.mm"
+    ]
+  },
+  "visionos": {
+    "exclude_files": [
+      "RCTStatusBarManager.mm"
+    ]
+  },
+  "tvos": {
+    "exclude_files": [
+      "RCTStatusBarManager.mm"
+    ]
+  },
   "header_dir": "CoreModules",
   "pod_target_xcconfig": {
     "USE_HEADERMAP": "YES",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
-    "HEADER_SEARCH_PATHS": "\"$(PODS_ROOT)/boost\" \"$(PODS_TARGET_SRCROOT)/React/CoreModules\" \"$(PODS_ROOT)/RCT-Folly\" \"$(PODS_ROOT)/DoubleConversion\" \"$(PODS_ROOT)/fmt/include\" \"${PODS_ROOT}/Headers/Public/React-Codegen/react/renderer/components\" \"${PODS_CONFIGURATION_BUILD_DIR}/React-jsinspector/jsinspector_modern.framework/Headers\" \"${PODS_CONFIGURATION_BUILD_DIR}/React-Codegen/React_Codegen.framework/Headers\" \"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon/ReactCommon.framework/Headers\" \"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon/ReactCommon.framework/Headers/react/nativemodule/core\" \"${PODS_CONFIGURATION_BUILD_DIR}/React-NativeModulesApple/React_NativeModulesApple.framework/Headers\""
+    "HEADER_SEARCH_PATHS": [
+      "$(PODS_TARGET_SRCROOT)/React/CoreModules",
+      "${PODS_ROOT}/Headers/Public/ReactCodegen/react/renderer/components",
+      "${PODS_ROOT}/React-featureflags",
+      "${PODS_ROOT}/React-debug",
+      "${PODS_ROOT}/React-runtimeexecutor",
+      "${PODS_ROOT}/React-runtimeexecutor/platform/ios",
+      "${PODS_ROOT}/React-jsinspector",
+      "${PODS_ROOT}/React-jsinspectorcdp",
+      "${PODS_ROOT}/React-jsinspectortracing",
+      "${PODS_ROOT}/React-RCTFBReactNativeSpec",
+      "${PODS_ROOT}/ReactCommon",
+      "${PODS_ROOT}/ReactCommon/react/nativemodule/core",
+      "${PODS_ROOT}/React-NativeModulesApple",
+      "${PODS_ROOT}/React-utils",
+      "${PODS_ROOT}/React-utils/react/utils/platform/ios",
+      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
+    ]
   },
   "frameworks": "UIKit",
   "dependencies": {
-    "DoubleConversion": [
-
-    ],
-    "fmt": [
-      "9.1.0"
-    ],
-    "RCT-Folly": [
-      "2024.01.01.00"
-    ],
     "RCTTypeSafety": [
-      "0.74.6"
+      "0.87.0"
     ],
     "React-Core/CoreModulesHeaders": [
-      "0.74.6"
+      "0.87.0"
     ],
     "React-RCTImage": [
-      "0.74.6"
+      "0.87.0"
     ],
     "React-jsi": [
-      "0.74.6"
+      "0.87.0"
     ],
-    "React-RCTBlob": [
-
-    ],
-    "SocketRocket": [
-      "0.7.0"
-    ],
-    "React-jsinspector": [
-
-    ],
-    "React-Codegen": [
-
-    ],
-    "ReactCommon": [
-
-    ],
-    "React-NativeModulesApple": [
-
-    ]
+    "React-featureflags": [],
+    "React-RCTBlob": [],
+    "React-debug": [],
+    "React-runtimeexecutor": [],
+    "React-jsinspector": [],
+    "React-jsinspectorcdp": [],
+    "React-jsinspectortracing": [],
+    "React-RCTFBReactNativeSpec": [],
+    "ReactCommon": [],
+    "React-NativeModulesApple": [],
+    "React-utils": [],
+    "ReactNativeDependencies": [],
+    "React-Core-prebuilt": []
   }
 }

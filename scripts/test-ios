@@ -3,4 +3,6 @@
 set -x
 set -e
 
-xcodebuild -workspace native/iosTest/WatermelonTester.xcworkspace -scheme 'WatermelonTester' -destination 'name=iPhone 16,OS=18.1' test
+# GitHub macos-26 runners ship Xcode 26.x with iPhone 17 / iOS 26 simulators.
+# OS=latest tracks the newest runtime installed for that device.
+xcodebuild -workspace native/iosTest/WatermelonTester.xcworkspace -scheme 'WatermelonTester' -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' test
