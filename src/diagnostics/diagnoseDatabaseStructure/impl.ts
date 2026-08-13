@@ -1,12 +1,41 @@
-// @flow
 /* eslint-disable no-continue */
 
 import forEachAsync from '../../utils/fp/forEachAsync'
-import type { Database } from '../..'
-import { columnName } from '../../Schema'
+import type Database from '../../Database'
+import type Collection from '../../Collection'
+import type Model from '../../Model'
+import { columnName, type TableName, type ColumnName } from '../../Schema'
 import * as Q from '../../QueryDescription'
+import type { BelongsToAssociation } from '../../Model'
 import censorRaw from '../censorRaw'
 import type { DiagnoseDatabaseStructureOptions, DatabaseStructureDiagnosis } from './index'
+
+type CollectionParent = {
+  name: string
+  parents: Array<[string, ColumnName]>
+}
+
+type LokiRecord = { $loki: number; [key: string]: unknown }
+
+type LokiUniqueIndex = {
+  lokiMap: Record<string, unknown>
+  keyMap: Record<string, LokiRecord | undefined>
+}
+
+type LokiCollection = {
+  name: string
+  idIndex?: number[] | undefined
+  data: LokiRecord[]
+  binaryIndices: Record<string, unknown>
+  uniqueNames: string[]
+  constraints: { unique: Record<string, LokiUniqueIndex | undefined> }
+  get: (lokiId: string) => LokiRecord | undefined
+  checkIndex: (key: string, options?: { repair?: boolean }) => boolean
+}
+
+type LokiDatabase = {
+  collections: LokiCollection[]
+}
 
 const pad = (text: string, len: number) => {
   const padding = Array(Math.max(0, len - text.length))
@@ -16,27 +45,23 @@ const pad = (text: string, len: number) => {
 }
 
 const yieldLog = () =>
-  new Promise((resolve) => {
+  new Promise<void>((resolve) => {
     setTimeout(resolve, 0)
   })
 
-const getCollections = (db: Database) =>
+const getCollections = (db: Database): CollectionParent[] =>
   Object.entries(db.collections.map).map(([table, collection]) => {
+    const { associations } = (collection as Collection<Model>).modelClass
+    const parents = Object.entries(associations)
+      .filter((entry): entry is [string, BelongsToAssociation] => entry[1].type === 'belongs_to')
+      .map(([parentTable, association]) => [parentTable, association.key] as [string, ColumnName])
     return {
       name: table,
-      // $FlowFixMe
-      parents: Object.entries(collection.modelClass.associations)
-        // $FlowFixMe
-        .filter(([, association]) => association.type === 'belongs_to')
-        // $FlowFixMe
-        .map(([parentTable, association]) => [parentTable, association.key]),
+      parents,
     }
   })
 
-const logCollections = (
-  log: (text?: string) => void,
-  collections: Array<$Exact<{ name: string, parents: Array<Array<any | string>> }>>,
-) => {
+const logCollections = (log: (text?: string) => void, collections: CollectionParent[]) => {
   collections.forEach(({ name, parents }) => {
     const parentsText = parents.length
       ? parents.map(([table, key]) => pad(`${table}(${key})`, 27)).join(', ')
@@ -47,38 +72,55 @@ const logCollections = (
   log()
 }
 
-const isUniqueIndexValid = (collection: any, key: string) => {
+const isUniqueIndexValid = (collection: LokiCollection, key: string) => {
   const index = collection.constraints.unique[key]
 
   if (!index) {
-    return { skip: true }
+    return { skip: true as const }
   }
 
   const lokiMap = Object.entries(index.lokiMap)
   // >= and undefined checks are needed because items are not removed from unique index, just made undefined
   const lokiMapValid =
     lokiMap.length >= collection.data.length &&
-    lokiMap.every(([lokiId, value]) => value === undefined || collection.get(lokiId)[key] === value)
+    lokiMap.every(([lokiId, value]) => {
+      const record = collection.get(lokiId)
+      return value === undefined || (record !== undefined && record[key] === value)
+    })
 
   const keyMap = Object.entries(index.keyMap)
   const keyMapValid =
     keyMap.length >= collection.data.length &&
-    keyMap.every(
-      ([value, record]) =>
-        record === undefined ||
-        // $FlowFixMe
-        (record[key] === value && collection.get(record.$loki) === record),
-    )
+    keyMap.every(([value, record]) => {
+      if (record === undefined) {
+        return true
+      }
+      return record[key] === value && collection.get(String(record.$loki)) === record
+    })
 
-  return { skip: false, lokiMapValid, keyMapValid }
+  return { skip: false as const, lokiMapValid, keyMapValid }
+}
+
+function getLokiDatabase(db: Database): LokiDatabase | undefined {
+  const adapter = db.adapter.underlyingAdapter as unknown as {
+    constructor: { adapterType?: string }
+    _driver?: { loki?: LokiDatabase }
+  }
+  if (adapter.constructor.adapterType !== 'loki') {
+    return undefined
+  }
+  return adapter._driver?.loki
 }
 
 async function verifyLokiIndices(db: Database, log: (text?: string) => void): Promise<number> {
   log('## Verify LokiJS indices')
   let issueCount = 0
 
-  // $FlowFixMe
-  const { loki } = db.adapter.underlyingAdapter._driver
+  const loki = getLokiDatabase(db)
+  if (!loki) {
+    return issueCount
+  }
+
   loki.collections.forEach((collection) => {
     const { name, idIndex, data, binaryIndices, uniqueNames } = collection
     log(`**Indices of \`${name}\`**`)
@@ -88,7 +130,7 @@ async function verifyLokiIndices(db: Database, log: (text?: string) => void): Pr
     if (idIndex) {
       if (
         idIndex.length === data.length &&
-        idIndex.every((lokiId, i) => data[i].$loki === lokiId)
+        idIndex.every((lokiId, i) => data[i]?.$loki === lokiId)
       ) {
         log('idIndex: ok')
       } else {
@@ -167,7 +209,7 @@ export default function diagnoseDatabaseStructure({
     log('# Database structure diagnostics')
     log()
 
-    if ((db.adapter.underlyingAdapter.constructor: any).adapterType === 'loki') {
+    if (getLokiDatabase(db)) {
       // eslint-disable-next-line require-atomic-updates
       totalIssueCount += await verifyLokiIndices(db, log)
     }
@@ -176,7 +218,6 @@ export default function diagnoseDatabaseStructure({
     log()
 
     const collections = getCollections(db)
-    // log(JSON.stringify(collections, null, 2))
     log('```')
     logCollections(log, collections)
     log('```')
@@ -193,66 +234,60 @@ export default function diagnoseDatabaseStructure({
       }
       await yieldLog()
 
-      const records = await db.collections
-        // $FlowFixMe
-        .get(name)
-        .query()
-        .fetch()
+      const records = await db.collections.get(name as TableName).query().fetch()
       log(`Found ${records.length} \`${name}\``)
       await yieldLog()
 
       let collectionOrphanCount = 0
 
       await forEachAsync(parents, async ([parentName, key]) => {
-        const expectedParentSet = new Set([])
+        const expectedParentSet = new Set<string>()
         records.forEach((record) => {
           const id = record._getRaw(key)
           if (
             id !== null &&
             !shouldSkipParent({
-              tableName: (name: any),
-              parentTableName: (parentName: any),
-              relationKey: (key: any),
+              tableName: name as TableName,
+              parentTableName: parentName as TableName,
+              relationKey: key,
               record: record._raw,
             })
           ) {
-            expectedParentSet.add(id)
+            expectedParentSet.add(String(id))
           }
         })
         const expectedParents = [...expectedParentSet]
         const parentsFound = await db.collections
-          // $FlowFixMe
-          .get(parentName)
-          // $FlowFixMe
+          .get(parentName as TableName)
           .query(Q.where(columnName('id'), Q.oneOf(expectedParents)))
           .fetch()
         log()
         log(`Found ${parentsFound.length} parent \`${parentName}\` (via \`${name}.${key}\`)`)
 
-        const allowedOprhans = []
+        const allowedOprhans: Model[] = []
 
         if (parentsFound.length !== expectedParents.length) {
           const foundParentSet = new Set(parentsFound.map((record) => record.id))
-          const orphans = []
+          const orphans: Model[] = []
 
           await forEachAsync(records, async (record) => {
             const parentId = record._getRaw(key)
             if (
               parentId === null ||
-              foundParentSet.has(parentId) ||
+              foundParentSet.has(String(parentId)) ||
               shouldSkipParent({
-                tableName: (name: any),
-                parentTableName: (parentName: any),
-                relationKey: (key: any),
+                tableName: name as TableName,
+                parentTableName: parentName as TableName,
+                relationKey: key,
                 record: record._raw,
               })
             ) {
               // ok
             } else if (
               await isOrphanAllowed({
-                tableName: (name: any),
-                parentTableName: (parentName: any),
-                relationKey: (key: any),
+                tableName: name as TableName,
+                parentTableName: parentName as TableName,
+                relationKey: key,
                 record: record._raw,
               })
             ) {
@@ -282,16 +317,12 @@ export default function diagnoseDatabaseStructure({
 
           if (allowedOprhans.length) {
             log(`❓ Config allowed ${allowedOprhans.length} orphans for this field`)
-            // log(allowedOprhans.join(','))
           }
         }
 
         await yieldLog()
       })
 
-      if (!collectionOrphanCount) {
-        // log(`No orphans found in ${name}`)
-      }
       totalIssueCount += collectionOrphanCount
       log()
     })

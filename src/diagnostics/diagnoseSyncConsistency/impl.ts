@@ -1,8 +1,8 @@
-// @flow
 /* eslint-disable no-continue */
 
 import forEachAsync from '../../utils/fp/forEachAsync'
-import type { DirtyRaw } from '../..'
+import type { DirtyRaw } from '../../RawRecord'
+import type { TableName } from '../../Schema'
 import { hasUnsyncedChanges } from '../../sync'
 import { sanitizedRaw } from '../../RawRecord'
 import { getLastPulledAt } from '../../sync/impl'
@@ -11,12 +11,12 @@ import censorRaw from '../censorRaw'
 import type { DiagnoseSyncConsistencyOptions, SyncConsistencyDiagnosis } from './index'
 
 const yieldLog = () =>
-  new Promise((resolve) => {
+  new Promise<void>((resolve) => {
     setTimeout(resolve, 0)
   })
 
-const recordsToMap = (records: Object): Map<string, Object> => {
-  const map = new Map()
+const recordsToMap = <T extends { id: string }>(records: T[]): Map<string, T> => {
+  const map = new Map<string, T>()
   records.forEach((record) => {
     if (map.has(record.id)) {
       throw new Error(`❌ Array of records has a duplicate ID ${record.id}`)
@@ -27,8 +27,7 @@ const recordsToMap = (records: Object): Map<string, Object> => {
 }
 
 const renderRecord = (record: DirtyRaw) => {
-  // eslint-disable-next-line no-unused-vars
-  const { _status, _changed, ...rest } = record
+  const { _status: _ignoredStatus, _changed: _ignoredChanged, ...rest } = record
   return JSON.stringify(censorRaw(rest), null, '  ')
 }
 
@@ -77,7 +76,7 @@ async function diagnoseSyncConsistencyImpl(
       lastPulledAt: null,
       schemaVersion: schema.version,
       migration: null,
-    })
+    } as unknown as Parameters<DiagnoseSyncConsistencyOptions['pullChanges']>[0])
     log(`Fetched all ${changeSetCount(allUserData)} records`)
 
     // Ensure that all data is consistent with current data - if so,
@@ -92,7 +91,7 @@ async function diagnoseSyncConsistencyImpl(
       lastPulledAt,
       schemaVersion: schema.version,
       migration: null,
-    })
+    } as Parameters<DiagnoseSyncConsistencyOptions['pullChanges']>[0])
 
     const recentChangeCount = changeSetCount(recentChanges)
     if (recentChangeCount > 0) {
@@ -115,14 +114,12 @@ async function diagnoseSyncConsistencyImpl(
 
       let tableCorruptionCount = 0
 
-      const records = await db.collections
-        // $FlowFixMe
-        .get(table)
-        .query()
-        .fetch()
+      const records = await db.collections.get(table as TableName).query().fetch()
 
-      // $FlowFixMe
-      const { created, updated, deleted } = allUserData[table]
+      const tableChanges = allUserData[table as TableName]
+      const created = tableChanges?.created ?? []
+      const updated = tableChanges?.updated ?? []
+      const deleted = tableChanges?.deleted ?? []
       if (deleted.length) {
         log(
           `❓ Warning: ${deleted.length} deleted ${table} found in full (login) sync -- should not be necessary:`,
@@ -136,14 +133,17 @@ async function diagnoseSyncConsistencyImpl(
       // Transform records into hash maps for efficient lookup
       const localMap = recordsToMap(records.map((r) => r._raw))
 
-      // $FlowFixMe
-      const tableSchema = schema.tables[table]
+      const tableSchema = schema.tables[table as TableName]
+      if (!tableSchema) {
+        log(`❌ Missing table schema for \`${table}\``)
+        return
+      }
       const remoteMap = recordsToMap(remoteRecords.map((r) => sanitizedRaw(r, tableSchema)))
       await yieldLog()
 
-      const inconsistentRecords = []
-      const excessRecords = []
-      const missingRecords = []
+      const inconsistentRecords: string[] = []
+      const excessRecords: string[] = []
+      const missingRecords: string[] = []
 
       await forEachAsync(Array.from(remoteMap.entries()), async ([id, remote]) => {
         const local = localMap.get(id)
@@ -168,9 +168,8 @@ async function diagnoseSyncConsistencyImpl(
       const columnsToCheck: string[] = tableSchema.columnArray.map((column) => column.name)
 
       await forEachAsync(Array.from(localMap.entries()), async ([id, record]) => {
-        const local: any = record
+        const local = record
         const remote = remoteMap.get(id)
-        // console.log(id, local, remote)
         if (!remote) {
           if (await isExcessLocalRecordAllowed({ tableName: table, local })) {
             excessRecords.push(id)
@@ -230,15 +229,12 @@ async function diagnoseSyncConsistencyImpl(
 
       if (inconsistentRecords.length) {
         log(`❓ Config allowed ${inconsistentRecords.length} inconsistent \`${table}\``)
-        // log(inconsistentRecords.join(','))
       }
       if (excessRecords.length) {
         log(`❓ Config allowed ${excessRecords.length} excess local \`${table}\``)
-        // log(excessRecords.join(','))
       }
       if (missingRecords.length) {
         log(`❓ Config allowed ${missingRecords.length} locally missing \`${table}\``)
-        // log(missingRecords.join(','))
       }
 
       if (!tableCorruptionCount) {
@@ -292,6 +288,4 @@ export default async function diagnoseSyncConsistency(
       }
     }
   }
-  // eslint-disable-next-line no-unreachable
-  throw new Error('unreachable')
 }

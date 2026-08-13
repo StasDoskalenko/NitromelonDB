@@ -1,8 +1,7 @@
-// @flow
-import React from 'react'
+import React, { type Context } from 'react'
 import type Database from '../Database'
 
-const DatabaseContext: React$Context<Database> = React.createContext<Database>((undefined: any))
+const DatabaseContext: Context<Database> = React.createContext(undefined as unknown as Database)
 const { Provider, Consumer } = DatabaseContext
 
 export { Consumer as DatabaseConsumer, Provider }

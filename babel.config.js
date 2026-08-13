@@ -88,7 +88,11 @@ module.exports = {
   },
   overrides: [
     {
-      test: /\.tsx?$/,
+      test: /\.tsx$/,
+      plugins: [['@babel/plugin-transform-typescript', { allowDeclareFields: true, isTSX: true }]],
+    },
+    {
+      test: /\.ts$/,
       plugins: [['@babel/plugin-transform-typescript', { allowDeclareFields: true }]],
     },
   ],
