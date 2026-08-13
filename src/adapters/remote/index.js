@@ -14,86 +14,83 @@ import type {
   UnsafeExecuteOperations,
 } from '../type'
 
-import type { 
-    RemoteHandler,
-    RemoteAdapterOptions
-} from './type'
+import type { RemoteHandler, RemoteAdapterOptions } from './type'
 
 export default class RemoteAdapter implements DatabaseAdapter {
-    schema: AppSchema
-    dbName: string
-    migrations: ?SchemaMigrations
-    handler: RemoteHandler
+  schema: AppSchema
+  dbName: string
+  migrations: ?SchemaMigrations
+  handler: RemoteHandler
 
-    constructor(options: RemoteAdapterOptions) {
-        const { schema, migrations, handler } = options;
+  constructor(options: RemoteAdapterOptions) {
+    const { schema, migrations, handler } = options
 
-        this.schema = schema
-        this.migrations = migrations
-        this.handler = handler
-    }
+    this.schema = schema
+    this.migrations = migrations
+    this.handler = handler
+  }
 
-    find(table: TableName<any>, id: RecordId, callback: ResultCallback<CachedFindResult>) {
-        this.handler('find', [table, id], callback)
-    }
+  find(table: TableName<any>, id: RecordId, callback: ResultCallback<CachedFindResult>) {
+    this.handler('find', [table, id], callback)
+  }
 
-    query(query: SerializedQuery, callback: ResultCallback<CachedQueryResult>) {
-        this.handler('query', [query], callback)
-    }
+  query(query: SerializedQuery, callback: ResultCallback<CachedQueryResult>) {
+    this.handler('query', [query], callback)
+  }
 
-    queryIds(query: SerializedQuery, callback: ResultCallback<RecordId[]>) {
-        this.handler('queryIds', [query], callback) 
-    }
+  queryIds(query: SerializedQuery, callback: ResultCallback<RecordId[]>) {
+    this.handler('queryIds', [query], callback)
+  }
 
-    unsafeQueryRaw(query: SerializedQuery, callback: ResultCallback<any[]>) {
-        this.handler('unsafeQueryRaw', [query], callback) 
-    }
+  unsafeQueryRaw(query: SerializedQuery, callback: ResultCallback<any[]>) {
+    this.handler('unsafeQueryRaw', [query], callback)
+  }
 
-    count(query: SerializedQuery, callback: ResultCallback<number>) {
-        this.handler('count', [query], callback) 
-    }
+  count(query: SerializedQuery, callback: ResultCallback<number>) {
+    this.handler('count', [query], callback)
+  }
 
-    batch(operations: BatchOperation[], callback: ResultCallback<void>) {
-        this.handler('batch', [operations], callback) 
-    }
+  batch(operations: BatchOperation[], callback: ResultCallback<void>) {
+    this.handler('batch', [operations], callback)
+  }
 
-    getDeletedRecords(tableName: TableName<any>, callback: ResultCallback<RecordId[]>) {
-        this.handler('getDeletedRecords', [tableName], callback) 
-    }
+  getDeletedRecords(tableName: TableName<any>, callback: ResultCallback<RecordId[]>) {
+    this.handler('getDeletedRecords', [tableName], callback)
+  }
 
-    destroyDeletedRecords(
-        tableName: TableName<any>,
-        recordIds: RecordId[],
-        callback: ResultCallback<void>,
-    ) {
-        this.handler('destroyDeletedRecords', [tableName, recordIds], callback) 
-    }
+  destroyDeletedRecords(
+    tableName: TableName<any>,
+    recordIds: RecordId[],
+    callback: ResultCallback<void>,
+  ) {
+    this.handler('destroyDeletedRecords', [tableName, recordIds], callback)
+  }
 
-    unsafeLoadFromSync(jsonId: number, callback: ResultCallback<any>) {
-        this.handler('unsafeLoadFromSync', [jsonId], callback) 
-    }
+  unsafeLoadFromSync(jsonId: number, callback: ResultCallback<any>) {
+    this.handler('unsafeLoadFromSync', [jsonId], callback)
+  }
 
-    provideSyncJson(id: number, syncPullResultJson: string, callback: ResultCallback<void>) {
-        this.handler('provideSyncJson', [id, syncPullResultJson], callback) 
-    }
+  provideSyncJson(id: number, syncPullResultJson: string, callback: ResultCallback<void>) {
+    this.handler('provideSyncJson', [id, syncPullResultJson], callback)
+  }
 
-    unsafeResetDatabase(callback: ResultCallback<void>) {
-        this.handler('unsafeResetDatabase', [], callback) 
-    }
+  unsafeResetDatabase(callback: ResultCallback<void>) {
+    this.handler('unsafeResetDatabase', [], callback)
+  }
 
-    unsafeExecute(work: UnsafeExecuteOperations, callback: ResultCallback<void>) {
-        this.handler('unsafeExecute', [work], callback) 
-    }
+  unsafeExecute(work: UnsafeExecuteOperations, callback: ResultCallback<void>) {
+    this.handler('unsafeExecute', [work], callback)
+  }
 
-    getLocal(key: string, callback: ResultCallback<?string>) {
-        this.handler('getLocal', [key], callback) 
-    }
+  getLocal(key: string, callback: ResultCallback<?string>) {
+    this.handler('getLocal', [key], callback)
+  }
 
-    setLocal(key: string, value: string, callback: ResultCallback<void>) {
-        this.handler('setLocal', [key, value], callback) 
-    }
+  setLocal(key: string, value: string, callback: ResultCallback<void>) {
+    this.handler('setLocal', [key, value], callback)
+  }
 
-    removeLocal(key: string, callback: ResultCallback<void>) {
-        this.handler('removeLocal', [key], callback) 
-    }
+  removeLocal(key: string, callback: ResultCallback<void>) {
+    this.handler('removeLocal', [key], callback)
+  }
 }
