@@ -1,10 +1,8 @@
-// @flow
-
-import makeDecorator, { type Decorator } from '../../utils/common/makeDecorator'
+import makeDecorator from '../../utils/common/makeDecorator'
 import { onLowMemory } from '../../utils/common/memory'
 import { type ColumnName } from '../../Schema'
 
-import { ensureDecoratorUsedProperly } from '../common'
+import { ensureDecoratorUsedProperly, type ModelDecoratorHost } from '../common'
 
 // Defines a model property representing a date
 //
@@ -19,16 +17,16 @@ import { ensureDecoratorUsedProperly } from '../common'
 const cache = new Map<number, Date>()
 onLowMemory(() => cache.clear())
 
-const dateDecorator: Decorator = makeDecorator(
-  (columnName: ColumnName) => (target: Object, key: string, descriptor: Object) => {
-    ensureDecoratorUsedProperly(columnName, target, key, descriptor)
+const dateDecorator = makeDecorator(
+  (columnName: unknown) => (target: object, key: string, descriptor: PropertyDescriptor) => {
+    const name = columnName as ColumnName
+    ensureDecoratorUsedProperly(name, target, key, descriptor)
 
     return {
       configurable: true,
       enumerable: true,
-      get(): ?Date {
-        // $FlowFixMe
-        const rawValue = this.asModel._getRaw(columnName)
+      get(this: ModelDecoratorHost): Date | null {
+        const rawValue = this.asModel._getRaw(name)
         if (typeof rawValue === 'number') {
           const cached = cache.get(rawValue)
           if (cached) {
@@ -40,16 +38,15 @@ const dateDecorator: Decorator = makeDecorator(
         }
         return null
       },
-      set(date: ?Date): void {
+      set(this: ModelDecoratorHost, date: Date | null | undefined): void {
         const rawValue = date ? +new Date(date) : null
         if (rawValue && date) {
           cache.set(rawValue, new Date(date))
         }
-        // $FlowFixMe
-        this.asModel._setRaw(columnName, rawValue)
+        this.asModel._setRaw(name, rawValue)
       },
     }
   },
-)
+) as (columnName: ColumnName) => PropertyDecorator
 
 export default dateDecorator

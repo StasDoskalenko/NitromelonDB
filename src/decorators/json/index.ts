@@ -1,11 +1,7 @@
-// @flow
-
-import { type Decorator } from '../../utils/common/makeDecorator'
-
 import { type ColumnName } from '../../Schema'
 import type Model from '../../Model'
 
-import { ensureDecoratorUsedProperly } from '../common'
+import { ensureDecoratorUsedProperly, type ModelDecoratorHost } from '../common'
 
 // Defines a model property that's (de)serialized to and from JSON using custom sanitizer function.
 //
@@ -20,34 +16,39 @@ import { ensureDecoratorUsedProperly } from '../common'
 // Examples:
 //   @json('contact_info', jsonValue => jasonValue || {}) contactInfo: ContactInfo
 
-const parseJSON = (value: any) => {
+export type Sanitizer = (source: unknown, model?: Model) => unknown
+
+export type Options = {
+  /** Use cached value if possible rather than sanitizing the raw value for every read. Default: `false` */
+  memo: boolean
+}
+
+const parseJSON = (value: unknown): unknown => {
   // fast path
   if (value === null || value === undefined || value === '') {
     return undefined
   }
   try {
-    return JSON.parse(value)
-  } catch (_) {
+    return JSON.parse(value as string)
+  } catch {
     return undefined
   }
 }
 
-const defaultOptions = { memo: false }
+const defaultOptions: Options = { memo: false }
 
-export const jsonDecorator: Decorator =
-  (
-    rawFieldName: ColumnName,
-    sanitizer: (json: any, model?: Model) => any,
-    options?: $Exact<{ memo?: boolean }> = defaultOptions,
-  ) =>
-  (target: Object, key: string, descriptor: Object) => {
-    ensureDecoratorUsedProperly(rawFieldName, target, key, descriptor)
+export function json(
+  rawFieldName: ColumnName,
+  sanitizer: Sanitizer,
+  options: Options = defaultOptions,
+): PropertyDecorator {
+  return (target: object, key: string | symbol, descriptor?: PropertyDescriptor) => {
+    ensureDecoratorUsedProperly(rawFieldName, target, String(key), descriptor)
 
     return {
       configurable: true,
       enumerable: true,
-      get(): any {
-        // $FlowFixMe
+      get(this: ModelDecoratorHost): unknown {
         const model = this
         const rawValue = model.asModel._getRaw(rawFieldName)
 
@@ -61,23 +62,25 @@ export const jsonDecorator: Decorator =
         }
 
         const parsedValue = parseJSON(rawValue)
-        const sanitized = sanitizer(parsedValue, model)
+        const sanitized = sanitizer(parsedValue, model as unknown as Model)
 
         if (options.memo) {
+          model._jsonDecoratorCache = model._jsonDecoratorCache || {}
           model._jsonDecoratorCache[rawFieldName] = [rawValue, sanitized]
         }
 
         return sanitized
       },
-      set(json: any): void {
-        // $FlowFixMe
+      set(this: ModelDecoratorHost, jsonValue: unknown): void {
         const model = this
-        const sanitizedValue = sanitizer(json, model)
+        const sanitizedValue = sanitizer(jsonValue, model as unknown as Model)
         const stringifiedValue = sanitizedValue != null ? JSON.stringify(sanitizedValue) : null
 
         model.asModel._setRaw(rawFieldName, stringifiedValue)
       },
     }
   }
+}
 
+export const jsonDecorator = json
 export default jsonDecorator
