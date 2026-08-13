@@ -30,3 +30,4 @@
 - [CI] Run JavaScript tests on Node.js 24 only
 - [CI] Run iOS tests on macOS 26 / latest stable Xcode / iPhone 17 (iOS 26)
 - [CI] Android tests use JDK 21
+- [CI] Use latest CocoaPods (1.17) without the old 1.15 / xcodeproj / ethon pins
