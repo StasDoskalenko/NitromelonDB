@@ -22,3 +22,5 @@
 
 - Updated internal dependencies
 - Updated documentation scripts
+- [CI] Run JavaScript tests on Node.js 24 only
+- [CI] Run iOS tests on macOS 26 / latest stable Xcode / iPhone 17 (iOS 26)
