@@ -1,29 +1,27 @@
-// @flow
-
 import { type Observable, startWith, merge as merge$ } from '../utils/rx'
 import { type Unsubscribe } from '../utils/subscriptions'
-import { invariant, logger } from '../utils/common'
-import {
-  noop,
-  fromArrayOrSpread,
-  // eslint-disable-next-line no-unused-vars
-  type ArrayOrSpreadFn,
-} from '../utils/fp'
+import { invariant, logger, deprecated } from '../utils/common'
+import { noop, fromArrayOrSpread } from '../utils/fp'
 
 import type { DatabaseAdapter, BatchOperation } from '../adapters/type'
 import DatabaseAdapterCompat from '../adapters/compat'
 import type Model from '../Model'
-import type Collection, { CollectionChangeSet } from '../Collection'
+import type Collection from '../Collection'
+import type { CollectionChangeSet, ModelClass } from '../Collection'
 import type { TableName, AppSchema } from '../Schema'
+import type { RawRecord } from '../RawRecord'
+import type { Class } from '../types'
 
 import CollectionMap from './CollectionMap'
 import type LocalStorage from './LocalStorage'
 import WorkQueue, { type ReaderInterface, type WriterInterface } from './WorkQueue'
 
-type DatabaseProps = $Exact<{
-  adapter: DatabaseAdapter,
-  modelClasses: Array<Class<Model>>,
-}>
+type DatabaseProps = {
+  adapter: DatabaseAdapter
+  modelClasses: Class<Model>[]
+}
+
+type TableChange = [TableName, CollectionChangeSet<Model>]
 
 let experimentalAllowsFatalError = false
 
@@ -50,9 +48,9 @@ export default class Database {
   // (experimental) if true, Database is in a broken state and should not be used anymore
   _isBroken: boolean = false
 
-  _localStorage: LocalStorage
+  _localStorage: LocalStorage | undefined
 
-  constructor(options: DatabaseProps): void {
+  constructor(options: DatabaseProps) {
     const { adapter, modelClasses } = options
     if (process.env.NODE_ENV !== 'production') {
       invariant(adapter, `Missing adapter parameter for new Database()`)
@@ -63,13 +61,13 @@ export default class Database {
     }
     this.adapter = new DatabaseAdapterCompat(adapter)
     this.schema = adapter.schema
-    this.collections = new CollectionMap(this, modelClasses)
+    this.collections = new CollectionMap(this, modelClasses as ModelClass<Model>[])
   }
 
   /**
    * Returns a `Collection` for a given table name
    */
-  get<T: Model>(tableName: TableName<T>): Collection<T> {
+  get<T extends Model>(tableName: TableName<T>): Collection<T> {
     return this.collections.get(tableName)
   }
 
@@ -78,13 +76,14 @@ export default class Database {
    */
   get localStorage(): LocalStorage {
     if (!this._localStorage) {
-      const LocalStorageClass = require('./LocalStorage').default
+      const LocalStorageClass = (
+        require('./LocalStorage') as { default: new (database: Database) => LocalStorage }
+      ).default
       this._localStorage = new LocalStorageClass(this)
     }
     return this._localStorage
   }
 
-  /*:: batch: ArrayOrSpreadFn<?Model | false, Promise<void>>  */
   /**
    * Executes multiple prepared operations
    *
@@ -98,15 +97,20 @@ export default class Database {
    *
    * Note: This method must be called within a Writer {@link Database#write}.
    */
-  // $FlowFixMe
-  async batch(...records: Array<?Model | false>): Promise<void> {
-    const actualRecords: Array<?Model> = fromArrayOrSpread(records, 'Database.batch', 'Model')
+  batch(...records: Array<Model | null | undefined | false>): Promise<void>
+  batch(records: Array<Model | null | undefined | false>): Promise<void>
+  async batch(...args: unknown[]): Promise<void> {
+    const actualRecords = fromArrayOrSpread<Model | null | undefined | false>(
+      args,
+      'Database.batch',
+      'Model',
+    )
 
     this._ensureInWriter(`Database.batch()`)
 
     // performance critical - using mutations
     const batchOperations: BatchOperation[] = []
-    const changeNotifications: { [TableName<any>]: CollectionChangeSet<Model> } = {}
+    const changeNotifications: { [tableName: TableName]: CollectionChangeSet<Model> } = {}
     actualRecords.forEach((record) => {
       if (!record) {
         return
@@ -120,9 +124,9 @@ export default class Database {
 
       const raw = record._raw
       const { id } = raw // faster than Model.id
-      const { table } = record.constructor // faster than Model.table
+      const { table } = record.constructor as typeof Model // faster than Model.table
 
-      let changeType
+      let changeType: CollectionChangeSet<Model>[number]['type']
 
       if (preparedState === 'update') {
         batchOperations.push(['update', table, raw])
@@ -162,10 +166,10 @@ export default class Database {
           switch (type) {
             case 'create':
             case 'update':
-              return `${type} ${table}#${(rawOrId: any).id}`
+              return `${type} ${table}#${(rawOrId as RawRecord).id}`
             case 'markAsDeleted':
             case 'destroyPermanently':
-              return `${type} ${table}#${(rawOrId: any)}`
+              return `${type} ${table}#${rawOrId}`
             default:
               return `${type}???`
           }
@@ -175,9 +179,7 @@ export default class Database {
     }
 
     // NOTE: We must make two passes to ensure all changes to caches are applied before subscribers are called
-    const changes: [TableName<any>, CollectionChangeSet<any>][] = (Object.entries(
-      changeNotifications,
-    ): any)
+    const changes = Object.entries(changeNotifications) as TableChange[]
 
     changes.forEach(([table, changeSet]) => {
       this.collections.get(table)._applyChangesToCache(changeSet)
@@ -189,9 +191,9 @@ export default class Database {
   }
 
   _pendingNotificationBatches: number = 0
-  _pendingNotificationChanges: [TableName<any>, CollectionChangeSet<any>][][] = []
+  _pendingNotificationChanges: TableChange[][] = []
 
-  _notify(changes: [TableName<any>, CollectionChangeSet<any>][]): void {
+  _notify(changes: TableChange[]): void {
     if (this._pendingNotificationBatches > 0) {
       this._pendingNotificationChanges.push(changes)
       return
@@ -200,9 +202,9 @@ export default class Database {
     const affectedTables = new Set(changes.map(([table]) => table))
 
     const databaseChangeNotifySubscribers = ([tables, subscriber]: [
-      Array<TableName<any>>,
+      TableName[],
       () => void,
-      any,
+      unknown,
     ]): void => {
       if (tables.some((table) => affectedTables.has(table))) {
         subscriber()
@@ -249,7 +251,7 @@ export default class Database {
    * @param work - Block of code to execute
    * @param [description] - Debug description of this Writer
    */
-  write<T>(work: (WriterInterface) => Promise<T>, description?: string): Promise<T> {
+  write<T>(work: (writer: WriterInterface) => Promise<T>, description?: string): Promise<T> {
     return this._workQueue.enqueue(work, description, true)
   }
 
@@ -267,8 +269,18 @@ export default class Database {
    * @param work - Block of code to execute
    * @param [description] - Debug description of this Reader
    */
-  read<T>(work: (ReaderInterface) => Promise<T>, description?: string): Promise<T> {
+  read<T>(work: (reader: ReaderInterface) => Promise<T>, description?: string): Promise<T> {
     return this._workQueue.enqueue(work, description, false)
+  }
+
+  /**
+   * @deprecated Use {@link Database#write} instead.
+   */
+  action<T>(work: (writer: WriterInterface) => Promise<T>, description?: string): Promise<T> {
+    if (process.env.NODE_ENV !== 'production') {
+      deprecated('Database.action()', 'Use Database.write() instead.')
+    }
+    return this._workQueue.enqueue(work, `${description || 'unnamed'} (legacy action)`, true)
   }
 
   /**
@@ -283,13 +295,13 @@ export default class Database {
    * Warning: You can easily introduce performance bugs in your application by using this method
    * inappropriately.
    */
-  withChangesForTables(tables: TableName<any>[]): Observable<CollectionChangeSet<any> | null> {
+  withChangesForTables(tables: TableName[]): Observable<CollectionChangeSet<Model> | null> {
     const changesSignals = tables.map((table) => this.collections.get(table).changes)
 
     return merge$(...changesSignals).pipe(startWith(null))
   }
 
-  _subscribers: [TableName<any>[], () => void, any][] = []
+  _subscribers: [TableName[], () => void, unknown][] = []
 
   /**
    * Notifies `subscriber` on change in any of the passed tables.
@@ -302,15 +314,15 @@ export default class Database {
    * inappropriately.
    */
   experimentalSubscribe(
-    tables: TableName<any>[],
+    tables: TableName[],
     subscriber: () => void,
-    debugInfo?: any,
+    debugInfo?: unknown,
   ): Unsubscribe {
     if (!tables.length) {
       return noop
     }
 
-    const entry = [tables, subscriber, debugInfo]
+    const entry: [TableName[], () => void, unknown] = [tables, subscriber, debugInfo]
     this._subscribers.push(entry)
 
     return () => {
@@ -348,8 +360,10 @@ export default class Database {
 
       // Kill ability to call adapter methods during reset (to catch bugs if someone does this)
       const { adapter } = this
-      const ErrorAdapter = require('../adapters/error').default
-      this.adapter = (new ErrorAdapter(): any)
+      const ErrorAdapter = (
+        require('../adapters/error') as { default: new () => DatabaseAdapterCompat }
+      ).default
+      this.adapter = new ErrorAdapter()
 
       // Check for illegal subscribers
       if (this._subscribers.length) {
@@ -368,7 +382,6 @@ export default class Database {
 
       // Only now clear caches, since there may have been queued fetches from DB still bringing in items to cache
       Object.values(this.collections.map).forEach((collection) => {
-        // $FlowFixMe
         collection._cache.unsafeClear()
       })
 
@@ -406,10 +419,11 @@ export default class Database {
     logger.error('Database is broken. App must be reloaded before continuing.')
 
     // TODO: Passing this to an adapter feels wrong, but it's tricky.
-    // $FlowFixMe
-    if (this.adapter.underlyingAdapter._fatalError) {
-      // $FlowFixMe
-      this.adapter.underlyingAdapter._fatalError(error)
+    const underlying = this.adapter.underlyingAdapter as DatabaseAdapter & {
+      _fatalError?: (fatalError: Error) => void
+    }
+    if (underlying._fatalError) {
+      underlying._fatalError(error)
     }
   }
 }
