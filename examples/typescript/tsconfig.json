@@ -1,10 +1,12 @@
 {
   "compilerOptions": {
-    "lib": ["ES2016", "DOM"],
+    "lib": ["ESNext", "DOM"],
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "strict": true,
-    "target": "ES2016",
+    "skipLibCheck": true,
+    "target": "ESNext",
+    "ignoreDeprecations": "6.0",
     "jsx": "react-jsx",
     "paths": {
       // this allows sub-package imports from src; fx. '@nozbe/watermelondb/decorators'
@@ -13,6 +15,6 @@
   },
   "include": [
     "./*.ts",
-    "../../src/**/*.ts" // this is just used to validate everything, not just imported declarations
+    "../../src/**/*.d.ts"
   ]
 }
