@@ -24,4 +24,4 @@ export {
   startWith,
   catchError,
 } from 'rxjs/operators'
-export type { ConnectableObservable } from 'rxjs'
+export type { ConnectableObservable, Observer } from 'rxjs'

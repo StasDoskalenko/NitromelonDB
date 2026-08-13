@@ -1,17 +1,16 @@
-// @flow
-
 import type Model from '../../Model'
 import Collection from '../../Collection'
+import type { ModelClass } from '../../Collection'
 import type { TableName } from '../../Schema'
 import type Database from '../index'
 
 import { invariant } from '../../utils/common'
 
 export default class CollectionMap {
-  map: { [TableName<any>]: Collection<any> }
+  map: { [tableName: TableName]: Collection<Model> }
 
-  constructor(db: Database, modelClasses: Class<Model>[]): void {
-    this.map = (Object.create(null): any)
+  constructor(db: Database, modelClasses: ModelClass<Model>[]) {
+    this.map = Object.create(null) as { [tableName: TableName]: Collection<Model> }
     modelClasses.forEach((modelClass) => {
       const { table } = modelClass
       if (process.env.NODE_ENV !== 'production') {
@@ -30,7 +29,7 @@ export default class CollectionMap {
     Object.freeze(this.map)
   }
 
-  get<T: Model>(tableName: TableName<T>): Collection<T> {
-    return (this.map[tableName] || null: any)
+  get<T extends Model>(tableName: TableName<T>): Collection<T> {
+    return (this.map[tableName] || null) as unknown as Collection<T>
   }
 }

@@ -1,15 +1,15 @@
-// @flow
-
 import { allPromises, unnest } from '../utils/fp'
 
 import * as Q from '../QueryDescription'
 import type Model from './index'
 import type Query from '../Query/index'
+import type { AssociationInfo, HasManyAssociation } from './index'
 
-type TimestampsObj = $Exact<{ created_at?: number, updated_at?: number }>
+type TimestampsObj = { created_at?: number; updated_at?: number }
+
 export const createTimestampsFor = (model: Model): TimestampsObj => {
   const date = Date.now()
-  const timestamps: $Shape<TimestampsObj> = {}
+  const timestamps: TimestampsObj = {}
 
   if ('createdAt' in model) {
     timestamps.created_at = date
@@ -23,8 +23,13 @@ export const createTimestampsFor = (model: Model): TimestampsObj => {
 }
 
 function getChildrenQueries(model: Model): Query<Model>[] {
-  const associationsList: Array<[any, any]> = Object.entries(model.constructor.associations)
-  const hasManyAssociations = associationsList.filter(([, value]) => value.type === 'has_many')
+  const associationsList = Object.entries((model.constructor as typeof Model).associations) as [
+    string,
+    AssociationInfo,
+  ][]
+  const hasManyAssociations = associationsList.filter(
+    (entry): entry is [string, HasManyAssociation] => entry[1].type === 'has_many',
+  )
   const childrenQueries = hasManyAssociations.map(([key, value]) => {
     const childCollection = model.collections.get(key)
     return childCollection.query(Q.where(value.foreignKey, model.id))

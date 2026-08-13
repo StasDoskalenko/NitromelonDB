@@ -1,35 +1,41 @@
-// @flow
-import { Observable, Subject } from '../utils/rx'
+import { Observable, Subject, type Observer } from '../utils/rx'
 import invariant from '../utils/common/invariant'
-import {
-  noop,
-  fromArrayOrSpread,
-  // eslint-disable-next-line no-unused-vars
-  type ArrayOrSpreadFn,
-} from '../utils/fp'
+import { noop, fromArrayOrSpread } from '../utils/fp'
 import { type ResultCallback, toPromise, mapValue } from '../utils/fp/Result'
 import { type Unsubscribe } from '../utils/subscriptions'
 
 import Query from '../Query'
 import type Database from '../Database'
-import type Model, { RecordId } from '../Model'
+import type Model from '../Model'
+import type { RecordId, Associations } from '../Model'
 import type { Clause } from '../QueryDescription'
 import { type TableName, type TableSchema } from '../Schema'
-import { type DirtyRaw } from '../RawRecord'
+import { type DirtyRaw, type RawRecord } from '../RawRecord'
 
 import RecordCache from './RecordCache'
 
 type CollectionChangeType = 'created' | 'updated' | 'destroyed'
-export type CollectionChange<Record: Model> = { record: Record, type: CollectionChangeType }
-export type CollectionChangeSet<T> = CollectionChange<T>[]
+export type CollectionChange<Record extends Model> = { record: Record; type: CollectionChangeType }
+export type CollectionChangeSet<T extends Model> = CollectionChange<T>[]
 
-export default class Collection<Record: Model> {
+export type ModelClass<Record extends Model = Model> = {
+  new (collection: Collection<Record>, raw: RawRecord): Record
+  table: TableName<Record>
+  associations: Associations
+  _wmelonTag: string
+  name: string
+  _prepareCreate(collection: Collection<Record>, recordBuilder: (record: Record) => void): Record
+  _prepareCreateFromDirtyRaw(collection: Collection<Record>, dirtyRaw: DirtyRaw): Record
+  _disposableFromDirtyRaw(collection: Collection<Record>, dirtyRaw: DirtyRaw): Record
+}
+
+export default class Collection<Record extends Model> {
   database: Database
 
   /**
    * `Model` subclass associated with this Collection
    */
-  modelClass: Class<Record>
+  modelClass: ModelClass<Record>
 
   /**
    * An `Rx.Subject` that emits a signal on every change (record creation/update/deletion) in
@@ -44,12 +50,12 @@ export default class Collection<Record: Model> {
 
   _cache: RecordCache<Record>
 
-  constructor(database: Database, ModelClass: Class<Record>): void {
+  constructor(database: Database, ModelClass: ModelClass<Record>) {
     this.database = database
     this.modelClass = ModelClass
     this._cache = new RecordCache<Record>(
-      (ModelClass.table: $FlowFixMe),
-      (raw) => new ModelClass((this: $FlowFixMe), raw),
+      ModelClass.table,
+      (raw) => new ModelClass(this, raw),
       this,
     )
   }
@@ -65,7 +71,6 @@ export default class Collection<Record: Model> {
    * Table name associated with this Collection
    */
   get table(): TableName<Record> {
-    // $FlowFixMe
     return this.modelClass.table
   }
 
@@ -92,8 +97,8 @@ export default class Collection<Record: Model> {
    * `collection.find(id)`, followed by `record.observe()`.
    */
   findAndObserve(id: RecordId): Observable<Record> {
-    return Observable.create((observer) => {
-      let unsubscribe = null
+    return Observable.create((observer: Observer<Record>) => {
+      let unsubscribe: Unsubscribe | null = null
       let unsubscribed = false
       this._fetchRecord(id, (result) => {
         if (result.value) {
@@ -105,7 +110,6 @@ export default class Collection<Record: Model> {
             }
           })
         } else {
-          // $FlowFixMe
           observer.error(result.error)
         }
       })
@@ -116,7 +120,6 @@ export default class Collection<Record: Model> {
     })
   }
 
-  /*:: query: ArrayOrSpreadFn<Clause, Query<Record>>  */
   /**
    * Returns a `Query` with conditions given.
    *
@@ -124,8 +127,9 @@ export default class Collection<Record: Model> {
    *
    * See docs for details about the Query API.
    */
-  // $FlowFixMe
-  query(...args: Clause[]): Query<Record> {
+  query(...clauses: Clause[]): Query<Record>
+  query(clauses: Clause[]): Query<Record>
+  query(...args: unknown[]): Query<Record> {
     const clauses = fromArrayOrSpread<Clause>(args, 'Collection.query', 'Clause')
     return new Query(this, clauses)
   }
@@ -143,7 +147,7 @@ export default class Collection<Record: Model> {
    * })
    * ```
    */
-  async create(recordBuilder: (Record) => void = noop): Promise<Record> {
+  async create(recordBuilder: (record: Record) => void = noop): Promise<Record> {
     this.database._ensureInWriter(`Collection.create()`)
 
     const record = this.prepareCreate(recordBuilder)
@@ -158,8 +162,7 @@ export default class Collection<Record: Model> {
    * @see {Collection#create}
    * @see {Database#batch}
    */
-  prepareCreate(recordBuilder: (Record) => void = noop): Record {
-    // $FlowFixMe
+  prepareCreate(recordBuilder: (record: Record) => void = noop): Record {
     return this.modelClass._prepareCreate(this, recordBuilder)
   }
 
@@ -172,7 +175,6 @@ export default class Collection<Record: Model> {
    * offline-first app, or if you're implementing your own sync mechanism.
    */
   prepareCreateFromDirtyRaw(dirtyRaw: DirtyRaw): Record {
-    // $FlowFixMe
     return this.modelClass._prepareCreateFromDirtyRaw(this, dirtyRaw)
   }
 
@@ -190,7 +192,6 @@ export default class Collection<Record: Model> {
    * and compatible UI components to display a disposable record).
    */
   disposableFromDirtyRaw(dirtyRaw: DirtyRaw): Record {
-    // $FlowFixMe
     return this.modelClass._disposableFromDirtyRaw(this, dirtyRaw)
   }
 
@@ -211,7 +212,7 @@ export default class Collection<Record: Model> {
     this.database.adapter.underlyingAdapter.count(query.serialize(), callback)
   }
 
-  _unsafeFetchRaw(query: Query<Record>, callback: ResultCallback<any[]>): void {
+  _unsafeFetchRaw(query: Query<Record>, callback: ResultCallback<unknown[]>): void {
     this.database.adapter.underlyingAdapter.unsafeQueryRaw(query.serialize(), callback)
   }
 
@@ -252,8 +253,8 @@ export default class Collection<Record: Model> {
 
   _notify(operations: CollectionChangeSet<Record>): void {
     const collectionChangeNotifySubscribers = ([subscriber]: [
-      (CollectionChangeSet<Record>) => void,
-      any,
+      (changeSet: CollectionChangeSet<Record>) => void,
+      unknown,
     ]): void => {
       subscriber(operations)
     }
@@ -270,7 +271,7 @@ export default class Collection<Record: Model> {
     operations.forEach(collectionChangeNotifyModels)
   }
 
-  _subscribers: [(CollectionChangeSet<Record>) => void, any][] = []
+  _subscribers: [(operations: CollectionChangeSet<Record>) => void, unknown][] = []
 
   /**
    * Notifies `subscriber` on every change (record creation/update/deletion) in this Collection.
@@ -282,10 +283,13 @@ export default class Collection<Record: Model> {
    * inappropriately. You generally should just use the `Query` API.
    */
   experimentalSubscribe(
-    subscriber: (CollectionChangeSet<Record>) => void,
-    debugInfo?: any,
+    subscriber: (operations: CollectionChangeSet<Record>) => void,
+    debugInfo?: unknown,
   ): Unsubscribe {
-    const entry = [subscriber, debugInfo]
+    const entry: [(operations: CollectionChangeSet<Record>) => void, unknown] = [
+      subscriber,
+      debugInfo,
+    ]
     this._subscribers.push(entry)
 
     return () => {

@@ -1,15 +1,8 @@
-// @flow
-/* eslint-disable no-use-before-define */
-
 import allPromises from '../utils/fp/allPromises'
 import invariant from '../utils/common/invariant'
-import { Observable } from '../utils/rx'
+import { Observable, type Observer } from '../utils/rx'
 import { toPromise } from '../utils/fp/Result'
-import {
-  fromArrayOrSpread,
-  // eslint-disable-next-line no-unused-vars
-  type ArrayOrSpreadFn,
-} from '../utils/fp'
+import { fromArrayOrSpread } from '../utils/fp'
 import { type Unsubscribe, SharedSubscribable } from '../utils/subscriptions'
 
 // import from decorarators break the app on web production WTF ¯\_(ツ)_/¯
@@ -20,32 +13,34 @@ import subscribeToQuery from '../observation/subscribeToQuery'
 import subscribeToQueryWithColumns from '../observation/subscribeToQueryWithColumns'
 import * as Q from '../QueryDescription'
 import type { Clause, QueryDescription } from '../QueryDescription'
-import type Model, { AssociationInfo, RecordId } from '../Model'
+import type Model from '../Model'
+import type { AssociationInfo, RecordId } from '../Model'
 import type Collection from '../Collection'
+import type { ModelClass } from '../Collection'
 import type { TableName, ColumnName } from '../Schema'
 
 import { getAssociations } from './helpers'
 
-export type QueryAssociation = $Exact<{
-  from: TableName<any>,
-  to: TableName<any>,
-  info: AssociationInfo,
-}>
+export type QueryAssociation = {
+  from: TableName
+  to: TableName
+  info: AssociationInfo
+}
 
-export type SerializedQuery = $Exact<{
-  table: TableName<any>,
-  description: QueryDescription,
-  associations: QueryAssociation[],
-}>
+export type SerializedQuery = {
+  table: TableName
+  description: QueryDescription
+  associations: QueryAssociation[]
+}
 
 interface QueryCountProxy {
   then<U>(
     onFulfill?: (value: number) => Promise<U> | U,
-    onReject?: (error: any) => Promise<U> | U,
-  ): Promise<U>;
+    onReject?: (error: unknown) => Promise<U> | U,
+  ): Promise<U>
 }
 
-export default class Query<Record: Model> {
+export default class Query<Record extends Model> {
   // Used by withObservables to differentiate between object types
   static _wmelonTag: string = 'query'
 
@@ -75,21 +70,21 @@ export default class Query<Record: Model> {
   )
 
   // Note: Don't use this directly, use Collection.query(...)
-  constructor(collection: Collection<Record>, clauses: Clause[]): void {
+  constructor(collection: Collection<Record>, clauses: Clause[]) {
     this.collection = collection
     this._rawDescription = Q.buildQueryDescription(clauses)
     this.description = Q.queryWithoutDeleted(this._rawDescription)
   }
 
-  /*:: extend: ArrayOrSpreadFn<Clause, Query<Record>>  */
   /**
    * Returns a new Query that contains all clauses (conditions, sorting, etc.) from this Query
    * as well as the ones passed as arguments.
    *
    * You can pass conditions as multiple arguments or a single array.
    */
-  // $FlowFixMe
-  extend(...args: Clause[]): Query<Record> {
+  extend(...clauses: Clause[]): Query<Record>
+  extend(clauses: Clause[]): Query<Record>
+  extend(...args: unknown[]): Query<Record> {
     const clauses = fromArrayOrSpread<Clause>(args, 'Collection.query', 'Clause')
     const { collection } = this
     const { where, sortBy, take, skip, joinTables, nestedJoinTables, lokiTransform, sql } =
@@ -113,7 +108,7 @@ export default class Query<Record: Model> {
   /**
    * `query.pipe(fn)` is a FP convenience for `fn(query)`
    */
-  pipe<T>(transform: (this) => T): T {
+  pipe<T>(transform: (query: this) => T): T {
     return transform(this)
   }
 
@@ -128,9 +123,8 @@ export default class Query<Record: Model> {
 
   then<U>(
     onFulfill?: (value: Record[]) => Promise<U> | U,
-    onReject?: (error: any) => Promise<U> | U,
+    onReject?: (error: unknown) => Promise<U> | U,
   ): Promise<U> {
-    // $FlowFixMe
     return this.fetch().then(onFulfill, onReject)
   }
 
@@ -142,7 +136,7 @@ export default class Query<Record: Model> {
    * Warning: Changes to individual records in the array are NOT observed. Use `observeWithColumns`
    */
   observe(): Observable<Record[]> {
-    return Observable.create((observer) =>
+    return Observable.create((observer: Observer<Record[]>) =>
       this._cachedSubscribable.subscribe((records) => {
         observer.next(records)
       }),
@@ -154,7 +148,7 @@ export default class Query<Record: Model> {
    * has one of its `columnNames` changed.
    */
   observeWithColumns(columnNames: ColumnName[]): Observable<Record[]> {
-    return Observable.create((observer) =>
+    return Observable.create((observer: Observer<Record[]>) =>
       this.experimentalSubscribeWithColumns(columnNames, (records) => {
         observer.next(records)
       }),
@@ -175,9 +169,8 @@ export default class Query<Record: Model> {
     return {
       then<U>(
         onFulfill?: (value: number) => Promise<U> | U,
-        onReject?: (error: any) => Promise<U> | U,
+        onReject?: (error: unknown) => Promise<U> | U,
       ): Promise<U> {
-        // $FlowFixMe
         return model.fetchCount().then(onFulfill, onReject)
       },
     }
@@ -189,7 +182,7 @@ export default class Query<Record: Model> {
    * Note: By default, the count is throttled. Pass `false` to opt out of throttling.
    */
   observeCount(isThrottled: boolean = true): Observable<number> {
-    return Observable.create((observer) => {
+    return Observable.create((observer: Observer<number>) => {
       const subscribable = isThrottled
         ? this._cachedCountThrottledSubscribable
         : this._cachedCountSubscribable
@@ -217,14 +210,14 @@ export default class Query<Record: Model> {
    * This is useful as a performance optimization or for running non-standard raw queries
    * (e.g. pragmas, statistics, groupped results, records with extra columns, etc...)
    */
-  unsafeFetchRaw(): Promise<any[]> {
+  unsafeFetchRaw(): Promise<unknown[]> {
     return toPromise((callback) => this.collection._unsafeFetchRaw(this, callback))
   }
 
   /**
    * Rx-free equivalent of `.observe()`
    */
-  experimentalSubscribe(subscriber: (Record[]) => void): Unsubscribe {
+  experimentalSubscribe(subscriber: (records: Record[]) => void): Unsubscribe {
     return this._cachedSubscribable.subscribe(subscriber)
   }
 
@@ -233,7 +226,7 @@ export default class Query<Record: Model> {
    */
   experimentalSubscribeWithColumns(
     columnNames: ColumnName[],
-    subscriber: (Record[]) => void,
+    subscriber: (records: Record[]) => void,
   ): Unsubscribe {
     return subscribeToQueryWithColumns(this, columnNames, subscriber)
   }
@@ -241,7 +234,7 @@ export default class Query<Record: Model> {
   /**
    * Rx-free equivalent of `.observeCount()`
    */
-  experimentalSubscribeToCount(subscriber: (number) => void): Unsubscribe {
+  experimentalSubscribeToCount(subscriber: (count: number) => void): Unsubscribe {
     return this._cachedCountSubscribable.subscribe(subscriber)
   }
 
@@ -276,7 +269,7 @@ export default class Query<Record: Model> {
   /**
    * `Model` subclass associated with this query
    */
-  get modelClass(): Class<Record> {
+  get modelClass(): ModelClass<Record> {
     return this.collection.modelClass
   }
 
@@ -284,17 +277,16 @@ export default class Query<Record: Model> {
    * Table name of the Collection associated with this query
    */
   get table(): TableName<Record> {
-    // $FlowFixMe
     return this.modelClass.table
   }
 
   // TODO: Should any of the below be public API? Is this any useful outside of Watermelon
   // internals? If so, should it even be here, not `_`-prefixed?
-  get secondaryTables(): TableName<any>[] {
+  get secondaryTables(): TableName[] {
     return this.description.joinTables.concat(this.description.nestedJoinTables.map(({ to }) => to))
   }
 
-  get allTables(): TableName<any>[] {
+  get allTables(): TableName[] {
     return [this.table].concat(this.secondaryTables)
   }
 

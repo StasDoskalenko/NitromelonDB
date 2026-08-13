@@ -9,4 +9,5 @@ declare const process: {
     NODE_ENV?: string
     [key: string]: string | undefined
   }
+  nextTick?: (callback: () => void) => void
 }
