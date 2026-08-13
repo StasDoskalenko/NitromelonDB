@@ -10,5 +10,3 @@ export type $Keys<Type> = keyof Type
 export type $ReadOnlyArray<T> = readonly T[]
 
 export type $Call<F, T = never> = F extends (arg: T) => infer R ? R : never
-
-export type Class<T> = new (...args: never[]) => T

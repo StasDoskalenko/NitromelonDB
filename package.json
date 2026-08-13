@@ -15,7 +15,6 @@
     "flow": "flow check --color always",
     "eslint": "eslint ./src -c ./.eslintrc.js --cache --cache-location ./.cache/.eslintcache",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "tslint": "tslint --project .",
     "test": "jest --config=./jest.config.js --forceExit",
     "ci": "yarn ci:check",
     "test:metro-transform": "node ./scripts/check-metro-transform.mjs",
@@ -36,7 +35,7 @@
     "docs:deploy": "./scripts/update-docusaurus && cd docs-website && yarn deploy",
     "postinstall": "patch-package"
   },
-  "types": "src/index.d.ts",
+  "types": "src/index.ts",
   "author": "@Nozbe",
   "homepage": "https://github.com/Nozbe/WatermelonDB#readme",
   "bugs": "https://github.com/Nozbe/WatermelonDB/issues",
@@ -176,8 +175,6 @@
     "react-test-renderer": "19.2.3",
     "rimraf": "^4.1.2",
     "semver": "^7.8.5",
-    "tslint": "^5.11.0",
-    "tslint-config-prettier": "^1.15.0",
     "typescript": "^6.0.3"
   }
 }

@@ -24,8 +24,8 @@ export type ColumnType = 'string' | 'number' | 'boolean'
 export type ColumnSchema = Readonly<{
   name: ColumnName
   type: ColumnType
-  isOptional?: boolean
-  isIndexed?: boolean
+  isOptional?: boolean | undefined
+  isIndexed?: boolean | undefined
 }>
 
 export type ColumnMap = { [name: ColumnName]: ColumnSchema }
@@ -33,7 +33,7 @@ export type ColumnMap = { [name: ColumnName]: ColumnSchema }
 export type TableSchemaSpec = {
   name: TableName
   columns: ColumnSchema[]
-  unsafeSql?: (sql: string) => string
+  unsafeSql?: ((sql: string) => string) | undefined
 }
 
 export type TableSchema = Readonly<{
@@ -41,7 +41,7 @@ export type TableSchema = Readonly<{
   // depending on operation, it's faster to use map or array
   columns: ColumnMap
   columnArray: ColumnSchema[]
-  unsafeSql?: (sql: string) => string
+  unsafeSql?: ((sql: string) => string) | undefined
 }>
 
 export type TableMap = { [name: TableName]: TableSchema }
@@ -53,13 +53,13 @@ export type AppSchemaUnsafeSqlKind = 'setup' | 'create_indices' | 'drop_indices'
 export type AppSchemaSpec = {
   version: number
   tables: TableSchema[]
-  unsafeSql?: (sql: string, kind: AppSchemaUnsafeSqlKind) => string
+  unsafeSql?: ((sql: string, kind: AppSchemaUnsafeSqlKind) => string) | undefined
 }
 
 export type AppSchema = Readonly<{
   version: SchemaVersion
   tables: TableMap
-  unsafeSql?: (sql: string, kind: AppSchemaUnsafeSqlKind) => string
+  unsafeSql?: ((sql: string, kind: AppSchemaUnsafeSqlKind) => string) | undefined
 }>
 
 /**

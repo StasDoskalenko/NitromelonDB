@@ -6,6 +6,24 @@ on:
     branches: master
 
 jobs:
+  typescript:
+    runs-on: ubuntu-24.04
+    name: TypeScript
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - uses: actions/cache@v4
+        with:
+          path: 'node_modules'
+          key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
+      - run: yarn
+      - name: Typecheck library
+        run: yarn typecheck
+      - name: Typecheck examples
+        run: yarn test:typescript
   ci-check:
     runs-on: ubuntu-24.04
     name: JavaScript tests

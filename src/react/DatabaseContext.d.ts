@@ -1,9 +1,7 @@
-import { Provider as ReactProvider, Consumer as ReactConsumer, Context } from 'react'
+import type { Context, Consumer, Provider as ReactProvider } from 'react'
 import type Database from '../Database'
 
-type DatabaseContext = Context<Database>
-
-export type DatabaseConsumer = ReactConsumer<any>
-export type Provider = ReactProvider<any>
-
+declare const DatabaseContext: Context<Database>
+export const DatabaseConsumer: Consumer<Database>
+export const Provider: ReactProvider<Database>
 export default DatabaseContext

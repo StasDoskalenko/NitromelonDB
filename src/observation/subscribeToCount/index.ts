@@ -1,4 +1,4 @@
-import { Observable, switchMap, distinctUntilChanged, throttleTime } from '../../utils/rx'
+import { type Observable, switchMap, distinctUntilChanged, throttleTime } from '../../utils/rx'
 import { logError } from '../../utils/common'
 import { toPromise } from '../../utils/fp/Result'
 import { type Unsubscribe } from '../../utils/subscriptions'

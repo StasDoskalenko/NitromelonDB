@@ -93,8 +93,8 @@ export type QueryDescription = Readonly<{
   joinTables: TableName[]
   nestedJoinTables: NestedJoinTableDef[]
   sortBy: SortBy[]
-  take?: number
-  skip?: number
-  lokiTransform?: LokiTransformFunction
-  sql?: SqlQuery
+  take?: number | undefined
+  skip?: number | undefined
+  lokiTransform?: LokiTransformFunction | undefined
+  sql?: SqlQuery | undefined
 }>
