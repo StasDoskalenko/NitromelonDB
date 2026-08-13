@@ -56,11 +56,15 @@ const config = {
         'flowtype/no-types-missing-file-annotation': 'off',
         'flowtype/require-valid-file-annotation': 'off',
         'no-unused-vars': 'off',
+        'no-redeclare': 'off',
+        'no-undef': 'off',
         '@typescript-eslint/no-explicit-any': 'error',
+        '@typescript-eslint/no-redeclare': 'error',
         '@typescript-eslint/no-unused-vars': [
           'error',
           {
             argsIgnorePattern: '^_',
+            varsIgnorePattern: '^_',
           },
         ],
       },

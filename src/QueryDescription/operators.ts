@@ -1,11 +1,8 @@
-// @flow
-/* eslint-disable no-use-before-define */
-
 // don't import whole `utils` to keep worker size small
 import invariant from '../utils/common/invariant'
 import checkName from '../utils/fp/checkName'
 import fromArrayOrSpread, { type ArrayOrSpreadFn } from '../utils/fp/arrayOrSpread'
-import { type TableName, type ColumnName } from '../Schema'
+import type { TableName, ColumnName } from '../Schema'
 
 import type {
   NonNullValue,
@@ -47,6 +44,9 @@ import type {
 //   e.g. `Q.in([null, 'foo', 'bar'])`
 // - `null` on the left-hand-side of IN/NOT IN will always return false
 //   e.g. `null NOT IN (1, 2, 3) == false`
+
+const columnSymbol = Symbol('Q.column')
+const comparisonSymbol = Symbol('QueryComparison')
 
 // Equals (weakly)
 // Note:
@@ -159,8 +159,12 @@ export function column(name: ColumnName): ColumnDescription {
   return { column: checkName(name), type: columnSymbol }
 }
 
+function isComparison(arg: Value | Comparison): arg is Comparison {
+  return typeof arg === 'object' && arg !== null
+}
+
 function _valueOrComparison(arg: Value | Comparison): Comparison {
-  if (arg === null || typeof arg !== 'object') {
+  if (!isComparison(arg)) {
     return _valueOrComparison(eq(arg))
   }
 
@@ -183,10 +187,10 @@ export function unsafeSqlExpr(sql: string): SqlExpr {
   return { type: 'sql', expr: sql }
 }
 
-export function unsafeLokiExpr(expr: any): LokiExpr {
+export function unsafeLokiExpr(expr: unknown): LokiExpr {
   if (process.env.NODE_ENV !== 'production') {
     invariant(
-      expr && typeof expr === 'object' && !Array.isArray(expr),
+      !!expr && typeof expr === 'object' && !Array.isArray(expr),
       'Value passed to Q.unsafeLokiExpr is not an object',
     )
   }
@@ -197,13 +201,13 @@ export function unsafeLokiTransform(fn: LokiTransformFunction): LokiTransform {
   return { type: 'lokiTransform', function: fn }
 }
 
-export const and: ArrayOrSpreadFn<Where, And> = (...args): And => {
+export const and: ArrayOrSpreadFn<Where, And> = (...args: unknown[]): And => {
   const clauses = fromArrayOrSpread<Where>(args, 'Q.and()', 'Where')
   validateConditions(clauses)
   return { type: 'and', conditions: clauses }
 }
 
-export const or: ArrayOrSpreadFn<Where, Or> = (...args): Or => {
+export const or: ArrayOrSpreadFn<Where, Or> = (...args: unknown[]): Or => {
   const clauses = fromArrayOrSpread<Where>(args, 'Q.or()', 'Where')
   validateConditions(clauses)
   return { type: 'or', conditions: clauses }
@@ -230,52 +234,46 @@ export function skip(count: number): Skip {
   return { type: 'skip', count }
 }
 
-// Note: we have to write out three separate meanings of OnFunction because of a Babel bug
-// (it will remove the parentheses, changing the meaning of the flow type)
-type _OnFunctionColumnValue = (TableName<any>, ColumnName, Value) => On
-type _OnFunctionColumnComparison = (TableName<any>, ColumnName, Comparison) => On
-type _OnFunctionWhere = (TableName<any>, Where) => On
-type _OnFunctionWhereList = (TableName<any>, Where[]) => On
-
-type OnFunction = _OnFunctionColumnValue &
-  _OnFunctionColumnComparison &
-  _OnFunctionWhere &
-  _OnFunctionWhereList
-
 // Use: on('tableName', 'left_column', 'right_value')
 // or: on('tableName', 'left_column', gte(10))
 // or: on('tableName', where('left_column', 'value')))
 // or: on('tableName', or(...))
 // or: on('tableName', [where(...), where(...)])
-export const on: OnFunction = (table, leftOrClauseOrList, valueOrComparison) => {
+export function on(tableName: TableName, columnName: ColumnName, value: Value): On
+export function on(tableName: TableName, columnName: ColumnName, comparison: Comparison): On
+export function on(tableName: TableName, where: Where): On
+export function on(tableName: TableName, where: Where[]): On
+export function on(
+  table: TableName,
+  leftOrClauseOrList: ColumnName | Where | Where[],
+  valueOrComparison?: Value | Comparison,
+): On {
   if (typeof leftOrClauseOrList === 'string') {
     invariant(valueOrComparison !== undefined, 'illegal `undefined` passed to Q.on')
     return on(table, [where(leftOrClauseOrList, valueOrComparison)])
   }
 
-  const clauseOrList: Where | Where[] = (leftOrClauseOrList: any)
-
-  if (Array.isArray(clauseOrList)) {
-    const conditions: Where[] = clauseOrList
+  if (Array.isArray(leftOrClauseOrList)) {
+    const conditions: Where[] = leftOrClauseOrList
     validateConditions(conditions)
     return {
       type: 'on',
       table: checkName(table),
       conditions,
     }
-  } else if (clauseOrList && clauseOrList.type === 'and') {
-    return on(table, clauseOrList.conditions)
+  } else if (leftOrClauseOrList && leftOrClauseOrList.type === 'and') {
+    return on(table, leftOrClauseOrList.conditions)
   }
 
-  return on(table, [clauseOrList])
+  return on(table, [leftOrClauseOrList])
 }
 
-export function experimentalJoinTables(tables: TableName<any>[]): JoinTables {
+export function experimentalJoinTables(tables: TableName[]): JoinTables {
   invariant(Array.isArray(tables), 'experimentalJoinTables expected an array')
   return { type: 'joinTables', tables: tables.map(checkName) }
 }
 
-export function experimentalNestedJoin(from: TableName<any>, to: TableName<any>): NestedJoinTable {
+export function experimentalNestedJoin(from: TableName, to: TableName): NestedJoinTable {
   return { type: 'nestedJoinTable', from: checkName(from), to: checkName(to) }
 }
 
@@ -290,11 +288,12 @@ export function unsafeSqlQuery(sql: string, values: Value[] = []): SqlQuery {
   return { type: 'sqlQuery', sql, values }
 }
 
-const columnSymbol = Symbol('Q.column')
-const comparisonSymbol = Symbol('QueryComparison')
+function isColumnDescription(arg: Value | ColumnDescription): arg is ColumnDescription {
+  return typeof arg === 'object' && arg !== null
+}
 
 function _valueOrColumn(arg: Value | ColumnDescription): ComparisonRight {
-  if (arg === null || typeof arg !== 'object') {
+  if (!isColumnDescription(arg)) {
     invariant(arg !== undefined, 'Cannot compare to undefined in a Query. Did you mean null?')
     return { value: arg }
   }

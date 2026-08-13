@@ -1,6 +1,4 @@
-// @flow
-
-import { unique, groupBy, toPairs, pipe, unnest } from '../../../utils/fp'
+import { unique, groupBy, toPairs, unnest } from '../../../utils/fp'
 import type { CreateTableMigrationStep, AddColumnsMigrationStep, SchemaMigrations } from '../index'
 import type { TableName, ColumnName, SchemaVersion } from '../../index'
 import { tableName } from '../../index'
@@ -8,14 +6,14 @@ import { stepsForMigration } from '../stepsForMigration'
 
 import { invariant } from '../../../utils/common'
 
-export type MigrationSyncChanges = $Exact<{
-  +from: SchemaVersion,
-  +tables: TableName<any>[],
-  +columns: $Exact<{
-    table: TableName<any>,
-    columns: ColumnName[],
-  }>[],
-}> | null
+export type MigrationSyncChanges = {
+  from: SchemaVersion
+  tables: TableName[]
+  columns: {
+    table: TableName
+    columns: ColumnName[]
+  }[]
+} | null
 
 export default function getSyncChanges(
   migrations: SchemaMigrations,
@@ -39,28 +37,24 @@ export default function getSyncChanges(
     )
   })
 
-  // $FlowFixMe
-  const createTableSteps: CreateTableMigrationStep[] = steps.filter(
-    (step) => step.type === 'create_table',
+  const createTableSteps = steps.filter(
+    (step): step is CreateTableMigrationStep => step.type === 'create_table',
   )
   const createdTables = createTableSteps.map((step) => step.schema.name)
 
-  // $FlowFixMe
-  const addColumnSteps: AddColumnsMigrationStep[] = steps.filter(
-    (step) => step.type === 'add_columns',
+  const addColumnSteps = steps.filter(
+    (step): step is AddColumnsMigrationStep => step.type === 'add_columns',
   )
-  const allAddedColumns = addColumnSteps
+  type AddedColumn = { table: TableName; name: ColumnName }
+
+  const allAddedColumns: AddedColumn[][] = addColumnSteps
     .filter((step) => !createdTables.includes(step.table))
     .map(({ table, columns }) => columns.map(({ name }) => ({ table, name })))
 
-  const columnsByTable = pipe(
-    unnest,
-    groupBy(({ table }) => table),
-    toPairs,
-  )(allAddedColumns)
+  const columnsByTable = toPairs(groupBy((column: AddedColumn) => column.table)(unnest(allAddedColumns)))
   const addedColumns = columnsByTable.map(([table, columnDefs]) => ({
     table: tableName(table),
-    columns: unique(columnDefs.map(({ name }) => name)),
+    columns: unique(columnDefs.map((column) => column.name)),
   }))
 
   return {

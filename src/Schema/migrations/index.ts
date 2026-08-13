@@ -1,47 +1,44 @@
-// @flow
-
 // NOTE: Only require files needed (critical path on web)
 import sortBy from '../../utils/fp/sortBy'
 import invariant from '../../utils/common/invariant'
 import isObj from '../../utils/fp/isObj'
 
-import type { $RE } from '../../types'
 import type { ColumnSchema, TableName, TableSchema, TableSchemaSpec, SchemaVersion } from '../index'
 import { tableSchema, validateColumnSchema } from '../index'
 
-export type CreateTableMigrationStep = $RE<{
-  type: 'create_table',
-  schema: TableSchema,
+export type CreateTableMigrationStep = Readonly<{
+  type: 'create_table'
+  schema: TableSchema
 }>
 
-export type AddColumnsMigrationStep = $RE<{
-  type: 'add_columns',
-  table: TableName<any>,
-  columns: ColumnSchema[],
-  unsafeSql?: (string) => string,
+export type AddColumnsMigrationStep = Readonly<{
+  type: 'add_columns'
+  table: TableName
+  columns: ColumnSchema[]
+  unsafeSql?: (sql: string) => string
 }>
 
-export type SqlMigrationStep = $RE<{
-  type: 'sql',
-  sql: string,
+export type SqlMigrationStep = Readonly<{
+  type: 'sql'
+  sql: string
 }>
 
 export type MigrationStep = CreateTableMigrationStep | AddColumnsMigrationStep | SqlMigrationStep
 
-type Migration = $RE<{
-  toVersion: SchemaVersion,
-  steps: MigrationStep[],
+export type Migration = Readonly<{
+  toVersion: SchemaVersion
+  steps: MigrationStep[]
 }>
 
-type SchemaMigrationsSpec = $RE<{
-  migrations: Migration[],
+export type SchemaMigrationsSpec = Readonly<{
+  migrations: Migration[]
 }>
 
-export type SchemaMigrations = $RE<{
-  validated: true,
-  minVersion: SchemaVersion,
-  maxVersion: SchemaVersion,
-  sortedMigrations: Migration[],
+export type SchemaMigrations = Readonly<{
+  validated: true
+  minVersion: SchemaVersion
+  maxVersion: SchemaVersion
+  sortedMigrations: Migration[]
 }>
 
 // Creates a specification of how to migrate between different versions of
@@ -49,39 +46,6 @@ export type SchemaMigrations = $RE<{
 // create a corresponding migration.
 //
 // See docs for more details
-//
-// Example:
-//
-// schemaMigrations({
-//   migrations: [
-//     {
-//       toVersion: 3,
-//       steps: [
-//         createTable({
-//           name: 'comments',
-//           columns: [
-//             { name: 'post_id', type: 'string', isIndexed: true },
-//             { name: 'body', type: 'string' },
-//           ],
-//         }),
-//         addColumns({
-//           table: 'posts',
-//           columns: [
-//             { name: 'subtitle', type: 'string', isOptional: true },
-//             { name: 'is_pinned', type: 'boolean' },
-//           ],
-//         }),
-//       ],
-//     },
-//     {
-//       toVersion: 2,
-//       steps: [
-//         // ...
-//       ],
-//     },
-//   ],
-// })
-
 export function schemaMigrations(migrationSpec: SchemaMigrationsSpec): SchemaMigrations {
   const { migrations } = migrationSpec
 
@@ -114,7 +78,7 @@ export function schemaMigrations(migrationSpec: SchemaMigrationsSpec): SchemaMig
 
   if (process.env.NODE_ENV !== 'production') {
     // validate that migration spec is without gaps and duplicates
-    sortedMigrations.reduce((maxCoveredVersion, migration) => {
+    sortedMigrations.reduce<number | null>((maxCoveredVersion, migration) => {
       const { toVersion } = migration
       if (maxCoveredVersion) {
         invariant(
@@ -145,11 +109,11 @@ export function addColumns({
   table,
   columns,
   unsafeSql,
-}: $Exact<{
-  table: TableName<any>,
-  columns: ColumnSchema[],
-  unsafeSql?: (string) => string,
-}>): AddColumnsMigrationStep {
+}: {
+  table: TableName
+  columns: ColumnSchema[]
+  unsafeSql?: (sql: string) => string
+}): AddColumnsMigrationStep {
   if (process.env.NODE_ENV !== 'production') {
     invariant(table, `Missing table name in addColumn()`)
     invariant(columns && Array.isArray(columns), `Missing 'columns' or not an array in addColumn()`)
@@ -169,25 +133,3 @@ export function unsafeExecuteSql(sql: string): SqlMigrationStep {
   }
   return { type: 'sql', sql }
 }
-
-/*
-
-TODO: Those types of migrations are currently not implemented. If you need them, feel free to contribute!
-
-// table operations
-destroyTable('table_name')
-renameTable({ from: 'old_table_name', to: 'new_table_name' })
-
-// column operations
-renameColumn({ table: 'table_name', from: 'old_column_name', to: 'new_column_name' })
-destroyColumn({ table: 'table_name', column: 'column_name' })
-
-// indexing
-addColumnIndex({ table: 'table_name', column: 'column_name' })
-removeColumnIndex({ table: 'table_name', column: 'column_name' })
-
-// optionality
-makeColumnOptional({ table: 'table_name', column: 'column_name' }) // allows nulls now
-makeColumnRequired({ table: 'table_name', column: 'column_name' }) // nulls are changed to null value ('', 0, false)
-
-*/

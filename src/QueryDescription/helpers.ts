@@ -1,18 +1,26 @@
-// @flow
-/* eslint-disable no-use-before-define */
-
 // don't import whole `utils` to keep worker size small
 import { unique } from '../utils/fp'
 import invariant from '../utils/common/invariant'
 import deepFreeze from '../utils/common/deepFreeze'
 import { columnName } from '../Schema'
 
-import type { Where, Clause, QueryDescription, On } from './type'
+import type { Where, Clause, QueryDescription, On, NestedJoinTableDef, SortBy } from './type'
 import { where, notEq } from './operators'
 
+type QueryDescriptionDraft = {
+  where: Where[]
+  joinTables: QueryDescription['joinTables']
+  nestedJoinTables: NestedJoinTableDef[]
+  sortBy: SortBy[]
+  take?: number
+  skip?: number
+  lokiTransform?: QueryDescription['lokiTransform']
+  sql?: QueryDescription['sql']
+}
+
 const syncStatusColumn = columnName('_status')
-const extractClauses: (Clause[]) => QueryDescription = (clauses) => {
-  const query: $Exact<{ ...$Shape<QueryDescription> }> = {
+const extractClauses = (clauses: Clause[]): QueryDescription => {
+  const query: QueryDescriptionDraft = {
     where: [],
     joinTables: [],
     nestedJoinTables: [],
@@ -71,7 +79,6 @@ const extractClauses: (Clause[]) => QueryDescription = (clauses) => {
   })
   query.joinTables = unique(query.joinTables)
 
-  // $FlowFixMe: Flow is too dumb to realize that it is valid
   return query
 }
 

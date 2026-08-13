@@ -1,5 +1,3 @@
-import type { $RE } from '../types'
-
 import type { TableName, ColumnName } from '../Schema'
 
 export type NonNullValue = number | string | boolean
@@ -22,62 +20,59 @@ export type Operator =
   | 'notLike'
   | 'includes'
 
-export type ColumnDescription = $RE<{ column: ColumnName; type?: symbol }>
+export type ColumnDescription = Readonly<{ column: ColumnName; type?: symbol }>
 export type ComparisonRight =
-  | $RE<{ value: Value }>
-  | $RE<{ values: NonNullValues }>
+  | Readonly<{ value: Value }>
+  | Readonly<{ values: NonNullValues }>
   | ColumnDescription
-export type Comparison = $RE<{ operator: Operator; right: ComparisonRight; type?: symbol }>
+export type Comparison = Readonly<{ operator: Operator; right: ComparisonRight; type?: symbol }>
 
-export type WhereDescription = $RE<{
+export type WhereDescription = Readonly<{
   type: 'where'
   left: ColumnName
   comparison: Comparison
 }>
 
-export type SqlExpr = $RE<{ type: 'sql'; expr: string }>
-export type LokiExpr = $RE<{ type: 'loki'; expr: any }>
+export type SqlExpr = Readonly<{ type: 'sql'; expr: string }>
+export type LokiExpr = Readonly<{ type: 'loki'; expr: unknown }>
 
-// eslint-disable-next-line no-use-before-define
 export type Where = WhereDescription | And | Or | On | SqlExpr | LokiExpr
-export type And = $RE<{ type: 'and'; conditions: Where[] }>
-export type Or = $RE<{ type: 'or'; conditions: Where[] }>
-export type On = $RE<{
+export type And = Readonly<{ type: 'and'; conditions: Where[] }>
+export type Or = Readonly<{ type: 'or'; conditions: Where[] }>
+export type On = Readonly<{
   type: 'on'
-  table: TableName<any>
+  table: TableName
   conditions: Where[]
 }>
 export type SortOrder = 'asc' | 'desc'
-export const asc: SortOrder
-export const desc: SortOrder
-export type SortBy = $RE<{
+export type SortBy = Readonly<{
   type: 'sortBy'
   sortColumn: ColumnName
   sortOrder: SortOrder
 }>
-export type Take = $RE<{
+export type Take = Readonly<{
   type: 'take'
   count: number
 }>
-export type Skip = $RE<{
+export type Skip = Readonly<{
   type: 'skip'
   count: number
 }>
-export type JoinTables = $RE<{
+export type JoinTables = Readonly<{
   type: 'joinTables'
-  tables: TableName<any>[]
+  tables: TableName[]
 }>
-export type NestedJoinTable = $RE<{
+export type NestedJoinTable = Readonly<{
   type: 'nestedJoinTable'
-  from: TableName<any>
-  to: TableName<any>
+  from: TableName
+  to: TableName
 }>
-export type LokiTransformFunction = (rawLokiRecords: any[], loki: any) => any[]
-export type LokiTransform = $RE<{
+export type LokiTransformFunction = (rawLokiRecords: unknown[], loki: unknown) => unknown[]
+export type LokiTransform = Readonly<{
   type: 'lokiTransform'
   function: LokiTransformFunction
 }>
-export type SqlQuery = $RE<{
+export type SqlQuery = Readonly<{
   type: 'sqlQuery'
   sql: string
   values: Value[]
@@ -92,10 +87,10 @@ export type Clause =
   | LokiTransform
   | SqlQuery
 
-type NestedJoinTableDef = $RE<{ from: TableName<any>; to: TableName<any> }>
-export type QueryDescription = $RE<{
+export type NestedJoinTableDef = Readonly<{ from: TableName; to: TableName }>
+export type QueryDescription = Readonly<{
   where: Where[]
-  joinTables: TableName<any>[]
+  joinTables: TableName[]
   nestedJoinTables: NestedJoinTableDef[]
   sortBy: SortBy[]
   take?: number
