@@ -1,5 +1,3 @@
-// @flow
-
 import { values } from '../../utils/fp'
 import areRecordsEqual from '../../utils/fp/areRecordsEqual'
 import { invariant } from '../../utils/common'
@@ -19,7 +17,7 @@ export function resolveConflict(local: RawRecord, remote: DirtyRaw): DirtyRaw {
   }
 
   // mutating code - performance-critical path
-  const resolved = {
+  const resolved: DirtyRaw = {
     // use local fields if remote is missing columns (shouldn't but just in case)
     ...local,
     // Note: remote MUST NOT have a _status of _changed fields (will replace them anyway just in case)
@@ -41,11 +39,10 @@ function replaceRaw(record: Model, dirtyRaw: DirtyRaw): void {
   record._raw = sanitizedRaw(dirtyRaw, record.collection.schema)
 }
 
-export function prepareCreateFromRaw<T: Model>(collection: Collection<T>, dirtyRaw: DirtyRaw): T {
+export function prepareCreateFromRaw<T extends Model>(collection: Collection<T>, dirtyRaw: DirtyRaw): T {
   // TODO: Think more deeply about this - it's probably unnecessary to do this check, since it would
   // mean malicious sync server, which is a bigger problem
   invariant(
-    // $FlowFixMe
     !Object.prototype.hasOwnProperty.call(dirtyRaw, '__proto__'),
     'Malicious dirtyRaw detected - contains a __proto__ key',
   )
@@ -55,7 +52,7 @@ export function prepareCreateFromRaw<T: Model>(collection: Collection<T>, dirtyR
 
 // optimization - don't run DB update if received record is the same as local
 // (this happens a lot during replacement sync)
-export function requiresUpdate<T: Model>(
+export function requiresUpdate<T extends Model>(
   collection: Collection<T>,
   local: RawRecord,
   dirtyRemote: DirtyRaw,
@@ -71,16 +68,16 @@ export function requiresUpdate<T: Model>(
   return !canSkipSafely
 }
 
-export const recordFromRaw = <T: Model>(raw: RawRecord, collection: Collection<T>): T =>
+export const recordFromRaw = <T extends Model>(raw: RawRecord, collection: Collection<T>): T =>
   collection._cache._modelForRaw(raw, false)
 
-export function prepareUpdateFromRaw<T: Model>(
+export function prepareUpdateFromRaw<T extends Model>(
   localRaw: RawRecord,
   remoteDirtyRaw: DirtyRaw,
   collection: Collection<T>,
-  log: ?SyncLog,
+  log?: SyncLog | null,
   conflictResolver?: SyncConflictResolver,
-): ?T {
+): T | null {
   if (!requiresUpdate(collection, localRaw, remoteDirtyRaw)) {
     return null
   }
@@ -89,12 +86,7 @@ export function prepareUpdateFromRaw<T: Model>(
 
   // Note COPY for log - only if needed
   const logConflict = log && !!localRaw._changed
-  const logLocal = logConflict
-    ? {
-        // $FlowFixMe
-        ...localRaw,
-      }
-    : {}
+  const logLocal = logConflict ? { ...localRaw } : {}
   const logRemote = logConflict ? { ...remoteDirtyRaw } : {}
 
   let newRaw = resolveConflict(localRaw, remoteDirtyRaw)
@@ -103,7 +95,6 @@ export function prepareUpdateFromRaw<T: Model>(
     newRaw = conflictResolver(collection.table, localRaw, remoteDirtyRaw, newRaw)
   }
 
-  // $FlowFixMe
   return local.prepareUpdate(() => {
     replaceRaw(local, newRaw)
 
@@ -113,17 +104,14 @@ export function prepareUpdateFromRaw<T: Model>(
       log.resolvedConflicts.push({
         local: logLocal,
         remote: logRemote,
-        // $FlowFixMe
         resolved: { ...newRaw },
       })
     }
   })
 }
 
-export function prepareMarkAsSynced<T: Model>(record: T): T {
-  // $FlowFixMe
+export function prepareMarkAsSynced<T extends Model>(record: T): T {
   const newRaw = Object.assign({}, record._raw, { _status: 'synced', _changed: '' }) // faster than object spread
-  // $FlowFixMe
   return record.prepareUpdate(() => {
     replaceRaw(record, newRaw)
   })
@@ -136,13 +124,13 @@ export function ensureSameDatabase(database: Database, initialResetCount: number
   )
 }
 
-export const isChangeSetEmpty: (SyncDatabaseChangeSet) => boolean = (changeset) =>
+export const isChangeSetEmpty = (changeset: SyncDatabaseChangeSet): boolean =>
   values(changeset).every(
     ({ created, updated, deleted }) => created.length + updated.length + deleted.length === 0,
   )
 
-const sum: (number[]) => number = (xs) => xs.reduce((a, b) => a + b, 0)
-export const changeSetCount: (SyncDatabaseChangeSet) => number = (changeset) =>
+const sum = (xs: number[]): number => xs.reduce((a, b) => a + b, 0)
+export const changeSetCount = (changeset: SyncDatabaseChangeSet): number =>
   sum(
     values(changeset).map(
       ({ created, updated, deleted }) => created.length + updated.length + deleted.length,

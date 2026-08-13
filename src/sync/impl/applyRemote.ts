@@ -1,6 +1,4 @@
-// @flow
-
-import { mapObj, filterObj, pipe, toPairs } from '../../utils/fp'
+import { mapObj, filterObj, toPairs } from '../../utils/fp'
 import splitEvery from '../../utils/fp/splitEvery'
 import allPromisesObj from '../../utils/fp/allPromisesObj'
 import { toPromise } from '../../utils/fp/Result'
@@ -15,6 +13,7 @@ import type {
   Query,
   RawRecord,
 } from '../..'
+import type { CachedQueryResult } from '../../adapters/type'
 import * as Q from '../../QueryDescription'
 import { columnName } from '../../Schema'
 
@@ -24,26 +23,27 @@ import type {
   SyncLog,
   SyncConflictResolver,
   SyncPullStrategy,
+  SyncPullStrategyType,
 } from '../index'
 import { prepareCreateFromRaw, prepareUpdateFromRaw, recordFromRaw } from './helpers'
 
-type ApplyRemoteChangesContext = $Exact<{
-  db: Database,
-  strategy?: ?SyncPullStrategy,
-  sendCreatedAsUpdated?: boolean,
-  log?: SyncLog,
-  conflictResolver?: SyncConflictResolver,
-  _unsafeBatchPerCollection?: boolean,
-}>
+export type ApplyRemoteChangesContext = {
+  db: Database
+  strategy?: SyncPullStrategy | null | undefined
+  sendCreatedAsUpdated?: boolean | undefined
+  log?: SyncLog | undefined
+  conflictResolver?: SyncConflictResolver | undefined
+  _unsafeBatchPerCollection?: boolean | undefined
+}
 
 // NOTE: Creating JS models is expensive/memory-intensive, so we want to avoid it if possible
 // In replacement sync, we can avoid it if record already exists and didn't change. Note that we're not
 // using unsafeQueryRaw, because we DO want to reuse JS model if already in memory
 // This is only safe to do within a single db.write block, because otherwise we risk that the record
 // changed and we can no longer instantiate a JS model from an outdated raw record
-const unsafeFetchAsRaws = async <T: Model>(query: Query<T>): Promise<RawRecord[]> => {
+const unsafeFetchAsRaws = async <T extends Model>(query: Query<T>): Promise<RawRecord[]> => {
   const { db } = query.collection
-  const result = await toPromise((callback) =>
+  const result = await toPromise<CachedQueryResult>((callback) =>
     db.adapter.underlyingAdapter.query(query.serialize(), callback),
   )
   const raws = query.collection._cache.rawRecordsFromQueryResult(result)
@@ -56,18 +56,20 @@ const unsafeFetchAsRaws = async <T: Model>(query: Query<T>): Promise<RawRecord[]
   return raws
 }
 
+const dirtyRawId = (record: DirtyRaw): RecordId => record.id as RecordId
+
 const idsForChanges = ({ created, updated, deleted }: SyncTableChangeSet): RecordId[] => {
-  const ids = []
+  const ids: RecordId[] = []
   created.forEach((record) => {
-    ids.push(record.id)
+    ids.push(dirtyRawId(record))
   })
   updated.forEach((record) => {
-    ids.push(record.id)
+    ids.push(dirtyRawId(record))
   })
   return ids.concat(deleted)
 }
 
-const fetchRecordsForChanges = <T: Model>(
+const fetchRecordsForChanges = <T extends Model>(
   collection: Collection<T>,
   changes: SyncTableChangeSet,
 ): Promise<RawRecord[]> => {
@@ -80,15 +82,14 @@ const fetchRecordsForChanges = <T: Model>(
   return Promise.resolve([])
 }
 
-type RecordsToApplyRemoteChangesTo<T: Model> = $Exact<{
-  ...SyncTableChangeSet,
-  recordsMap: Map<RecordId, RawRecord>,
-  recordsToDestroy: T[],
-  locallyDeletedIds: RecordId[],
-  deletedRecordsToDestroy: RecordId[],
-}>
+type RecordsToApplyRemoteChangesTo<T extends Model> = SyncTableChangeSet & {
+  recordsMap: Map<RecordId, RawRecord>
+  recordsToDestroy: T[]
+  locallyDeletedIds: RecordId[]
+  deletedRecordsToDestroy: RecordId[]
+}
 
-async function recordsToApplyRemoteChangesTo_incremental<T: Model>(
+async function recordsToApplyRemoteChangesTo_incremental<T extends Model>(
   collection: Collection<T>,
   changes: SyncTableChangeSet,
   context: ApplyRemoteChangesContext,
@@ -115,7 +116,7 @@ async function recordsToApplyRemoteChangesTo_incremental<T: Model>(
   }
 }
 
-async function recordsToApplyRemoteChangesTo_replacement<T: Model>(
+async function recordsToApplyRemoteChangesTo_replacement<T extends Model>(
   collection: Collection<T>,
   changes: SyncTableChangeSet,
   context: ApplyRemoteChangesContext,
@@ -123,7 +124,7 @@ async function recordsToApplyRemoteChangesTo_replacement<T: Model>(
   const { db } = context
   const { table } = collection
 
-  const queryForReplacement: ?(Q.Where[]) =
+  const queryForReplacement: Q.Where[] | null | undefined =
     context.strategy &&
     typeof context.strategy === 'object' &&
     context.strategy.experimentalQueryRecordsForReplacement
@@ -155,8 +156,7 @@ async function recordsToApplyRemoteChangesTo_replacement<T: Model>(
   // and some of the other referenced records are also deleted.
   const replacementRecords = await (async () => {
     if (queryForReplacement) {
-      const clauses: Q.Clause[] = (queryForReplacement: any)
-      const modifiedQuery = collection.query(clauses)
+      const modifiedQuery = collection.query(queryForReplacement)
       modifiedQuery.description = modifiedQuery._rawDescription
       return new Set(await modifiedQuery.fetchIds())
     }
@@ -164,8 +164,8 @@ async function recordsToApplyRemoteChangesTo_replacement<T: Model>(
   })()
 
   const recordsToKeep = new Set([
-    ...created.map((record) => (record.id: RecordId)),
-    ...updated.map((record) => (record.id: RecordId)),
+    ...created.map((record) => dirtyRawId(record)),
+    ...updated.map((record) => dirtyRawId(record)),
   ])
 
   return {
@@ -193,9 +193,9 @@ async function recordsToApplyRemoteChangesTo_replacement<T: Model>(
 }
 
 const strategyForCollection = (
-  collection: Collection<any>,
-  strategy: ?SyncPullStrategy,
-): SyncPullStrategy => {
+  collection: { table: TableName },
+  strategy: SyncPullStrategy | null | undefined,
+): SyncPullStrategyType => {
   if (!strategy) {
     return 'incremental'
   } else if (typeof strategy === 'string') {
@@ -205,7 +205,7 @@ const strategyForCollection = (
   return strategy.override[collection.table] || strategy.default
 }
 
-async function recordsToApplyRemoteChangesTo<T: Model>(
+async function recordsToApplyRemoteChangesTo<T extends Model>(
   collection: Collection<T>,
   changes: SyncTableChangeSet,
   context: ApplyRemoteChangesContext,
@@ -222,31 +222,36 @@ async function recordsToApplyRemoteChangesTo<T: Model>(
   }
 }
 
-type AllRecordsToApply = interface { [TableName<any>]: RecordsToApplyRemoteChangesTo<Model> }
+type AllRecordsToApply = { [tableName: TableName]: RecordsToApplyRemoteChangesTo<Model> }
 
 const getAllRecordsToApply = (
   remoteChanges: SyncDatabaseChangeSet,
   context: ApplyRemoteChangesContext,
-): AllRecordsToApply => {
+): Promise<AllRecordsToApply> => {
   const { db } = context
+  const knownChanges = filterObj((_changes, tableName) => {
+    const collection = db.get(tableName as TableName)
+
+    if (!collection) {
+      logger.warn(
+        `You are trying to sync a collection named ${tableName}, but it does not exist. Will skip it (for forward-compatibility). If this is unexpected, perhaps you forgot to add it to your Database constructor's modelClasses property?`,
+      )
+    }
+
+    return !!collection
+  }, remoteChanges) as SyncDatabaseChangeSet
+
   return allPromisesObj(
-    pipe(
-      filterObj((_changes, tableName: TableName<any>) => {
-        const collection = db.get((tableName: any))
-
-        if (!collection) {
-          logger.warn(
-            `You are trying to sync a collection named ${tableName}, but it does not exist. Will skip it (for forward-compatibility). If this is unexpected, perhaps you forgot to add it to your Database constructor's modelClasses property?`,
-          )
-        }
-
-        return !!collection
-      }),
-      mapObj((changes, tableName: TableName<any>) =>
-        recordsToApplyRemoteChangesTo(db.get((tableName: any)), changes, context),
-      ),
-    )(remoteChanges),
-  )
+    mapObj(
+      (changes, tableName) =>
+        recordsToApplyRemoteChangesTo(
+          db.get(tableName as TableName),
+          changes as SyncTableChangeSet,
+          context,
+        ),
+      knownChanges,
+    ) as Record<string, Promise<RecordsToApplyRemoteChangesTo<Model>>>,
+  ) as Promise<AllRecordsToApply>
 }
 
 function validateRemoteRaw(raw: DirtyRaw): void {
@@ -258,11 +263,11 @@ function validateRemoteRaw(raw: DirtyRaw): void {
   )
 }
 
-function prepareApplyRemoteChangesToCollection<T: Model>(
+function prepareApplyRemoteChangesToCollection<T extends Model>(
   recordsToApply: RecordsToApplyRemoteChangesTo<T>,
   collection: Collection<T>,
   context: ApplyRemoteChangesContext,
-): Array<?T> {
+): Array<T | null> {
   const { db, sendCreatedAsUpdated, log, conflictResolver } = context
   const { table } = collection
   const {
@@ -281,25 +286,25 @@ function prepareApplyRemoteChangesToCollection<T: Model>(
     )
   }
 
-  const recordsToBatch: Array<?T> = [] // mutating - perf critical
+  const recordsToBatch: Array<T | null> = [] // mutating - perf critical
 
   // Insert and update records
   created.forEach((raw) => {
     validateRemoteRaw(raw)
-    const currentRecord = recordsMap.get(raw.id)
+    const currentRecord = recordsMap.get(dirtyRawId(raw))
     if (currentRecord) {
       logError(
-        `[Sync] Server wants client to create record ${table}#${raw.id}, but it already exists locally. This may suggest last sync partially executed, and then failed; or it could be a serious bug. Will update existing record instead.`,
+        `[Sync] Server wants client to create record ${table}#${dirtyRawId(raw)}, but it already exists locally. This may suggest last sync partially executed, and then failed; or it could be a serious bug. Will update existing record instead.`,
       )
       recordsToBatch.push(
         prepareUpdateFromRaw(currentRecord, raw, collection, log, conflictResolver),
       )
-    } else if (locallyDeletedIds.includes(raw.id)) {
+    } else if (locallyDeletedIds.includes(dirtyRawId(raw))) {
       logError(
-        `[Sync] Server wants client to create record ${table}#${raw.id}, but it already exists locally and is marked as deleted. This may suggest last sync partially executed, and then failed; or it could be a serious bug. Will delete local record and recreate it instead.`,
+        `[Sync] Server wants client to create record ${table}#${dirtyRawId(raw)}, but it already exists locally and is marked as deleted. This may suggest last sync partially executed, and then failed; or it could be a serious bug. Will delete local record and recreate it instead.`,
       )
       // Note: we're not awaiting the async operation (but it will always complete before the batch)
-      db.adapter.destroyDeletedRecords(table, [raw.id])
+      db.adapter.destroyDeletedRecords(table, [dirtyRawId(raw)])
       recordsToBatch.push(prepareCreateFromRaw(collection, raw))
     } else {
       recordsToBatch.push(prepareCreateFromRaw(collection, raw))
@@ -308,19 +313,19 @@ function prepareApplyRemoteChangesToCollection<T: Model>(
 
   updated.forEach((raw) => {
     validateRemoteRaw(raw)
-    const currentRecord = recordsMap.get(raw.id)
+    const currentRecord = recordsMap.get(dirtyRawId(raw))
 
     if (currentRecord) {
       recordsToBatch.push(
         prepareUpdateFromRaw(currentRecord, raw, collection, log, conflictResolver),
       )
-    } else if (locallyDeletedIds.includes(raw.id)) {
+    } else if (locallyDeletedIds.includes(dirtyRawId(raw))) {
       // Nothing to do, record was locally deleted, deletion will be pushed later
     } else {
       // Record doesn't exist (but should) — just create it
       !sendCreatedAsUpdated &&
         logError(
-          `[Sync] Server wants client to update record ${table}#${raw.id}, but it doesn't exist locally. This could be a serious bug. Will create record instead. If this was intentional, please check the flag sendCreatedAsUpdated in https://watermelondb.dev/docs/Sync/Frontend#additional-synchronize-flags`,
+          `[Sync] Server wants client to update record ${table}#${dirtyRawId(raw)}, but it doesn't exist locally. This could be a serious bug. Will create record instead. If this was intentional, please check the flag sendCreatedAsUpdated in https://watermelondb.dev/docs/Sync/Frontend#additional-synchronize-flags`,
         )
 
       recordsToBatch.push(prepareCreateFromRaw(collection, raw))
@@ -328,7 +333,6 @@ function prepareApplyRemoteChangesToCollection<T: Model>(
   })
 
   deleted.forEach((record) => {
-    // $FlowFixMe
     recordsToBatch.push(record.prepareDestroyPermanently())
   })
 
@@ -341,7 +345,7 @@ const destroyAllDeletedRecords = async (
 ): Promise<void> => {
   const promises = toPairs(recordsToApply).map(([tableName, { deletedRecordsToDestroy }]) =>
     deletedRecordsToDestroy.length
-      ? db.adapter.destroyDeletedRecords((tableName: any), deletedRecordsToDestroy)
+      ? db.adapter.destroyDeletedRecords(tableName as TableName, deletedRecordsToDestroy)
       : null,
   )
   await Promise.all(promises)
@@ -352,15 +356,14 @@ const applyAllRemoteChanges = async (
   context: ApplyRemoteChangesContext,
 ): Promise<void> => {
   const { db } = context
-  const allRecords: Array<?Model> = []
+  const allRecords: Array<Model | null> = []
   toPairs(recordsToApply).forEach(([tableName, records]) => {
-    prepareApplyRemoteChangesToCollection(records, db.get((tableName: any)), context).forEach(
+    prepareApplyRemoteChangesToCollection(records, db.get(tableName as TableName), context).forEach(
       (record) => {
         allRecords.push(record)
       },
     )
   })
-  // $FlowFixMe
   await db.batch(allRecords)
 }
 
@@ -370,11 +373,11 @@ const unsafeApplyAllRemoteChangesByBatches = async (
   context: ApplyRemoteChangesContext,
 ): Promise<void> => {
   const { db } = context
-  const promises = []
+  const promises: Promise<void>[] = []
   toPairs(recordsToApply).forEach(([tableName, records]) => {
-    const preparedModels: Array<?Model> = prepareApplyRemoteChangesToCollection(
+    const preparedModels: Array<Model | null> = prepareApplyRemoteChangesToCollection(
       records,
-      db.get((tableName: any)),
+      db.get(tableName as TableName),
       context,
     )
     splitEvery(5000, preparedModels).forEach((recordBatch) => {

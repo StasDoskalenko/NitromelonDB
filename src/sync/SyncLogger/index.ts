@@ -1,16 +1,15 @@
-// @flow
-
 import { mapObj } from '../../utils/fp'
-import type { SyncLog } from '../index'
+import type { SyncConflict, SyncLog } from '../index'
 import censorRaw from '../../diagnostics/censorRaw'
 
 const censorLog = (log: SyncLog): SyncLog => ({
   ...log,
-  // $FlowFixMe
   ...(log.resolvedConflicts
     ? {
-        // $FlowFixMe
-        resolvedConflicts: log.resolvedConflicts.map((conflict) => mapObj(censorRaw)(conflict)),
+        resolvedConflicts: log.resolvedConflicts.map(
+          (conflict) =>
+            mapObj(censorRaw, conflict) as SyncConflict,
+        ),
       }
     : {}),
 })
@@ -21,7 +20,7 @@ export default class SyncLogger {
 
   _logs: SyncLog[] = []
 
-  constructor(limit: number = 10): void {
+  constructor(limit: number = 10) {
     this._limit = limit
   }
 

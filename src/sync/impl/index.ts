@@ -1,5 +1,3 @@
-// @flow
-
 import type { Database } from '../..'
 import { invariant, logError, logger } from '../../utils/common'
 
@@ -14,8 +12,8 @@ export { default as markLocalChangesAsSynced } from './markAsSynced'
 const lastPulledAtKey = '__watermelon_last_pulled_at'
 const lastPulledSchemaVersionKey = '__watermelon_last_pulled_schema_version'
 
-export async function getLastPulledAt(database: Database): Promise<?Timestamp> {
-  return parseInt(await database.adapter.getLocal(lastPulledAtKey), 10) || null
+export async function getLastPulledAt(database: Database): Promise<Timestamp | null> {
+  return parseInt((await database.adapter.getLocal(lastPulledAtKey)) ?? '', 10) || null
 }
 
 export async function setLastPulledAt(database: Database, timestamp: Timestamp): Promise<void> {
@@ -29,8 +27,8 @@ export async function setLastPulledAt(database: Database, timestamp: Timestamp):
   await database.adapter.setLocal(lastPulledAtKey, `${timestamp}`)
 }
 
-export async function getLastPulledSchemaVersion(database: Database): Promise<?SchemaVersion> {
-  return parseInt(await database.adapter.getLocal(lastPulledSchemaVersionKey), 10) || null
+export async function getLastPulledSchemaVersion(database: Database): Promise<SchemaVersion | null> {
+  return parseInt((await database.adapter.getLocal(lastPulledSchemaVersionKey)) ?? '', 10) || null
 }
 
 export async function setLastPulledSchemaVersion(
@@ -40,17 +38,17 @@ export async function setLastPulledSchemaVersion(
   await database.adapter.setLocal(lastPulledSchemaVersionKey, `${version}`)
 }
 
-type MigrationInfo = $Exact<{
-  schemaVersion: SchemaVersion,
-  migration: MigrationSyncChanges,
-  shouldSaveSchemaVersion: boolean,
-}>
+export type MigrationInfo = {
+  schemaVersion: SchemaVersion
+  migration: MigrationSyncChanges
+  shouldSaveSchemaVersion: boolean
+}
 
 export async function getMigrationInfo(
   database: Database,
-  log: ?SyncLog,
-  lastPulledAt: ?Timestamp,
-  migrationsEnabledAtVersion: ?SchemaVersion,
+  log: SyncLog | null | undefined,
+  lastPulledAt: Timestamp | null | undefined,
+  migrationsEnabledAtVersion: SchemaVersion | null | undefined,
 ): Promise<MigrationInfo> {
   const isFirstSync = !lastPulledAt
   const schemaVersion = database.schema.version

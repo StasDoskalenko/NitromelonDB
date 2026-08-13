@@ -1,13 +1,4 @@
-// @flow
-
-import {
-  // $FlowFixMe
-  values,
-  identity,
-  unnest,
-  allPromises,
-  mapObj,
-} from '../../utils/fp'
+import { values, identity, unnest, allPromises, mapObj } from '../../utils/fp'
 import allPromisesObj from '../../utils/fp/allPromisesObj'
 import type { Database, Collection, Model } from '../..'
 import * as Q from '../../QueryDescription'
@@ -19,7 +10,7 @@ import type { SyncTableChangeSet, SyncLocalChanges } from '../index'
 const createdQuery = Q.where(columnName('_status'), 'created')
 const updatedQuery = Q.where(columnName('_status'), 'updated')
 
-async function fetchLocalChangesForCollection<T: Model>(
+async function fetchLocalChangesForCollection<T extends Model>(
   collection: Collection<T>,
 ): Promise<[SyncTableChangeSet, T[]]> {
   const [createdRecords, updatedRecords, deletedRecords] = await Promise.all([
@@ -27,7 +18,7 @@ async function fetchLocalChangesForCollection<T: Model>(
     collection.query(updatedQuery).fetch(),
     collection.database.adapter.getDeletedRecords(collection.table),
   ])
-  const changeSet = {
+  const changeSet: SyncTableChangeSet = {
     created: [],
     updated: [],
     deleted: deletedRecords,
@@ -37,11 +28,9 @@ async function fetchLocalChangesForCollection<T: Model>(
   // TODO: It would probably also be good to only send to server locally changed fields, not full records
   // perf-critical - using mutation
   createdRecords.forEach((record) => {
-    // $FlowFixMe
     changeSet.created.push(Object.assign({}, record._raw))
   })
   updatedRecords.forEach((record) => {
-    // $FlowFixMe
     changeSet.updated.push(Object.assign({}, record._raw))
   })
   const changedRecords = createdRecords.concat(updatedRecords)
@@ -51,12 +40,19 @@ async function fetchLocalChangesForCollection<T: Model>(
 
 export default function fetchLocalChanges(db: Database): Promise<SyncLocalChanges> {
   return db.read(async () => {
-    const changes = await allPromisesObj(mapObj(fetchLocalChangesForCollection, db.collections.map))
+    const collectionChanges = (await allPromisesObj(
+      mapObj(
+        (collection: Collection<Model>) => fetchLocalChangesForCollection(collection),
+        db.collections.map,
+      ) as Record<string, Promise<[SyncTableChangeSet, Model[]]>>,
+    )) as Record<string, [SyncTableChangeSet, Model[]]>
     // TODO: deep-freeze changes object (in dev mode only) to detect mutations (user bug)
     return {
-      // $FlowFixMe
-      changes: mapObj(([changeSet]) => changeSet)(changes),
-      affectedRecords: unnest(values(changes).map(([, records]) => records)),
+      changes: mapObj(
+        ([changeSet]: [SyncTableChangeSet, Model[]]) => changeSet,
+        collectionChanges,
+      ) as SyncLocalChanges['changes'],
+      affectedRecords: unnest(values(collectionChanges).map(([, records]) => records)),
     }
   }, 'sync-fetchLocalChanges')
 }
@@ -64,15 +60,13 @@ export default function fetchLocalChanges(db: Database): Promise<SyncLocalChange
 export function hasUnsyncedChanges(db: Database): Promise<boolean> {
   // action is necessary to ensure other code doesn't make changes under our nose
   return db.read(async () => {
-    // $FlowFixMe
     const collections = values(db.collections.map)
-    const hasUnsynced = async (collection: Collection<any>) => {
+    const hasUnsynced = async (collection: Collection<Model>) => {
       const created = await collection.query(createdQuery).fetchCount()
       const updated = await collection.query(updatedQuery).fetchCount()
       const deleted = await db.adapter.getDeletedRecords(collection.table)
       return created + updated + deleted.length > 0
     }
-    // $FlowFixMe
     const unsyncedFlags = await allPromises(hasUnsynced, collections)
     return unsyncedFlags.some(identity)
   }, 'sync-hasUnsyncedChanges')
