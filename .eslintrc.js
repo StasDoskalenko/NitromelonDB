@@ -49,10 +49,18 @@ const config = {
       },
     },
     {
-      files: ['src/**/*.ts', 'examples/typescript/*.ts'],
+      files: ['src/**/*.ts', 'src/**/*.tsx', 'examples/typescript/*.ts'],
       parser: '@typescript-eslint/parser',
       rules: {
         'flowtype/no-types-missing-file-annotation': 'off',
+        'flowtype/require-valid-file-annotation': 'off',
+        'no-unused-vars': 'off',
+        '@typescript-eslint/no-unused-vars': [
+          'error',
+          {
+            argsIgnorePattern: '^_',
+          },
+        ],
       },
     },
   ],

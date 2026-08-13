@@ -1,18 +1,6 @@
 #!/usr/bin/env node
 
-import {
-  pipe,
-  filter,
-  map,
-  mapAsync,
-  endsWith,
-  both,
-  prop,
-  replace,
-  omit,
-  merge,
-  forEach,
-} from 'rambdax'
+import { pipe, filter, map, mapAsync, prop, replace, omit, merge, forEach } from 'rambdax'
 
 import babel from '@babel/core'
 import klaw from 'klaw-sync'
@@ -25,6 +13,8 @@ import prettyJson from 'json-stringify-pretty-compact'
 import chokidar from 'chokidar'
 import anymatch from 'anymatch'
 import rimraf from 'rimraf'
+
+import { execSync } from 'child_process'
 
 import pkg from './pkg.cjs'
 
@@ -47,6 +37,7 @@ const DO_NOT_BUILD_PATHS = [
   /__typetests__/,
   /__playground__/,
   /test\.js/,
+  /test\.ts/,
   /integrationTest/,
   /__mocks__/,
   /\.DS_Store/,
@@ -57,7 +48,12 @@ const isNotIncludedInBuildPaths = (value) => !anymatch(DO_NOT_BUILD_PATHS, value
 
 const cleanFolder = (dir) => rimraf.sync(dir)
 
-const takeFiles = pipe(prop('path'), both(endsWith('.js'), isNotIncludedInBuildPaths))
+const isSourceFile = (value) =>
+  (value.endsWith('.js') || value.endsWith('.ts')) &&
+  !value.endsWith('.d.ts') &&
+  isNotIncludedInBuildPaths(value)
+
+const takeFiles = pipe(prop('path'), isSourceFile)
 
 const takeModules = pipe(filter(takeFiles), map(prop('path')))
 
@@ -84,10 +80,21 @@ const babelTransform = (format, file) => {
 const paths = klaw(SOURCE_PATH)
 const modules = takeModules(paths)
 
+const toJsOutput = (filename) => filename.replace(/\.tsx?$/, '.js')
+
+const emitDeclarations = (outDir) => {
+  execSync(`npx tsc --emitDeclarationOnly --outDir "${outDir}" -p tsconfig.json`, {
+    stdio: 'inherit',
+    cwd: resolvePath(),
+  })
+}
+
 const buildModule = (format) => (file) => {
   const modulePath = createModulePath(format)
-  const code = babelTransform(format, file)
-  const filename = modulePath(file)
+  const isTypeScript = file.endsWith('.ts') || file.endsWith('.tsx')
+  // Ship JS from TypeScript sources in both builds so published `src/` stays valid JS.
+  const code = isTypeScript ? babel.transformFileSync(file, {}).code : babelTransform(format, file)
+  const filename = toJsOutput(modulePath(file))
 
   createFolder(path.dirname(filename))
   fs.writeFileSync(filename, code)
@@ -147,7 +154,10 @@ if (isDevelopment) {
   const buildSrcModule = buildModule(SRC_MODULES)
 
   const buildFile = (file) => {
-    if (file.match(/\.js$/)) {
+    if (file.match(/\.tsx?$/) && !file.match(/\.d\.ts$/)) {
+      buildSrcModule(file)
+      buildCjsModule(file)
+    } else if (file.match(/\.js$/)) {
       buildSrcModule(file)
       buildCjsModule(file)
     } else if (file.match(/\.d.ts$/)) {
@@ -162,6 +172,7 @@ if (isDevelopment) {
   cleanFolder(DEV_PATH)
   createFolder(DEV_PATH)
   copyNonJavaScriptFiles(DEV_PATH)
+  emitDeclarations(DEV_PATH)
 
   chokidar
     .watch(
@@ -201,7 +212,9 @@ if (isDevelopment) {
   buildSrcModules(modules)
   buildCjsModules(modules)
 
-  // copy typescript definitions
+  emitDeclarations(DIST_PATH)
+
+  // copy remaining hand-written typescript definitions for unconverted modules
   glob(`${SOURCE_PATH}/**/*.d.ts`, {}, (err, files) => {
     files.forEach((file) => {
       fs.copySync(file, path.join(DIST_PATH, replace(SOURCE_PATH, '', file)))

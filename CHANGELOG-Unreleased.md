@@ -21,6 +21,8 @@
 
 ### Changes
 
+- Started migrating the JS source from Flow + hand-written `.d.ts` to TypeScript. `src/utils` is now TypeScript and is typechecked with `yarn typecheck`. Flow and tslint are no longer part of `ci:check`.
+
 - Updated better-sqlite3 to 13.0.3
 - Support for React Native 0.87 and React 19
 - [iOS] Install JSI bindings via `RCTTurboModuleWithJSIBindings` (bridgeless / New Architecture). `RCTCxxBridge` is no longer used.

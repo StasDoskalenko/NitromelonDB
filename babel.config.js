@@ -86,4 +86,10 @@ module.exports = {
       plugins: [...plugins, '@babel/plugin-syntax-jsx'],
     },
   },
+  overrides: [
+    {
+      test: /\.tsx?$/,
+      plugins: [['@babel/plugin-transform-typescript', { allowDeclareFields: true }]],
+    },
+  ],
 }

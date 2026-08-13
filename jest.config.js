@@ -8,7 +8,10 @@ module.exports = {
   moduleDirectories: ['<rootDir>/node_modules'],
   restoreMocks: true,
   testMatch: ['**/__tests__/**/?(spec|test).js', '**/?(*.)(spec|test).js'],
-  moduleFileExtensions: ['js'],
+  moduleFileExtensions: ['ts', 'js', 'json'],
+  transform: {
+    '^.+\\.[jt]sx?$': 'babel-jest',
+  },
   modulePathIgnorePatterns: ['<rootDir>/dist', '<rootDir>/dev'],
   // collectCoverage: true,
   // collectCoverageFrom: ['!**/node_modules/**', 'src/**'],
