@@ -1,5 +1,3 @@
-// @flow
-
 import { mapObj } from '../utils/fp'
 import type { DirtyRaw } from '../RawRecord'
 
@@ -10,9 +8,8 @@ export const censorValue = (value: string): string =>
 const shouldCensorKey = (key: string): boolean =>
   key !== 'id' && !key.endsWith('_id') && key !== '_status' && key !== '_changed'
 
-// $FlowFixMe
-const censorRaw: (DirtyRaw) => DirtyRaw = mapObj((value, key) =>
+const censorRaw = mapObj((value: unknown, key: string) =>
   shouldCensorKey(key) && typeof value === 'string' ? censorValue(value) : value,
-)
+) as (raw: DirtyRaw) => DirtyRaw
 
 export default censorRaw

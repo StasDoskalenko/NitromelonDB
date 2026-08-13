@@ -1,42 +1,117 @@
-// @flow
 /* eslint-disable react/no-direct-mutation-state */
 /* eslint-disable react/sort-comp */
 
-import type { Observable } from 'rxjs'
-import { Component, createElement } from 'react'
-import hoistNonReactStatics from 'hoist-non-react-statics'
+import { type Observable } from '../../utils/rx'
+import { Component, createElement, type ComponentType, type NamedExoticComponent, type JSX } from 'react'
+import hoistNonReactStatics, { type NonReactStatics } from 'hoist-non-react-statics'
 
 import scheduleForCleanup from './garbageCollector'
 
-type UnaryFn<A, R> = (a: A) => R
-type HOC<Base, Enhanced> = UnaryFn<React$ComponentType<Base>, React$ComponentType<Enhanced>>
-
 export interface ObservableConvertible<T> {
-  observe(): Observable<T>;
+  readonly observe: () => Observable<T>
 }
 
-export type ExtractTypeFromObservable = <T>(value: Observable<T> | ObservableConvertible<T>) => T
+type ExtractObservableType<T> =
+  T extends Observable<infer U> ? U : T extends ObservableConvertible<infer U> ? U : T
 
-type TriggerProps<A> = $Keys<A>[] | null
-type GetObservables<A, B> = (props: A) => B
+export type ExtractedObservables<T> = {
+  [K in keyof T]: ExtractObservableType<T[K]>
+}
 
-type WithObservables<Props, ObservableProps> = HOC<
-  { ...$Exact<Props>, ...$ObjMap<ObservableProps, ExtractTypeFromObservable> },
-  Props,
+/**
+ * A property P will be present if:
+ * - it is present in DecorationTargetProps
+ *
+ * Its value will be dependent on the following conditions
+ * - if property P is present in InjectedProps and its definition extends the definition
+ *   in DecorationTargetProps, then its definition will be that of DecorationTargetProps[P]
+ * - if property P is not present in InjectedProps then its definition will be that of
+ *   DecorationTargetProps[P]
+ * - if property P is present in InjectedProps but does not extend the
+ *   DecorationTargetProps[P] definition, its definition will be that of InjectedProps[P]
+ */
+type Matching<InjectedProps, DecorationTargetProps> = {
+  [P in keyof DecorationTargetProps]: P extends keyof InjectedProps
+    ? InjectedProps[P] extends DecorationTargetProps[P]
+      ? DecorationTargetProps[P]
+      : InjectedProps[P]
+    : DecorationTargetProps[P]
+}
+
+type GetProps<C> = C extends ComponentType<infer P> ? P : never
+
+/**
+ * a property P will be present if :
+ * - it is present in both DecorationTargetProps and InjectedProps
+ * - InjectedProps[P] can satisfy DecorationTargetProps[P]
+ * ie: decorated component can accept more types than decorator is injecting
+ *
+ * For decoration, inject props or ownProps are all optionally
+ * required by the decorated (right hand side) component.
+ * But any property required by the decorated component must be satisfied by the injected property.
+ */
+type Shared<InjectedProps, DecorationTargetProps> = {
+  [P in Extract<keyof InjectedProps, keyof DecorationTargetProps>]?: InjectedProps[P] extends DecorationTargetProps[P]
+    ? DecorationTargetProps[P]
+    : never
+}
+
+type ConnectedComponent<C, P> = NamedExoticComponent<P> &
+  NonReactStatics<C & ComponentType<object>> & {
+    WrappedComponent: C
+  }
+
+type InferableComponentEnhancer<TInjectedProps, TNeedsProps> = <
+  C extends ComponentType<Matching<TInjectedProps, GetProps<C>>>,
+>(
+  component: C,
+) => ConnectedComponent<
+  C,
+  Omit<GetProps<C>, keyof Shared<TInjectedProps, GetProps<C>>> & TNeedsProps
 >
 
+type TriggerProps<A> = Array<keyof A> | null
+type GetObservables<A, B> = (props: A) => B
 type Unsubscribe = () => void
 
+type WmelonTagged = {
+  constructor: { _wmelonTag?: string }
+  experimentalSubscribe: (subscriber: (value: unknown) => void) => Unsubscribe
+}
+
+type ObservableLike = {
+  observe: () => { subscribe: SubscribeFn }
+}
+
+type SubscribableLike = {
+  subscribe: SubscribeFn
+}
+
+type SubscribeFn = (
+  onNext: (value: unknown) => void,
+  onError: (error: Error) => void,
+  onComplete: () => void,
+) => { unsubscribe: () => void }
+
+function getWmelonTag(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+  const tagged = value as Partial<WmelonTagged>
+  return tagged.constructor?._wmelonTag
+}
+
 function subscribe(
-  value: any,
-  onNext: (any) => void,
-  onError: (Error) => void,
+  value: unknown,
+  onNext: (next: unknown) => void,
+  onError: (error: Error) => void,
   onComplete: () => void,
 ): Unsubscribe {
-  const wmelonTag = value && value.constructor && value.constructor._wmelonTag
+  const wmelonTag = getWmelonTag(value)
   if (wmelonTag === 'model') {
     onNext(value)
-    return value.experimentalSubscribe((isDeleted) => {
+    const model = value as WmelonTagged
+    return model.experimentalSubscribe((isDeleted) => {
       if (isDeleted) {
         onComplete()
       } else {
@@ -44,12 +119,13 @@ function subscribe(
       }
     })
   } else if (wmelonTag === 'query') {
-    return value.experimentalSubscribe(onNext)
-  } else if (typeof value.observe === 'function') {
-    const subscription = value.observe().subscribe(onNext, onError, onComplete)
+    const query = value as WmelonTagged
+    return query.experimentalSubscribe(onNext)
+  } else if (value && typeof value === 'object' && typeof (value as ObservableLike).observe === 'function') {
+    const subscription = (value as ObservableLike).observe().subscribe(onNext, onError, onComplete)
     return () => subscription.unsubscribe()
-  } else if (typeof value.subscribe === 'function') {
-    const subscription = value.subscribe(onNext, onError, onComplete)
+  } else if (value && typeof value === 'object' && typeof (value as SubscribableLike).subscribe === 'function') {
+    const subscription = (value as SubscribableLike).subscribe(onNext, onError, onComplete)
     return () => subscription.unsubscribe()
   }
 
@@ -63,7 +139,7 @@ function subscribe(
   )
 }
 
-function identicalArrays<T, V: T[]>(left: V, right: V): boolean {
+function identicalArrays<T>(left: T[], right: T[]): boolean {
   if (left.length !== right.length) {
     return false
   }
@@ -77,10 +153,10 @@ function identicalArrays<T, V: T[]>(left: V, right: V): boolean {
   return true
 }
 
-function getTriggeringProps<PropsInput: { ... }>(
+function getTriggeringProps<PropsInput extends object>(
   props: PropsInput,
   propNames: TriggerProps<PropsInput>,
-): any[] {
+): unknown[] {
   if (!propNames) {
     return []
   }
@@ -88,29 +164,30 @@ function getTriggeringProps<PropsInput: { ... }>(
   return propNames.map((name) => props[name])
 }
 
-const hasOwn = (obj: Object, key: string): boolean => {
-  // $FlowFixMe
+const hasOwn = (obj: object, key: string): boolean => {
   return Object.prototype.hasOwnProperty.call(obj, key)
+}
+
+type ComponentState = {
+  isFetching: boolean
+  values: Record<string, unknown>
+  error: Error | null
+  triggeredFromProps: unknown[]
 }
 
 // TODO: This is probably not going to be 100% safe to use under React async mode
 // Do more research
-class WithObservablesComponent<AddedValues: any, PropsInput: { ... }> extends Component<
-  *,
-  {
-    isFetching: boolean,
-    values: $FlowFixMe<AddedValues>,
-    error: ?Error,
-    triggeredFromProps: any[],
-  },
+class WithObservablesComponent<PropsInput extends object> extends Component<
+  PropsInput,
+  ComponentState
 > {
-  BaseComponent: React$ComponentType<Object>
+  BaseComponent: ComponentType<object>
 
   triggerProps: TriggerProps<PropsInput>
 
-  getObservables: (PropsInput) => Observable<Object>
+  getObservables: GetObservables<PropsInput, Record<string, unknown>>
 
-  _unsubscribe: ?Unsubscribe = null
+  _unsubscribe: Unsubscribe | null = null
 
   _prefetchTimeoutCanceled: boolean = false
 
@@ -118,14 +195,14 @@ class WithObservablesComponent<AddedValues: any, PropsInput: { ... }> extends Co
 
   constructor(
     props: PropsInput,
-    BaseComponent: React$ComponentType<Object>,
-    getObservables: GetObservables<PropsInput, Object>,
+    BaseComponent: ComponentType<object>,
+    getObservables: GetObservables<PropsInput, object>,
     triggerProps: TriggerProps<PropsInput>,
-  ): void {
+  ) {
     super(props)
     this.BaseComponent = BaseComponent
     this.triggerProps = triggerProps
-    this.getObservables = getObservables
+    this.getObservables = getObservables as GetObservables<PropsInput, Record<string, unknown>>
     this.state = {
       isFetching: true,
       values: {},
@@ -179,7 +256,7 @@ class WithObservablesComponent<AddedValues: any, PropsInput: { ... }> extends Co
     }
   }
 
-  subscribe(props: PropsInput, triggeredFromProps: any[]): void {
+  subscribe(props: PropsInput, triggeredFromProps: unknown[]): void {
     this.setState({
       isFetching: true,
       values: {},
@@ -203,7 +280,7 @@ class WithObservablesComponent<AddedValues: any, PropsInput: { ... }> extends Co
       subscriptions = []
     }
 
-    const values: { [string]: any } = {}
+    const values: Record<string, unknown> = {}
     let valueCount = 0
 
     const keys = Object.keys(observablesObject)
@@ -213,15 +290,11 @@ class WithObservablesComponent<AddedValues: any, PropsInput: { ... }> extends Co
         return
       }
 
-      // $FlowFixMe
       const subscribable = observablesObject[key]
       subscriptions.push(
         subscribe(
-          // $FlowFixMe
           subscribable,
           (value) => {
-            // console.log(`new value for ${key}, all keys: ${keys}`)
-            // Check if we have values for all observables; if yes - we can render; otherwise - only set value
             const isFirstEmission = !hasOwn(values, key)
             if (isFirstEmission) {
               valueCount += 1
@@ -231,18 +304,15 @@ class WithObservablesComponent<AddedValues: any, PropsInput: { ... }> extends Co
 
             const hasAllValues = valueCount === keyCount
             if (hasAllValues && !isUnsubscribed) {
-              // console.log('okay, all values')
-              this.withObservablesOnChange((values: any))
+              this.withObservablesOnChange(values)
             }
           },
           (error) => {
-            // Error in one observable should cause all observables to be unsubscribed from - the component is, in effect, broken now
             unsubscribe()
             this.withObservablesOnError(error)
           },
           () => {
             // TODO: Should we do anything on completion?
-            // console.log(`completed for ${key}`)
           },
         ),
       )
@@ -251,14 +321,15 @@ class WithObservablesComponent<AddedValues: any, PropsInput: { ... }> extends Co
     if (process.env.NODE_ENV !== 'production') {
       const renderedTriggerProps = this.triggerProps ? this.triggerProps.join(',') : 'null'
       const renderedKeys = keys.join(', ')
-      this.constructor.displayName = `withObservables[${renderedTriggerProps}] { ${renderedKeys} }`
+      ;(this.constructor as { displayName?: string }).displayName =
+        `withObservables[${renderedTriggerProps}] { ${renderedKeys} }`
     }
 
     this._unsubscribe = unsubscribe
   }
 
   // DO NOT rename (we want on call stack as debugging help)
-  withObservablesOnChange(values: AddedValues): void {
+  withObservablesOnChange(values: Record<string, unknown>): void {
     if (this._exitedConstructor) {
       this.setState({
         values,
@@ -268,22 +339,23 @@ class WithObservablesComponent<AddedValues: any, PropsInput: { ... }> extends Co
       // Source has called with first values synchronously while we're still in the
       // constructor. Here, `this.setState` does not work and we must mutate this.state
       // directly
-      this.state.values = values
-      this.state.isFetching = false
+      const state = this.state as ComponentState
+      state.values = values
+      state.isFetching = false
     }
   }
 
   // DO NOT rename (we want on call stack as debugging help)
   withObservablesOnError(error: Error): void {
-    // console.error(`[withObservables] Error in Rx composition`, error)
     if (this._exitedConstructor) {
       this.setState({
         error,
         isFetching: false,
       })
     } else {
-      this.state.error = error
-      this.state.isFetching = false
+      const state = this.state as ComponentState
+      state.error = error
+      state.isFetching = false
     }
   }
 
@@ -296,7 +368,7 @@ class WithObservablesComponent<AddedValues: any, PropsInput: { ... }> extends Co
     this._prefetchTimeoutCanceled = true
   }
 
-  shouldComponentUpdate(nextProps: $FlowFixMe, nextState: $FlowFixMe): boolean {
+  shouldComponentUpdate(_nextProps: PropsInput, nextState: ComponentState): boolean {
     // If one of the triggering props change but we don't yet have first values from the new
     // observable, *don't* render anything!
     return !nextState.isFetching
@@ -306,7 +378,7 @@ class WithObservablesComponent<AddedValues: any, PropsInput: { ... }> extends Co
     this.unsubscribe()
   }
 
-  render(): * {
+  render(): JSX.Element | null {
     const { isFetching, values, error } = this.state
 
     if (isFetching) {
@@ -349,18 +421,15 @@ class WithObservablesComponent<AddedValues: any, PropsInput: { ... }> extends Co
  *   }))
  * ```
  */
-const withObservables = <PropsInput: { ... }, ObservableProps: { ... }>(
-  triggerProps: TriggerProps<PropsInput>,
-  getObservables: GetObservables<PropsInput, ObservableProps>,
-): WithObservables<PropsInput, ObservableProps> => {
-  type AddedValues = Object
+const withObservables = <InputProps extends object, ObservableProps extends object>(
+  triggerProps: TriggerProps<InputProps>,
+  getObservables: GetObservables<InputProps, ObservableProps>,
+): InferableComponentEnhancer<ExtractedObservables<ObservableProps>, InputProps> => {
+  return ((BaseComponent: ComponentType<object>) => {
+    class ConcreteWithObservablesComponent extends WithObservablesComponent<InputProps> {
+      static displayName: string | undefined
 
-  return (BaseComponent) => {
-    class ConcreteWithObservablesComponent extends WithObservablesComponent<
-      AddedValues,
-      PropsInput,
-    > {
-      constructor(props: PropsInput): void {
+      constructor(props: InputProps) {
         super(props, BaseComponent, getObservables, triggerProps)
       }
     }
@@ -370,7 +439,7 @@ const withObservables = <PropsInput: { ... }, ObservableProps: { ... }>(
     }
 
     return hoistNonReactStatics(ConcreteWithObservablesComponent, BaseComponent)
-  }
+  }) as unknown as InferableComponentEnhancer<ExtractedObservables<ObservableProps>, InputProps>
 }
 
 export default withObservables

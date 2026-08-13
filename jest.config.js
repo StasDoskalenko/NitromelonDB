@@ -8,7 +8,7 @@ module.exports = {
   moduleDirectories: ['<rootDir>/node_modules'],
   restoreMocks: true,
   testMatch: ['**/__tests__/**/?(spec|test).js', '**/?(*.)(spec|test).js'],
-  moduleFileExtensions: ['ts', 'js', 'json'],
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'json'],
   transform: {
     '^.+\\.[jt]sx?$': 'babel-jest',
   },
