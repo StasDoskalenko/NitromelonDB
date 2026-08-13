@@ -1,12 +1,15 @@
+/**
+ * @jest-environment jsdom
+ */
+
 import React from 'react'
-import * as TestRenderer from 'react-test-renderer'
+import { render } from '@testing-library/react'
 import Database from '../Database'
 import { mockDatabase } from '../__tests__/testModels'
 import DatabaseProvider from './DatabaseProvider'
 import { DatabaseConsumer } from './DatabaseContext'
 import withDatabase from './withDatabase'
 
-// Simple mock component
 function MockComponent() {
   return <span />
 }
@@ -18,14 +21,14 @@ describe('DatabaseProvider', () => {
   })
   it('throws if no database or adapter supplied', () => {
     expect(() => {
-      TestRenderer.create(
+      render(
         <DatabaseProvider>
           <p />
         </DatabaseProvider>,
       )
     }).toThrow(/You must supply a valid database/i)
     expect(() => {
-      TestRenderer.create(
+      render(
         <DatabaseProvider database={{ fake: 'db' }}>
           <p />
         </DatabaseProvider>,
@@ -33,25 +36,33 @@ describe('DatabaseProvider', () => {
     }).toThrow(/You must supply a valid database/i)
   })
   it('passes database to consumer', () => {
-    const instance = TestRenderer.create(
+    let received
+    render(
       <DatabaseProvider database={database}>
-        <DatabaseConsumer>{(db) => <MockComponent database={db} />}</DatabaseConsumer>
+        <DatabaseConsumer>
+          {(db) => {
+            received = db
+            return <MockComponent />
+          }}
+        </DatabaseConsumer>
       </DatabaseProvider>,
     )
-    const component = instance.root.find(MockComponent)
-    expect(component.props.database).toBeInstanceOf(Database)
+    expect(received).toBeInstanceOf(Database)
   })
 
   describe('withDatabase', () => {
     test('should pass the database from the context to the consumer', () => {
-      const Child = withDatabase(MockComponent)
-      const instance = TestRenderer.create(
+      let received
+      const Child = withDatabase(function Wrapped({ database: db }) {
+        received = db
+        return <MockComponent />
+      })
+      render(
         <DatabaseProvider database={database}>
           <Child />
         </DatabaseProvider>,
       )
-      const component = instance.root.find(MockComponent)
-      expect(component.props.database).toBeInstanceOf(Database)
+      expect(received).toBeInstanceOf(Database)
     })
   })
 })

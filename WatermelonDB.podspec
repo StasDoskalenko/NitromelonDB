@@ -10,7 +10,7 @@ Pod::Spec.new do |s|
   s.homepage     = package["homepage"]
   s.license      = package["license"]
   s.author       = { "author" => package["author"] }
-  s.platforms    = { :ios => "12.0", :tvos => "12.0" }
+  s.platforms    = { :ios => "15.1", :tvos => "15.1" }
   s.source = { :git => "https://github.com/Nozbe/WatermelonDB.git", :tag => "v#{s.version}" }
   s.source_files = "native/ios/**/*.{h,m,mm,swift,c,cpp}", "native/shared/**/*.{h,c,cpp}"
   s.public_header_files = [

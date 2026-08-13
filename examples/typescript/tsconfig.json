@@ -4,7 +4,8 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "strict": true,
-    "target": "ES5",
+    "target": "ES2016",
+    "jsx": "react-jsx",
     "paths": {
       // this allows sub-package imports from src; fx. '@nozbe/watermelondb/decorators'
       "@nozbe/watermelondb/*": ["../../src/*"]
