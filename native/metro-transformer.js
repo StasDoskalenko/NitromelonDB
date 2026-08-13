@@ -1,4 +1,4 @@
-const { transformFromAstSync } = require('@babel/core')
+const { transformFromAstSync, transform: babelTransform } = require('@babel/core')
 const hermesParser = require('hermes-parser')
 const babelConfig = require('../babel.config')
 const rnPreset = require('@react-native/babel-preset')
@@ -6,6 +6,30 @@ const rnPreset = require('@react-native/babel-preset')
 const isNodeModule = (filename) => {
   const normalized = filename.replace(/\\/g, '/')
   return normalized.includes('/node_modules/') || normalized.startsWith('node_modules/')
+}
+
+const isTypeScript = (filename) => /\.tsx?$/.test(filename) && !filename.endsWith('.d.ts')
+
+const pluginName = (plugin) => (Array.isArray(plugin) ? plugin[0] : plugin)
+
+const withoutFlowPlugins = (plugins) =>
+  plugins.filter((plugin) => pluginName(plugin) !== '@babel/plugin-transform-flow-strip-types')
+
+const pluginsForProjectFile = (filename) => {
+  const basePlugins = babelConfig.env.test.plugins
+  if (!isTypeScript(filename)) {
+    return basePlugins
+  }
+
+  // Flow-strip enables the Flow parser. That parser rejects TypeScript `as` casts,
+  // so TS sources must use the TypeScript plugin and must not enable Flow.
+  return [
+    [
+      '@babel/plugin-transform-typescript',
+      { allowDeclareFields: true, isTSX: filename.endsWith('.tsx') },
+    ],
+    ...withoutFlowPlugins(basePlugins),
+  ]
 }
 
 const transform = ({ src, filename, options }) => {
@@ -53,13 +77,13 @@ const transform = ({ src, filename, options }) => {
     return { ast: result.ast, metadata: result.metadata }
   }
 
-  const { ast, code, map } = require('@babel/core').transform(src, {
+  const { ast, code, map } = babelTransform(src, {
     filename,
     sourceFileName: filename,
     babelrc: false,
     configFile: false,
     ast: true,
-    ...babelConfig.env.test,
+    plugins: pluginsForProjectFile(filename),
   })
 
   return {
