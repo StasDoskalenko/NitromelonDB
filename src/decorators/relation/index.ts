@@ -1,6 +1,4 @@
-// @flow
-
-import { ensureDecoratorUsedProperly } from '../common'
+import { ensureDecoratorUsedProperly, type ModelDecoratorHost } from '../common'
 
 import Relation, { type Options } from '../../Relation'
 import type Model from '../../Model'
@@ -22,25 +20,20 @@ import type { ColumnName, TableName } from '../../Schema'
 // Example: a Task has a project it belongs to (and the project can change), so it may define:
 //   @relation('project', 'project_id') project: Relation<Project>
 
-const relation =
-  (
-    relationTable: TableName<any>,
-    relationIdColumn: ColumnName,
-    options: ?Options,
-  ): ((
-    target: any,
-    key: string,
-    descriptor: any,
-  ) => {| get: () => Relation<Model>, set: () => void |}) =>
-  (target: Object, key: string, descriptor: Object) => {
-    ensureDecoratorUsedProperly(relationIdColumn, target, key, descriptor)
+function relation(
+  relationTable: TableName,
+  relationIdColumn: ColumnName,
+  options?: Options | null,
+): PropertyDecorator {
+  return (target: object, key: string | symbol, descriptor?: PropertyDescriptor) => {
+    const propertyKey = String(key)
+    ensureDecoratorUsedProperly(relationIdColumn, target, propertyKey, descriptor)
 
     return {
-      get(): Relation<Model> {
-        // $FlowFixMe
+      get(this: ModelDecoratorHost): Relation<Model> {
         const model = this
         model._relationCache = model._relationCache || {}
-        const cachedRelation = model._relationCache[key]
+        const cachedRelation = model._relationCache[propertyKey]
         if (cachedRelation) {
           return cachedRelation
         }
@@ -51,7 +44,7 @@ const relation =
           relationIdColumn,
           options || { isImmutable: false },
         )
-        model._relationCache[key] = newRelation
+        model._relationCache[propertyKey] = newRelation
 
         return newRelation
       },
@@ -60,5 +53,6 @@ const relation =
       },
     }
   }
+}
 
 export default relation

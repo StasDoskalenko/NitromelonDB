@@ -1,6 +1,4 @@
-// @flow
-
-import type { Descriptor } from '../../utils/common/makeDecorator'
+import type { BabelDescriptor } from '../common'
 
 // Defines a property whose value is evaluated the first time it is accessed
 // For example:
@@ -12,14 +10,17 @@ import type { Descriptor } from '../../utils/common/makeDecorator'
 // `date` will be set to the current date not when constructed, but only when `xx.date` is called.
 // All subsequent calls will return the same value
 
-export default function lazy(target: Object, key: string, descriptor: Descriptor): Descriptor {
+function lazy(
+  target: object,
+  key: string,
+  descriptor: BabelDescriptor,
+): BabelDescriptor {
   const { configurable, enumerable, initializer, value } = descriptor
   return {
     configurable,
     enumerable,
-    get(): any {
-      // $FlowFixMe
-      const that = this
+    get(): unknown {
+      const that = this as object
       // This happens if someone accesses the
       // property directly on the prototype
       if (that === target) {
@@ -41,5 +42,13 @@ export default function lazy(target: Object, key: string, descriptor: Descriptor
     // TODO: What should be the behavior on set?
   }
 }
+
+// experimentalDecorators call property decorators with 2 arguments; Babel still passes the descriptor.
+const lazyDecorator = lazy as unknown as {
+  (target: object, propertyKey: string | symbol): void
+  (): PropertyDecorator
+}
+
+export default lazyDecorator
 
 // Implementation inspired by lazyInitialize from `core-decorators`

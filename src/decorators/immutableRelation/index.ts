@@ -1,6 +1,3 @@
-// @flow
-
-import { type Decorator } from '../../utils/common/makeDecorator'
 import type { ColumnName, TableName } from '../../Schema'
 
 import relation from '../relation'
@@ -19,9 +16,11 @@ import relation from '../relation'
 // Example: a Comment has an author (and an author can never change), so it may define:
 //   @immutableRelation('team_member', 'author_id') author: Relation<TeamMember>
 
-const immutableRelation: Decorator = (
-  relationTable: TableName<any>,
+function immutableRelation(
+  relationTable: TableName,
   relationIdColumn: ColumnName,
-) => relation(relationTable, relationIdColumn, { isImmutable: true })
+): PropertyDecorator {
+  return relation(relationTable, relationIdColumn, { isImmutable: true })
+}
 
 export default immutableRelation
