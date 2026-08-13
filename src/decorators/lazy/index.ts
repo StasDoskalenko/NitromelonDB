@@ -16,9 +16,11 @@ function lazy(
   descriptor: BabelDescriptor,
 ): BabelDescriptor {
   const { configurable, enumerable, initializer, value } = descriptor
+  const isConfigurable = configurable ?? true
+  const isEnumerable = enumerable ?? true
   return {
-    configurable,
-    enumerable,
+    configurable: isConfigurable,
+    enumerable: isEnumerable,
     get(): unknown {
       const that = this as object
       // This happens if someone accesses the
@@ -31,8 +33,8 @@ function lazy(
 
       // Next time this property is called, skip the decorator, and just return the precomputed value
       Object.defineProperty(that, key, {
-        configurable,
-        enumerable,
+        configurable: isConfigurable,
+        enumerable: isEnumerable,
         writable: true,
         value: returnValue,
       })

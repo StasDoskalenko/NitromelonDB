@@ -12,7 +12,7 @@ type FailsafeValue = {
 }
 
 function failsafe(fallback?: unknown): PropertyDecorator {
-  return (target: object, key: string | symbol, descriptor?: BabelDescriptor) => {
+  return (_target: object, key: string | symbol, descriptor?: BabelDescriptor) => {
     const propertyKey = String(key)
     const desc = descriptor || {}
 
@@ -58,7 +58,7 @@ function failsafe(fallback?: unknown): PropertyDecorator {
 
         Object.defineProperty(unsafeThis, propertyKey, {
           value,
-          enumerable: desc.enumerable,
+          enumerable: desc.enumerable ?? false,
         })
 
         return value

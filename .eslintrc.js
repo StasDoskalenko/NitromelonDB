@@ -23,6 +23,10 @@ const config = {
       onlyFilesWithFlowAnnotation: true,
     },
     'import/ignore': ['node_modules/react-native'],
+    'import/parsers': {
+      '@typescript-eslint/parser': ['.ts', '.tsx'],
+      '@babel/eslint-parser': ['.js', '.jsx'],
+    },
     react: {
       version: 'detect',
     },
@@ -62,6 +66,21 @@ const config = {
         '@typescript-eslint/no-explicit-any': 'error',
         '@typescript-eslint/no-redeclare': 'error',
         '@typescript-eslint/no-dupe-class-members': 'error',
+        '@typescript-eslint/consistent-type-imports': [
+          'error',
+          { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
+        ],
+        '@typescript-eslint/no-non-null-assertion': 'error',
+        '@typescript-eslint/ban-ts-comment': [
+          'error',
+          {
+            'ts-expect-error': 'allow-with-description',
+            'ts-ignore': true,
+            'ts-nocheck': true,
+            'ts-check': false,
+          },
+        ],
+        '@typescript-eslint/no-wrapper-object-types': 'error',
         '@typescript-eslint/no-unused-vars': [
           'error',
           {
@@ -69,6 +88,12 @@ const config = {
             varsIgnorePattern: '^_',
           },
         ],
+      },
+    },
+    {
+      files: ['src/utils/rx/__wmelonRxShimESM2015/**'],
+      rules: {
+        '@typescript-eslint/ban-ts-comment': 'off',
       },
     },
   ],

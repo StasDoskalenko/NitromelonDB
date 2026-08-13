@@ -10,7 +10,6 @@ import type Collection from '../Collection'
 import type { CollectionChangeSet, ModelClass } from '../Collection'
 import type { TableName, AppSchema } from '../Schema'
 import type { RawRecord } from '../RawRecord'
-import type { Class } from '../types'
 
 import CollectionMap from './CollectionMap'
 import type LocalStorage from './LocalStorage'
@@ -18,7 +17,7 @@ import WorkQueue, { type ReaderInterface, type WriterInterface } from './WorkQue
 
 type DatabaseProps = {
   adapter: DatabaseAdapter
-  modelClasses: Class<Model>[]
+  modelClasses: ModelClass<Model>[]
 }
 
 type TableChange = [TableName, CollectionChangeSet<Model>]
@@ -61,7 +60,7 @@ export default class Database {
     }
     this.adapter = new DatabaseAdapterCompat(adapter)
     this.schema = adapter.schema
-    this.collections = new CollectionMap(this, modelClasses as ModelClass<Model>[])
+    this.collections = new CollectionMap(this, modelClasses)
   }
 
   /**

@@ -55,7 +55,7 @@ type WorkQueueItem = {
   isWriter: boolean
   resolve: (value: unknown) => void
   reject: (reason: unknown) => void
-  description?: string
+  description?: string | undefined
 }
 
 class ReaderInterfaceImpl implements ReaderInterface {

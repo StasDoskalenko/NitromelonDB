@@ -15,7 +15,7 @@ export type AddColumnsMigrationStep = Readonly<{
   type: 'add_columns'
   table: TableName
   columns: ColumnSchema[]
-  unsafeSql?: (sql: string) => string
+  unsafeSql?: ((sql: string) => string) | undefined
 }>
 
 export type SqlMigrationStep = Readonly<{
@@ -112,7 +112,7 @@ export function addColumns({
 }: {
   table: TableName
   columns: ColumnSchema[]
-  unsafeSql?: (sql: string) => string
+  unsafeSql?: ((sql: string) => string) | undefined
 }): AddColumnsMigrationStep {
   if (process.env.NODE_ENV !== 'production') {
     invariant(table, `Missing table name in addColumn()`)
