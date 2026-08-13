@@ -1,16 +1,21 @@
-// @flow
-
 import logger from '../utils/common/logger'
 
-import type Model, { RecordId } from '../Model'
+import type Model from '../Model'
+import type { RecordId } from '../Model'
 import type Collection from './index'
 import type { CachedQueryResult } from '../adapters/type'
 import type { TableName } from '../Schema'
 import type { RawRecord } from '../RawRecord'
+import type { DatabaseAdapter } from '../adapters/type'
 
-type Instantiator<T> = (RawRecord) => T
+type Instantiator<T> = (raw: RawRecord) => T
 
-export default class RecordCache<Record: Model> {
+type AdapterDiagnostics = {
+  _clearCachedRecords?: () => void
+  _debugDignoseMissingRecord?: (tableName: TableName, id: RecordId) => void
+}
+
+export default class RecordCache<Record extends Model> {
   map: Map<RecordId, Record> = new Map()
 
   tableName: TableName<Record>
@@ -23,13 +28,13 @@ export default class RecordCache<Record: Model> {
     tableName: TableName<Record>,
     recordInsantiator: Instantiator<Record>,
     collection: Collection<Record>,
-  ): void {
+  ) {
     this.tableName = tableName
     this.recordInsantiator = recordInsantiator
     this._debugCollection = collection
   }
 
-  get(id: RecordId): ?Record {
+  get(id: RecordId): Record | undefined {
     return this.map.get(id)
   }
 
@@ -81,17 +86,14 @@ export default class RecordCache<Record: Model> {
       // nonetheless occur, so when it does, print out useful diagnostics and attempt to recover by
       // resetting adapter-side cached set
       try {
-        const adapter = this._debugCollection.database.adapter.underlyingAdapter
+        const adapter = this._debugCollection.database.adapter
+          .underlyingAdapter as DatabaseAdapter & AdapterDiagnostics
 
-        // $FlowFixMe
         if (adapter._clearCachedRecords) {
-          // $FlowFixMe
           adapter._clearCachedRecords()
         }
 
-        // $FlowFixMe
         if (adapter._debugDignoseMissingRecord) {
-          // $FlowFixMe
           adapter._debugDignoseMissingRecord(this.tableName, id)
         }
       } catch (error) {

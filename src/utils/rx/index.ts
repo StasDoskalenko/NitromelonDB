@@ -22,4 +22,4 @@ export {
   startWith,
   catchError,
 } from './__wmelonRxShim'
-export type { ConnectableObservable } from './__wmelonRxShim'
+export type { ConnectableObservable, Observer } from './__wmelonRxShim'

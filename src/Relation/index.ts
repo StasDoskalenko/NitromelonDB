@@ -1,26 +1,23 @@
-// @flow
-
-import type { Observable } from '../utils/rx'
+import type { Observable, ConnectableObservable } from '../utils/rx'
 import invariant from '../utils/common/invariant'
 import publishReplayLatestWhileConnected from '../utils/rx/publishReplayLatestWhileConnected'
 import lazy from '../decorators/lazy'
 
-import type Model, { RecordId } from '../Model'
+import type Model from '../Model'
+import type { RecordId } from '../Model'
 import type { ColumnName, TableName } from '../Schema'
 
 import { createObservable } from './helpers'
 
-type ExtractRecordIdNonOptional = <T: Model>(value: T) => RecordId
-type ExtractRecordIdOptional = <T: Model>(value: ?T) => ?RecordId
-type ExtractRecordId = ExtractRecordIdNonOptional & ExtractRecordIdOptional
+export type RelationId<T> = T extends Model ? RecordId : RecordId | null
 
-export type Options = $Exact<{
-  isImmutable: boolean,
-}>
+export type Options = {
+  isImmutable: boolean
+}
 
 // Defines a one-to-one relation between two Models (two tables in db)
 // Do not create this object directly! Use `relation` or `immutableRelation` decorators instead
-export default class Relation<T: ?Model> {
+export default class Relation<T extends Model | null = Model> {
   // Used by withObservables to differentiate between object types
   static _wmelonTag: string = 'relation'
 
@@ -28,32 +25,34 @@ export default class Relation<T: ?Model> {
 
   _columnName: ColumnName
 
-  _relationTableName: TableName<$NonMaybeType<T>>
+  _relationTableName: TableName<NonNullable<T>>
 
   _isImmutable: boolean
 
   @lazy
-  _cachedObservable: Observable<T> = createObservable(this)
-    .pipe(publishReplayLatestWhileConnected)
-    .refCount()
+  _cachedObservable: Observable<T> = (
+    createObservable(this).pipe(
+      publishReplayLatestWhileConnected,
+    ) as ConnectableObservable<T>
+  ).refCount()
 
   constructor(
     model: Model,
-    relationTableName: TableName<$NonMaybeType<T>>,
+    relationTableName: TableName<NonNullable<T>>,
     columnName: ColumnName,
     options: Options,
-  ): void {
+  ) {
     this._model = model
     this._relationTableName = relationTableName
     this._columnName = columnName
     this._isImmutable = options.isImmutable
   }
 
-  get id(): $Call<ExtractRecordId, T> {
-    return (this._model._getRaw(this._columnName): any)
+  get id(): RelationId<T> {
+    return this._model._getRaw(this._columnName) as RelationId<T>
   }
 
-  set id(newId: $Call<ExtractRecordId, T>): void {
+  set id(newId: RelationId<T>) {
     if (this._isImmutable) {
       invariant(
         this._model._preparedState === 'create',
@@ -69,22 +68,21 @@ export default class Relation<T: ?Model> {
   fetch(): Promise<T> {
     const { id } = this
     if (id) {
-      return this._model.collections.get(this._relationTableName).find(id)
+      return this._model.collections.get(this._relationTableName).find(id) as Promise<T>
     }
 
-    return Promise.resolve((null: any))
+    return Promise.resolve(null as T)
   }
 
   then<U>(
     onFulfill?: (value: T) => Promise<U> | U,
-    onReject?: (error: any) => Promise<U> | U,
+    onReject?: (error: unknown) => Promise<U> | U,
   ): Promise<U> {
-    // $FlowFixMe
     return this.fetch().then(onFulfill, onReject)
   }
 
   set(record: T): void {
-    this.id = record?.id
+    this.id = (record?.id ?? null) as RelationId<T>
   }
 
   observe(): Observable<T> {

@@ -1,5 +1,3 @@
-// @flow
-
 import { type Observable, BehaviorSubject } from '../utils/rx'
 import { type Unsubscribe } from '../utils/subscriptions'
 import logger from '../utils/common/logger'
@@ -7,7 +5,6 @@ import invariant from '../utils/common/invariant'
 import ensureSync from '../utils/common/ensureSync'
 import fromPairs from '../utils/fp/fromPairs'
 import noop from '../utils/fp/noop'
-import type { $RE } from '../types'
 
 import type Database from '../Database'
 import type Collection from '../Collection'
@@ -32,23 +29,23 @@ export type RecordId = string
  */
 export type SyncStatus = 'synced' | 'created' | 'updated' | 'deleted' | 'disposable'
 
-export type BelongsToAssociation = $RE<{ type: 'belongs_to', key: ColumnName }>
-export type HasManyAssociation = $RE<{ type: 'has_many', foreignKey: ColumnName }>
+export type BelongsToAssociation = Readonly<{ type: 'belongs_to'; key: ColumnName }>
+export type HasManyAssociation = Readonly<{ type: 'has_many'; foreignKey: ColumnName }>
 export type AssociationInfo = BelongsToAssociation | HasManyAssociation
-export type Associations = { +[TableName<any>]: AssociationInfo }
+export type Associations = { [tableName: TableName]: AssociationInfo }
 
 // TODO: Refactor associations API and ideally get rid of this in favor of plain arrays/objects
 export function associations(
-  ...associationList: [TableName<any>, AssociationInfo][]
+  ...associationList: [TableName, AssociationInfo][]
 ): Associations {
-  return (fromPairs(associationList): any)
+  return fromPairs(associationList)
 }
 
 export default class Model {
   /**
    * This must be set in Model subclasses to the name of associated database table
    */
-  static +table: TableName<this>
+  static table: TableName<Model>
 
   /**
    * This can be set in Model subclasses to define (parent/child) relationships between different
@@ -67,12 +64,12 @@ export default class Model {
 
   _preparedState: null | 'create' | 'update' | 'markAsDeleted' | 'destroyPermanently' = null
 
-  __changes: ?BehaviorSubject<$FlowFixMe<this>> = null
+  __changes: BehaviorSubject<Model> | null = null
 
-  _getChanges(): BehaviorSubject<$FlowFixMe<this>> {
+  _getChanges(): BehaviorSubject<Model> {
     if (!this.__changes) {
       // initializing lazily - it has non-trivial perf impact on very large collections
-      this.__changes = new BehaviorSubject(this)
+      this.__changes = new BehaviorSubject<Model>(this)
     }
     return this.__changes
   }
@@ -107,7 +104,7 @@ export default class Model {
    *   task.name = 'New name'
    * })
    */
-  async update(recordUpdater: (this) => void = noop): Promise<this> {
+  async update(recordUpdater: (record: this) => void = noop): Promise<this> {
     this.__ensureInWriter(`Model.update()`)
     const record = this.prepareUpdate(recordUpdater)
     await this.db.batch(this)
@@ -122,7 +119,7 @@ export default class Model {
    * @see {Model#update}
    * @see {Database#batch}
    */
-  prepareUpdate(recordUpdater: (this) => void = noop): this {
+  prepareUpdate(recordUpdater: (record: this) => void = noop): this {
     invariant(
       !this._preparedState,
       `Cannot update a record with pending changes (${this.__debugName})`,
@@ -279,13 +276,13 @@ export default class Model {
       this._preparedState !== 'create',
       `Cannot observe uncommitted record (${this.__debugName})`,
     )
-    return this._getChanges()
+    return this._getChanges() as unknown as Observable<this>
   }
 
   /**
    * Collection associated with this Model
    */
-  +collection: Collection<$FlowFixMe<this>>
+  collection: Collection<Model>
 
   // TODO: Deprecate
   /**
@@ -317,7 +314,7 @@ export default class Model {
    * Table name of this record
    */
   get table(): TableName<this> {
-    return this.constructor.table
+    return (this.constructor as typeof Model).table as TableName<this>
   }
 
   // TODO: protect batch,callWriter,... from being used outside a @reader/@writer
@@ -326,8 +323,8 @@ export default class Model {
    *
    * @see {Database#batch}
    */
-  batch(...records: $ReadOnlyArray<Model | null | void | false>): Promise<void> {
-    return this.db.batch((records: any))
+  batch(...records: ReadonlyArray<Model | null | undefined | false>): Promise<void> {
+    return this.db.batch(...records)
   }
 
   /**
@@ -351,15 +348,12 @@ export default class Model {
   // *** Implementation details ***
 
   // Don't use this directly! Use `collection.create()`
-  constructor(collection: Collection<this>, raw: RawRecord): void {
+  constructor(collection: Collection<Model>, raw: RawRecord) {
     this.collection = collection
     this._raw = raw
   }
 
-  static _prepareCreate(
-    collection: Collection<$FlowFixMe<this>>,
-    recordBuilder: (this) => void,
-  ): this {
+  static _prepareCreate(collection: Collection<Model>, recordBuilder: (record: Model) => void): Model {
     const record = new this(
       collection,
       // sanitizedRaw sets id
@@ -376,27 +370,21 @@ export default class Model {
     return record
   }
 
-  static _prepareCreateFromDirtyRaw(
-    collection: Collection<$FlowFixMe<this>>,
-    dirtyRaw: DirtyRaw,
-  ): this {
+  static _prepareCreateFromDirtyRaw(collection: Collection<Model>, dirtyRaw: DirtyRaw): Model {
     const record = new this(collection, sanitizedRaw(dirtyRaw, collection.schema))
     record._preparedState = 'create'
     record.__logVerbose('prepareCreateFromDirtyRaw')
     return record
   }
 
-  static _disposableFromDirtyRaw(
-    collection: Collection<$FlowFixMe<this>>,
-    dirtyRaw: DirtyRaw,
-  ): this {
+  static _disposableFromDirtyRaw(collection: Collection<Model>, dirtyRaw: DirtyRaw): Model {
     const record = new this(collection, sanitizedRaw(dirtyRaw, collection.schema))
     record._raw._status = 'disposable'
     record.__logVerbose('disposableFromDirtyRaw')
     return record
   }
 
-  _subscribers: [(isDeleted: boolean) => void, any][] = []
+  _subscribers: [(isDeleted: boolean) => void, unknown][] = []
 
   /**
    * Notifies `subscriber` on every change (update/delete) of this record
@@ -404,8 +392,8 @@ export default class Model {
    * Notification contains a flag that indicates whether the change is due to deletion
    * (Currently, subscribers are called after `changes` emissions, but this behavior might change)
    */
-  experimentalSubscribe(subscriber: (isDeleted: boolean) => void, debugInfo?: any): Unsubscribe {
-    const entry = [subscriber, debugInfo]
+  experimentalSubscribe(subscriber: (isDeleted: boolean) => void, debugInfo?: unknown): Unsubscribe {
+    const entry: [(isDeleted: boolean) => void, unknown] = [subscriber, debugInfo]
     this._subscribers.push(entry)
 
     return () => {
@@ -430,16 +418,16 @@ export default class Model {
 
   // TODO: Make this official API
   _getRaw(rawFieldName: ColumnName): Value {
-    return this._raw[(rawFieldName: string)]
+    return this._raw[rawFieldName] as Value
   }
 
   // TODO: Make this official API
   _setRaw(rawFieldName: ColumnName, rawValue: Value): void {
     this.__ensureCanSetRaw()
-    const valueBefore = this._raw[(rawFieldName: string)]
+    const valueBefore = this._raw[rawFieldName]
     setRawSanitized(this._raw, rawFieldName, rawValue, this.collection.schema.columns[rawFieldName])
 
-    if (valueBefore !== this._raw[(rawFieldName: string)] && this._preparedState !== 'create') {
+    if (valueBefore !== this._raw[rawFieldName] && this._preparedState !== 'create') {
       setRawColumnChange(this._raw, rawFieldName)
     }
   }
@@ -463,8 +451,7 @@ export default class Model {
       `Not allowed to change record ${this.__debugName} outside of create/update()`,
     )
     invariant(
-      !(this._getChanges(): $FlowFixMe<BehaviorSubject<any>>).isStopped &&
-        this._raw._status !== 'deleted',
+      !this._getChanges().isStopped && this._raw._status !== 'deleted',
       `Not allowed to change deleted record ${this.__debugName}`,
     )
   }

@@ -1,15 +1,14 @@
-// @flow
-
 import type Model from '../Model'
 import invariant from '../utils/common/invariant'
 import type Database from '../Database'
 import type { QueryDescription } from '../QueryDescription'
+import type { ModelClass } from '../Collection'
 
 import type { QueryAssociation } from './index'
 
 export const getAssociations = (
   description: QueryDescription,
-  modelClass: Class<Model>,
+  modelClass: Pick<ModelClass<Model>, 'associations' | 'table' | 'name'>,
   db: Database,
 ): QueryAssociation[] =>
   description.joinTables
