@@ -1,5 +1,5 @@
 import { MockTask, mockDatabase } from '../../__tests__/testModels'
-import { writer, reader } from './index'
+import action, { writer, reader } from './index'
 
 class MockTaskExtended extends MockTask {
   @reader
@@ -15,6 +15,24 @@ class MockTaskExtended extends MockTask {
     return this.callReader(() => this.returnArgs('sub', ...args))
   }
 }
+
+describe('@action', () => {
+  it('is a deprecated alias of @writer via database.action()', async () => {
+    const { database, tasks } = mockDatabase()
+    class MockTaskWithAction extends MockTask {
+      @action
+      async returnArgs(a, b) {
+        return [this.name, a, b]
+      }
+    }
+    const record = new MockTaskWithAction(tasks, { name: 'test' })
+    const spy = jest.spyOn(database, 'action')
+
+    expect(await record.returnArgs(1, 2)).toEqual(['test', 1, 2])
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0][1]).toBe('mock_tasks.returnArgs')
+  })
+})
 
 describe('@writer', () => {
   it('calls db.writer() and passes arguments correctly', async () => {

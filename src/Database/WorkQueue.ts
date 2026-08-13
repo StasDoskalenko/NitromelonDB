@@ -1,7 +1,4 @@
-// @flow
-/* eslint-disable no-use-before-define */
-
-import { invariant, logger } from '../utils/common'
+import { invariant, logger, deprecated } from '../utils/common'
 import type Model from '../Model'
 import type Database from './index'
 
@@ -22,7 +19,7 @@ export interface ReaderInterface {
    * })
    * ```
    */
-  callReader<T>(reader: () => Promise<T>): Promise<T>;
+  callReader<T>(reader: () => Promise<T>): Promise<T>
 }
 
 export interface WriterInterface extends ReaderInterface {
@@ -42,17 +39,30 @@ export interface WriterInterface extends ReaderInterface {
    * })
    * ```
    */
-  callWriter<T>(writer: () => Promise<T>): Promise<T>;
+  callWriter<T>(writer: () => Promise<T>): Promise<T>
+
+  /**
+   * @deprecated Use {@link WriterInterface#callWriter} or {@link ReaderInterface#callReader} instead.
+   */
+  subAction<T>(writer: () => Promise<T>): Promise<T>
 
   /** @see {Database#batch} */
-  batch(...records: $ReadOnlyArray<Model | Model[] | null | void | false>): Promise<void>;
+  batch(...records: ReadonlyArray<Model | Model[] | null | undefined | false>): Promise<void>
+}
+
+type WorkQueueItem = {
+  work: (api: ReaderInterface | WriterInterface) => Promise<unknown>
+  isWriter: boolean
+  resolve: (value: unknown) => void
+  reject: (reason: unknown) => void
+  description?: string
 }
 
 class ReaderInterfaceImpl implements ReaderInterface {
-  __workItem: WorkQueueItem<any>
+  __workItem: WorkQueueItem
   __workQueue: WorkQueue
 
-  constructor(queue: WorkQueue, item: WorkQueueItem<any>): void {
+  constructor(queue: WorkQueue, item: WorkQueueItem) {
     this.__workQueue = queue
     this.__workItem = item
   }
@@ -76,31 +86,31 @@ class WriterInterfaceImpl extends ReaderInterfaceImpl implements WriterInterface
     return this.__workQueue.subAction(writer)
   }
 
-  batch(...records: any): Promise<any> {
+  subAction<T>(writer: () => Promise<T>): Promise<T> {
+    if (process.env.NODE_ENV !== 'production') {
+      deprecated('.subAction()', 'Use .callWriter() / .callReader() instead.')
+    }
     this.__validateQueue()
-    return this.__workQueue._db.batch(records)
+    return this.__workQueue.subAction(writer)
+  }
+
+  batch(...records: ReadonlyArray<Model | Model[] | null | undefined | false>): Promise<void> {
+    this.__validateQueue()
+    return this.__workQueue._db.batch(records as Array<Model | null | undefined | false>)
   }
 }
 
-const actionInterface = (queue: WorkQueue, item: WorkQueueItem<any>) =>
+const actionInterface = (queue: WorkQueue, item: WorkQueueItem) =>
   item.isWriter ? new WriterInterfaceImpl(queue, item) : new ReaderInterfaceImpl(queue, item)
-
-type WorkQueueItem<T> = $Exact<{
-  work: (ReaderInterface | WriterInterface) => Promise<T>,
-  isWriter: boolean,
-  resolve: (value: T) => void,
-  reject: (reason: any) => void,
-  description: ?string,
-}>
 
 export default class WorkQueue {
   _db: Database
 
-  _queue: WorkQueueItem<any>[] = []
+  _queue: WorkQueueItem[] = []
 
   _subActionIncoming: boolean = false
 
-  constructor(db: Database): void {
+  constructor(db: Database) {
     this._db = db
   }
 
@@ -110,8 +120,18 @@ export default class WorkQueue {
   }
 
   enqueue<T>(
-    work: ($FlowFixMe<ReaderInterface | WriterInterface>) => Promise<T>,
-    description: ?string,
+    work: (writer: WriterInterface) => Promise<T>,
+    description: string | undefined,
+    isWriter: true,
+  ): Promise<T>
+  enqueue<T>(
+    work: (reader: ReaderInterface) => Promise<T>,
+    description: string | undefined,
+    isWriter: false,
+  ): Promise<T>
+  enqueue<T>(
+    work: (api: WriterInterface) => Promise<T>,
+    description: string | undefined,
     isWriter: boolean,
   ): Promise<T> {
     // If a subAction was scheduled using subAction(), database.write/read() calls skip the line
@@ -121,11 +141,17 @@ export default class WorkQueue {
       if (!currentWork.isWriter) {
         invariant(!isWriter, 'Cannot call a writer block from a reader block')
       }
-      return work(actionInterface(this, currentWork))
+      return work(actionInterface(this, currentWork) as unknown as WriterInterface)
     }
 
     return new Promise((resolve, reject) => {
-      const workItem: WorkQueueItem<T> = { work, isWriter, resolve, reject, description }
+      const workItem: WorkQueueItem = {
+        work: work as WorkQueueItem['work'],
+        isWriter,
+        resolve: resolve as (value: unknown) => void,
+        reject,
+        description,
+      }
 
       if (process.env.NODE_ENV !== 'production' && this._queue.length) {
         setTimeout(() => {

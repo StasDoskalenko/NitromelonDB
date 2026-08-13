@@ -1,6 +1,6 @@
 // @flow
 
-export { writer, reader } from './action'
+export { default as action, writer, reader } from './action'
 export { default as children } from './children'
 export { default as json } from './json'
 export { default as nochange } from './nochange'

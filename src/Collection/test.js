@@ -37,6 +37,15 @@ describe('Collection', () => {
     const conditions = [Q.where('a', 'b'), Q.where('c', 'd')]
     expect(tasks.query(...conditions).description).toEqual(tasks.query(conditions).description)
   })
+  it('unsafeFetchRecordsWithSQL is a deprecated alias of query(Q.unsafeSqlQuery).fetch()', async () => {
+    const { tasks } = mockDatabase()
+    const fetch = jest.spyOn(Query.prototype, 'fetch').mockResolvedValue([])
+
+    await tasks.unsafeFetchRecordsWithSQL('select * from mock_tasks')
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    fetch.mockRestore()
+  })
 })
 
 describe('finding records', () => {

@@ -27,3 +27,15 @@ export function reader(target: Object, key: string, descriptor: Descriptor): Des
     },
   }
 }
+
+// @deprecated Use @writer instead.
+export default function action(target: Object, key: string, descriptor: Descriptor): Descriptor {
+  const actionName = `${target.table}.${key}`
+  return {
+    ...descriptor,
+    value(...args): Promise<any> {
+      // $FlowFixMe
+      return this.database.action(() => descriptor.value.apply(this, args), actionName)
+    },
+  }
+}

@@ -1,8 +1,7 @@
-// @flow
 import type Database from '..'
 import { invariant } from '../../utils/common'
 
-export opaque type LocalStorageKey<ValueType> = string
+export type LocalStorageKey<_ValueType = unknown> = string
 
 export function localStorageKey<ValueType>(name: string): LocalStorageKey<ValueType> {
   return name
@@ -11,22 +10,25 @@ export function localStorageKey<ValueType>(name: string): LocalStorageKey<ValueT
 export default class LocalStorage {
   _db: Database
 
-  constructor(database: Database): void {
+  constructor(database: Database) {
     this._db = database
   }
 
   // Get value from LocalStorage (returns value deserialized from JSON)
   // Returns `undefined` if not found
-  async get<ValueType>(key: LocalStorageKey<ValueType>): Promise<ValueType | void> {
+  async get<ValueType>(key: LocalStorageKey<ValueType>): Promise<ValueType | undefined> {
     const json = await this._db.adapter.getLocal(key)
-    return json == null ? undefined : JSON.parse(json)
+    return json == null ? undefined : (JSON.parse(json) as ValueType)
   }
 
   // Experimental: Same as get(), but can be called synchronously
-  _getSync<ValueType>(key: LocalStorageKey<ValueType>, callback: (ValueType | void) => void): void {
+  _getSync<ValueType>(
+    key: LocalStorageKey<ValueType>,
+    callback: (value: ValueType | undefined) => void,
+  ): void {
     this._db.adapter.underlyingAdapter.getLocal(key, (result) => {
       const json = result.value ? result.value : undefined
-      const value = json == null ? undefined : JSON.parse(json)
+      const value = json == null ? undefined : (JSON.parse(json) as ValueType)
       callback(value)
     })
   }
@@ -45,7 +47,7 @@ export default class LocalStorage {
     return this._db.adapter.setLocal(key, json)
   }
 
-  async remove(key: LocalStorageKey<any>): Promise<void> {
+  async remove(key: LocalStorageKey): Promise<void> {
     return this._db.adapter.removeLocal(key)
   }
 }
