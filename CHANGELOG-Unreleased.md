@@ -5,7 +5,7 @@
 - Minimum supported Node.js version is now 22.x (required by React Native 0.87)
 - [iOS] Minimum deployment target is now iOS 15.1
 - [Android] Minimum SDK version is now 24
-- [iOS] CocoaPods spec renamed from `WatermelonDB` to `NitromelonDB`
+- [iOS] CocoaPods spec renamed from `WatermelonDB` to `NitromelonDB`. Update Podfiles (`pod 'NitromelonDB'`) and bridging-header imports (`#import <NitromelonDB/WatermelonDB.h>`).
 
 ### Deprecations
 
