@@ -4,6 +4,8 @@ Expo SDK 57 development-build app that opens SQLite through `SQLiteAdapter` → 
 
 The screen is a small notes list: schema v2, a v1→v2 migration that adds `pinned`, and create / pin / delete against the live database.
 
+![NitromelonDB notes screen on iOS, showing two notes, Nitro SQLite, and schema v2](assets/screenshot.png)
+
 ```sh
 cd examples/nitro
 npm install
