@@ -5,6 +5,28 @@ package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
 # Vendored amalgamation from https://github.com/simdjson/simdjson (see native/vendor/simdjson).
 # `s.dependency "simdjson"` would resolve CocoaPods trunk, which is the wrong library.
 # iOS links the system sqlite3; do not compile native/vendor/sqlite into this pod.
+# ObjC WMDatabase uses CocoaPods FMDB (default `standard` subspec → system sqlite3).
+# Do not use FMDB/standalone (that compiles sqlite amalgamation).
+#
+# FMDB does define a Swift module — in Package.swift (`publicHeadersPath: "."` → `import FMDB`).
+# The CocoaPods spec does not set DEFINES_MODULE, so under static libraries CocoaPods
+# refuses a Swift pod (Nitrogen) depending on it. Mark the FMDB target as a module
+# so apps do not add `pod 'FMDB', :modular_headers => true`.
+begin
+  if defined?(::Pod::PodTarget) && !::Pod::PodTarget.method_defined?(:__nitromelondb_defines_module?)
+    ::Pod::PodTarget.class_eval do
+      alias_method :__nitromelondb_defines_module?, :defines_module?
+      def defines_module?
+        return true if (respond_to?(:pod_name) && pod_name == 'FMDB') || name == 'FMDB'
+
+        __nitromelondb_defines_module?
+      end
+    end
+  end
+rescue StandardError
+  # `pod spec lint` / `pod ipc spec` may not load installer classes.
+end
+
 simdjson_header = File.join(__dir__, 'native', 'vendor', 'simdjson', 'simdjson.h')
 unless File.exist?(simdjson_header)
   raise 'NitromelonDB: missing native/vendor/simdjson/simdjson.h (vendored simdjson amalgamation).'
@@ -41,6 +63,7 @@ Pod::Spec.new do |s|
   s.compiler_flags = '-Os'
 
   s.libraries = 'sqlite3'
+  s.dependency 'FMDB', '~> 2.7.12'
 
   s.dependency "React-Core"
   s.dependency "React-jsi"
