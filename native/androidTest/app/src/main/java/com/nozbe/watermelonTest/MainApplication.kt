@@ -7,7 +7,6 @@ import com.facebook.react.ReactHost
 import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.nozbe.watermelondb.WatermelonDBPackage
-import com.nozbe.watermelondb.jsi.WatermelonDBJSIPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -15,7 +14,6 @@ class MainApplication : Application(), ReactApplication {
         val packages = PackageList(this).packages.apply {
             add(NativeModulesPackage())
             add(WatermelonDBPackage())
-            add(WatermelonDBJSIPackage())
         }
         getDefaultReactHost(
             context = applicationContext,

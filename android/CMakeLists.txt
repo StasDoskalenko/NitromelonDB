@@ -14,9 +14,9 @@ file(GLOB SHARED_SRC_FILES "${CMAKE_SOURCE_DIR}/../native/shared/*.cpp")
 
 add_library(${PACKAGE_NAME} SHARED
   ${CMAKE_SOURCE_DIR}/../native/android/src/main/cpp/cpp-adapter.cpp
+  ${CMAKE_SOURCE_DIR}/../native/android/src/main/cpp/DatabasePlatformAndroid.cpp
   ${CMAKE_SOURCE_DIR}/../native/nitro/HybridNitromelon.cpp
   ${CMAKE_SOURCE_DIR}/../native/nitro/HybridNitromelonDatabase.cpp
-  ${CMAKE_SOURCE_DIR}/../native/android-jsi/src/main/cpp/DatabasePlatformAndroid.cpp
   ${SHARED_SRC_FILES}
   ${NODE_MODULES_PATH}/@nozbe/sqlite/${SQLITE_VERSION}/sqlite3.c
   ${NODE_MODULES_PATH}/@nozbe/simdjson/src/simdjson.cpp
@@ -28,7 +28,6 @@ include_directories(
   "${CMAKE_SOURCE_DIR}/../native/nitro"
   "${CMAKE_SOURCE_DIR}/../native/shared"
   "${CMAKE_SOURCE_DIR}/../native/android/src/main/cpp"
-  "${CMAKE_SOURCE_DIR}/../native/android-jsi/src/main/cpp"
   "${NODE_MODULES_PATH}/@nozbe/sqlite/${SQLITE_VERSION}"
   "${NODE_MODULES_PATH}/@nozbe/simdjson/src"
 )

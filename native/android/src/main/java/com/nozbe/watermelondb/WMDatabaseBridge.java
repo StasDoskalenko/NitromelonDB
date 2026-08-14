@@ -15,7 +15,7 @@ import com.facebook.react.bridge.WritableMap;
 import com.nozbe.watermelondb.utils.MigrationSet;
 import com.nozbe.watermelondb.utils.Schema;
 
-import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -216,12 +216,8 @@ public class WMDatabaseBridge extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void provideSyncJson(int id, String json, Promise promise) {
-        // Note: WatermelonJSI is optional on Android, but we don't want users to have to set up
-        // yet another NativeModule, so we're using Reflection to access it from here
         try {
-            Class<?> clazz = Class.forName("com.nozbe.watermelondb.jsi.WatermelonJSI");
-            Method method = clazz.getDeclaredMethod("provideSyncJson", int.class, byte[].class);
-            method.invoke(null, id, json.getBytes());
+            NitromelonNative.provideSyncJson(id, json.getBytes(StandardCharsets.UTF_8));
             promise.resolve(true);
         } catch (Exception e) {
             promise.reject(e);

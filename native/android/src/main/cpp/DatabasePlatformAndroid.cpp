@@ -8,7 +8,7 @@
 #include "DatabasePlatform.h"
 #include "DatabasePlatformAndroid.h"
 
-#define LOG_TAG "watermelondb.jsi"
+#define LOG_TAG "watermelondb.android"
 #define SQLITE_LOG_TAG "watermelondb.sqlite"
 
 namespace watermelondb {
@@ -76,7 +76,7 @@ static JavaVM *jvm;
 void configureJNI(JNIEnv *env) {
     assert(env);
     if (env->GetJavaVM(&jvm) != JNI_OK) {
-        consoleError("Could not initialize WatermelonDB JSI - cannot get JavaVM");
+        consoleError("Could not initialize WatermelonDB JNI - cannot get JavaVM");
         std::abort();
     }
     assert(jvm);
@@ -102,10 +102,6 @@ std::string resolveDatabasePath(std::string path) {
     assert(env);
 
     jclass clazz = env->FindClass("com/nozbe/watermelondb/NativeDatabasePath");
-    if (clazz == NULL) {
-        env->ExceptionClear();
-        clazz = env->FindClass("com/nozbe/watermelondb/jsi/JSIInstaller");
-    }
     if (clazz == NULL) {
         throw std::runtime_error("Unable to resolve db path - missing NativeDatabasePath class");
     }

@@ -15,3 +15,9 @@ JNIEXPORT void JNICALL
 Java_com_nozbe_watermelondb_NitromelonNative_onCatalystInstanceDestroy(JNIEnv*, jclass) {
   watermelondb::platform::destroy();
 }
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_nozbe_watermelondb_NitromelonNative_provideSyncJson(JNIEnv* env, jclass, jint id, jbyteArray array) {
+  watermelondb::platform::provideJson(id, array);
+}

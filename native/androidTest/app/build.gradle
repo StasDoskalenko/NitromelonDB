@@ -104,7 +104,6 @@ dependencies {
         }
     }
     implementation project(':watermelondb')
-    implementation project(':watermelondb-jsi')
     implementation 'androidx.appcompat:appcompat:1.7.0'
 
     androidTestImplementation 'androidx.annotation:annotation:1.9.1'
