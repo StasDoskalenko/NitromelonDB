@@ -34,7 +34,8 @@
     "docs:deploy": "./scripts/update-docusaurus && cd docs-website && yarn deploy",
     "specs": "nitrogen",
     "postinstall": "patch-package",
-    "vendor:simdjson": "node ./scripts/vendor-simdjson.mjs"
+    "vendor:simdjson": "node ./scripts/vendor-simdjson.mjs",
+    "vendor:sqlite": "node ./scripts/vendor-sqlite.mjs"
   },
   "types": "src/index.ts",
   "author": "@Nozbe",
@@ -66,7 +67,6 @@
   },
   "dependencies": {
     "@babel/runtime": "7.26.0",
-    "@nozbe/sqlite": "3.46.0",
     "hoist-non-react-statics": "^3.3.2",
     "lokijs": "npm:@nozbe/lokijs@1.5.12-wmelon8",
     "rxjs": "^7.8.2",

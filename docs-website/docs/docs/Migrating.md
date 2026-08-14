@@ -48,7 +48,7 @@ Replace the old scope everywhere — `package.json`, source, tests, Metro/tsconf
 
 A project-wide replace of `@nozbe/watermelondb` → `nitromelondb` is enough for imports.
 
-Leave **other** `@nozbe/*` packages alone. `@nozbe/sqlite` is still a separate upstream dependency. `simdjson` is vendored inside NitromelonDB.
+Leave **other** `@nozbe/*` packages alone. `simdjson` and SQLite are vendored inside NitromelonDB (`native/vendor/`).
 
 ```js
 // before

@@ -1,4 +1,6 @@
 native/iosTests/Pods/* linguist-generated=true
 native/vendor/simdjson/simdjson.h linguist-generated=true
 native/vendor/simdjson/simdjson.cpp linguist-generated=true
+native/vendor/sqlite/sqlite3.h linguist-generated=true
+native/vendor/sqlite/sqlite3.c linguist-generated=true
 *.pbxproj -text

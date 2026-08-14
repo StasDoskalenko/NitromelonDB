@@ -20,9 +20,7 @@
     <ReactNativeWindowsDir Condition="'$(ReactNativeWindowsDir)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove($(SolutionDir), 'node_modules\react-native-windows\package.json'))\node_modules\react-native-windows\</ReactNativeWindowsDir>
     <!-- TODO: Figure out how to override them by consumers? -->
     <WatermelonJsiSharedDir Condition="'$(WatermelonJsiSharedDir)' == ''">..\..\shared\</WatermelonJsiSharedDir>
-    <WatermelonAtNozbeNodeModulesDir Condition="'$(WatermelonAtNozbeNodeModulesDir)' == ''">$(ReactNativeWindowsDir)..\@nozbe\</WatermelonAtNozbeNodeModulesDir>
-    <WatermelonSqliteVersion Condition="'$(WatermelonSqliteVersion)' == ''">sqlite-amalgamation-3460000</WatermelonSqliteVersion>
-    <WatermelonSqliteDir Condition="'$(WatermelonSqliteDir)' == ''">$(WatermelonAtNozbeNodeModulesDir)sqlite\$(WatermelonSqliteVersion)\</WatermelonSqliteDir>
+    <WatermelonSqliteDir Condition="'$(WatermelonSqliteDir)' == ''">..\..\vendor\sqlite\</WatermelonSqliteDir>
     <WatermelonSimdjsonDir Condition="'$(WatermelonSimdjsonDir)' == ''">..\..\vendor\simdjson\</WatermelonSimdjsonDir>
   </PropertyGroup>
   <Import Project="$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.WindowsSdk.Default.props" Condition="Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.WindowsSdk.Default.props')" />

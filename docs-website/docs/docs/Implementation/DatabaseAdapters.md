@@ -54,7 +54,7 @@ All you have to do is this:
 - Compile `.cpp` files in `native/shared` folder
 - Link library with `sqlite3`
   - Use system-provided sqlite3 if possible (we do that on iOS)
-  - If not, we ship sqlite source code via NPM `@nozbe/sqlite` package. Just add `node_modules/@nozbe/sqlite/**` to search paths and compile `node_modules/@nozbe/sqlite/*/sqlite3.c`
+  - If not, we ship sqlite source in `native/vendor/sqlite`. Add that directory to search paths and compile `sqlite3.c`
 - Provide implementation for `native/shared/DatabasePlatform.h`
   - Please note that most of these functions can remain unimplemented (empty) for basic operation - e.g. you can skip logging, memory, turbo json support
 - Provide a React Native hook that calls `Database::install(jsi::Runtime *)`

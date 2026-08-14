@@ -137,6 +137,7 @@ const copyNonJavaScriptFiles = (buildPath) => {
     'native/nitro',
     'native/windows',
     'native/vendor/simdjson',
+    'native/vendor/sqlite',
     'nitrogen',
   ])
   fs.writeFileSync(
