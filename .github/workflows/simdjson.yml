@@ -1,0 +1,39 @@
+name: simdjson bump
+
+on:
+  schedule:
+    - cron: '17 12 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-24.04
+    name: Vendor latest simdjson
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - name: Vendor latest simdjson if newer
+        id: vendor
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/vendor-simdjson.mjs --latest --if-newer
+      - uses: peter-evans/create-pull-request@v7
+        if: steps.vendor.outputs.updated == 'true'
+        with:
+          branch: chore/simdjson-bump
+          delete-branch: true
+          title: 'chore: bump vendored simdjson to ${{ steps.vendor.outputs.version }}'
+          commit-message: 'chore: bump vendored simdjson to ${{ steps.vendor.outputs.version }}'
+          body: |
+            Vendored [simdjson ${{ steps.vendor.outputs.version }}](https://github.com/simdjson/simdjson/releases/tag/v${{ steps.vendor.outputs.version }}) into `native/vendor/simdjson`.
+
+            Previous version: `${{ steps.vendor.outputs.previous }}`.
+
+            Do not auto-merge. Native CI is the gate — On-Demand API, compiler flags, and amalgamation size can change.

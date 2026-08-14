@@ -48,7 +48,7 @@ Replace the old scope everywhere — `package.json`, source, tests, Metro/tsconf
 
 A project-wide replace of `@nozbe/watermelondb` → `nitromelondb` is enough for imports.
 
-Leave **other** `@nozbe/*` packages alone. `@nozbe/simdjson` and `@nozbe/sqlite` are still separate upstream dependencies.
+Leave **other** `@nozbe/*` packages alone. `@nozbe/sqlite` is still a separate upstream dependency. `simdjson` is vendored inside NitromelonDB.
 
 ```js
 // before
@@ -75,7 +75,7 @@ Also update `node_modules` paths if you still have any (Windows native projects,
 
 ## 3. iOS
 
-Autolinking picks up the `NitromelonDB` pod. **Remove** any WatermelonDB / simdjson lines you added by hand — simdjson is compiled into NitromelonDB from npm `@nozbe/simdjson`. You do not add a `pod 'simdjson'` (or `pod 'NitromelonDB'`) line.
+Autolinking picks up the `NitromelonDB` pod. **Remove** any WatermelonDB / simdjson lines you added by hand — simdjson is compiled into NitromelonDB from vendored sources. You do not add a `pod 'simdjson'` (or `pod 'NitromelonDB'`) line.
 
 ```ruby
 # delete these if present

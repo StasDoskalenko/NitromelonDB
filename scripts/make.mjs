@@ -106,9 +106,6 @@ const prepareJson = pipe(
     main: './index.js',
     sideEffects: false,
     types: 'index.d.ts',
-    scripts: {
-      postinstall: 'node ./scripts/disable-simdjson-ios-autolink.js',
-    },
   }),
   (obj) => prettyJson(obj),
 )
@@ -132,7 +129,6 @@ const copyNonJavaScriptFiles = (buildPath) => {
     'NitromelonDB.podspec',
     'nitro.json',
     'android/CMakeLists.txt',
-    'scripts/disable-simdjson-ios-autolink.js',
     // 'docs',
     'native/shared',
     'native/ios',
@@ -140,6 +136,7 @@ const copyNonJavaScriptFiles = (buildPath) => {
     'native/android-jsi',
     'native/nitro',
     'native/windows',
+    'native/vendor/simdjson',
     'nitrogen',
   ])
   fs.writeFileSync(
@@ -170,11 +167,6 @@ module.exports = {
 }
 `,
   )
-  const simdjsonSrc = resolvePath('node_modules/@nozbe/simdjson/src')
-  const simdjsonDest = path.join(buildPath, 'native/vendor/simdjson')
-  mkdirp.sync(simdjsonDest)
-  fs.copySync(path.join(simdjsonSrc, 'simdjson.h'), path.join(simdjsonDest, 'simdjson.h'))
-  fs.copySync(path.join(simdjsonSrc, 'simdjson.cpp'), path.join(simdjsonDest, 'simdjson.cpp'))
   cleanFolder(`${buildPath}/native/ios/WatermelonDB.xcodeproj/xcuserdata`)
   cleanFolder(`${buildPath}/native/android/build`)
   cleanFolder(`${buildPath}/native/android/bin/build`)
