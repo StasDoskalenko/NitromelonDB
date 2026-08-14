@@ -3,7 +3,7 @@ require "json"
 package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
 
 Pod::Spec.new do |s|
-  s.name         = "WatermelonDB"
+  s.name         = "NitromelonDB"
   s.version      = package["version"]
   s.summary      = package["description"]
   s.description  = package["description"]
@@ -12,7 +12,7 @@ Pod::Spec.new do |s|
   s.author       = { "author" => package["author"] }
   s.platforms    = { :ios => "15.1", :tvos => "15.1" }
   s.source = { :git => "https://github.com/Nozbe/WatermelonDB.git", :tag => "v#{s.version}" }
-  s.source_files = "native/ios/**/*.{h,m,mm,swift,c,cpp}", "native/shared/**/*.{h,c,cpp}"
+  s.source_files = "native/ios/**/*.{h,m,mm,swift,c,cpp}", "native/shared/**/*.{h,c,cpp}", "native/nitro/**/*.{h,hpp,c,cpp}"
   s.public_header_files = [
     # FIXME: I don't think we should be exporting all headers as public
     # (although that is CocoaPods default behavior)
@@ -25,6 +25,7 @@ Pod::Spec.new do |s|
     # FIXME: This is a workaround for broken build in use_frameworks mode
     # I don't think this is a correct fix, but… seems to work?
     # 'OTHER_SWIFT_FLAGS' => '-Xcc -Wno-error=non-modular-include-in-framework-module'
+    'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/native/nitro" "$(PODS_TARGET_SRCROOT)/nitrogen/generated/shared/c++"',
   }
   s.requires_arc = true
   # simdjson is annoyingly slow without compiler optimization, disable for debugging
@@ -34,6 +35,7 @@ Pod::Spec.new do |s|
 
   s.dependency "React-Core"
   s.dependency "React-jsi"
+  s.dependency "React-callinvoker"
 
   # New Architecture / JSI (RCTTurboModuleWithJSIBindings). Available when the app
   # Podfile has loaded react_native_pods.rb (standard RN 0.71+ apps).
@@ -45,4 +47,8 @@ Pod::Spec.new do |s|
 
   # NOTE: NPM-vendored @nozbe/simdjson must be used, not the CocoaPods version
   s.dependency "simdjson"
+
+  load 'nitrogen/generated/ios/NitromelonDB+autolinking.rb'
+  add_nitrogen_files(s)
+  s.dependency 'NitroModules'
 end

@@ -126,14 +126,18 @@ const copyNonJavaScriptFiles = (buildPath) => {
     'LICENSE',
     // 'README.md',
     'yarn.lock',
-    'WatermelonDB.podspec',
+    'NitromelonDB.podspec',
+    'nitro.json',
+    'android/CMakeLists.txt',
     'react-native.config.js', // NOTE: this is needed for autolinking
     // 'docs',
     'native/shared',
     'native/ios',
     'native/android',
     'native/android-jsi',
+    'native/nitro',
     'native/windows',
+    'nitrogen',
   ])
   cleanFolder(`${buildPath}/native/ios/WatermelonDB.xcodeproj/xcuserdata`)
   cleanFolder(`${buildPath}/native/android/build`)
@@ -182,6 +186,7 @@ if (isDevelopment) {
         resolvePath('native/shared'),
         resolvePath('native/android/src/main'),
         resolvePath('native/android-jsi/src/main'),
+        resolvePath('native/nitro'),
       ],
       {
         ignored: DO_NOT_BUILD_PATHS,

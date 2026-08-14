@@ -1,10 +1,9 @@
-
 buildscript {
-    ext.getExtOrDefault = {name ->
+    ext.getExtOrDefault = { name ->
         return rootProject.ext.has(name) ? rootProject.ext.get(name) : project.properties['ReactNativeWatermelonDB_' + name]
     }
 
-    ext.getExtOrIntegerDefault = {name ->
+    ext.getExtOrIntegerDefault = { name ->
         return rootProject.ext.has(name) ? rootProject.ext.get(name) : (project.properties['ReactNativeWatermelonDB_' + name]).toInteger()
     }
 
@@ -18,8 +17,21 @@ buildscript {
     }
 }
 
+def reactNativeArchitectures() {
+    def value = rootProject.getProperties().get("reactNativeArchitectures")
+    return value ? value.split(",") : ["armeabi-v7a", "x86", "x86_64", "arm64-v8a"]
+}
+
+def isNewArchitectureEnabled() {
+    return rootProject.hasProperty("newArchEnabled") && rootProject.getProperty("newArchEnabled") == "true"
+}
+
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
+
+if (isNewArchitectureEnabled()) {
+    apply plugin: "com.facebook.react"
+}
 
 android {
     compileSdkVersion getExtOrIntegerDefault('compileSdkVersion')
@@ -27,9 +39,9 @@ android {
 
     namespace "com.nozbe.watermelondb"
 
-    // AGP 8+ does not generate BuildConfig for libraries unless this is enabled.
     buildFeatures {
         buildConfig true
+        prefab true
     }
 
     defaultConfig {
@@ -37,17 +49,75 @@ android {
         targetSdkVersion getExtOrIntegerDefault('targetSdkVersion')
         versionCode 1
         versionName "1.0"
+        buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
+
+        externalNativeBuild {
+            cmake {
+                cppFlags "-frtti -fexceptions -Wall -Wextra -fstack-protector-all"
+                arguments "-DANDROID_STL=c++_shared", "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+                abiFilters(*reactNativeArchitectures())
+
+                buildTypes {
+                    debug {
+                        cppFlags "-O1 -g"
+                    }
+                    release {
+                        cppFlags "-O2"
+                    }
+                }
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            // Nitrogen generates `../nitrogen/...` paths assuming CMakeLists
+            // lives in a directory next to the package root (standard `android/`).
+            path file("../../android/CMakeLists.txt")
+        }
+    }
+
+    sourceSets {
+        main {
+            java.srcDirs += [
+                "${project.projectDir}/../../nitrogen/generated/android/kotlin"
+            ]
+        }
+    }
+
+    packagingOptions {
+        excludes = [
+            "META-INF",
+            "META-INF/**",
+            "**/libc++_shared.so",
+            "**/libNitroModules.so",
+            "**/libfbjni.so",
+            "**/libjsi.so",
+            "**/libfolly_json.so",
+            "**/libfolly_runtime.so",
+            "**/libglog.so",
+            "**/libhermes.so",
+            "**/libhermes-executor-debug.so",
+            "**/libhermes_executor.so",
+            "**/libreactnative.so",
+            "**/libreactnativejni.so",
+            "**/libturbomodulejsijni.so",
+            "**/libreact_nativemodule_core.so",
+            "**/libjscexecutor.so"
+        ]
     }
 }
+
+apply from: './fix-prefab.gradle'
 
 dependencies {
     //noinspection GradleDynamicVersion
     implementation 'com.facebook.react:react-android'
     implementation "org.jetbrains.kotlin:kotlin-stdlib:${getExtOrDefault('kotlinVersion')}"
+    implementation project(":react-native-nitro-modules")
 }
 
 repositories {
     google()
     mavenCentral()
 }
-

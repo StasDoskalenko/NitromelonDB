@@ -5,6 +5,7 @@
 - Minimum supported Node.js version is now 22.x (required by React Native 0.87)
 - [iOS] Minimum deployment target is now iOS 15.1
 - [Android] Minimum SDK version is now 24
+- [iOS] CocoaPods spec renamed from `WatermelonDB` to `NitromelonDB`
 
 ### Deprecations
 
@@ -23,7 +24,9 @@
 
 ### Changes
 
+- [Nitro] Scaffolded Nitrogen (`nitro.json`, `yarn specs`) with a C++ `Nitromelon` HybridObject smoke test (`ping()`). CocoaPods spec renamed to `NitromelonDB`. `react-native-nitro-modules` is an optional peer dependency. Expo SDK 57 example lives in `examples/nitro`.
 - Migrated the JS source from Flow + hand-written `.d.ts` to TypeScript. Implementation under `src/` is now TypeScript, including adapters (SQLite, LokiJS, remote). `yarn typecheck` uses `strict`, `noUnusedLocals`, `noUnusedParameters`, and `exactOptionalPropertyTypes`, and forbids explicit `any`. Flow and tslint are gone; leftover Flow shims in `src/types` and tslint config/deps were removed. Tests remain JavaScript.
+
 - CI runs a dedicated TypeScript job (`yarn typecheck` + `yarn test:typescript`) in addition to `ci:check`.
 - Metro now strips TypeScript (not Flow) for `.ts` sources, and `yarn test:metro-transform` guards that path in CI.
 - ESLint now lints implementation `.ts` files (`@typescript-eslint/no-explicit-any`) instead of ignoring all TypeScript.

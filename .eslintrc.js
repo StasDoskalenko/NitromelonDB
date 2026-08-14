@@ -17,7 +17,7 @@ const config = {
     'plugin:jest/recommended',
   ],
   parser: '@babel/eslint-parser',
-  ignorePatterns: ['examples/typescript/**/*.ts', 'node_modules/**'],
+  ignorePatterns: ['examples/typescript/**/*.ts', 'examples/nitro/**', 'nitrogen/**', 'node_modules/**'],
   settings: {
     flowtype: {
       onlyFilesWithFlowAnnotation: true,

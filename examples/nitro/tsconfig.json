@@ -1,0 +1,10 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@nozbe/watermelondb/src/nitro": ["../../src/nitro/index.ts"],
+      "@nozbe/watermelondb/*": ["../../src/*"]
+    }
+  }
+}
