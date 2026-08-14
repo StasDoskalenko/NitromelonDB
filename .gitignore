@@ -10,8 +10,6 @@ yarn-error.log
 dist/
 dev/
 
-native/vendor/simdjson/
-
 *.tgz
 coverage/
 

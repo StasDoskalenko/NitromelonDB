@@ -1,29 +1,12 @@
 require "json"
-require "fileutils"
 
 package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
 
-# Compile npm `@nozbe/simdjson` into this pod (same target as Nitrogen's DEFINES_MODULE).
+# Vendored amalgamation from https://github.com/simdjson/simdjson (see native/vendor/simdjson).
 # `s.dependency "simdjson"` would resolve CocoaPods trunk, which is the wrong library.
-# Do not use a top-level `def` — CocoaPods evaluates the podspec on the Pod module.
-simdjson_vendor = File.join(__dir__, 'native', 'vendor', 'simdjson')
-simdjson_header = File.join(simdjson_vendor, 'simdjson.h')
+simdjson_header = File.join(__dir__, 'native', 'vendor', 'simdjson', 'simdjson.h')
 unless File.exist?(simdjson_header)
-  simdjson_pkg = if defined?(Pod::Executable)
-    Pod::Executable.execute_command('node', [
-      '-p',
-      'require.resolve("@nozbe/simdjson/package.json", {paths:[process.argv[1]]})',
-      __dir__,
-    ]).strip
-  else
-    `node --print "require.resolve('@nozbe/simdjson/package.json', {paths:['#{__dir__}']})"`.strip
-  end
-  raise 'NitromelonDB: could not resolve @nozbe/simdjson. Run yarn/npm install first.' if simdjson_pkg.nil? || simdjson_pkg.empty?
-
-  simdjson_src = File.join(File.dirname(simdjson_pkg), 'src')
-  FileUtils.mkdir_p(simdjson_vendor)
-  FileUtils.cp(File.join(simdjson_src, 'simdjson.h'), simdjson_header)
-  FileUtils.cp(File.join(simdjson_src, 'simdjson.cpp'), File.join(simdjson_vendor, 'simdjson.cpp'))
+  raise 'NitromelonDB: missing native/vendor/simdjson/simdjson.h (vendored simdjson amalgamation).'
 end
 
 Pod::Spec.new do |s|

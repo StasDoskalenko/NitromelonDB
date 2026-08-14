@@ -22,14 +22,6 @@ module.exports = {
       },
     },
   },
-  // Tester app in this repo: simdjson is compiled into NitromelonDB.podspec.
-  dependencies: {
-    '@nozbe/simdjson': {
-      platforms: {
-        ios: null,
-      },
-    },
-  },
   // This is for WatermelonDB project internals
   project: {
     android: {

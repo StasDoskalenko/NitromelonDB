@@ -6,7 +6,7 @@
 - [iOS] Minimum deployment target is now iOS 15.1
 - [Android] Minimum SDK version is now 24
 - [iOS] CocoaPods spec renamed from `WatermelonDB` to `NitromelonDB`. Autolinking picks up the pod. Bridging-header imports, if you have them, are `#import <NitromelonDB/WatermelonDB.h>`.
-- [iOS] `simdjson` is compiled into the `NitromelonDB` pod from npm `@nozbe/simdjson`. Remove any hand-copied `pod 'simdjson'` Podfile lines; do not add `pod 'NitromelonDB'` either.
+- [iOS] `simdjson` is vendored in `native/vendor/simdjson` and compiled into the `NitromelonDB` pod. Remove any hand-copied `pod 'simdjson'` Podfile lines; do not add `pod 'NitromelonDB'` either.
 - [SQLite][RN] iOS/Android SQLite is Nitro-only. NativeModules interop (`{ jsi: false }`) is removed. Windows still uses the JSI installer. Web and Electron keep the Node/better-sqlite3 dispatcher (`makeDispatcher/index.ts` / `index.web.ts`).
 - [Android] Removed `native/android-jsi` (`WatermelonDBJSIPackage`, `libwatermelondb-jsi.so`). Drop `include ':watermelondb-jsi'` and `WatermelonDBJSIPackage` from the app. Nitro autolinks. Native turbo-sync JSON injection uses `com.nozbe.watermelondb.NitromelonNative.provideSyncJson`.
 - [Nitro] The `NitromelonDatabase` HybridObject now exposes the full SQLite adapter API (`initialize`, `find`, `query`, `batchJSON`, …) as typed Nitrogen methods. The `ping()` / `nativeEngine` smoke-test API is removed. iOS/Android no longer install `nativeWatermelonCreateAdapter` JSI bindings.
@@ -40,7 +40,8 @@
 - Support for React Native 0.87 and React 19
 - Added a [Migrating from WatermelonDB](./docs-website/docs/docs/Migrating.md) guide to the docs site
 - Publish docs to GitHub Pages at https://stasdoskalenko.github.io/NitromelonDB/ (docs index: https://stasdoskalenko.github.io/NitromelonDB/docs)
-- [iOS] `simdjson` is compiled into the `NitromelonDB` pod from npm `@nozbe/simdjson`. Autolinking is enough; remove any hand-copied `pod 'simdjson'` Podfile lines.
+- [iOS] `simdjson` is vendored in `native/vendor/simdjson` and compiled into the `NitromelonDB` pod. Autolinking is enough; remove any hand-copied `pod 'simdjson'` Podfile lines.
+- Dropped the `@nozbe/simdjson` npm dependency. Native builds compile the official amalgamation from this repo.
 
 ### Internal
 
@@ -51,3 +52,4 @@
 - [CI] Android tests use JDK 21
 - [CI] Use latest CocoaPods (1.17) without the old 1.15 / xcodeproj / ethon pins
 - Bundle React Native 0.87 with its own Babel preset
+- [CI] Weekly `simdjson` bump workflow opens a PR when a newer official amalgamation is available (`scripts/vendor-simdjson.mjs`)

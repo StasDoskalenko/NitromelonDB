@@ -15,7 +15,7 @@ npm install nitromelondb
 
 ## React Native setup
 
-Native SQLite on iOS and Android uses [Nitro Modules](https://nitro.margelo.com) and React Native **autolinking** (`react-native.config.js` + the `NitromelonDB` podspec). `simdjson` is compiled into that pod from npm `@nozbe/simdjson`. You do not add CocoaPods or Gradle lines by hand, and you do not run a separate setup CLI.
+Native SQLite on iOS and Android uses [Nitro Modules](https://nitro.margelo.com) and React Native **autolinking** (`react-native.config.js` + the `NitromelonDB` podspec). `simdjson` is compiled into that pod from vendored sources. You do not add CocoaPods or Gradle lines by hand, and you do not run a separate setup CLI.
 
 ```bash
 yarn add nitromelondb react-native-nitro-modules

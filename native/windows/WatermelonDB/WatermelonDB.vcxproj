@@ -23,7 +23,7 @@
     <WatermelonAtNozbeNodeModulesDir Condition="'$(WatermelonAtNozbeNodeModulesDir)' == ''">$(ReactNativeWindowsDir)..\@nozbe\</WatermelonAtNozbeNodeModulesDir>
     <WatermelonSqliteVersion Condition="'$(WatermelonSqliteVersion)' == ''">sqlite-amalgamation-3460000</WatermelonSqliteVersion>
     <WatermelonSqliteDir Condition="'$(WatermelonSqliteDir)' == ''">$(WatermelonAtNozbeNodeModulesDir)sqlite\$(WatermelonSqliteVersion)\</WatermelonSqliteDir>
-    <WatermelonSimdjsonDir Condition="'$(WatermelonSimdjsonDir)' == ''">$(WatermelonAtNozbeNodeModulesDir)simdjson\src\</WatermelonSimdjsonDir>
+    <WatermelonSimdjsonDir Condition="'$(WatermelonSimdjsonDir)' == ''">..\..\vendor\simdjson\</WatermelonSimdjsonDir>
   </PropertyGroup>
   <Import Project="$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.WindowsSdk.Default.props" Condition="Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.WindowsSdk.Default.props')" />
   <PropertyGroup Label="Fallback Windows SDK Versions">
