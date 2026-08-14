@@ -2,4 +2,4 @@
 #import <React/RCTRootView.h>
 #import <React/RCTViewManager.h>
 
-#import <WatermelonDB/WatermelonDB.h>
+#import <NitromelonDB/WatermelonDB.h>

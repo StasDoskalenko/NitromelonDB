@@ -12,7 +12,7 @@ module.exports = {
   transform: {
     '^.+\\.[jt]sx?$': 'babel-jest',
   },
-  modulePathIgnorePatterns: ['<rootDir>/dist', '<rootDir>/dev'],
+  modulePathIgnorePatterns: ['<rootDir>/dist', '<rootDir>/dev', '<rootDir>/examples'],
   // collectCoverage: true,
   // collectCoverageFrom: ['!**/node_modules/**', 'src/**'],
   // coverageDirectory: 'coverage',

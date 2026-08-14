@@ -24,7 +24,7 @@ target 'WatermelonTester' do
     :app_path => "#{Pod::Config.instance.installation_root}/../.."
   )
 
-  pod 'WatermelonDB', path: '../../'
+  pod 'NitromelonDB', path: '../../'
   pod 'simdjson', path: '../../node_modules/@nozbe/simdjson', modular_headers: true, inhibit_warnings: true
 
   target 'WatermelonTesterTests' do
