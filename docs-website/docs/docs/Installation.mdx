@@ -15,7 +15,7 @@ npm install nitromelondb
 
 ## React Native setup
 
-Native SQLite on iOS and Android uses [Nitro Modules](https://nitro.margelo.com) and React Native **autolinking** (`react-native.config.js` + the `NitromelonDB` podspec). `simdjson` is compiled into that pod from vendored sources. You do not add CocoaPods or Gradle lines by hand, and you do not run a separate setup CLI.
+Native SQLite on iOS and Android uses [Nitro Modules](https://nitro.margelo.com) and React Native **autolinking** (`react-native.config.js` + the `NitromelonDB` podspec). `simdjson` is compiled into that pod from vendored sources. iOS pulls CocoaPods `FMDB` (system sqlite3) for the ObjC helper path. You do not add CocoaPods or Gradle lines by hand, and you do not run a separate setup CLI.
 
 ```bash
 yarn add nitromelondb react-native-nitro-modules
@@ -63,7 +63,7 @@ npx react-native run-ios
 npx react-native run-android
 ```
 
-`run-ios` installs pods and applies autolinking. You do not add `pod 'NitromelonDB'` or `pod 'simdjson'` to the Podfile.
+`run-ios` installs pods and applies autolinking. You do not add `pod 'NitromelonDB'`, `pod 'simdjson'`, or `pod 'FMDB'` to the Podfile.
 
 We highly recommend that you _do not_ use `use_frameworks!`. If NitromelonDB fails to build in frameworks mode, [use this workaround](https://github.com/Nozbe/WatermelonDB/issues/1285#issuecomment-1381323060) to force static libraries. Manual (non-CocoaPods) iOS linking is not supported.
 
