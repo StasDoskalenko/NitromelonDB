@@ -6,10 +6,12 @@ import { nitromelon } from '@nozbe/watermelondb/src/nitro'
 export default function App() {
   const result = useMemo(() => {
     try {
+      const db = nitromelon.createAdapter('nitromelon-smoke', false)
+      const status = db.initialize('nitromelon-smoke', 1)
       return {
         ok: true as const,
-        engine: nitromelon.nativeEngine,
-        ping: nitromelon.ping(),
+        code: status.code,
+        databaseVersion: status.databaseVersion,
       }
     } catch (error) {
       return {
@@ -24,8 +26,10 @@ export default function App() {
       <Text style={styles.title}>NitromelonDB Nitro</Text>
       {result.ok ? (
         <>
-          <Text style={styles.line}>nativeEngine: {result.engine}</Text>
-          <Text style={styles.line}>ping(): {result.ping}</Text>
+          <Text style={styles.line}>initialize(): {result.code}</Text>
+          {result.databaseVersion != null ? (
+            <Text style={styles.line}>databaseVersion: {result.databaseVersion}</Text>
+          ) : null}
         </>
       ) : (
         <Text style={styles.error}>{result.message}</Text>

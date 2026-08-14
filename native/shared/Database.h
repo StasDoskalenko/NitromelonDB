@@ -4,6 +4,10 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <mutex>
+#include <optional>
+#include <string>
+#include <variant>
+#include <vector>
 #include <sqlite3.h>
 
 // FIXME: Make these paths consistent across platforms
@@ -23,9 +27,33 @@ using namespace facebook;
 
 namespace watermelondb {
 
+using SqliteValue = std::variant<std::nullptr_t, bool, double, std::string>;
+using SqliteRow = std::unordered_map<std::string, SqliteValue>;
+using SqliteFindResult = std::variant<std::nullptr_t, std::string, SqliteRow>;
+using SqliteQueryRecord = std::variant<std::string, SqliteRow>;
+using SqliteQueryAsArrayItem = std::variant<std::string, std::vector<SqliteValue>>;
+
+enum class SyncColumnType { String, Number, Boolean };
+struct SyncColumn {
+    int index;
+    std::string name;
+    SyncColumnType type;
+    bool isOptional;
+};
+using SyncSchema = std::unordered_map<std::string, std::vector<SyncColumn>>;
+
+struct SqliteBatchOperation {
+    double cacheBehavior;
+    std::optional<std::string> table;
+    std::string sql;
+    std::vector<std::vector<SqliteValue>> argBatches;
+};
+
 class Database : public jsi::HostObject {
 public:
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
     static void install(jsi::Runtime *runtime);
+#endif
     Database(jsi::Runtime *runtime, std::string path, bool usesExclusiveLocking);
     ~Database();
     void destroy();
@@ -43,6 +71,19 @@ public:
     jsi::Value getLocal(jsi::String &key);
     void executeMultiple(std::string sql);
 
+    SqliteFindResult find(const std::string &tableName, const std::string &id);
+    std::vector<SqliteQueryRecord> query(const std::string &tableName, const std::string &sql, const std::vector<SqliteValue> &arguments);
+    std::vector<SqliteQueryAsArrayItem> queryAsArray(const std::string &tableName, const std::string &sql, const std::vector<SqliteValue> &arguments);
+    std::vector<std::string> queryIds(const std::string &sql, const std::vector<SqliteValue> &arguments);
+    std::vector<SqliteRow> unsafeQueryRaw(const std::string &sql, const std::vector<SqliteValue> &arguments);
+    double count(const std::string &sql, const std::vector<SqliteValue> &arguments);
+    void batch(const std::vector<SqliteBatchOperation> &operations);
+    void batchJSON(const std::string &operationsJson);
+    std::unordered_map<std::string, std::string> loadFromSync(int jsonId, const SyncSchema &schema, std::string preamble, std::string postamble);
+    void unsafeResetDatabase(const std::string &schema, int schemaVersion);
+    std::optional<std::string> getLocal(const std::string &key);
+    void migrate(const std::string &migrationSql, int fromVersion, int toVersion);
+
     int getUserVersion();
     void migrate(jsi::String &migrationSql, int fromVersion, int toVersion);
 
@@ -57,20 +98,31 @@ private:
 
     jsi::Runtime &getRt();
     jsi::JSError dbError(std::string description);
+    std::string sqliteErrorMessage(std::string description);
+    [[noreturn]] void throwSqliteError(std::string description);
 
     sqlite3_stmt* prepareQuery(std::string sql);
     void bindArgs(sqlite3_stmt *statement, jsi::Array &arguments);
+    void bindArgs(sqlite3_stmt *statement, const std::vector<SqliteValue> &arguments);
     std::string bindArgsAndReturnId(sqlite3_stmt *statement, simdjson::ondemand::array &args);
     SqliteStatement executeQuery(std::string sql, jsi::Array &arguments);
+    SqliteStatement executeQuery(std::string sql, const std::vector<SqliteValue> &arguments);
     void executeUpdate(sqlite3_stmt *statement);
     void executeUpdate(std::string sql, jsi::Array &arguments);
+    void executeUpdate(std::string sql, const std::vector<SqliteValue> &args);
     void executeUpdate(std::string sql);
     void getRow(sqlite3_stmt *stmt);
     bool getNextRowOrTrue(sqlite3_stmt *stmt);
+    SqliteValue columnValue(sqlite3_stmt *statement, int i);
+    SqliteRow resultRow(sqlite3_stmt *statement);
+    std::vector<SqliteValue> resultValues(sqlite3_stmt *statement);
+    std::vector<std::string> resultColumnNames(sqlite3_stmt *statement);
     jsi::Object resultDictionary(sqlite3_stmt *statement);
     jsi::Array resultArray(sqlite3_stmt *statement);
     jsi::Array resultColumns(sqlite3_stmt *statement);
     jsi::Array arrayFromStd(std::vector<jsi::Value> &vector);
+    jsi::Value sqliteValueToJsi(const SqliteValue &value);
+    jsi::Object sqliteRowToJsi(const SqliteRow &row);
 
     void beginTransaction();
     void commit();

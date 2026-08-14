@@ -9,3 +9,9 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) {
     watermelondb::platform::configureJNI(facebook::jni::Environment::current());
   });
 }
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_nozbe_watermelondb_NitromelonNative_onCatalystInstanceDestroy(JNIEnv*, jclass) {
+  watermelondb::platform::destroy();
+}

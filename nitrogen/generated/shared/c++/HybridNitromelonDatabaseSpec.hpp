@@ -13,9 +13,17 @@
 #error NitroModules cannot be found! Are you sure you installed NitroModules properly?
 #endif
 
+// Forward declaration of `NitromelonInitializeResult` to properly resolve imports.
+namespace margelo::nitro::watermelondb { struct NitromelonInitializeResult; }
 
-
-
+#include "NitromelonInitializeResult.hpp"
+#include <string>
+#include <NitroModules/Null.hpp>
+#include <NitroModules/AnyMap.hpp>
+#include <variant>
+#include <vector>
+#include <optional>
+#include <tuple>
 
 namespace margelo::nitro::watermelondb {
 
@@ -48,6 +56,21 @@ namespace margelo::nitro::watermelondb {
 
     public:
       // Methods
+      virtual NitromelonInitializeResult initialize(const std::string& dbName, double expectedVersion) = 0;
+      virtual void setUpWithSchema(const std::string& dbName, const std::string& schema, double schemaVersion) = 0;
+      virtual void setUpWithMigrations(const std::string& dbName, const std::string& migrationSchema, double fromVersion, double toVersion) = 0;
+      virtual std::variant<nitro::NullType, std::string, std::shared_ptr<AnyMap>> find(const std::string& tableName, const std::string& id) = 0;
+      virtual std::vector<std::variant<std::string, std::shared_ptr<AnyMap>>> query(const std::string& tableName, const std::string& sql, const std::vector<std::variant<nitro::NullType, bool, std::string, double>>& args) = 0;
+      virtual std::vector<std::variant<std::string, std::vector<std::variant<nitro::NullType, bool, std::string, double>>>> queryAsArray(const std::string& tableName, const std::string& sql, const std::vector<std::variant<nitro::NullType, bool, std::string, double>>& args) = 0;
+      virtual std::vector<std::string> queryIds(const std::string& sql, const std::vector<std::variant<nitro::NullType, bool, std::string, double>>& args) = 0;
+      virtual std::vector<std::shared_ptr<AnyMap>> unsafeQueryRaw(const std::string& sql, const std::vector<std::variant<nitro::NullType, bool, std::string, double>>& args) = 0;
+      virtual double count(const std::string& sql, const std::vector<std::variant<nitro::NullType, bool, std::string, double>>& args) = 0;
+      virtual void batch(const std::vector<std::tuple<double, std::optional<std::variant<nitro::NullType, std::string>>, std::string, std::vector<std::vector<std::variant<nitro::NullType, bool, std::string, double>>>>>& operations) = 0;
+      virtual void batchJSON(const std::string& operations) = 0;
+      virtual std::variant<nitro::NullType, std::string> getLocal(const std::string& key) = 0;
+      virtual std::shared_ptr<AnyMap> unsafeLoadFromSync(double jsonId, const std::shared_ptr<AnyMap>& schema, const std::string& preamble, const std::string& postamble) = 0;
+      virtual void unsafeExecuteMultiple(const std::string& sql) = 0;
+      virtual void unsafeResetDatabase(const std::string& schema, double schemaVersion) = 0;
       virtual void unsafeClose() = 0;
 
     protected:

@@ -1,6 +1,6 @@
 # NitromelonDB Nitro example
 
-Expo SDK 57 development-build app that calls the `Nitromelon` HybridObject (`ping()` / `nativeEngine`). This will not run in Expo Go.
+Expo SDK 57 development-build app that opens a SQLite database through the `NitromelonDatabase` HybridObject. This will not run in Expo Go.
 
 ```sh
 cd examples/nitro
@@ -11,7 +11,7 @@ npx expo run:ios
 npx expo run:android
 ```
 
-The app links the library via `file:../..` and Metro watches `src/` so edits to `src/nitro` reload. Native SQLite (`SQLiteAdapter`) now goes through the `NitromelonDatabase` HybridObject; this screen still calls `ping()` as a smoke test.
+The app links the library via `file:../..` and Metro watches `src/` so edits to `src/nitro` reload. Native SQLite (`SQLiteAdapter`) goes through typed `NitromelonDatabase` HybridObject methods. This screen smoke-tests `createAdapter` + `initialize`.
 
 `expo prebuild` applies `plugins/withSimdjsonModularHeaders.js` so CocoaPods can import `simdjson` from the Nitrogen-generated `NitromelonDB` module.
 

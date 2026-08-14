@@ -3,9 +3,9 @@
 #include "HybridNitromelonDatabaseSpec.hpp"
 #include "Database.h"
 
-#include <jsi/jsi.h>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace margelo::nitro::watermelondb {
 
@@ -13,47 +13,43 @@ class HybridNitromelonDatabase : public HybridNitromelonDatabaseSpec {
 public:
   HybridNitromelonDatabase(std::string dbName, bool usesExclusiveLocking);
 
+  NitromelonInitializeResult initialize(const std::string& dbName, double expectedVersion) override;
+  void setUpWithSchema(const std::string& dbName, const std::string& schema, double schemaVersion) override;
+  void setUpWithMigrations(const std::string& dbName, const std::string& migrationSchema, double fromVersion,
+                           double toVersion) override;
+  std::variant<nitro::NullType, std::string, std::shared_ptr<AnyMap>> find(const std::string& tableName,
+                                                                          const std::string& id) override;
+  std::vector<std::variant<std::string, std::shared_ptr<AnyMap>>>
+  query(const std::string& tableName, const std::string& sql,
+        const std::vector<std::variant<nitro::NullType, bool, std::string, double>>& args) override;
+  std::vector<std::variant<std::string, std::vector<std::variant<nitro::NullType, bool, std::string, double>>>>
+  queryAsArray(const std::string& tableName, const std::string& sql,
+               const std::vector<std::variant<nitro::NullType, bool, std::string, double>>& args) override;
+  std::vector<std::string> queryIds(const std::string& sql,
+                                    const std::vector<std::variant<nitro::NullType, bool, std::string, double>>& args) override;
+  std::vector<std::shared_ptr<AnyMap>>
+  unsafeQueryRaw(const std::string& sql,
+                 const std::vector<std::variant<nitro::NullType, bool, std::string, double>>& args) override;
+  double count(const std::string& sql,
+               const std::vector<std::variant<nitro::NullType, bool, std::string, double>>& args) override;
+  void batch(const std::vector<std::tuple<double, std::optional<std::variant<nitro::NullType, std::string>>, std::string,
+                                          std::vector<std::vector<std::variant<nitro::NullType, bool, std::string, double>>>>>&
+                 operations) override;
+  void batchJSON(const std::string& operations) override;
+  std::variant<nitro::NullType, std::string> getLocal(const std::string& key) override;
+  std::shared_ptr<AnyMap> unsafeLoadFromSync(double jsonId, const std::shared_ptr<AnyMap>& schema,
+                                             const std::string& preamble, const std::string& postamble) override;
+  void unsafeExecuteMultiple(const std::string& sql) override;
+  void unsafeResetDatabase(const std::string& schema, double schemaVersion) override;
   void unsafeClose() override;
-  void loadHybridMethods() override;
-
-  facebook::jsi::Value initialize(facebook::jsi::Runtime& runtime, const facebook::jsi::Value& thisValue,
-                                  const facebook::jsi::Value* args, size_t count);
-  facebook::jsi::Value setUpWithSchema(facebook::jsi::Runtime& runtime, const facebook::jsi::Value& thisValue,
-                                       const facebook::jsi::Value* args, size_t count);
-  facebook::jsi::Value setUpWithMigrations(facebook::jsi::Runtime& runtime, const facebook::jsi::Value& thisValue,
-                                           const facebook::jsi::Value* args, size_t count);
-  facebook::jsi::Value find(facebook::jsi::Runtime& runtime, const facebook::jsi::Value& thisValue,
-                            const facebook::jsi::Value* args, size_t count);
-  facebook::jsi::Value query(facebook::jsi::Runtime& runtime, const facebook::jsi::Value& thisValue,
-                             const facebook::jsi::Value* args, size_t count);
-  facebook::jsi::Value queryAsArray(facebook::jsi::Runtime& runtime, const facebook::jsi::Value& thisValue,
-                                    const facebook::jsi::Value* args, size_t count);
-  facebook::jsi::Value queryIds(facebook::jsi::Runtime& runtime, const facebook::jsi::Value& thisValue,
-                                const facebook::jsi::Value* args, size_t count);
-  facebook::jsi::Value unsafeQueryRaw(facebook::jsi::Runtime& runtime, const facebook::jsi::Value& thisValue,
-                                      const facebook::jsi::Value* args, size_t count);
-  facebook::jsi::Value count(facebook::jsi::Runtime& runtime, const facebook::jsi::Value& thisValue,
-                             const facebook::jsi::Value* args, size_t count);
-  facebook::jsi::Value batch(facebook::jsi::Runtime& runtime, const facebook::jsi::Value& thisValue,
-                             const facebook::jsi::Value* args, size_t count);
-  facebook::jsi::Value batchJSON(facebook::jsi::Runtime& runtime, const facebook::jsi::Value& thisValue,
-                                 const facebook::jsi::Value* args, size_t count);
-  facebook::jsi::Value getLocal(facebook::jsi::Runtime& runtime, const facebook::jsi::Value& thisValue,
-                                const facebook::jsi::Value* args, size_t count);
-  facebook::jsi::Value unsafeLoadFromSync(facebook::jsi::Runtime& runtime, const facebook::jsi::Value& thisValue,
-                                          const facebook::jsi::Value* args, size_t count);
-  facebook::jsi::Value unsafeExecuteMultiple(facebook::jsi::Runtime& runtime, const facebook::jsi::Value& thisValue,
-                                             const facebook::jsi::Value* args, size_t count);
-  facebook::jsi::Value unsafeResetDatabase(facebook::jsi::Runtime& runtime, const facebook::jsi::Value& thisValue,
-                                           const facebook::jsi::Value* args, size_t count);
 
 private:
-  watermelondb::Database& database(facebook::jsi::Runtime& runtime);
+  ::watermelondb::Database& database();
 
   std::string dbName_;
   bool usesExclusiveLocking_;
   bool initialized_ = false;
-  std::shared_ptr<watermelondb::Database> db_;
+  std::shared_ptr<::watermelondb::Database> db_;
 };
 
 } // namespace margelo::nitro::watermelondb

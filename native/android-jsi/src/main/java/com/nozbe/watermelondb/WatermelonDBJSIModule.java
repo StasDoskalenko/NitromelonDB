@@ -32,10 +32,10 @@ public class WatermelonDBJSIModule extends ReactContextBaseJavaModule {
     try {
       JavaScriptContextHolder jsContext = getReactApplicationContext().getJavaScriptContextHolder();
       JSIInstaller.install(getReactApplicationContext(), jsContext.get());
-      Log.i(NAME, "Successfully installed Watermelon DB JSI Bindings!");
+      Log.i(NAME, "WatermelonDB JSI installer is a no-op; iOS/Android SQLite uses Nitro.");
       return true;
     } catch (Exception exception) {
-      Log.e(NAME, "Failed to install Watermelon DB JSI Bindings!", exception);
+      Log.e(NAME, "Failed to initialize WatermelonDB native path helpers!", exception);
       return false;
     }
   }

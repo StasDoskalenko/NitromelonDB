@@ -7,6 +7,7 @@
 - [Android] Minimum SDK version is now 24
 - [iOS] CocoaPods spec renamed from `WatermelonDB` to `NitromelonDB`. Update Podfiles (`pod 'NitromelonDB'`) and bridging-header imports (`#import <NitromelonDB/WatermelonDB.h>`).
 - [SQLite][RN] iOS/Android SQLite is Nitro-only. NativeModules interop (`{ jsi: false }`) is removed. Windows still uses the JSI installer. Web and Electron keep the Node/better-sqlite3 dispatcher (`makeDispatcher/index.ts` / `index.web.ts`).
+- [Nitro] The `NitromelonDatabase` HybridObject now exposes the full SQLite adapter API (`initialize`, `find`, `query`, `batchJSON`, …) as typed Nitrogen methods. The `ping()` / `nativeEngine` smoke-test API is removed. iOS/Android no longer install `nativeWatermelonCreateAdapter` JSI bindings.
 
 ### Deprecations
 
@@ -25,7 +26,7 @@
 
 ### Changes
 
-- [Nitro] Native SQLite uses a `NitromelonDatabase` HybridObject wrapping the existing C++ `Database`. `ping()` remains as a smoke test. `react-native-nitro-modules` is an optional peer dependency. Expo SDK 57 example lives in `examples/nitro`.
+- [Nitro] Native SQLite uses a typed `NitromelonDatabase` HybridObject wrapping the existing C++ `Database`. `react-native-nitro-modules` is an optional peer dependency. Expo SDK 57 example lives in `examples/nitro`.
 - Migrated the JS source from Flow + hand-written `.d.ts` to TypeScript. Implementation under `src/` is now TypeScript, including adapters (SQLite, LokiJS, remote). `yarn typecheck` uses `strict`, `noUnusedLocals`, `noUnusedParameters`, and `exactOptionalPropertyTypes`, and forbids explicit `any`. Tests remain JavaScript.
 
 - ESLint and TypeScript are dedicated required CI jobs on every pull request. Implementation files under `src/` must be TypeScript (JavaScript is only allowed in tests). ESLint uses `@typescript-eslint/recommended` rather than turning core JS rules off by hand.
@@ -34,7 +35,6 @@
 
 - Updated better-sqlite3 to 13.0.3
 - Support for React Native 0.87 and React 19
-- [iOS] Install JSI bindings via `RCTTurboModuleWithJSIBindings` (bridgeless / New Architecture). `RCTCxxBridge` is no longer used.
 
 ### Internal
 

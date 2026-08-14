@@ -16,9 +16,9 @@
 // Forward declaration of `HybridNitromelonDatabaseSpec` to properly resolve imports.
 namespace margelo::nitro::watermelondb { class HybridNitromelonDatabaseSpec; }
 
-#include <string>
 #include <memory>
 #include "HybridNitromelonDatabaseSpec.hpp"
+#include <string>
 
 namespace margelo::nitro::watermelondb {
 
@@ -47,11 +47,10 @@ namespace margelo::nitro::watermelondb {
 
     public:
       // Properties
-      virtual std::string getNativeEngine() = 0;
+      
 
     public:
       // Methods
-      virtual std::string ping() = 0;
       virtual std::shared_ptr<HybridNitromelonDatabaseSpec> createAdapter(const std::string& dbName, bool usesExclusiveLocking) = 0;
       virtual void provideSyncJson(double id, const std::string& json) = 0;
 

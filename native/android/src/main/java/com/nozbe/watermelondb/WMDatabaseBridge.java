@@ -251,13 +251,11 @@ public class WMDatabaseBridge extends ReactContextBaseJavaModule {
         super.invalidate();
         reactContext.runOnJSQueueThread(() -> {
             try {
-                Class<?> clazz = Class.forName("com.nozbe.watermelondb.jsi.WatermelonJSI");
-                Method method = clazz.getDeclaredMethod("onCatalystInstanceDestroy");
-                method.invoke(null);
+                NitromelonNative.onCatalystInstanceDestroy();
             } catch (Exception e) {
                 if (BuildConfig.DEBUG) {
                     Logger logger = Logger.getLogger("DB_Bridge");
-                    logger.info("Could not find JSI onCatalystInstanceDestroy");
+                    logger.info("Could not notify Nitromelon of Catalyst destroy");
                 }
             }
         });
@@ -270,13 +268,11 @@ public class WMDatabaseBridge extends ReactContextBaseJavaModule {
         super.onCatalystInstanceDestroy();
         reactContext.getCatalystInstance().getReactQueueConfiguration().getJSQueueThread().runOnQueue(() -> {
             try {
-                Class<?> clazz = Class.forName("com.nozbe.watermelondb.jsi.WatermelonJSI");
-                Method method = clazz.getDeclaredMethod("onCatalystInstanceDestroy");
-                method.invoke(null);
+                NitromelonNative.onCatalystInstanceDestroy();
             } catch (Exception e) {
                 if (BuildConfig.DEBUG) {
                     Logger logger = Logger.getLogger("DB_Bridge");
-                    logger.info("Could not find JSI onCatalystInstanceDestroy");
+                    logger.info("Could not notify Nitromelon of Catalyst destroy");
                 }
             }
         });

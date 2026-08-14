@@ -3,7 +3,7 @@
 import { NativeModules, Platform } from 'react-native'
 import { logger, invariant, type ConnectionTag } from '../../../utils/common'
 import type { ResultCallback } from '../../../utils/fp/Result'
-import type { Nitromelon } from '../../../nitro/Nitromelon.nitro'
+import type { Nitromelon, NitromelonDatabase } from '../../../nitro/Nitromelon.nitro'
 import type {
   DispatcherType,
   SQLiteAdapterOptions,
@@ -14,6 +14,24 @@ import type {
 
 type JsiDatabase = {
   [methodName: string]: ((...args: unknown[]) => unknown) | undefined
+}
+
+type SchemaColumn = { name: string; type: string; isOptional?: boolean | undefined }
+type SchemaTable = { columnArray: SchemaColumn[] }
+
+function nitroSyncSchema(schema: unknown): { tables: Record<string, SchemaTable> } {
+  const tablesIn = (schema as { tables: Record<string, SchemaTable> }).tables
+  const tables: Record<string, SchemaTable> = {}
+  Object.keys(tablesIn).forEach((name) => {
+    tables[name] = {
+      columnArray: tablesIn[name].columnArray.map((column) => ({
+        name: column.name,
+        type: column.type,
+        ...(column.isOptional === true ? { isOptional: true } : {}),
+      })),
+    }
+  })
+  return { tables }
 }
 
 let cachedNitromelon: Nitromelon | null | undefined
@@ -53,17 +71,11 @@ function initializeWindowsJSI(): boolean {
     }
   }
 
-  const jsiBridge = NativeModules.WMDatabaseJSIBridge as { install?: () => void } | undefined
-  if (jsiBridge?.install) {
-    jsiBridge.install()
-    return !!global.nativeWatermelonCreateAdapter
-  }
-
   return false
 }
 
 class SqliteSyncDispatcher implements SqliteDispatcher {
-  _db: JsiDatabase
+  _db: NitromelonDatabase | JsiDatabase
   _nitro: Nitromelon | null
   _unsafeErrorListener: (error: Error) => void
 
@@ -72,7 +84,7 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
     const nitro = Platform.OS === 'windows' ? null : nitromelonOrNull()
     this._nitro = nitro
     if (nitro) {
-      this._db = nitro.createAdapter(dbName, usesExclusiveLocking) as unknown as JsiDatabase
+      this._db = nitro.createAdapter(dbName, usesExclusiveLocking)
       return
     }
 
@@ -99,6 +111,8 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
     ) {
       callback({ error: new Error(`${methodName} unavailable on Windows. Please contribute.`) })
       return
+    } else if (methodName === 'unsafeLoadFromSync' && this._nitro) {
+      args = [args[0], nitroSyncSchema(args[1]), args[2], args[3]]
     } else if (methodName === 'provideSyncJson') {
       try {
         invariant(this._nitro, 'provideSyncJson requires Nitro')
@@ -112,7 +126,7 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
     }
 
     try {
-      const method = this._db[methodName]
+      const method = (this._db as JsiDatabase)[methodName]
       if (!method) {
         throw new Error(
           `Cannot run database method ${methodName} because database failed to open. ${Object.keys(

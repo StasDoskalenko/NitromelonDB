@@ -14,6 +14,21 @@ namespace margelo::nitro::watermelondb {
     HybridObject::loadHybridMethods();
     // load custom methods/properties
     registerHybrids(this, [](Prototype& prototype) {
+      prototype.registerHybridMethod("initialize", &HybridNitromelonDatabaseSpec::initialize);
+      prototype.registerHybridMethod("setUpWithSchema", &HybridNitromelonDatabaseSpec::setUpWithSchema);
+      prototype.registerHybridMethod("setUpWithMigrations", &HybridNitromelonDatabaseSpec::setUpWithMigrations);
+      prototype.registerHybridMethod("find", &HybridNitromelonDatabaseSpec::find);
+      prototype.registerHybridMethod("query", &HybridNitromelonDatabaseSpec::query);
+      prototype.registerHybridMethod("queryAsArray", &HybridNitromelonDatabaseSpec::queryAsArray);
+      prototype.registerHybridMethod("queryIds", &HybridNitromelonDatabaseSpec::queryIds);
+      prototype.registerHybridMethod("unsafeQueryRaw", &HybridNitromelonDatabaseSpec::unsafeQueryRaw);
+      prototype.registerHybridMethod("count", &HybridNitromelonDatabaseSpec::count);
+      prototype.registerHybridMethod("batch", &HybridNitromelonDatabaseSpec::batch);
+      prototype.registerHybridMethod("batchJSON", &HybridNitromelonDatabaseSpec::batchJSON);
+      prototype.registerHybridMethod("getLocal", &HybridNitromelonDatabaseSpec::getLocal);
+      prototype.registerHybridMethod("unsafeLoadFromSync", &HybridNitromelonDatabaseSpec::unsafeLoadFromSync);
+      prototype.registerHybridMethod("unsafeExecuteMultiple", &HybridNitromelonDatabaseSpec::unsafeExecuteMultiple);
+      prototype.registerHybridMethod("unsafeResetDatabase", &HybridNitromelonDatabaseSpec::unsafeResetDatabase);
       prototype.registerHybridMethod("unsafeClose", &HybridNitromelonDatabaseSpec::unsafeClose);
     });
   }
