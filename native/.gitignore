@@ -28,6 +28,10 @@ project.xcworkspace
 **/Pods/libevent
 **/Pods/Sentry
 **/Pods/hermes-engine-artifacts
+**/Pods/React-Core-prebuilt
+**/Pods/ReactNativeCore-artifacts
+**/Pods/ReactNativeDependencies-artifacts
+**/Pods/ReactNativeDependencies
 
 # Android/IntelliJ
 #
