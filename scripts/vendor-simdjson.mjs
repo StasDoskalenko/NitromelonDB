@@ -13,7 +13,9 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..')
 const VENDOR = path.join(ROOT, 'native', 'vendor', 'simdjson')
-const VERSION_PATH = path.join(VENDOR, 'VERSION')
+// Not named VERSION: that directory is on the native include path, and a
+// case-insensitive volume treats VERSION as C++'s <version> header.
+const VERSION_PATH = path.join(VENDOR, 'simdjson.version')
 const REPO = 'simdjson/simdjson'
 
 const args = process.argv.slice(2)
