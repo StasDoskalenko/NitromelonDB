@@ -15,6 +15,14 @@ npm install nitromelondb
 
 ## React Native setup
 
+Native SQLite on iOS and Android uses [Nitro Modules](https://nitro.margelo.com) and React Native **autolinking** (`react-native.config.js` + the `NitromelonDB` podspec). `simdjson` is compiled into that pod from npm `@nozbe/simdjson`. You do not add CocoaPods or Gradle lines by hand, and you do not run a separate setup CLI.
+
+```bash
+yarn add nitromelondb react-native-nitro-modules
+```
+
+`react-native-nitro-modules` is required for SQLite on iOS and Android. It is optional on web / Node / Electron.
+
 1. Install the Babel plugin for decorators if you haven't already:
 
    ```bash
@@ -24,50 +32,44 @@ npm install nitromelondb
    npm install -D @babel/plugin-proposal-decorators
    ```
 
-2. Add ES6 decorators support to your `.babelrc` file:
+2. Add ES6 decorators support to your `.babelrc` / Babel config:
    ```json
    {
      "presets": ["module:metro-react-native-babel-preset"],
      "plugins": [["@babel/plugin-proposal-decorators", { "legacy": true }]]
    }
    ```
-3. Set up your iOS or Android project — see instructions below
 
-### iOS (React Native)
+3. Rebuild the native app after adding these packages. Autolinking runs as part of the usual Expo / React Native CLI flow (`use_native_modules!` on iOS). There is no extra setup command.
 
-At least Xcode 15.x is recommended for building (earlier versions are likely to work, but not tested for compatibility).
+Minimums: Xcode 15+, iOS 15.1, Android minSdk 24. This will not run in Expo Go.
 
-1. **Set up Babel config in your project**
+### Expo
 
-   See instructions above ⬆️
+Development builds only:
 
-2. **Link WatermelonDB's native library (using CocoaPods)**
+```bash
+npx expo prebuild
+npx expo run:ios
+# or
+npx expo run:android
+```
 
-   Open your `Podfile` and add this:
+### Bare React Native
 
-   ```ruby
-   # Uncomment this line if you're not using auto-linking or if auto-linking causes trouble
-   # pod 'NitromelonDB', path: '../node_modules/nitromelondb'
+```bash
+npx react-native run-ios
+# or
+npx react-native run-android
+```
 
-   # WatermelonDB dependency, should not be needed on modern React Native
-   # (please file an issue if this causes issues for you)
-   # pod 'React-jsi', path: '../node_modules/react-native/ReactCommon/jsi', modular_headers: true
+`run-ios` installs pods and applies autolinking. You do not add `pod 'NitromelonDB'` or `pod 'simdjson'` to the Podfile.
 
-   # WatermelonDB dependency
-   pod 'simdjson', path: '../node_modules/@nozbe/simdjson', modular_headers: true
-   ```
-
-   Make sure you run `pod install` (or `bundle exec pod install`) after updating `Podfile`.
-
-   We highly recommend that you _do not_ use frameworks. If WatermelonDB fails to build in the frameworks mode for you, [use this workaround](https://github.com/Nozbe/WatermelonDB/issues/1285#issuecomment-1381323060) to force building it in static library mode.
-
-   Manual (non-CocoaPods) linking is not supported.
+We highly recommend that you _do not_ use `use_frameworks!`. If NitromelonDB fails to build in frameworks mode, [use this workaround](https://github.com/Nozbe/WatermelonDB/issues/1285#issuecomment-1381323060) to force static libraries. Manual (non-CocoaPods) iOS linking is not supported.
 
 ### Android (React Native)
 
-**Set up Babel config in your project**
-
-See instructions above ⬆️
+Autolinking is enough. No Gradle or `MainApplication` changes.
 
 <details>
   <summary>Linking Manually</summary>
@@ -107,12 +109,6 @@ protected List<ReactPackage> getPackages() {
 }
 ```
 
-</details>
-
-<details>
-  <summary>Using with react-native-screens or react-native-gesture-handler</summary>
-  If you are using recent versions of react-native-screens or react-native-gesture-handler, you will
-  need to set the kotlin version to 1.5.20 or above (see section above)
 </details>
 
 <details>

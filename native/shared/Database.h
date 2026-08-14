@@ -16,7 +16,6 @@
 #elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 #include <simdjson.h>
 #else
-// Does Xcode error on this line? You probably didn't include `simdjson` as a dependency in your Podfile.
 #include <simdjson/simdjson.h>
 #endif
 

@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "plugins": ["expo-dev-client", "./plugins/withSimdjsonModularHeaders"],
+    "plugins": ["expo-dev-client"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nitromelondb.example"

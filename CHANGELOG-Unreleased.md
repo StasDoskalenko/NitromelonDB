@@ -5,7 +5,8 @@
 - Minimum supported Node.js version is now 22.x (required by React Native 0.87)
 - [iOS] Minimum deployment target is now iOS 15.1
 - [Android] Minimum SDK version is now 24
-- [iOS] CocoaPods spec renamed from `WatermelonDB` to `NitromelonDB`. Update Podfiles (`pod 'NitromelonDB'`) and bridging-header imports (`#import <NitromelonDB/WatermelonDB.h>`).
+- [iOS] CocoaPods spec renamed from `WatermelonDB` to `NitromelonDB`. Autolinking picks up the pod. Bridging-header imports, if you have them, are `#import <NitromelonDB/WatermelonDB.h>`.
+- [iOS] `simdjson` is compiled into the `NitromelonDB` pod from npm `@nozbe/simdjson`. Remove any hand-copied `pod 'simdjson'` Podfile lines; do not add `pod 'NitromelonDB'` either.
 - [SQLite][RN] iOS/Android SQLite is Nitro-only. NativeModules interop (`{ jsi: false }`) is removed. Windows still uses the JSI installer. Web and Electron keep the Node/better-sqlite3 dispatcher (`makeDispatcher/index.ts` / `index.web.ts`).
 - [Android] Removed `native/android-jsi` (`WatermelonDBJSIPackage`, `libwatermelondb-jsi.so`). Drop `include ':watermelondb-jsi'` and `WatermelonDBJSIPackage` from the app. Nitro autolinks. Native turbo-sync JSON injection uses `com.nozbe.watermelondb.NitromelonNative.provideSyncJson`.
 - [Nitro] The `NitromelonDatabase` HybridObject now exposes the full SQLite adapter API (`initialize`, `find`, `query`, `batchJSON`, …) as typed Nitrogen methods. The `ping()` / `nativeEngine` smoke-test API is removed. iOS/Android no longer install `nativeWatermelonCreateAdapter` JSI bindings.
@@ -38,7 +39,8 @@
 - Updated better-sqlite3 to 13.0.3
 - Support for React Native 0.87 and React 19
 - Added a [Migrating from WatermelonDB](./docs-website/docs/docs/Migrating.md) guide to the docs site
-- Publish docs to GitHub Pages at https://stasdoskalenko.github.io/NitromelonDB/
+- Publish docs to GitHub Pages at https://stasdoskalenko.github.io/NitromelonDB/ (docs index: https://stasdoskalenko.github.io/NitromelonDB/docs)
+- [iOS] `simdjson` is compiled into the `NitromelonDB` pod from npm `@nozbe/simdjson`. Autolinking is enough; remove any hand-copied `pod 'simdjson'` Podfile lines.
 
 ### Internal
 
