@@ -32,7 +32,7 @@
   resolved "https://registry.yarnpkg.com/@nozbe/sqlite/-/sqlite-3.46.0.tgz#aeda9df305e2f49ef951409e44544c19a5a3e32d"
   integrity sha512-ntt8eNp5hh+axX9+kFb5uwyVE0edyfhiYYr+zHDzzFleGC7Qm+a2wHDWDtmRr5nSfbgomhY1uh30kpsHEIR3Mw==
 
-"@nozbe/watermelondb@link:../..":
+"nitromelondb@link:../..":
   version "0.0.0"
   uid ""
 

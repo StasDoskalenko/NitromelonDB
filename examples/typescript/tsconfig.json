@@ -9,8 +9,9 @@
     "ignoreDeprecations": "6.0",
     "jsx": "react-jsx",
     "paths": {
-      // this allows sub-package imports from src; fx. '@nozbe/watermelondb/decorators'
-      "@nozbe/watermelondb/*": ["../../src/*"]
+      // this allows sub-package imports from src; fx. 'nitromelondb/decorators'
+      "nitromelondb": ["../../src/index.ts"],
+      "nitromelondb/*": ["../../src/*"]
     }
   },
   "include": [

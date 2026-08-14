@@ -9,6 +9,7 @@
 - [SQLite][RN] iOS/Android SQLite is Nitro-only. NativeModules interop (`{ jsi: false }`) is removed. Windows still uses the JSI installer. Web and Electron keep the Node/better-sqlite3 dispatcher (`makeDispatcher/index.ts` / `index.web.ts`).
 - [Android] Removed `native/android-jsi` (`WatermelonDBJSIPackage`, `libwatermelondb-jsi.so`). Drop `include ':watermelondb-jsi'` and `WatermelonDBJSIPackage` from the app. Nitro autolinks. Native turbo-sync JSON injection uses `com.nozbe.watermelondb.NitromelonNative.provideSyncJson`.
 - [Nitro] The `NitromelonDatabase` HybridObject now exposes the full SQLite adapter API (`initialize`, `find`, `query`, `batchJSON`, …) as typed Nitrogen methods. The `ping()` / `nativeEngine` smoke-test API is removed. iOS/Android no longer install `nativeWatermelonCreateAdapter` JSI bindings.
+- The npm package is now `nitromelondb` (was `@nozbe/watermelondb`). Update install commands and imports (`yarn add nitromelondb`, `import { Database } from 'nitromelondb'`).
 
 ### Deprecations
 
@@ -36,6 +37,8 @@
 
 - Updated better-sqlite3 to 13.0.3
 - Support for React Native 0.87 and React 19
+- Added a [Migrating from WatermelonDB](./docs-website/docs/docs/Migrating.md) guide to the docs site
+- Publish docs to GitHub Pages at https://stasdoskalenko.github.io/NitromelonDB/
 
 ### Internal
 

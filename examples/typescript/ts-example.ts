@@ -1,10 +1,10 @@
-import { Database, Model, Q, Query, Relation } from '@nozbe/watermelondb'
-import { action, children, field, lazy, relation, text } from '@nozbe/watermelondb/decorators'
-import { addColumns, schemaMigrations } from '@nozbe/watermelondb/Schema/migrations'
-import { setGenerator } from '@nozbe/watermelondb/utils/common/randomId'
-import SQLiteAdapter from "@nozbe/watermelondb/adapters/sqlite"
-import { Associations } from '@nozbe/watermelondb/Model'
-import { SyncDatabaseChangeSet, synchronize } from "@nozbe/watermelondb/sync"
+import { Database, Model, Q, Query, Relation } from 'nitromelondb'
+import { action, children, field, lazy, relation, text } from 'nitromelondb/decorators'
+import { addColumns, schemaMigrations } from 'nitromelondb/Schema/migrations'
+import { setGenerator } from 'nitromelondb/utils/common/randomId'
+import SQLiteAdapter from "nitromelondb/adapters/sqlite"
+import { Associations } from 'nitromelondb/Model'
+import { SyncDatabaseChangeSet, synchronize } from "nitromelondb/sync"
 import { AppSchema } from "./AppSchema"
 import './__typetests__'
 // Create an enum for all Table Names.

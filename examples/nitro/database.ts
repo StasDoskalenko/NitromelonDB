@@ -1,5 +1,5 @@
-import { Database, type Collection } from '@nozbe/watermelondb'
-import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite'
+import { Database, type Collection } from 'nitromelondb'
+import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
 import Note from './model/Note'
 import { migrations } from './model/migrations'
 import { NOTES_TABLE, schema } from './model/schema'

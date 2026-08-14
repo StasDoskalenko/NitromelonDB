@@ -21,7 +21,7 @@ Now we can fetch a comment: `const comment = await commentsCollection.find(id)` 
 Let's enhance the component to make it _observe_ the `Comment` automatically:
 
 ```jsx
-import { withObservables } from '@nozbe/watermelondb/react'
+import { withObservables } from 'nitromelondb/react'
 
 const enhance = withObservables(['comment'], ({ comment }) => ({
   comment // shortcut syntax for `comment: comment.observe()`
@@ -37,7 +37,7 @@ Now, if we render `<EnhancedComment comment={comment} />`, it **will** update ev
 Let's render the whole `Post` with comments:
 
 ```jsx
-import { withObservables } from '@nozbe/watermelondb/react'
+import { withObservables } from 'nitromelondb/react'
 import EnhancedComment from 'components/Comment'
 
 const Post = ({ post, comments }) => (
@@ -199,7 +199,7 @@ If you have 2nd level relations, like author's `Contact` info, and want to conne
 Before accessing and observing the `Contact` relation, you need to resolve the `author` itself. Here is the simplest way to do it:
 
 ```js
-import { compose } from '@nozbe/watermelondb/react'
+import { compose } from 'nitromelondb/react'
 
 const enhance = compose(
   withObservables(['post'], ({ post }) => ({
@@ -243,7 +243,7 @@ If you have an optional relation between `Post` and `Author`, the enhanced compo
 
 ```js
 import { of as of$ } from 'rxjs'
-import { withObservables, compose } from '@nozbe/watermelondb/react'
+import { withObservables, compose } from 'nitromelondb/react'
 
 const enhance = compose(
   withObservables(['post'], ({ post }) => ({
@@ -273,7 +273,7 @@ const enhance = withObservables(['post'], ({post}) => ({
 To prevent prop drilling you can use the Database Provider and the `withDatabase` Higher-Order Component.
 
 ```jsx
-import { DatabaseProvider } from '@nozbe/watermelondb/react'
+import { DatabaseProvider } from 'nitromelondb/react'
 
 // ...
 
@@ -293,7 +293,7 @@ render(
 To consume the database in your components you just wrap your component like so:
 
 ```jsx
-import { withDatabase, compose } from '@nozbe/watermelondb/react'
+import { withDatabase, compose } from 'nitromelondb/react'
 
 // ...
 
@@ -313,7 +313,7 @@ The database prop in the `withObservables` Higher-Order Component is provided by
 You can also consume `Database` object using React Hooks syntax:
 
 ```js
-import { useDatabase } from '@nozbe/watermelondb/react'
+import { useDatabase } from 'nitromelondb/react'
 
 const Component = () => {
    const database = useDatabase()

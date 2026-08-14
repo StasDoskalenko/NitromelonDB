@@ -5,14 +5,14 @@ hide_title: true
 
 # Set up your app for WatermelonDB
 
-Make sure you [installed Watermelon](./Installation.mdx) before proceeding.
+Make sure you [installed Watermelon](./Installation.mdx) before proceeding. Coming from `@nozbe/watermelondb`? See [Migrating from WatermelonDB](./Migrating.md).
 
 ## Common
 
 Create `model/schema.js` in your project. You'll need it for [the next step](./Schema.md).
 
 ```js
-import { appSchema, tableSchema } from '@nozbe/watermelondb'
+import { appSchema, tableSchema } from 'nitromelondb'
 
 export default appSchema({
   version: 1,
@@ -25,7 +25,7 @@ export default appSchema({
 Similarly, create `model/migrations.js`. ([More information about migrations](./Advanced/Migrations.md)):
 
 ```js
-import { schemaMigrations } from '@nozbe/watermelondb/Schema/migrations'
+import { schemaMigrations } from 'nitromelondb/Schema/migrations'
 
 export default schemaMigrations({
   migrations: [
@@ -40,8 +40,8 @@ Now, in your `index.native.js` (React Native) or `index.js` (Node.js):
 
 ```js
 import { Platform } from 'react-native'
-import { Database } from '@nozbe/watermelondb'
-import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite'
+import { Database } from 'nitromelondb'
+import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
 
 import schema from './model/schema'
 import migrations from './model/migrations'
@@ -78,8 +78,8 @@ Electron requires a little extra set up since we have to use IPC between our ren
 Let's set things up on the renderer side first.
 
 ```js
-import RemoteAdapter from '@nozbe/watermelondb/adapters/remote'
-import { Database } from '@nozbe/watermelondb'
+import RemoteAdapter from 'nitromelondb/adapters/remote'
+import { Database } from 'nitromelondb'
 import schema from './model/schema'
 import migrations from './model/migrations'
 
@@ -106,7 +106,7 @@ Whenever Watermelon needs to interact with the database, it will do so through t
 
 Now that our renderer is all set, let's set up the other side in `main.js`:
 ```js
-import SQLiteAdapter from "@nozbe/watermelondb/adapters/sqlite";
+import SQLiteAdapter from "nitromelondb/adapters/sqlite";
 import schema from './model/schema'; 
 import migrations from './model/migrations';
 
@@ -146,7 +146,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 This set up is suitable for web apps. 
 
 ```js
-import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs'
+import LokiJSAdapter from 'nitromelondb/adapters/lokijs'
 
 const adapter = new LokiJSAdapter({
   schema,

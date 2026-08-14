@@ -14,7 +14,7 @@ if (!isRN) {
     `font-size: 40px; background: red; color: white; font-weight: bold`,
   )
 }
-console.warn('WARNING: DO NOT commit import of @nozbe/watermelondb/sync/debugPrintChanges!')
+console.warn('WARNING: DO NOT commit import of nitromelondb/sync/debugPrintChanges!')
 
 const typeToColor: Record<string, string> = {
   created: '#22cc33',

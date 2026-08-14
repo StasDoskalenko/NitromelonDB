@@ -13,7 +13,7 @@ Without migrations, if a user of your app upgrades from one version to another, 
    ```js
    // app/model/migrations.js
 
-   import { schemaMigrations } from '@nozbe/watermelondb/Schema/migrations'
+   import { schemaMigrations } from 'nitromelondb/Schema/migrations'
 
    export default schemaMigrations({
      migrations: [
@@ -47,7 +47,7 @@ Don't change the schema file yet!
 ```js
 // app/model/migrations.js
 
-import { schemaMigrations, createTable } from '@nozbe/watermelondb/Schema/migrations'
+import { schemaMigrations, createTable } from 'nitromelondb/Schema/migrations'
 
 export default schemaMigrations({
   migrations: [

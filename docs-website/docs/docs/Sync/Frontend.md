@@ -10,7 +10,7 @@ hide_title: true
 To synchronize, you need to pass `pullChanges` and `pushChanges` _(optional)_ that talk to your backend and are compatible with Watermelon Sync Protocol. The frontend code will look something like this:
 
 ```js
-import { synchronize } from '@nozbe/watermelondb/sync'
+import { synchronize } from 'nitromelondb/sync'
 
 async function mySync() {
   await synchronize({
@@ -93,7 +93,7 @@ Arguments passed:
 WatermelonDB has a built in function to check whether there are any unsynced changes. The frontend code will look something like this
 
 ```js
-import { hasUnsyncedChanges } from '@nozbe/watermelondb/sync'
+import { hasUnsyncedChanges } from 'nitromelondb/sync'
 
 async function checkUnsyncedChanges() {
   const database = useDatabase()
@@ -229,7 +229,7 @@ You can add basic sync logs to the sync process by passing an empty object to `s
 
 ```js
 // Using built-in SyncLogger
-import SyncLogger from '@nozbe/watermelondb/sync/SyncLogger'
+import SyncLogger from 'nitromelondb/sync/SyncLogger'
 const logger = new SyncLogger(10 /* limit of sync logs to keep in memory */ )
 await synchronize({ database, log: logger.newLog(), ... })
 
@@ -256,7 +256,7 @@ If you want to conveniently see incoming and outgoing changes in sync in the con
 
 ```js
 // UNDER NO CIRCUMSTANCES SHOULD YOU COMMIT THESE LINES UNCOMMENTED!!!
-require('@nozbe/watermelondb/sync/debugPrintChanges').default(changes, isPush)
+require('nitromelondb/sync/debugPrintChanges').default(changes, isPush)
 ```
 
 Pass `true` for second parameter if you're checking outgoing changes (pushChanges), `false` otherwise. Make absolutely sure you don't commit this debug tool. For best experience, run this on web (Chrome) -- the React Native experience is not as good.

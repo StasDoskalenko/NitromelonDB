@@ -6,8 +6,8 @@
     "useDefineForClassFields": false,
     "skipLibCheck": true,
     "paths": {
-      "@nozbe/watermelondb": ["../../src/index.ts"],
-      "@nozbe/watermelondb/*": ["../../src/*"]
+      "nitromelondb": ["../../src/index.ts"],
+      "nitromelondb/*": ["../../src/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "../../src/ambient.d.ts"],

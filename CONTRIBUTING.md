@@ -1,12 +1,12 @@
 <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/needyou.jpg" alt="We need you" width="220" />
 
-**WatermelonDB is an open-source project and it needs your help to thrive!**
+**NitromelonDB is an open-source fork of WatermelonDB, and it needs your help to thrive!**
 
 If there's a missing feature, a bug, or other improvement you'd like, we encourage you to contribute! Feel free to open an issue to get some guidance and see [Contributing guide](./CONTRIBUTING.md) for details about project setup, testing, etc.
 
-If you're just getting started, see [good first issues](https://github.com/Nozbe/WatermelonDB/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) that are easy to contribute to. If you make a non-trivial contribution, email me, and I'll send you a nice 🍉 sticker!
+If you're just getting started, see [good first issues](https://github.com/StasDoskalenko/NitromelonDB/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) that are easy to contribute to.
 
-If you make or are considering making an app using WatermelonDB, please let us know!
+If you make or are considering making an app using NitromelonDB, please let us know!
 
 <br />
 
@@ -33,8 +33,8 @@ If you make or are considering making an app using WatermelonDB, please let us k
 ### Download source and dependencies
 
 ```bash
-git clone https://github.com/Nozbe/WatermelonDB.git
-cd WatermelonDB
+git clone https://github.com/StasDoskalenko/NitromelonDB.git
+cd NitromelonDB
 yarn
 ```
 
@@ -51,15 +51,15 @@ This will create a `dev/` folder in Watermelon and observe changes to source fil
 Then in your app:
 
 ```bash
-cd node_modules/@nozbe
-rm -fr watermelondb
-ln -s path-to-watermelondb/dev watermelondb
+cd node_modules
+rm -fr nitromelondb
+ln -s path-to-nitromelondb/dev nitromelondb
 ```
 
 **This will work in Webpack but not in Metro** (React Native). Metro doesn't follow symlinks. Instead, you can compile WatermelonDB directly to your project:
 
 ```bash
-DEV_PATH="/path/to/your/app/node_modules/@nozbe/watermelondb" yarn dev
+DEV_PATH="/path/to/your/app/node_modules/nitromelondb" yarn dev
 ```
 
 ### Running tests
