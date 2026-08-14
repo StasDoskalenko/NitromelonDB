@@ -15,7 +15,7 @@ npx expo run:android
 
 If you already have a native build and only JS changed, reload Metro. After pulling native SQLite/Nitro changes, rebuild (`npx expo run:ios` / `run:android`).
 
-The app links the library via `file:../..` and Metro watches `src/` so edits to the adapter reload.
+The app links the library via `file:../..`. Metro watches `src/` plus WatermelonDB's JS dependencies (`rxjs`, `sql-escape-string`, …) so those imports resolve outside the example's tree.
 
 `expo prebuild` applies `plugins/withSimdjsonModularHeaders.js` so CocoaPods can import `simdjson` from the Nitrogen-generated `NitromelonDB` module.
 
