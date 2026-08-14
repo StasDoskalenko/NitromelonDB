@@ -5,32 +5,26 @@ package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
 
 # Compile npm `@nozbe/simdjson` into this pod (same target as Nitrogen's DEFINES_MODULE).
 # `s.dependency "simdjson"` would resolve CocoaPods trunk, which is the wrong library.
-# CocoaPods also cannot set `:path` / `modular_headers` on a podspec dependency, so a
-# separate `pod 'simdjson'` line in the app Podfile is not required.
-def nitromelondb_vendor_simdjson!(pod_root)
-  vendor = File.join(pod_root, 'native', 'vendor', 'simdjson')
-  header = File.join(vendor, 'simdjson.h')
-  return vendor if File.exist?(header)
-
-  pkg = if defined?(Pod::Executable)
+# Do not use a top-level `def` — CocoaPods evaluates the podspec on the Pod module.
+simdjson_vendor = File.join(__dir__, 'native', 'vendor', 'simdjson')
+simdjson_header = File.join(simdjson_vendor, 'simdjson.h')
+unless File.exist?(simdjson_header)
+  simdjson_pkg = if defined?(Pod::Executable)
     Pod::Executable.execute_command('node', [
       '-p',
       'require.resolve("@nozbe/simdjson/package.json", {paths:[process.argv[1]]})',
-      pod_root,
+      __dir__,
     ]).strip
   else
-    `node --print "require.resolve('@nozbe/simdjson/package.json', {paths:['#{pod_root}']})"`.strip
+    `node --print "require.resolve('@nozbe/simdjson/package.json', {paths:['#{__dir__}']})"`.strip
   end
-  raise 'NitromelonDB: could not resolve @nozbe/simdjson. Run yarn/npm install first.' if pkg.nil? || pkg.empty?
+  raise 'NitromelonDB: could not resolve @nozbe/simdjson. Run yarn/npm install first.' if simdjson_pkg.nil? || simdjson_pkg.empty?
 
-  src = File.join(File.dirname(pkg), 'src')
-  FileUtils.mkdir_p(vendor)
-  FileUtils.cp(File.join(src, 'simdjson.h'), header)
-  FileUtils.cp(File.join(src, 'simdjson.cpp'), File.join(vendor, 'simdjson.cpp'))
-  vendor
+  simdjson_src = File.join(File.dirname(simdjson_pkg), 'src')
+  FileUtils.mkdir_p(simdjson_vendor)
+  FileUtils.cp(File.join(simdjson_src, 'simdjson.h'), simdjson_header)
+  FileUtils.cp(File.join(simdjson_src, 'simdjson.cpp'), File.join(simdjson_vendor, 'simdjson.cpp'))
 end
-
-nitromelondb_vendor_simdjson!(__dir__)
 
 Pod::Spec.new do |s|
   s.name         = "NitromelonDB"
