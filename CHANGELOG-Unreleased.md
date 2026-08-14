@@ -23,7 +23,7 @@
 
 ### Changes
 
-- Started migrating the JS source from Flow + hand-written `.d.ts` to TypeScript. `src/utils`, `src/types`, `src/Schema`, `src/RawRecord`, `src/QueryDescription`, `src/Model`, `src/Collection`, `src/Query`, `src/Relation`, `src/Database`, `src/decorators`, `src/observation`, `src/react`, `src/diagnostics`, `src/sync`, and the public entry barrels (`src/index`, `src/hooks`, `src/DatabaseProvider`) are now TypeScript. `yarn typecheck` uses `strict`, `noUnusedLocals`, `noUnusedParameters`, and `exactOptionalPropertyTypes`, and forbids explicit `any`. Flow and tslint are gone; leftover tslint config/deps were removed.
+- Migrated the JS source from Flow + hand-written `.d.ts` to TypeScript. Implementation under `src/` is now TypeScript, including adapters (SQLite, LokiJS, remote). `yarn typecheck` uses `strict`, `noUnusedLocals`, `noUnusedParameters`, and `exactOptionalPropertyTypes`, and forbids explicit `any`. Flow and tslint are gone; leftover Flow shims in `src/types` and tslint config/deps were removed. Tests remain JavaScript.
 - CI runs a dedicated TypeScript job (`yarn typecheck` + `yarn test:typescript`) in addition to `ci:check`.
 - Metro now strips TypeScript (not Flow) for `.ts` sources, and `yarn test:metro-transform` guards that path in CI.
 - ESLint now lints implementation `.ts` files (`@typescript-eslint/no-explicit-any`) instead of ignoring all TypeScript.
