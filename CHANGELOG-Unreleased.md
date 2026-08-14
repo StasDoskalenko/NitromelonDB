@@ -38,6 +38,7 @@
 - Updated better-sqlite3 to 13.0.3
 - Support for React Native 0.87 and React 19
 - Added a [Migrating from WatermelonDB](./docs-website/docs/docs/Migrating.md) guide to the docs site
+- Publish docs to GitHub Pages at https://stasdoskalenko.github.io/NitromelonDB/
 
 ### Internal
 

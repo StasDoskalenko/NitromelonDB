@@ -26,16 +26,13 @@ This command generates static content into the `build` directory and can be serv
 
 ### Deployment
 
-Using SSH:
+Docs are published to GitHub Pages at https://stasdoskalenko.github.io/NitromelonDB/.
+
+Merges to `master` run `.github/workflows/docs.yml`, which builds Docusaurus and deploys with `actions/deploy-pages`. Enable **Settings → Pages → Source: GitHub Actions** in the repository if the site is not live yet.
+
+Local build (same command CI uses):
 
 ```
-$ USE_SSH=true yarn deploy
+$ yarn docs:build
 ```
 
-Not using SSH:
-
-```
-$ GIT_USER=<Your GitHub username> yarn deploy
-```
-
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.

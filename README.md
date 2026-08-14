@@ -141,7 +141,7 @@ const enhance = withObservables(['post'], ({ post }) => ({
 
 The result is fully reactive! Whenever a post or comment is added, changed, or removed, the right components **will automatically re-render** on screen. Doesn't matter if a change occurred in a totally different part of the app, it all just works out of the box!
 
-### ➡️ **Learn more:** [see full documentation](https://github.com/StasDoskalenko/NitromelonDB/tree/master/docs-website/docs/docs)
+### ➡️ **Learn more:** [see full documentation](https://stasdoskalenko.github.io/NitromelonDB/)
 
 ## Who uses WatermelonDB
 
@@ -259,4 +259,4 @@ If you make or are considering making an app using NitromelonDB, please let us k
 
 [Original WatermelonDB contributors](https://github.com/Nozbe/WatermelonDB/graphs/contributors).
 
-NitromelonDB is available under the MIT license. See the [LICENSE file](./LICENSE) for more info.
+NitromelonDB is available under the MIT license. See the [LICENSE file](https://github.com/StasDoskalenko/NitromelonDB/blob/master/LICENSE) for more info.
