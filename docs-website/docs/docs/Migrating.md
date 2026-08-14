@@ -114,7 +114,7 @@ project(':watermelondb').projectDir =
     new File(rootProject.projectDir, '../node_modules/nitromelondb/native/android')
 ```
 
-Keep the Proguard rule if you use it:
+Keep the Proguard rule if you use it (the Android library also ships this as a consumer rule, and the Expo config plugin writes it during prebuild):
 
 ```
 -keep class com.nozbe.watermelondb.** { *; }
@@ -124,7 +124,27 @@ The Java package name `com.nozbe.watermelondb` is unchanged. Turbo-sync JSON inj
 
 Minimum Android SDK is **24**.
 
-## 5. SQLiteAdapter on React Native
+## 5. Expo
+
+NitromelonDB includes an Expo config plugin. You do **not** need `@morrowdigital/watermelondb-expo-plugin` (that package wired the old Android JSI module).
+
+```bash
+yarn remove @morrowdigital/watermelondb-expo-plugin
+```
+
+In `app.json` / `app.config.js`, replace it with `"nitromelondb"`:
+
+```json
+{
+  "expo": {
+    "plugins": ["nitromelondb"]
+  }
+}
+```
+
+Then `npx expo prebuild` (or let EAS Build do it). Development builds, EAS Build, and EAS Update are supported. Expo Go is not. See [Installation — Expo](./Installation.mdx#expo).
+
+## 6. SQLiteAdapter on React Native
 
 iOS and Android SQLite is **Nitro-only**. NativeModules interop is gone.
 
@@ -143,7 +163,7 @@ const adapter = new SQLiteAdapter({
 
 If SQLiteAdapter cannot create a native database, install `react-native-nitro-modules` and rebuild the app — Metro reload is not enough.
 
-## 6. TypeScript (Flow and `.d.ts` are gone)
+## 7. TypeScript (Flow and `.d.ts` are gone)
 
 The library implementation is TypeScript. There is no separate `index.d.ts` tree and no Flow types.
 
@@ -165,7 +185,7 @@ App model code can stay JavaScript. If you already used the old `.d.ts` types, t
 
 See [Flow support removed](./Advanced/Flow.md) and the [TypeScript example](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/typescript).
 
-## 7. Platform floor
+## 8. Platform floor
 
 | Requirement | WatermelonDB 0.28 | NitromelonDB |
 | --- | --- | --- |
@@ -184,6 +204,7 @@ See [Flow support removed](./Advanced/Flow.md) and the [TypeScript example](http
 - [ ] Bridging header, if you import it: `#import <NitromelonDB/WatermelonDB.h>`
 - [ ] Remove `watermelondb-jsi` / `WatermelonDBJSIPackage` from Android
 - [ ] Remove `{ jsi: false }` from `SQLiteAdapter` on iOS/Android
+- [ ] Expo: add `"nitromelondb"` to `app.json` `plugins` and remove `@morrowdigital/watermelondb-expo-plugin`
 - [ ] Full native rebuild (`npx react-native run-ios` / `run-android`, or `npx expo run:ios` / `run:android`)
 
 Then continue with [Installation](./Installation.mdx) and [Setup](./Setup.md) if anything in native linking is still missing.

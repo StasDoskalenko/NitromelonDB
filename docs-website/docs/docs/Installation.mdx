@@ -15,7 +15,7 @@ npm install nitromelondb
 
 ## React Native setup
 
-Native SQLite on iOS and Android uses [Nitro Modules](https://nitro.margelo.com) and React Native **autolinking** (`react-native.config.js` + the `NitromelonDB` podspec). `simdjson` is compiled into that pod from vendored sources. You do not add CocoaPods or Gradle lines by hand, and you do not run a separate setup CLI.
+Native SQLite on iOS and Android uses [Nitro Modules](https://nitro.margelo.com) and React Native **autolinking** (`react-native.config.js` + the `NitromelonDB` podspec). `simdjson` is compiled into that pod from vendored sources. You do not add CocoaPods or Gradle lines by hand, and you do not run a separate setup CLI. Expo is fully supported — development builds, EAS Build, and EAS Update. See [Expo](#expo).
 
 ```bash
 yarn add nitromelondb react-native-nitro-modules
@@ -44,18 +44,72 @@ yarn add nitromelondb react-native-nitro-modules
 
 Minimums: Xcode 15+, iOS 15.1, Android minSdk 24. This will not run in Expo Go.
 
-### Expo
+## Expo
 
-Development builds only:
+NitromelonDB fully supports Expo **development builds**, **EAS Build**, and **EAS Update**. Native SQLite is not available in Expo Go.
 
-```bash
-npx expo prebuild
-npx expo run:ios
-# or
-npx expo run:android
-```
+1. Install NitromelonDB and the Nitro peer:
 
-### Bare React Native
+   ```bash
+   npx expo install nitromelondb react-native-nitro-modules
+   ```
+
+   Decorators still need the Babel plugin from the React Native setup above (`@babel/plugin-proposal-decorators` with `{ "legacy": true }`).
+
+2. Add the config plugin to `app.json` or `app.config.js`:
+
+   ```json
+   {
+     "expo": {
+       "plugins": ["nitromelondb"]
+     }
+   }
+   ```
+
+   The plugin runs during `expo prebuild` (EAS Build does this for you). It writes Android ProGuard keep rules so release / EAS production minify cannot strip the Nitro JNI loader. It does **not** install the old `watermelondb-jsi` Android module — SQLite goes through Nitro autolinking.
+
+   Optional:
+
+   ```json
+   {
+     "expo": {
+       "plugins": [
+         [
+           "nitromelondb",
+           { "excludeSimArch": true }
+         ]
+       ]
+     }
+   }
+   ```
+
+   `excludeSimArch` excludes `arm64` from iOS simulator builds. Use it only if you hit `No such module 'ExpoModulesCore'` (or similar) on Apple Silicon simulators.
+
+3. Create a development build, then run it:
+
+   ```bash
+   npx expo prebuild
+   npx expo run:ios
+   # or
+   npx expo run:android
+   ```
+
+   Or with EAS:
+
+   ```bash
+   eas build --profile development
+   eas build --profile production
+   ```
+
+You do **not** need `@morrowdigital/watermelondb-expo-plugin`. Remove it if you used it with `@nozbe/watermelondb`.
+
+### EAS Update
+
+[EAS Update](https://docs.expo.dev/eas-update/introduction/) ships a new JavaScript bundle on top of an existing native binary. Models, queries, schema, and migrations live in JS, so those changes work over OTA as long as the native SQLite engine is already in the app.
+
+Ship a new **EAS Build** when you bump `nitromelondb`, `react-native-nitro-modules`, or any other native dependency.
+
+## Bare React Native
 
 ```bash
 npx react-native run-ios
@@ -137,6 +191,8 @@ Keep the Proguard rule if you use it:
 ```
 -keep class com.nozbe.watermelondb.** { *; }
 ```
+
+The Android AAR also ships this (plus a keep for `com.margelo.nitro.watermelondb.**`) via `consumer-rules.pro`. The Expo config plugin writes the same rules during prebuild.
 
 </details>
 

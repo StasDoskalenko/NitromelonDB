@@ -26,6 +26,8 @@ yarn add nitromelondb
 # or: npm install nitromelondb
 ```
 
+On Expo, add `"nitromelondb"` to the `plugins` array in `app.json` (development builds, EAS Build, and EAS Update). See [Installation](https://stasdoskalenko.github.io/NitromelonDB/docs/Installation#expo).
+
 ```js
 import { Database } from 'nitromelondb'
 import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
@@ -65,7 +67,7 @@ Full credit to [@Nozbe](https://github.com/Nozbe) and [Radek Pietruszewski](http
 | 📈 | **Highly scalable** from hundreds to tens of thousands of records |
 | 😎 | **Lazy loaded**. Only load data when you need it |
 | 🔄 | **Offline-first.** [Sync](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs-website/docs/docs/Sync/Intro.md) with your own backend |
-| 📱 | **Multiplatform**. iOS, Android, Windows, web, and Node.js |
+| 📱 | **Multiplatform**. iOS, Android, Windows, web, Node.js, and **Expo** (EAS Build and EAS Update) |
 | ⚛️ | **Optimized for React.** Easily plug data into components |
 | 🧰 | **Framework-agnostic.** Use JS API to plug into other UI frameworks |
 | ⏱ | **Fast.** And getting faster with every release! |
