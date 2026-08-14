@@ -1,5 +1,5 @@
 // NOTE: Only use with records! Not guaranteed to work correctly if keys have undefineds as values
-export default function areRecordsEqual<T extends {}>(left: T, right: T): boolean {
+export default function areRecordsEqual<T extends object>(left: T, right: T): boolean {
   if (left === right) {
     return true;
   }

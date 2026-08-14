@@ -26,7 +26,6 @@
     "src/**/*.test.ts",
     "src/**/*.test.tsx",
     "src/**/__tests__/**",
-    "src/**/__typetests__/**",
     "src/**/__playground__/**"
   ]
 }

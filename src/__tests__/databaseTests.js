@@ -1,26 +1,11 @@
-// @flow
-
 import naughtyStrings from './utils/naughtyStrings'
 import * as QueryBuilders from '../QueryDescription'
 
-const Q = (QueryBuilders: any)
+const Q = QueryBuilders
 
-const matchTests: any[] = []
+const matchTests = []
 
-function matchTest(
-  options: $Exact<{
-    name: string,
-    query: QueryBuilders.Clause[],
-    matching: Array<{ id: string, ... }>,
-    nonMatching: Array<{ id: string, ... }>,
-    skipQuery?: boolean,
-    skipCount?: boolean,
-    skipLoki?: boolean,
-    skipSqlite?: boolean,
-    skipMatcher?: boolean,
-    checkOrder?: boolean,
-  }>,
-): void {
+function matchTest(options) {
   matchTests.push(options)
 }
 
@@ -967,7 +952,7 @@ matchTest({
   checkOrder: true,
 })
 
-export const naughtyMatchTests: any[] = naughtyStrings.map((naughtyString) => ({
+export const naughtyMatchTests = naughtyStrings.map((naughtyString) => ({
   name: naughtyString,
   query: [Q.where('text1', naughtyString)],
   matching: [{ id: 'm1', text1: naughtyString }],
@@ -977,22 +962,9 @@ export const naughtyMatchTests: any[] = naughtyStrings.map((naughtyString) => ({
   ],
 }))
 
-const joinTests: any[] = []
+const joinTests = []
 
-function joinTest(
-  options: $Exact<{
-    name: string,
-    query: QueryBuilders.Clause[],
-    extraRecords: {
-      ['projects' | 'tag_assignments' | 'teams' | 'organizations']: Array<{ id: string, ... }>,
-    },
-    matching: Array<{ id: string, ... }>,
-    nonMatching: Array<{ id: string, ... }>,
-    skipCount?: boolean,
-    skipLoki?: boolean,
-    skipSqlite?: boolean,
-  }>,
-): void {
+function joinTest(options) {
   joinTests.push(options)
 }
 
