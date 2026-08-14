@@ -6,6 +6,21 @@ on:
     branches: master
 
 jobs:
+  eslint:
+    runs-on: ubuntu-24.04
+    name: ESLint
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - uses: actions/cache@v4
+        with:
+          path: 'node_modules'
+          key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
+      - run: yarn
+      - run: yarn eslint
   typescript:
     runs-on: ubuntu-24.04
     name: TypeScript
@@ -38,7 +53,8 @@ jobs:
           path: 'node_modules'
           key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
       - run: yarn
-      - run: yarn ci:check
+      - run: yarn test
+      - run: yarn test:metro-transform
       - name: Gradle Wrapper Validation
         uses: gradle/actions/wrapper-validation@v4
       - name: Check docs build
@@ -129,7 +145,7 @@ jobs:
       # - run: yarn ci
       - run: yarn test
       - run: yarn eslint
-      - run: yarn flow
+      - run: yarn typecheck
       # FIXME: TS broken on Windows?
       # - run: yarn test:typescript
       # Build WatermelonTester and run in background

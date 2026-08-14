@@ -1,7 +1,6 @@
 const config = {
   env: {
     es6: true,
-    // configure globals
     jest: true,
     browser: true,
     commonjs: true,
@@ -12,16 +11,12 @@ const config = {
     'eslint:recommended',
     'plugin:react/recommended',
     'plugin:react-hooks/recommended',
-    'plugin:flowtype/recommended',
     'prettier',
     'plugin:jest/recommended',
   ],
   parser: '@babel/eslint-parser',
   ignorePatterns: ['examples/typescript/**/*.ts', 'node_modules/**'],
   settings: {
-    flowtype: {
-      onlyFilesWithFlowAnnotation: true,
-    },
     'import/ignore': ['node_modules/react-native'],
     'import/parsers': {
       '@typescript-eslint/parser': ['.ts', '.tsx'],
@@ -47,25 +42,35 @@ const config = {
   overrides: [
     {
       files: ['src/**/*.js'],
-      excludedFiles: ['*integrationTest.js', '*test.js', '**/__tests__/**', '*test.*.js'],
+      excludedFiles: [
+        '*integrationTest.js',
+        '*test.js',
+        '**/__tests__/**',
+        '*test.*.js',
+        '**/__playground__/**',
+        '*.integrationTests.native.js',
+      ],
       rules: {
-        'flowtype/require-valid-file-annotation': ['error', 'always'],
+        'no-restricted-syntax': [
+          'error',
+          {
+            selector: 'Program',
+            message:
+              'Implementation files under src/ must be TypeScript (.ts/.tsx). JavaScript is only allowed in tests.',
+          },
+        ],
       },
     },
     {
-      files: ['src/**/*.ts', 'src/**/*.tsx', 'examples/typescript/*.ts'],
+      files: ['src/**/*.ts', 'src/**/*.tsx'],
       excludedFiles: ['**/*.d.ts'],
       parser: '@typescript-eslint/parser',
+      extends: [
+        'plugin:@typescript-eslint/eslint-recommended',
+        'plugin:@typescript-eslint/recommended',
+      ],
       rules: {
-        'flowtype/no-types-missing-file-annotation': 'off',
-        'flowtype/require-valid-file-annotation': 'off',
-        'no-unused-vars': 'off',
-        'no-redeclare': 'off',
-        'no-dupe-class-members': 'off',
-        'no-undef': 'off',
         '@typescript-eslint/no-explicit-any': 'error',
-        '@typescript-eslint/no-redeclare': 'error',
-        '@typescript-eslint/no-dupe-class-members': 'error',
         '@typescript-eslint/consistent-type-imports': [
           'error',
           { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
@@ -81,6 +86,12 @@ const config = {
           },
         ],
         '@typescript-eslint/no-wrapper-object-types': 'error',
+        '@typescript-eslint/no-require-imports': 'off',
+        '@typescript-eslint/no-unused-expressions': [
+          'error',
+          { allowShortCircuit: true, allowTernary: true },
+        ],
+        '@typescript-eslint/no-this-alias': ['error', { allowedNames: ['model'] }],
         '@typescript-eslint/no-unused-vars': [
           'error',
           {

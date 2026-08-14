@@ -1,6 +1,5 @@
 node_modules/
 dist/
-flow-typed/
 dev/
 **/*.d.ts
 native/windowsE2E/**

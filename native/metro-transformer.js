@@ -10,33 +10,25 @@ const isNodeModule = (filename) => {
 
 const isTypeScript = (filename) => /\.tsx?$/.test(filename) && !filename.endsWith('.d.ts')
 
-const pluginName = (plugin) => (Array.isArray(plugin) ? plugin[0] : plugin)
-
-const withoutFlowPlugins = (plugins) =>
-  plugins.filter((plugin) => pluginName(plugin) !== '@babel/plugin-transform-flow-strip-types')
-
 const pluginsForProjectFile = (filename) => {
   const basePlugins = babelConfig.env.test.plugins
   if (!isTypeScript(filename)) {
     return basePlugins
   }
 
-  // Flow-strip enables the Flow parser. That parser rejects TypeScript `as` casts,
-  // so TS sources must use the TypeScript plugin and must not enable Flow.
   return [
     [
       '@babel/plugin-transform-typescript',
       { allowDeclareFields: true, isTSX: filename.endsWith('.tsx') },
     ],
-    ...withoutFlowPlugins(basePlugins),
+    ...basePlugins,
   ]
 }
 
 const transform = ({ src, filename, options }) => {
-  // React Native 0.87 ships TypeScript-in-JS and Flow class fields that our
-  // project Babel config (Flow parser + loose class transform) cannot handle.
-  // Bundle node_modules with RN's preset and Hermes parser, and do not load
-  // the repo babel.config.js.
+  // React Native 0.87 ships TypeScript-in-JS and class fields that our
+  // project Babel config cannot handle. Bundle node_modules with RN's preset
+  // and Hermes parser, and do not load the repo babel.config.js.
   if (isNodeModule(filename)) {
     const config = {
       filename,

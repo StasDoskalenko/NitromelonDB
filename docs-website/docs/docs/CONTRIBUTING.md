@@ -69,7 +69,7 @@ DEV_PATH="/path/to/your/app/node_modules/@nozbe/watermelondb" yarn dev
 
 ### Running tests
 
-This runs Jest, ESLint and Flow:
+This runs Jest, ESLint, and TypeScript:
 
 ```bash
 yarn ci:check
@@ -80,12 +80,15 @@ You can also run them separately:
 ```bash
 yarn test
 yarn eslint
-yarn flow
+yarn typecheck
+yarn test:typescript
 ```
+
+Pull requests must pass the **ESLint** and **TypeScript** CI jobs.
 
 ### Editing files
 
-We recommend VS Code with ESLint, Flow, and Prettier (with prettier-eslint enabled) plugins for best development experience. (To see lint/type issues inline + have automatic reformatting of code)
+We recommend VS Code with ESLint, TypeScript, and Prettier plugins for best development experience. (To see lint/type issues inline + have automatic reformatting of code)
 
 ## Editing native code
 

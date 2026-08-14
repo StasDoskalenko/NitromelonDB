@@ -1,12 +1,5 @@
-// @flow
-
-export default async function expectToRejectWithMessage(
-  promise: Promise<mixed>,
-  message: string | RegExp,
-): Promise<void> {
-  // $FlowFixMe
+export default async function expectToRejectWithMessage(promise, message) {
   await expect(promise).rejects.toMatchObject({
-    // $FlowFixMe
     message: expect.stringMatching(message),
   })
 }
