@@ -59,7 +59,7 @@ All you have to do is this:
   - Please note that most of these functions can remain unimplemented (empty) for basic operation - e.g. you can skip logging, memory, turbo json support
 - Provide a React Native hook that calls `Database::install(jsi::Runtime *)`
 
-Check out `native/android-jsi` and `native/ios` for two implementation examples. You might be able to reuse some code from these, e.g. platform support stubs or `CMakeLists.txt`.
+Check out `native/android` and `native/ios` for two implementation examples. You might be able to reuse some code from these, e.g. platform support stubs or `CMakeLists.txt`.
 
 ## Adding new frameworks to SQLite adapter
 

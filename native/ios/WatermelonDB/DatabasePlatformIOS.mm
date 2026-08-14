@@ -2,6 +2,7 @@
 #import <Foundation/Foundation.h>
 #import <React/RCTBridge.h>
 #include <mutex>
+#include <stdexcept>
 
 namespace watermelondb {
 namespace platform {
@@ -79,6 +80,15 @@ extern "C" void watermelondbProvideSyncJson(int id, NSData *json, NSError **erro
     }
 
     providedSyncJsons[@(id)] = json;
+}
+
+void provideSyncJson(int id, std::string json) {
+    NSData *data = [NSData dataWithBytes:json.data() length:json.size()];
+    NSError *error = nil;
+    watermelondbProvideSyncJson(id, data, &error);
+    if (error) {
+        throw std::runtime_error(std::string([error.localizedDescription UTF8String] ?: "Failed to provide sync json"));
+    }
 }
 
 std::string_view getSyncJson(int id) {

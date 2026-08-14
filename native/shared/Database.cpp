@@ -1,5 +1,7 @@
 #include "Database.h"
 
+#include <cassert>
+
 namespace watermelondb {
 
 using platform::consoleError;
@@ -68,8 +70,7 @@ void Database::removeFromCache(std::string cacheKey) {
     cachedRecords_.erase(cacheKey);
 }
 
-void Database::unsafeResetDatabase(jsi::String &schema, int schemaVersion) {
-    auto &rt = getRt();
+void Database::unsafeResetDatabase(const std::string &schema, int schemaVersion) {
     const std::lock_guard<std::mutex> lock(mutex_);
 
     // TODO: in non-memory mode, just delete the DB files
@@ -78,13 +79,13 @@ void Database::unsafeResetDatabase(jsi::String &schema, int schemaVersion) {
     // https://www.sqlite.org/c3ref/c_dbconfig_defensive.html#sqlitedbconfigresetdatabase
 
     if (sqlite3_db_config(db_->sqlite, SQLITE_DBCONFIG_RESET_DATABASE, 1, 0) != SQLITE_OK) {
-        throw jsi::JSError(rt, "Failed to enable reset database mode");
+        throwSqliteError("Failed to enable reset database mode");
     }
     // NOTE: We can't VACUUM in a transaction
     executeMultiple("vacuum");
 
     if (sqlite3_db_config(db_->sqlite, SQLITE_DBCONFIG_RESET_DATABASE, 0, 0) != SQLITE_OK) {
-        throw jsi::JSError(rt, "Failed to disable reset database mode");
+        throwSqliteError("Failed to disable reset database mode");
     }
 
     beginTransaction();
@@ -92,7 +93,7 @@ void Database::unsafeResetDatabase(jsi::String &schema, int schemaVersion) {
         cachedRecords_ = {};
 
         // Reinitialize schema
-        executeMultiple(schema.utf8(rt));
+        executeMultiple(schema);
         setUserVersion(schemaVersion);
 
         commit();
@@ -102,15 +103,18 @@ void Database::unsafeResetDatabase(jsi::String &schema, int schemaVersion) {
     }
 }
 
-void Database::migrate(jsi::String &migrationSql, int fromVersion, int toVersion) {
-    auto &rt = getRt();
+void Database::unsafeResetDatabase(jsi::String &schema, int schemaVersion) {
+    unsafeResetDatabase(schema.utf8(getRt()), schemaVersion);
+}
+
+void Database::migrate(const std::string &migrationSql, int fromVersion, int toVersion) {
     const std::lock_guard<std::mutex> lock(mutex_);
 
     beginTransaction();
     try {
         assert(getUserVersion() == fromVersion && "Incompatible migration set");
 
-        executeMultiple(migrationSql.utf8(rt));
+        executeMultiple(migrationSql);
         setUserVersion(toVersion);
 
         commit();
@@ -118,6 +122,10 @@ void Database::migrate(jsi::String &migrationSql, int fromVersion, int toVersion
         rollback();
         throw;
     }
+}
+
+void Database::migrate(jsi::String &migrationSql, int fromVersion, int toVersion) {
+    migrate(migrationSql.utf8(getRt()), fromVersion, toVersion);
 }
 
 } // namespace watermelondb

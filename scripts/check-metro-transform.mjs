@@ -23,6 +23,16 @@ const files = klaw(src, { nodir: true })
   )
   .sort()
 
+const nitroSources = [
+  path.join(root, 'node_modules/react-native-nitro-modules/src/index.ts'),
+  path.join(root, 'node_modules/react-native-nitro-modules/src/CustomType.ts'),
+]
+for (const file of nitroSources) {
+  if (fs.existsSync(file)) {
+    files.push(file)
+  }
+}
+
 if (!files.length) {
   throw new Error('No TypeScript sources found to transform')
 }

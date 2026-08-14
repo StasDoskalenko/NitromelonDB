@@ -1,13 +1,14 @@
 #include <android/log.h>
 #include <mutex>
 #include <unordered_map>
+#include <string>
 #include <sqlite3.h>
 #include <cassert>
 
 #include "DatabasePlatform.h"
 #include "DatabasePlatformAndroid.h"
 
-#define LOG_TAG "watermelondb.jsi"
+#define LOG_TAG "watermelondb.android"
 #define SQLITE_LOG_TAG "watermelondb.sqlite"
 
 namespace watermelondb {
@@ -75,7 +76,7 @@ static JavaVM *jvm;
 void configureJNI(JNIEnv *env) {
     assert(env);
     if (env->GetJavaVM(&jvm) != JNI_OK) {
-        consoleError("Could not initialize WatermelonDB JSI - cannot get JavaVM");
+        consoleError("Could not initialize WatermelonDB JNI - cannot get JavaVM");
         std::abort();
     }
     assert(jvm);
@@ -100,9 +101,9 @@ std::string resolveDatabasePath(std::string path) {
     }
     assert(env);
 
-    jclass clazz = env->FindClass("com/nozbe/watermelondb/jsi/JSIInstaller");
+    jclass clazz = env->FindClass("com/nozbe/watermelondb/NativeDatabasePath");
     if (clazz == NULL) {
-        throw std::runtime_error("Unable to resolve db path - missing JSIInstaller class");
+        throw std::runtime_error("Unable to resolve db path - missing NativeDatabasePath class");
     }
     jmethodID mid = env->GetStaticMethodID(clazz, "_resolveDatabasePath", "(Ljava/lang/String;)Ljava/lang/String;");
     if (mid == NULL) {
@@ -142,7 +143,19 @@ struct ProvidedSyncJson {
 };
 
 std::unordered_map<int, ProvidedSyncJson> providedSyncJsons;
+std::unordered_map<int, std::string> providedSyncJsonStrings;
 std::mutex providedSyncJsonsMutex;
+
+void provideSyncJson(int id, std::string json) {
+    const std::lock_guard<std::mutex> lock(providedSyncJsonsMutex);
+
+    if (providedSyncJsons.find(id) != providedSyncJsons.end() ||
+        providedSyncJsonStrings.find(id) != providedSyncJsonStrings.end()) {
+        throw std::runtime_error("Sync json " + std::to_string(id) + " is already provided");
+    }
+
+    providedSyncJsonStrings[id] = std::move(json);
+}
 
 void provideJson(int id, jbyteArray array) {
     const std::lock_guard<std::mutex> lock(providedSyncJsonsMutex);
@@ -171,6 +184,11 @@ void provideJson(int id, jbyteArray array) {
 std::string_view getSyncJson(int id) {
     const std::lock_guard<std::mutex> lock(providedSyncJsonsMutex);
 
+    auto stringSearch = providedSyncJsonStrings.find(id);
+    if (stringSearch != providedSyncJsonStrings.end()) {
+        return stringSearch->second;
+    }
+
     auto jsonSearch = providedSyncJsons.find(id);
     if (jsonSearch == providedSyncJsons.end()) {
         throw std::runtime_error("Sync json " + std::to_string(id) + " does not exist");
@@ -183,6 +201,8 @@ std::string_view getSyncJson(int id) {
 
 void deleteSyncJson(int id) {
     const std::lock_guard<std::mutex> lock(providedSyncJsonsMutex);
+
+    providedSyncJsonStrings.erase(id);
 
     JNIEnv *env;
     assert(jvm);

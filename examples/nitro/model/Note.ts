@@ -1,0 +1,28 @@
+import { Model } from '@nozbe/watermelondb'
+import { date, field, text, writer } from '@nozbe/watermelondb/decorators'
+import { NOTES_TABLE } from './schema'
+
+export default class Note extends Model {
+  static table = NOTES_TABLE
+
+  @text('title')
+  title!: string
+  @text('body')
+  body!: string
+  @date('created_at')
+  createdAt!: Date
+  @field('pinned')
+  pinned!: boolean
+
+  @writer
+  async togglePinned() {
+    await this.update((note) => {
+      note.pinned = !note.pinned
+    })
+  }
+
+  @writer
+  async deleteForever() {
+    await this.destroyPermanently()
+  }
+}

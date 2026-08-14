@@ -7,6 +7,7 @@ namespace watermelondb {
 using platform::consoleError;
 using platform::consoleLog;
 
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 void Database::install(jsi::Runtime *runtime) {
     jsi::Runtime &rt = *runtime;
     auto globalObject = rt.global();
@@ -225,7 +226,7 @@ void Database::install(jsi::Runtime *runtime) {
 
     // TODO: Use the onMemoryAlert hook!
 }
-
+#endif
 
 } // namespace watermelondb
 

@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include "Database.h"
 #include <AtlBase.h>
@@ -54,6 +55,12 @@ void deleteDatabaseFile(std::string path, bool warnIfDoesNotExist) {
 
 void onMemoryAlert(std::function<void(void)> callback) {
     // TODO: Unimplemented
+}
+
+void provideSyncJson(int id, std::string json) {
+    (void)id;
+    (void)json;
+    throw std::runtime_error("provideSyncJson is unavailable on Windows");
 }
 
 std::string_view getSyncJson(int id) {

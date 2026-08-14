@@ -1,8 +1,5 @@
 /* eslint-disable jest/no-standalone-expect */
-import naughtyStrings, {
-  bigEndianByteOrderMark,
-  littleEndianByteOrderMark,
-} from '../../__tests__/utils/naughtyStrings'
+import naughtyStrings from '../../__tests__/utils/naughtyStrings'
 
 import expectToRejectWithMessage from '../../__tests__/utils/expectToRejectWithMessage'
 import Model from '../../Model'
@@ -575,7 +572,7 @@ export default () => {
     if (
       !(
         AdapterClass.name === 'SQLiteAdapter' &&
-        adapter.underlyingAdapter._dispatcherType === 'jsi' &&
+        adapter.underlyingAdapter._dispatcherType !== 'asynchronous' &&
         platform !== 'windows'
       )
     ) {
@@ -680,7 +677,7 @@ export default () => {
     if (
       !(
         AdapterClass.name === 'SQLiteAdapter' &&
-        adapter.underlyingAdapter._dispatcherType === 'jsi' &&
+        adapter.underlyingAdapter._dispatcherType !== 'asynchronous' &&
         platform !== 'windows'
       )
     ) {
@@ -710,7 +707,7 @@ export default () => {
     if (
       !(
         AdapterClass.name === 'SQLiteAdapter' &&
-        adapter.underlyingAdapter._dispatcherType === 'jsi' &&
+        adapter.underlyingAdapter._dispatcherType !== 'asynchronous' &&
         platform !== 'windows'
       )
     ) {
@@ -862,27 +859,13 @@ export default () => {
     await expectError([])
     await expectError({})
   })
-  it('supports naughty strings in LocalStorage', async (adapter, AdapterClass, extraAdapterOptions, platform) => {
+  it('supports naughty strings in LocalStorage', async (adapter) => {
     // eslint-disable-next-line no-restricted-syntax
     for (const key of naughtyStrings) {
-      // console.log(key)
-      // KNOWN ISSUE: non-JSI adapter implementation gets confused by this (it's a BOM mark)
-      if (
-        AdapterClass.name === 'SQLiteAdapter' &&
-        !extraAdapterOptions.jsi &&
-        ((key === bigEndianByteOrderMark && ['android', 'ios'].includes(platform)) ||
-          (key === littleEndianByteOrderMark && platform === 'android'))
-      ) {
-        // eslint-disable-next-line no-await-in-loop
-        await adapter.setLocal(key, key)
-        // eslint-disable-next-line no-await-in-loop
-        expect(await adapter.getLocal(key)).not.toBe(key) // if this fails, it means the issue's been fixed
-      } else {
-        // eslint-disable-next-line no-await-in-loop
-        await adapter.setLocal(key, key)
-        // eslint-disable-next-line no-await-in-loop
-        expect(await adapter.getLocal(key)).toBe(key)
-      }
+      // eslint-disable-next-line no-await-in-loop
+      await adapter.setLocal(key, key)
+      // eslint-disable-next-line no-await-in-loop
+      expect(await adapter.getLocal(key)).toBe(key)
     }
   })
   it('does not fail on (weirdly named) table named that are SQLite keywords', async (adapter) => {
@@ -1237,25 +1220,11 @@ export default () => {
       }
     }),
   )
-  it('[shared match test] can match strings from big-list-of-naughty-strings', async (adapter, AdapterClass, extraAdapterOptions, platform) => {
+  it('[shared match test] can match strings from big-list-of-naughty-strings', async (adapter) => {
     // eslint-disable-next-line no-restricted-syntax
     for (const testCase of naughtyMatchTests) {
-      // console.log(testCase.name)
-
-      // KNOWN ISSUE: non-JSI adapter implementation gets confused by this (it's a BOM mark)
-      const naughtyString = testCase.matching[0].text1
-      if (
-        AdapterClass.name === 'SQLiteAdapter' &&
-        !extraAdapterOptions.jsi &&
-        ((naughtyString === bigEndianByteOrderMark && ['android', 'ios'].includes(platform)) ||
-          (naughtyString === littleEndianByteOrderMark && platform === 'android'))
-      ) {
-        // eslint-disable-next-line no-console
-        console.warn('skip check for a BOM naughty string - known failing test')
-      } else {
-        // eslint-disable-next-line no-await-in-loop
-        await performMatchTest(adapter, testCase)
-      }
+      // eslint-disable-next-line no-await-in-loop
+      await performMatchTest(adapter, testCase)
     }
   })
   it('can store and retrieve large numbers (regression test)', async (_adapter) => {
@@ -1268,7 +1237,7 @@ export default () => {
     const record = await adapter.find('tasks', 'm1')
     expect(record.num1).toBe(number)
   })
-  it('can store and retrieve naughty strings exactly', async (_adapter, AdapterClass, extraAdapterOptions, platform) => {
+  it('can store and retrieve naughty strings exactly', async (_adapter) => {
     let adapter = _adapter
     const indexedNaughtyStrings = naughtyStrings.map((string, i) => [`id${i}`, string])
     await adapter.batch(
@@ -1281,19 +1250,8 @@ export default () => {
 
     indexedNaughtyStrings.forEach(([id, string]) => {
       const record = allRecords.find((model) => model.id === id)
-      // console.log(string, record)
-      // KNOWN ISSUE: non-JSI adapter implementation gets confused by this (it's a BOM mark)
-      if (
-        AdapterClass.name === 'SQLiteAdapter' &&
-        !extraAdapterOptions.jsi &&
-        ((string === bigEndianByteOrderMark && ['android', 'ios'].includes(platform)) ||
-          (string === littleEndianByteOrderMark && platform === 'android'))
-      ) {
-        expect(record.text1).not.toBe(string) // if this fails, it means the issue's been fixed
-      } else {
-        expect(!!record).toBe(true)
-        expect(record.text1).toBe(string)
-      }
+      expect(!!record).toBe(true)
+      expect(record.text1).toBe(string)
     })
   })
   it('can retrieve dbName', async (adapter, _, { dbName }) => {

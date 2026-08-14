@@ -56,6 +56,17 @@ const transform = ({ src, filename, options }) => {
       },
     }
 
+    // Hermes cannot parse TypeScript. Packages such as nitro-modules ship
+    // `.ts` via the package.json "react-native" field; Babel + RN preset
+    // already skip Hermes for those extensions and strip types.
+    if (isTypeScript(filename)) {
+      const result = babelTransform(src, config)
+      if (!result) {
+        return { ast: null }
+      }
+      return { ast: result.ast, metadata: result.metadata }
+    }
+
     const sourceAst = hermesParser.parse(src, {
       babel: true,
       reactRuntimeTarget: '19',

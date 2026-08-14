@@ -1,8 +1,9 @@
 /* eslint-disable global-require */
 
 import { NativeModules, Platform } from 'react-native'
-import { type ConnectionTag, logger, invariant } from '../../../utils/common'
-import { fromPromise, type ResultCallback } from '../../../utils/fp/Result'
+import { logger, invariant, type ConnectionTag } from '../../../utils/common'
+import type { ResultCallback } from '../../../utils/fp/Result'
+import type { Nitromelon, NitromelonDatabase } from '../../../nitro/Nitromelon.nitro'
 import type {
   DispatcherType,
   SQLiteAdapterOptions,
@@ -11,75 +12,88 @@ import type {
   SqliteDispatcherOptions,
 } from '../type'
 
-type NativeDatabaseBridge = {
-  batchJSON?: (tag: ConnectionTag, json: string) => Promise<unknown>
-  initializeJSI?: () => void
-  provideSyncJson?: (...args: unknown[]) => Promise<unknown>
-  [key: string]: unknown
-}
-
 type JsiDatabase = {
   [methodName: string]: ((...args: unknown[]) => unknown) | undefined
 }
 
-const WMDatabaseBridge = NativeModules.WMDatabaseBridge as NativeDatabaseBridge | undefined
-const WMDatabaseJSIBridge = NativeModules.WMDatabaseJSIBridge as { install?: () => void } | undefined
+type SchemaColumn = { name: string; type: string; isOptional?: boolean | undefined }
+type SchemaTable = { columnArray: SchemaColumn[] }
 
-class SqliteNativeModulesDispatcher implements SqliteDispatcher {
-  _tag: ConnectionTag
-  _unsafeNativeReuse: boolean
-  _bridge: NativeDatabaseBridge
-
-  constructor(
-    tag: ConnectionTag,
-    bridge: NativeDatabaseBridge | undefined,
-    { experimentalUnsafeNativeReuse }: SqliteDispatcherOptions,
-  ) {
-    this._tag = tag
-    this._bridge = bridge as NativeDatabaseBridge
-    this._unsafeNativeReuse = experimentalUnsafeNativeReuse
-    if (process.env.NODE_ENV !== 'production') {
-      invariant(
-        this._bridge,
-        `NativeModules.WMDatabaseBridge is not defined! This means that you haven't properly linked WatermelonDB native module. Refer to docs for instructions about installation (and the changelog if this happened after an upgrade).`,
-      )
-
-      invariant(
-        Platform.OS !== 'windows',
-        'Windows is only supported via JSI. Pass { jsi: true } to SQLiteAdapter constructor.',
-      )
+function nitroSyncSchema(schema: unknown): { tables: Record<string, SchemaTable> } {
+  const tablesIn = (schema as { tables: Record<string, SchemaTable> }).tables
+  const tables: Record<string, SchemaTable> = {}
+  Object.keys(tablesIn).forEach((name) => {
+    tables[name] = {
+      columnArray: tablesIn[name].columnArray.map((column) => ({
+        name: column.name,
+        type: column.type,
+        ...(column.isOptional === true ? { isOptional: true } : {}),
+      })),
     }
+  })
+  return { tables }
+}
+
+let cachedNitromelon: Nitromelon | null | undefined
+
+function nitromelonOrNull(): Nitromelon | null {
+  if (cachedNitromelon !== undefined) {
+    return cachedNitromelon
   }
 
-  call<T>(name: SqliteDispatcherMethod, _args: unknown[], callback: ResultCallback<T>): void {
-    let methodName: string = name
-    let args = _args
-    if (methodName === 'batch' && this._bridge.batchJSON) {
-      methodName = 'batchJSON'
-      args = [JSON.stringify(args[0])]
-    } else if (
-      ['initialize', 'setUpWithSchema', 'setUpWithMigrations'].includes(methodName) &&
-      Platform.OS === 'android'
-    ) {
-      // FIXME: Hacky, refactor once native reuse isn't an "unsafe experimental" option
-      args.push(this._unsafeNativeReuse)
+  try {
+    const nitroModule = require('../../../nitro') as { nitromelon: Nitromelon }
+    if (typeof nitroModule.nitromelon.createAdapter !== 'function') {
+      cachedNitromelon = null
+      return null
     }
-    const method = this._bridge[methodName] as (...methodArgs: unknown[]) => Promise<T>
-    fromPromise(method(this._tag, ...args), callback)
+    cachedNitromelon = nitroModule.nitromelon
+    return nitroModule.nitromelon
+  } catch {
+    cachedNitromelon = null
+    return null
   }
 }
 
-class SqliteJsiDispatcher implements SqliteDispatcher {
-  _db: JsiDatabase
-  _unsafeErrorListener: (error: Error) => void // debug hook for NT use
+function initializeWindowsJSI(): boolean {
+  if (global.nativeWatermelonCreateAdapter) {
+    return true
+  }
+
+  const bridge = NativeModules.WMDatabaseBridge as { initializeJSI?: () => void } | undefined
+  if (bridge?.initializeJSI) {
+    try {
+      bridge.initializeJSI()
+      return !!global.nativeWatermelonCreateAdapter
+    } catch (e) {
+      logger.error('[SQLite] Failed to initialize Windows JSI')
+      logger.error(e)
+    }
+  }
+
+  return false
+}
+
+class SqliteSyncDispatcher implements SqliteDispatcher {
+  _db: NitromelonDatabase | JsiDatabase
+  _nitro: Nitromelon | null
+  _unsafeErrorListener: (error: Error) => void
 
   constructor(dbName: string, { usesExclusiveLocking }: SqliteDispatcherOptions) {
-    const createAdapter = global.nativeWatermelonCreateAdapter as (
-      name: string,
-      exclusiveLocking: boolean,
-    ) => JsiDatabase
-    this._db = createAdapter(dbName, usesExclusiveLocking)
     this._unsafeErrorListener = () => {}
+    const nitro = Platform.OS === 'windows' ? null : nitromelonOrNull()
+    this._nitro = nitro
+    if (nitro) {
+      this._db = nitro.createAdapter(dbName, usesExclusiveLocking)
+      return
+    }
+
+    const createAdapter = global.nativeWatermelonCreateAdapter
+    invariant(
+      createAdapter,
+      'SQLiteAdapter could not create a native database. On Windows, ensure JSI is installed. On iOS/Android, install react-native-nitro-modules.',
+    )
+    this._db = createAdapter(dbName, usesExclusiveLocking)
   }
 
   call<T>(name: SqliteDispatcherMethod, _args: unknown[], callback: ResultCallback<T>): void {
@@ -87,8 +101,6 @@ class SqliteJsiDispatcher implements SqliteDispatcher {
     let args = _args
 
     if (methodName === 'query' && !global.HermesInternal) {
-      // NOTE: compressing results of a query into a compact array makes querying 15-30% faster on JSC
-      // but actually 9% slower on Hermes (presumably because Hermes has faster C++ JSI and slower JS execution)
       methodName = 'queryAsArray'
     } else if (methodName === 'batch') {
       methodName = 'batchJSON'
@@ -99,22 +111,31 @@ class SqliteJsiDispatcher implements SqliteDispatcher {
     ) {
       callback({ error: new Error(`${methodName} unavailable on Windows. Please contribute.`) })
       return
+    } else if (methodName === 'unsafeLoadFromSync' && this._nitro) {
+      args = [args[0], nitroSyncSchema(args[1]), args[2], args[3]]
     } else if (methodName === 'provideSyncJson') {
-      fromPromise(WMDatabaseBridge?.provideSyncJson?.(...args) as Promise<T>, callback)
+      try {
+        invariant(this._nitro, 'provideSyncJson requires Nitro')
+        this._nitro.provideSyncJson(args[0] as number, args[1] as string)
+        callback({ value: undefined as T })
+      } catch (error) {
+        this._unsafeErrorListener(error as Error)
+        callback({ error: error as Error })
+      }
       return
     }
 
     try {
-      const method = this._db[methodName]
+      const method = (this._db as JsiDatabase)[methodName]
       if (!method) {
         throw new Error(
-          `Cannot run database method ${methodName} because database failed to open. Hint: Did you install JSI correctly? This happens if you forgot to configure Proguard correctly ${Object.keys(
+          `Cannot run database method ${methodName} because database failed to open. ${Object.keys(
             this._db,
           ).join(',')}`,
         )
       }
-      let result = method(...args)
-      // On Android, errors are returned, not thrown - see DatabaseBridge.cpp
+      // Nitro HybridObject methods read NativeState from `this`.
+      let result = method.apply(this._db, args)
       if (result instanceof Error) {
         throw result
       } else {
@@ -134,52 +155,37 @@ class SqliteJsiDispatcher implements SqliteDispatcher {
 
 export const makeDispatcher = (
   type: DispatcherType,
-  tag: ConnectionTag,
+  _tag: ConnectionTag,
   dbName: string,
   options: SqliteDispatcherOptions,
 ): SqliteDispatcher => {
-  switch (type) {
-    case 'jsi':
-      return new SqliteJsiDispatcher(dbName, options)
-    case 'asynchronous':
-      return new SqliteNativeModulesDispatcher(tag, WMDatabaseBridge, options)
-    default:
-      throw new Error('Unknown DispatcherType')
+  if (type === 'nitro' || type === 'jsi') {
+    return new SqliteSyncDispatcher(dbName, options)
   }
-}
-
-const initializeJSI = (): boolean => {
-  if (global.nativeWatermelonCreateAdapter) {
-    return true
-  }
-
-  const bridge = WMDatabaseBridge
-  if (bridge?.initializeJSI) {
-    try {
-      bridge.initializeJSI()
-      return !!global.nativeWatermelonCreateAdapter
-    } catch (e) {
-      logger.error('[SQLite] Failed to initialize JSI')
-      logger.error(e)
-    }
-  } else if (WMDatabaseJSIBridge && WMDatabaseJSIBridge.install) {
-    WMDatabaseJSIBridge.install()
-    return !!global.nativeWatermelonCreateAdapter
-  }
-
-  return false
+  throw new Error(`SQLiteAdapter does not support dispatcher type ${type} on this platform`)
 }
 
 export function getDispatcherType(options: SQLiteAdapterOptions): DispatcherType {
-  if (options.jsi) {
-    if (initializeJSI()) {
-      return 'jsi'
-    }
-
-    logger.warn(
-      `JSI SQLiteAdapter not available… falling back to asynchronous operation. This will happen if you're using remote debugger, and may happen if you forgot to recompile native app after WatermelonDB update`,
+  if (options.jsi === false && Platform.OS !== 'windows') {
+    throw new Error(
+      'SQLiteAdapter NativeModules interop was removed. iOS/Android use Nitro only. Pass `{ jsi: false }` is no longer supported; use LokiJSAdapter on web or the Node/Electron SQLite adapter.',
     )
   }
 
-  return 'asynchronous'
+  if (Platform.OS === 'windows') {
+    if (!initializeWindowsJSI()) {
+      throw new Error(
+        'Windows SQLite requires the JSI installer. Rebuild the native app after installing WatermelonDB.',
+      )
+    }
+    return 'jsi'
+  }
+
+  if (!nitromelonOrNull()) {
+    throw new Error(
+      'SQLiteAdapter requires react-native-nitro-modules on iOS and Android. Install the peer and rebuild the native app.',
+    )
+  }
+
+  return 'nitro'
 }

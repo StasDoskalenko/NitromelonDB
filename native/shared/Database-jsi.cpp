@@ -1,24 +1,33 @@
 #include "Database.h"
 
+#include <stdexcept>
+
 namespace watermelondb {
 
 using platform::consoleError;
 using platform::consoleLog;
 
 jsi::Runtime &Database::getRt() {
+    if (runtime_ == nullptr) {
+        throw std::runtime_error("JSI runtime is not available");
+    }
     return *runtime_;
 }
 
-jsi::JSError Database::dbError(std::string description) {
-    // TODO: In serialized threading mode, those may be incorrect - probably smarter to pass result codes around?
+std::string Database::sqliteErrorMessage(std::string description) {
     auto sqliteMessage = std::string(sqlite3_errmsg(db_->sqlite));
     auto code = sqlite3_extended_errcode(db_->sqlite);
     auto message = description + " - sqlite error " + std::to_string(code) + " (" + sqliteMessage + ")";
-    // Note: logging to console in case another exception is thrown so that the original error isn't lost
     consoleError(message);
+    return message;
+}
 
-    auto &rt = getRt();
-    return jsi::JSError(rt, message);
+void Database::throwSqliteError(std::string description) {
+    throw std::runtime_error(sqliteErrorMessage(std::move(description)));
+}
+
+jsi::JSError Database::dbError(std::string description) {
+    return jsi::JSError(getRt(), sqliteErrorMessage(std::move(description)));
 }
 
 jsi::Array Database::arrayFromStd(std::vector<jsi::Value> &vector) {
@@ -34,4 +43,4 @@ jsi::Array Database::arrayFromStd(std::vector<jsi::Value> &vector) {
     return array;
 }
 
-}
+} // namespace watermelondb

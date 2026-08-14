@@ -2,4 +2,4 @@ import { NitroModules } from 'react-native-nitro-modules'
 import type { Nitromelon } from './Nitromelon.nitro'
 
 export const nitromelon = NitroModules.createHybridObject<Nitromelon>('Nitromelon')
-export type { Nitromelon }
+export type { Nitromelon, NitromelonDatabase, NitromelonInitializeResult } from './Nitromelon.nitro'

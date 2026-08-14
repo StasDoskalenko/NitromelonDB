@@ -14,8 +14,8 @@ namespace margelo::nitro::watermelondb {
     HybridObject::loadHybridMethods();
     // load custom methods/properties
     registerHybrids(this, [](Prototype& prototype) {
-      prototype.registerHybridGetter("nativeEngine", &HybridNitromelonSpec::getNativeEngine);
-      prototype.registerHybridMethod("ping", &HybridNitromelonSpec::ping);
+      prototype.registerHybridMethod("createAdapter", &HybridNitromelonSpec::createAdapter);
+      prototype.registerHybridMethod("provideSyncJson", &HybridNitromelonSpec::provideSyncJson);
     });
   }
 

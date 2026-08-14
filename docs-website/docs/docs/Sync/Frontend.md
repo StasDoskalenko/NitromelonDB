@@ -210,9 +210,9 @@ In native code, perform network request and if successful, extract raw response 
 
 ```java
 // On Android (Java):
-import com.nozbe.watermelondb.jsi.WatermelonJSI;
+import com.nozbe.watermelondb.NitromelonNative;
 
-WatermelonJSI.provideSyncJson(/* id */ syncId, /* byte[] */ data);
+NitromelonNative.provideSyncJson(/* id */ syncId, /* byte[] */ data);
 ```
 
 ```objc

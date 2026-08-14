@@ -1,16 +1,14 @@
 #import "WMDatabaseBridge.h"
 #import "WMDatabaseDriver.h"
 #import "JSIInstaller.h"
-#import "Database.h"
 
 #import <ReactCommon/RCTInteropTurboModule.h>
 #import <ReactCommon/RCTTurboModule.h>
-#import <ReactCommon/RCTTurboModuleWithJSIBindings.h>
 
 using namespace facebook;
 using namespace facebook::react;
 
-@interface WMDatabaseBridge () <RCTTurboModule, RCTTurboModuleWithJSIBindings>
+@interface WMDatabaseBridge () <RCTTurboModule>
 @end
 
 @implementation WMDatabaseBridge {
@@ -203,24 +201,11 @@ BRIDGE_METHOD(getLocal,
     })
 }
 
-#pragma mark - JSI Support
+#pragma mark - TurboModule
 
 - (std::shared_ptr<TurboModule>)getTurboModule:(const ObjCTurboModule::InitParams &)params
 {
     return std::make_shared<ObjCInteropTurboModule>(params);
-}
-
-- (void)installJSIBindingsWithRuntime:(jsi::Runtime &)runtime
-                          callInvoker:(const std::shared_ptr<CallInvoker> &)callInvoker
-{
-    watermelondb::Database::install(&runtime);
-}
-
-RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(initializeJSI)
-{
-    // Bindings are installed via RCTTurboModuleWithJSIBindings when this module loads.
-    // initializeJSI remains so JS can detect that the native module is present.
-    return @YES;
 }
 
 

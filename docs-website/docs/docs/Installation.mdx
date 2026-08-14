@@ -1,6 +1,3 @@
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-
 # Installation
 
 First, add Watermelon to your project:
@@ -125,100 +122,21 @@ You're using an ancient version of JSC. Install [`jsc-android`](https://github.c
 </details>
 
 <details>
-  <summary>JSI Installation (Optional, recommended)</summary>
+  <summary>Android JSI package (removed)</summary>
 
-To enable fast, highly performant, synchronous JSI operation on Android, you need to take a few
-additional steps manually.
+The separate `native/android-jsi` Gradle module (`WatermelonDBJSIPackage`, `libwatermelondb-jsi.so`) is gone. iOS and Android SQLite go through Nitro and autolink with `react-native-nitro-modules`.
 
-1.  Make sure you have NDK installed (version `20.1.5948944` has been tested to work when writing this guide)
-2.  In `android/settings.gradle`, add:
+If you previously installed JSI manually, remove:
 
-    ```gradle
-    include ':watermelondb-jsi'
-    project(':watermelondb-jsi').projectDir =
-        new File(rootProject.projectDir, '../node_modules/@nozbe/watermelondb/native/android-jsi')
-    ```
+- `include ':watermelondb-jsi'` from `android/settings.gradle`
+- `implementation project(':watermelondb-jsi')` from `android/app/build.gradle`
+- `WatermelonDBJSIPackage` from `MainApplication`
 
-3.  In `android/app/build.gradle`, add:
-
-    ```gradle
-    // ...
-    android {
-      // ...
-      packagingOptions {
-         pickFirst '**/libc++_shared.so' // ⬅️ This (if missing)
-      }
-    }
-
-    dependencies {
-        // ...
-        implementation project(':watermelondb-jsi') // ⬅️ This!
-    }
-    ```
-
-4.  If you're using Proguard, in `android/app/proguard-rules.pro` add:
-    ```
-    -keep class com.nozbe.watermelondb.** { *; }
-    ```
-5.  And finally, in `android/app/src/main/java/{YOUR_APP_PACKAGE}/MainApplication.{java|kt}`, add:
-
-  <Tabs>
-    <TabItem value="java" label="Java" default>
-
-    ```
-    // ...
-    import com.nozbe.watermelondb.jsi.WatermelonDBJSIPackage; // ⬅️ This!
-    // ...
-
-    @Override
-    protected List<ReactPackage> getPackages() {
-      return Arrays.<ReactPackage>asList(
-        // new MyReactNativePackage(),
-        new WatermelonDBJSIPackage() // ⬅️ Here!
-      );
-    }
-
-    ```
-
-    </TabItem>
-    <TabItem value="kotlin" label="Kotlin">
-
-    ```
-    // ...
-    import com.nozbe.watermelondb.jsi.WatermelonDBJSIPackage // ⬅️ This!
-    // ...
-    override val reactNativeHost: ReactNativeHost =
-      object : DefaultReactNativeHost(this) {
-        override fun getPackages(): List<ReactPackage> {
-          return PackageList(this).packages.apply {
-              // Packages that cannot be autolinked yet can be added manually here, for example:
-              // add(new MyReactNativePackage());
-              add(WatermelonDBJSIPackage())
-          }
-        }
-      }
-
-    ```
-
-    </TabItem>
-
-  </Tabs>
-
-#### Troubleshooting JSI issues
-
-If you see a crash at launch similar to this after updating React Native:
+Keep the Proguard rule if you use it:
 
 ```
-signal 11 (SIGSEGV), code 2 (SEGV_ACCERR), fault addr 0x79193ac4a9
-(...)
-backtrace:
-      (...)
-      watermelondb::createMethod(facebook::jsi::Runtime&, facebook::jsi::Object&, char const*, unsigned int, std::__ndk1::function<facebook::jsi::Value (facebook::jsi::Runtime&, facebook::jsi::Value const*)>)+88
-      watermelondb::Database::install(facebook::jsi::Runtime*)+96)
-      (...)
+-keep class com.nozbe.watermelondb.** { *; }
 ```
-
-… this is most likely due to broken `libc++_shared`. Run `./gradlew clean` from `native/android`, then try again.
 
 </details>
 
