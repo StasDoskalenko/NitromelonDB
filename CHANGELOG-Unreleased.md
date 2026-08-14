@@ -23,10 +23,10 @@
 
 ### Changes
 
-- Migrated the JS source from Flow + hand-written `.d.ts` to TypeScript. Implementation under `src/` is now TypeScript, including adapters (SQLite, LokiJS, remote). `yarn typecheck` uses `strict`, `noUnusedLocals`, `noUnusedParameters`, and `exactOptionalPropertyTypes`, and forbids explicit `any`. Flow and tslint are gone; leftover Flow shims in `src/types` and tslint config/deps were removed. Tests remain JavaScript.
-- CI runs a dedicated TypeScript job (`yarn typecheck` + `yarn test:typescript`) in addition to `ci:check`.
-- Metro now strips TypeScript (not Flow) for `.ts` sources, and `yarn test:metro-transform` guards that path in CI.
-- ESLint now lints implementation `.ts` files (`@typescript-eslint/no-explicit-any`) instead of ignoring all TypeScript.
+- Migrated the JS source from Flow + hand-written `.d.ts` to TypeScript. Implementation under `src/` is now TypeScript, including adapters (SQLite, LokiJS, remote). `yarn typecheck` uses `strict`, `noUnusedLocals`, `noUnusedParameters`, and `exactOptionalPropertyTypes`, and forbids explicit `any`. Tests remain JavaScript.
+- ESLint and TypeScript are dedicated required CI jobs on every pull request. Implementation files under `src/` must be TypeScript (JavaScript is only allowed in tests). ESLint uses `@typescript-eslint/recommended` rather than turning core JS rules off by hand.
+- Removed the Flow toolchain: `flow-bin`, `eslint-plugin-flowtype`, Babel Flow plugins, `.flowconfig`, and `flow-typed`.
+- Metro strips TypeScript for `.ts` sources, and `yarn test:metro-transform` guards that path in CI.
 
 - Updated better-sqlite3 to 13.0.3
 - Support for React Native 0.87 and React 19
@@ -40,4 +40,4 @@
 - [CI] Run iOS tests on macOS 26 / latest stable Xcode / iPhone 17 (iOS 26)
 - [CI] Android tests use JDK 21
 - [CI] Use latest CocoaPods (1.17) without the old 1.15 / xcodeproj / ethon pins
-- Bundle React Native 0.87 with its own Babel preset (Flow parser cannot parse RN's TypeScript-in-JS)
+- Bundle React Native 0.87 with its own Babel preset

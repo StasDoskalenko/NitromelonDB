@@ -37,7 +37,7 @@
 | ✅ | **Proven.** Powers [Nozbe](https://nozbe.com/teams) since 2017 (and [many others](#who-uses-watermelondb)) |
 | ✨ | **Reactive.** (Optional) [RxJS](https://github.com/ReactiveX/rxjs) API |
 | 🔗 | **Relational.** Built on rock-solid [SQLite](https://www.sqlite.org) foundation |
-| ⚠️ | **Static typing** with [Flow](https://flow.org) or [TypeScript](https://typescriptlang.org) |
+| ⚠️ | **Static typing** with [TypeScript](https://typescriptlang.org) |
 
 ## Why Watermelon?
 

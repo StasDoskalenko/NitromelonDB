@@ -1,9 +1,8 @@
-// @flow
-import { Collection, Q, type ColumnName, type TableName } from '../index'
+import { Q, type Collection, type ColumnName, type Model, type TableName } from '../index'
 
-const collection: Collection<*> = (null: any)
-const t: TableName<*> = (null: any)
-const c: ColumnName = (null: any)
+const collection = null as unknown as Collection<Model>
+const t = null as unknown as TableName
+const c = null as unknown as ColumnName
 
 // Check that queries don't break
 collection.query()
