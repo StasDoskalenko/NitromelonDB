@@ -42,6 +42,7 @@
 - Publish docs to GitHub Pages at https://stasdoskalenko.github.io/NitromelonDB/ (docs index: https://stasdoskalenko.github.io/NitromelonDB/docs)
 - [iOS] `simdjson` is vendored in `native/vendor/simdjson` and compiled into the `NitromelonDB` pod. Autolinking is enough; remove any hand-copied `pod 'simdjson'` Podfile lines.
 - Dropped the `@nozbe/simdjson` npm dependency. Native builds compile the official amalgamation from this repo.
+- Dropped the `@nozbe/sqlite` npm dependency. Android and Windows compile the official amalgamation from `native/vendor/sqlite`; iOS still links the system sqlite3.
 
 ### Internal
 
@@ -53,3 +54,4 @@
 - [CI] Use latest CocoaPods (1.17) without the old 1.15 / xcodeproj / ethon pins
 - Bundle React Native 0.87 with its own Babel preset
 - [CI] Weekly `simdjson` bump workflow opens a PR when a newer official amalgamation is available (`scripts/vendor-simdjson.mjs`)
+- [CI] Weekly `sqlite` bump workflow opens a PR when a newer official amalgamation is available (`scripts/vendor-sqlite.mjs`)

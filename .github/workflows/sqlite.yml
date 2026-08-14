@@ -1,0 +1,39 @@
+name: sqlite bump
+
+on:
+  schedule:
+    - cron: '17 12 * * 3'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-24.04
+    name: Vendor latest SQLite
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - name: Vendor latest SQLite if newer
+        id: vendor
+        run: node scripts/vendor-sqlite.mjs --latest --if-newer
+      - uses: peter-evans/create-pull-request@v7
+        if: steps.vendor.outputs.updated == 'true'
+        with:
+          branch: chore/sqlite-bump
+          delete-branch: true
+          title: 'chore: bump vendored SQLite to ${{ steps.vendor.outputs.version }}'
+          commit-message: 'chore: bump vendored SQLite to ${{ steps.vendor.outputs.version }}'
+          body: |
+            Vendored [SQLite ${{ steps.vendor.outputs.version }}](https://www.sqlite.org/changes.html) into `native/vendor/sqlite`.
+
+            Previous version: `${{ steps.vendor.outputs.previous }}`.
+
+            iOS still links the system sqlite3. Android and Windows compile this amalgamation.
+
+            Do not auto-merge. Native CI is the gate — SQLite upgrades can change SQL behavior.
