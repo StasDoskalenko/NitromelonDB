@@ -33,8 +33,8 @@ This tells iOS to share storage directories between your targets, and in this ca
 
     ```ts
     import { NativeModules, Platform } from 'react-native';
-    import { Database } from '@nozbe/watermelondb';
-    import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite';
+    import { Database } from 'nitromelondb';
+    import SQLiteAdapter from 'nitromelondb/adapters/sqlite';
     import schema from './schema';
     import RNFetchBlob from 'rn-fetch-blob';
 
@@ -102,8 +102,8 @@ This tells iOS to share storage directories between your targets, and in this ca
 
     ```ts
     import { NativeModules, Platform } from 'react-native';
-    import { Database } from '@nozbe/watermelondb';
-    import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite';
+    import { Database } from 'nitromelondb';
+    import SQLiteAdapter from 'nitromelondb/adapters/sqlite';
     import schema from './schema';
 
     const getAppGroupPath = (): string => {

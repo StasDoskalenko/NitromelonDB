@@ -20,7 +20,7 @@ There's two steps to defining a relation:
 2. A `@relation` field [defined on a `Model`](./Model.md) class:
 
    ```js
-   import { relation } from '@nozbe/watermelondb/decorators'
+   import { relation } from 'nitromelondb/decorators'
 
    class Comment extends Model {
      // ...
@@ -35,7 +35,7 @@ There's two steps to defining a relation:
 If you have a relation that cannot change (for example, a comment can't change its author), use `@immutableRelation` for extra protection and performance:
 
 ```js
-import { immutableRelation } from '@nozbe/watermelondb/decorators'
+import { immutableRelation } from 'nitromelondb/decorators'
 
 class Comment extends Model {
   // ...
@@ -117,7 +117,7 @@ If for instance, our app `Post`s can be authored by many `User`s and a user can 
 4. Retrieve all `Posts` for a user by defining a query that uses the pivot `PostAuthor` to infer the `Post`s that were authored by the User.
 
 ```js
-import { lazy } from '@nozbe/watermelondb/decorators'
+import { lazy } from 'nitromelondb/decorators'
 
 class Post extends Model {
   static table = 'posts'
@@ -133,7 +133,7 @@ class Post extends Model {
 ```
 
 ```js
-import { immutableRelation } from '@nozbe/watermelondb/decorators'
+import { immutableRelation } from 'nitromelondb/decorators'
 
 class PostAuthor extends Model {
   static table = 'post_authors'
@@ -148,7 +148,7 @@ class PostAuthor extends Model {
 ```
 
 ```js
-import { lazy } from '@nozbe/watermelondb/decorators'
+import { lazy } from 'nitromelondb/decorators'
 
 class User extends Model {
   static table = 'users'

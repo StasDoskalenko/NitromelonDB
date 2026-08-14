@@ -52,7 +52,7 @@ await database.write(async () => {
 Or by defining a `@writer` method on a Model:
 
 ```js
-import { writer } from '@nozbe/watermelondb/decorators'
+import { writer } from 'nitromelondb/decorators'
 
 class Comment extends Model {
   // (...)

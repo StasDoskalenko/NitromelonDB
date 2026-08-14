@@ -1,6 +1,6 @@
 /**
  *
- * DEPRECATED. Change imports to `@nozbe/watermelondb/react` instead.
+ * DEPRECATED. Change imports to `nitromelondb/react` instead.
  *
  */
 

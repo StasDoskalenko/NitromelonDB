@@ -1,12 +1,16 @@
 # Installation
 
-First, add Watermelon to your project:
+:::tip Migrating from `@nozbe/watermelondb`?
+Follow the [migration guide](./Migrating.md) first, then come back here for a full native install.
+:::
+
+First, add NitromelonDB to your project:
 
 ```bash
-yarn add @nozbe/watermelondb
+yarn add nitromelondb
 
 # (or with npm:)
-npm install @nozbe/watermelondb
+npm install nitromelondb
 ```
 
 ## React Native setup
@@ -43,7 +47,7 @@ At least Xcode 15.x is recommended for building (earlier versions are likely to 
 
    ```ruby
    # Uncomment this line if you're not using auto-linking or if auto-linking causes trouble
-   # pod 'NitromelonDB', path: '../node_modules/@nozbe/watermelondb'
+   # pod 'NitromelonDB', path: '../node_modules/nitromelondb'
 
    # WatermelonDB dependency, should not be needed on modern React Native
    # (please file an issue if this causes issues for you)
@@ -75,7 +79,7 @@ By default, React Native uses **autolinking**, and **you don't need the steps be
 ```gradle
 include ':watermelondb'
 project(':watermelondb').projectDir =
-    new File(rootProject.projectDir, '../node_modules/@nozbe/watermelondb/native/android')
+    new File(rootProject.projectDir, '../node_modules/nitromelondb/native/android')
 ```
 
 2. In `android/app/build.gradle`, add:
@@ -257,7 +261,7 @@ By default, React Native uses **autolinking**, and **you don't need the steps be
 
 Follow [instructions on React Native Windows website](https://microsoft.github.io/react-native-windows/docs/native-modules-using), noting that:
 
-- Path to vcxproj: `node_modules\@nozbe\watermelondb\native\windows\WatermelonDB\WatermelonDB.vcxproj`
+- Path to vcxproj: `node_modules\nitromelondb\native\windows\WatermelonDB\WatermelonDB.vcxproj`
 - Name of project to reference: `WatermelonDB`
 - Header for PCH: `#include "winrt/WatermelonDB.h"`
 - Package provider: `PackageProviders().Append(winrt::WatermelonDB::ReactPackageProvider());`

@@ -1,4 +1,4 @@
-import { Collection, Q, type ColumnName, type TableName } from '@nozbe/watermelondb'
+import { Collection, Q, type ColumnName, type TableName } from 'nitromelondb'
 
 const collection: Collection<any> = null as any
 const t: TableName<any> = null as any

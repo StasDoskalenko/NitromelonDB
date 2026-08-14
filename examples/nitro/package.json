@@ -12,7 +12,7 @@
     "postinstall": "patch-package"
   },
   "dependencies": {
-    "@nozbe/watermelondb": "file:../..",
+    "nitromelondb": "file:../..",
     "expo": "~57.0.12",
     "expo-dev-client": "~57.0.11",
     "expo-status-bar": "~57.0.1",

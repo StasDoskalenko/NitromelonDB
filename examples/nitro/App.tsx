@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
-import { Q } from '@nozbe/watermelondb'
+import { Q } from 'nitromelondb'
 import { createExampleDatabase, type ExampleDatabase } from './database'
 import Note from './model/Note'
 

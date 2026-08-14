@@ -1,9 +1,43 @@
+<table>
+<tr>
+<td>
+
+## ℹ️ NitromelonDB is a fork of WatermelonDB
+
+**[WatermelonDB](https://github.com/Nozbe/WatermelonDB)** (`@nozbe/watermelondb`) has not been updated in a while. React Native, iOS, and Android keep moving — New Architecture, yearly OS releases, Hermes → Static Hermes — and a reactive database that sits on native SQLite has to move with them.
+
+**NitromelonDB** continues that work. Same lazy, observable, SQLite-backed model you already know; a codebase we can keep evolving.
+
+**Why this fork exists**
+
+- **Upstream is quiet.** Apps still need the library to track frequent React Native, iOS, and Android version changes.
+- **New Architecture.** Native SQLite on iOS and Android now goes through [Nitro Modules](https://nitro.margelo.com) instead of aging bridge/JSI glue.
+- **One TypeScript codebase.** Implementation lives in TypeScript. That removes the standalone `.d.ts` layer, so types and runtime cannot drift and maintenance stays simpler.
+- **Static Hermes.** A typed, unified JS/TS surface is in a better place for future Hermes / Static Hermes optimizations.
+- **Same product, new package name.** Install `nitromelondb` and import from `nitromelondb` (not `@nozbe/watermelondb`). Step-by-step: **[Migrating from WatermelonDB](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs-website/docs/docs/Migrating.md)**.
+
+```bash
+yarn add nitromelondb
+# or: npm install nitromelondb
+```
+
+```js
+import { Database } from 'nitromelondb'
+import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
+```
+
+Full credit to [@Nozbe](https://github.com/Nozbe) and [Radek Pietruszewski](https://github.com/radex) for designing and shipping WatermelonDB.
+
+</td>
+</tr>
+</table>
+
 <p align="center">
   <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/logo-horizontal2.png" alt="WatermelonDB" width="539" />
 </p>
 
 <h4 align="center">
-  A reactive database framework
+  NitromelonDB — a reactive database framework
 </h4>
 
 <p align="center">
@@ -11,25 +45,21 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Nozbe/WatermelonDB/blob/master/LICENSE">
+  <a href="https://github.com/StasDoskalenko/NitromelonDB/blob/master/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License"/>
   </a>
 
-  <a href="https://www.npmjs.com/package/@nozbe/watermelondb">
-    <img src="https://img.shields.io/npm/v/@nozbe/watermelondb.svg" alt="npm"/>
-  </a>
-
-  <a href="https://gurubase.io/g/watermelondb">
-    <img src="https://img.shields.io/badge/Gurubase-Ask%20WatermelonDB%20Guru-006BFF" alt="Gurubase"/>
+  <a href="https://www.npmjs.com/package/nitromelondb">
+    <img src="https://img.shields.io/npm/v/nitromelondb.svg" alt="npm"/>
   </a>
 </p>
 
-|   | WatermelonDB |
+|   | NitromelonDB |
 | - | ------------ |
 | ⚡️ | **Launch your app instantly** no matter how much data you have |
 | 📈 | **Highly scalable** from hundreds to tens of thousands of records |
 | 😎 | **Lazy loaded**. Only load data when you need it |
-| 🔄 | **Offline-first.** [Sync](https://watermelondb.dev/docs/Sync/Intro) with your own backend |
+| 🔄 | **Offline-first.** [Sync](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs-website/docs/docs/Sync/Intro.md) with your own backend |
 | 📱 | **Multiplatform**. iOS, Android, Windows, web, and Node.js |
 | ⚛️ | **Optimized for React.** Easily plug data into components |
 | 🧰 | **Framework-agnostic.** Use JS API to plug into other UI frameworks |
@@ -41,7 +71,7 @@
 
 ## Why Watermelon?
 
-**WatermelonDB** is a new way of dealing with user data in React Native and React web apps.
+**WatermelonDB** (and this fork) is a different way of dealing with user data in React Native and React web apps.
 
 It's optimized for building **complex applications** in React Native, and the number one goal is **real-world performance**. In simple words, _your app must launch fast_.
 
@@ -111,7 +141,7 @@ const enhance = withObservables(['post'], ({ post }) => ({
 
 The result is fully reactive! Whenever a post or comment is added, changed, or removed, the right components **will automatically re-render** on screen. Doesn't matter if a change occurred in a totally different part of the app, it all just works out of the box!
 
-### ➡️ **Learn more:** [see full documentation](https://nozbe.github.io/WatermelonDB/)
+### ➡️ **Learn more:** [see full documentation](https://github.com/StasDoskalenko/NitromelonDB/tree/master/docs-website/docs/docs)
 
 ## Who uses WatermelonDB
 
@@ -205,26 +235,28 @@ The result is fully reactive! Whenever a post or comment is added, changed, or r
 
   <br/>
 
-_Does your company or app use 🍉? Open a pull request and add your logo/icon with link here!_
+_These apps were built on WatermelonDB. Does your company or app use NitromelonDB (or WatermelonDB)? Open a pull request and add your logo/icon with link here!_
 
 ## Contributing
 
 <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/needyou.jpg" alt="We need you" width="220" />
 
-**WatermelonDB is an open-source project and it needs your help to thrive!**
+**NitromelonDB is an open-source project and it needs your help to thrive!**
 
 If there's a missing feature, a bug, or other improvement you'd like, we encourage you to contribute! Feel free to open an issue to get some guidance and see [Contributing guide](./CONTRIBUTING.md) for details about project setup, testing, etc.
 
-If you're just getting started, see [good first issues](https://github.com/Nozbe/WatermelonDB/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) that are easy to contribute to. If you make a non-trivial contribution, email me, and I'll send you a nice 🍉 sticker!
+If you're just getting started, see [good first issues](https://github.com/StasDoskalenko/NitromelonDB/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) that are easy to contribute to.
 
-If you make or are considering making an app using WatermelonDB, please let us know!
+If you make or are considering making an app using NitromelonDB, please let us know!
 
 ## Author and license
 
 **WatermelonDB** was created by [@Nozbe](https://github.com/Nozbe).
 
-**WatermelonDB's** main author and maintainer is [Radek Pietruszewski](https://github.com/radex) ([website](https://radex.io) ⋅ [𝕏 (Twitter)](https://twitter.com/radexp))
+**WatermelonDB's** main author is [Radek Pietruszewski](https://github.com/radex) ([website](https://radex.io) ⋅ [𝕏 (Twitter)](https://twitter.com/radexp)).
 
-[See all contributors](https://github.com/Nozbe/WatermelonDB/graphs/contributors).
+**NitromelonDB** is a maintained fork by [Stas Doskalenko](https://github.com/StasDoskalenko).
 
-WatermelonDB is available under the MIT license. See the [LICENSE file](https://github.com/Nozbe/WatermelonDB/LICENSE) for more info.
+[Original WatermelonDB contributors](https://github.com/Nozbe/WatermelonDB/graphs/contributors).
+
+NitromelonDB is available under the MIT license. See the [LICENSE file](./LICENSE) for more info.

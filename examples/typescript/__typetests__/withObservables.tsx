@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { withObservables, ExtractedObservables } from '@nozbe/watermelondb/src/react'
-import { Model, Database, tableName } from '@nozbe/watermelondb'
+import { withObservables, ExtractedObservables } from 'nitromelondb/react'
+import { Model, Database, tableName } from 'nitromelondb'
 import { expectType } from 'tsd-check'
 
 const TableName_BLOGS = tableName<Blog>('blogs')

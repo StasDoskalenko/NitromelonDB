@@ -8,7 +8,7 @@ const { version } = require('./package.json')
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'WatermelonDB',
+  title: 'NitromelonDB',
   tagline: 'A reactive database framework',
   favicon: 'img/favicon.ico',
 
@@ -20,8 +20,8 @@ const config = {
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'Nozbe', // Usually your GitHub org/user name.
-  projectName: 'WatermelonDB', // Usually your repo name.
+  organizationName: 'StasDoskalenko', // Usually your GitHub org/user name.
+  projectName: 'NitromelonDB', // Usually your repo name.
 
   trailingSlash: false,
 
@@ -45,7 +45,7 @@ const config = {
           sidebarPath: require.resolve('./sidebars.js'),
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
-          editUrl: 'https://github.com/nozbe/WatermelonDB/edit/master/docs-website/',
+          editUrl: 'https://github.com/StasDoskalenko/NitromelonDB/edit/master/docs-website/',
           routeBasePath: '/',
           path: 'docs',
           lastVersion: 'current',
@@ -76,9 +76,9 @@ const config = {
       // Replace with your project's social card
       image: 'img/watermelon-social-card.png',
       navbar: {
-        title: 'WatermelonDB',
+        title: 'NitromelonDB',
         logo: {
-          alt: 'WatermelonDB Logo',
+          alt: 'NitromelonDB Logo',
           src: 'img/logo.svg',
         },
         items: [
@@ -94,7 +94,7 @@ const config = {
           },
           // {to: '/blog', label: 'Blog', position: 'left'},
           {
-            href: 'https://github.com/nozbe/WatermelonDB',
+            href: 'https://github.com/StasDoskalenko/NitromelonDB',
             label: 'GitHub',
             position: 'right',
           },
@@ -109,6 +109,10 @@ const config = {
               {
                 label: 'Installation',
                 to: '/docs/Installation',
+              },
+              {
+                label: 'Migrating from WatermelonDB',
+                to: '/docs/Migrating',
               },
               // {
               //   label: 'Advanced Guides',
@@ -146,12 +150,12 @@ const config = {
               // },
               {
                 label: 'GitHub',
-                href: 'https://github.com/nozbe/WatermelonDB',
+                href: 'https://github.com/StasDoskalenko/NitromelonDB',
               },
             ],
           },
         ],
-        copyright: `WatermelonDB by <a href="https://radex.io">Radek Pietruszewski</a> and <a href="https://nozbe.com">Nozbe</a>.`,
+        copyright: `NitromelonDB is a fork of WatermelonDB by <a href="https://radex.io">Radek Pietruszewski</a> and <a href="https://nozbe.com">Nozbe</a>.`,
       },
       prism: {
         theme: lightTheme,

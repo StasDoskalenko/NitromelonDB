@@ -10,7 +10,7 @@ Let's define the `Post` model:
 
 ```js
 // model/Post.js
-import { Model } from '@nozbe/watermelondb'
+import { Model } from 'nitromelondb'
 
 export default class Post extends Model {
   static table = 'posts'
@@ -60,7 +60,7 @@ On the "parent" side (`posts`) you define an equivalent `has_many` association a
 Next, define the Model's _fields_ (properties). Those correspond to [table columns](./Schema.md) defined earlier in the schema.
 
 ```js
-import { field, text } from '@nozbe/watermelondb/decorators'
+import { field, text } from 'nitromelondb/decorators'
 
 class Post extends Model {
   static table = 'posts'
@@ -87,7 +87,7 @@ Fields are defined using ES6 decorators. Pass **column name** you defined in Sch
 For date fields, use `@date` instead of `@field`. This will return a JavaScript `Date` object (instead of Unix timestamp integer).
 
 ```js
-import { date } from '@nozbe/watermelondb/decorators'
+import { date } from 'nitromelondb/decorators'
 
 class Post extends Model {
   // ...
@@ -100,7 +100,7 @@ class Post extends Model {
 Use ES6 getters to define model properties that can be calculated based on database fields:
 
 ```js
-import { field, text } from '@nozbe/watermelondb/decorators'
+import { field, text } from 'nitromelondb/decorators'
 
 class Post extends Model {
   static table = 'posts'
@@ -120,7 +120,7 @@ class Post extends Model {
 To point to a related record, e.g. `Post` a `Comment` belongs to, or author (`User`) of a `Comment`, use `@relation` or `@immutableRelation`:
 
 ```js
-import { relation, immutableRelation } from '@nozbe/watermelondb/decorators'
+import { relation, immutableRelation } from 'nitromelondb/decorators'
 
 class Comment extends Model {
   // ...
@@ -136,7 +136,7 @@ class Comment extends Model {
 To point to a list of records that belong to this Model, e.g. all `Comment`s that belong to a `Post`, you can define a simple `Query` using `@children`:
 
 ```js
-import { children } from '@nozbe/watermelondb/decorators'
+import { children } from 'nitromelondb/decorators'
 
 class Post extends Model {
   static table = 'posts'
@@ -159,8 +159,8 @@ Pass the _table name_ of the related records as an argument to `@children`. The 
 In addition to `@children`, you can define custom Queries or extend existing ones, for example:
 
 ```js
-import { children } from '@nozbe/watermelondb/decorators'
-import { Q } from '@nozbe/watermelondb'
+import { children } from 'nitromelondb/decorators'
+import { Q } from 'nitromelondb'
 
 class Post extends Model {
   static table = 'posts'
@@ -182,7 +182,7 @@ class Post extends Model {
 Define **writers** to simplify creating and updating records, for example:
 
 ```js
-import { writer } from '@nozbe/watermelondb/decorators'
+import { writer } from 'nitromelondb/decorators'
 
 class Comment extends Model {
   static table = 'comments'

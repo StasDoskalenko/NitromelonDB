@@ -19,7 +19,7 @@ function resolveDep(name) {
   return local
 }
 
-// JS deps of @nozbe/watermelondb. Metro only indexes projectRoot + watchFolders,
+// JS deps of nitromelondb. Metro only indexes projectRoot + watchFolders,
 // so src/ imports of rxjs fail unless those packages are watched too.
 const libraryDeps = ['rxjs', 'sql-escape-string', 'hoist-non-react-statics', '@babel/runtime']
 
@@ -32,7 +32,7 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ]
 config.resolver.extraNodeModules = {
-  '@nozbe/watermelondb': path.join(workspaceRoot, 'src'),
+  'nitromelondb': path.join(workspaceRoot, 'src'),
   react: path.resolve(projectRoot, 'node_modules/react'),
   'react-native': path.resolve(projectRoot, 'node_modules/react-native'),
   'react-native-nitro-modules': path.resolve(

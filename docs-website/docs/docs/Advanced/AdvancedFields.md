@@ -20,7 +20,7 @@ tableSchema({
 Then in the Model definition:
 
 ```js
-import { json } from '@nozbe/watermelondb/decorators'
+import { json } from 'nitromelondb/decorators'
 
 class Comment extends Model {
   // ...
@@ -67,7 +67,7 @@ Only use JSON fields when you need the flexibility of complex freeform data, or 
 For extra protection, you can mark fields as `@nochange` to ensure they can't be modified. Always put `@nochange` before `@field` / `@date` / `@text`
 
 ```js
-import { field, nochange } from '@nozbe/watermelondb/decorators'
+import { field, nochange } from 'nitromelondb/decorators'
 
 class User extends Model {
   // ...
@@ -104,7 +104,7 @@ Another way is to define an observable property on the Model layer, like so:
 
 ```js
 import { distinctUntilChanged, map as map$ } from 'rxjs/operators'
-import { lazy } from '@nozbe/watermelondb/decorators'
+import { lazy } from 'nitromelondb/decorators'
 
 class Post extends Model {
   @lazy isPopular = this.comments.observeCount().pipe(
@@ -134,7 +134,7 @@ Let's make this example more complicated. Say the post is **always** popular if 
 ```js
 import { of as of$ } from 'rxjs/observable/of'
 import { distinctUntilChanged, map as map$ } from 'rxjs/operators'
-import { lazy } from '@nozbe/watermelondb/decorators'
+import { lazy } from 'nitromelondb/decorators'
 
 class Post extends Model {
   @lazy isPopular = this.observe().pipe(

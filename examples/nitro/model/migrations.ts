@@ -1,4 +1,4 @@
-import { addColumns, schemaMigrations } from '@nozbe/watermelondb/Schema/migrations'
+import { addColumns, schemaMigrations } from 'nitromelondb/Schema/migrations'
 import { NOTES_TABLE } from './schema'
 
 // v1: notes(title, body, created_at)

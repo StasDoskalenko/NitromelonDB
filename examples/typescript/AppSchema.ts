@@ -1,4 +1,4 @@
-import { appSchema, tableSchema } from "@nozbe/watermelondb"
+import { appSchema, tableSchema } from "nitromelondb"
 import { TableName } from "./ts-example"
 
 export const AppSchema = appSchema({

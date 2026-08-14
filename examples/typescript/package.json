@@ -6,7 +6,7 @@
     "test": "tsc --noEmit"
   },
   "devDependencies": {
-    "@nozbe/watermelondb": "link:../../",
+    "nitromelondb": "link:../../",
     "@types/lokijs": "^1.5.3",
     "tsd-check": "^0.6.0",
     "typescript": "^6.0.3"

@@ -1,5 +1,5 @@
-import { Model } from '@nozbe/watermelondb'
-import { date, field, text, writer } from '@nozbe/watermelondb/decorators'
+import { Model } from 'nitromelondb'
+import { date, field, text, writer } from 'nitromelondb/decorators'
 import { NOTES_TABLE } from './schema'
 
 export default class Note extends Model {

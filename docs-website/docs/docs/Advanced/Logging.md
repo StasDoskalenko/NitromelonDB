@@ -8,7 +8,7 @@ about the location and setup of the database will be logged. As each query is ex
 Disabling all logging is simple. Before your app starts, typically in your `database.js` file, import the logger and silence it:
 
 ```js
-import logger from '@nozbe/watermelondb/utils/common/logger';
+import logger from 'nitromelondb/utils/common/logger';
 logger.silence();
 ```
 
@@ -22,7 +22,7 @@ may monkey-patch the logger methods to change their behavior, such as to route m
 
 ```js
 import Cabin from 'cabin';
-import logger from '@nozbe/watermelondb/utils/common/logger';
+import logger from 'nitromelondb/utils/common/logger';
 
 const cabin = new Cabin();
 logger.log = (...messages) => cabin.info(...messages);
