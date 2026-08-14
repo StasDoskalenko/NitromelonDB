@@ -11,7 +11,7 @@ npx expo run:ios
 npx expo run:android
 ```
 
-The app links the library via `file:../..` and Metro watches the repo root so edits to `src/nitro` and `native/nitro` reload.
+The app links the library via `file:../..` and Metro watches `src/` so edits to `src/nitro` reload. Native SQLite (`SQLiteAdapter`) now goes through the `NitromelonDatabase` HybridObject; this screen still calls `ping()` as a smoke test.
 
 `expo prebuild` applies `plugins/withSimdjsonModularHeaders.js` so CocoaPods can import `simdjson` from the Nitrogen-generated `NitromelonDB` module.
 

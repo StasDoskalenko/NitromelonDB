@@ -121,7 +121,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     const clone = new SQLiteAdapter({
       dbName: this.dbName,
       schema: this.schema,
-      jsi: this._dispatcherType === 'jsi',
+      jsi: this._dispatcherType !== 'asynchronous',
       ...(this.migrations ? { migrations: this.migrations } : {}),
       ...options,
     } as SQLiteAdapterOptions)
@@ -302,7 +302,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   }
 
   unsafeLoadFromSync(jsonId: number, callback: ResultCallback<unknown>): void {
-    if (this._dispatcherType !== 'jsi') {
+    if (this._dispatcherType === 'asynchronous') {
       callback({ error: new Error('unsafeLoadFromSync unavailable. Use JSI mode to enable.') })
       return
     }
@@ -322,7 +322,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   }
 
   provideSyncJson(id: number, syncPullResultJson: string, callback: ResultCallback<void>): void {
-    if (this._dispatcherType !== 'jsi') {
+    if (this._dispatcherType === 'asynchronous') {
       callback({ error: new Error('provideSyncJson unavailable. Use JSI mode to enable.') })
       return
     }

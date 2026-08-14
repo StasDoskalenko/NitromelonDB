@@ -25,7 +25,7 @@ Pod::Spec.new do |s|
     # FIXME: This is a workaround for broken build in use_frameworks mode
     # I don't think this is a correct fix, but… seems to work?
     # 'OTHER_SWIFT_FLAGS' => '-Xcc -Wno-error=non-modular-include-in-framework-module'
-    'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/native/nitro" "$(PODS_TARGET_SRCROOT)/nitrogen/generated/shared/c++"',
+    'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/native/nitro" "$(PODS_TARGET_SRCROOT)/native/shared" "$(PODS_TARGET_SRCROOT)/nitrogen/generated/shared/c++"',
   }
   s.requires_arc = true
   # simdjson is annoyingly slow without compiler optimization, disable for debugging

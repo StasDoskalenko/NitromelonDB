@@ -10,6 +10,13 @@ class JSIInstaller {
         // release binaries. We could use @Keep or configure Proguard to keep it but that would be
         // error prone for lib users
         _resolveDatabasePath("");
+        try {
+            Class.forName("com.nozbe.watermelondb.NativeDatabasePath")
+                    .getMethod("install", Context.class)
+                    .invoke(null, context);
+        } catch (Exception ignored) {
+            // Nitro path installs NativeDatabasePath from WMDatabaseBridge.
+        }
     }
 
     // Helper method called from C++

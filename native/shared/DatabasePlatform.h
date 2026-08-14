@@ -28,6 +28,9 @@ void deleteDatabaseFile(std::string path, bool warnIfDoesNotExist);
 // Calls function when device memory is getting low
 void onMemoryAlert(std::function<void(void)> callback);
 
+// Stores sync json provided by JS (Nitro / NativeModule)
+void provideSyncJson(int id, std::string json);
+
 // Returns sync json provided by the user
 std::string_view getSyncJson(int id);
 

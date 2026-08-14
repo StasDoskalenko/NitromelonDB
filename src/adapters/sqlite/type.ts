@@ -17,7 +17,8 @@ export type SQLiteAdapterOptions = {
   dbName?: string | undefined
   schema: AppSchema
   migrations?: SchemaMigrations | undefined
-  // The new way to run the database in synchronous mode.
+  // Ignored on iOS/Android (always Nitro) and on Windows (always JSI).
+  // `{ jsi: false }` is rejected on iOS/Android — NativeModules SQLite interop is gone.
   jsi?: boolean | undefined
   migrationEvents?: MigrationEvents | undefined
   // Called when database failed to set up (initialize) correctly. It's possible that
@@ -28,14 +29,11 @@ export type SQLiteAdapterOptions = {
   // (JSI only) Sets exclusive file locking mode in sqlite. Use this ONLY if you need to - e.g. seems to fix
   // mysterious "database is malformed" issues on JSI+Android when using Headless JS
   usesExclusiveLocking?: boolean | undefined
-  // (Android/non-JSI only) If `true`, this database connection will be accessible from native code
-  // like so:
-  //   import com.nozbe.watermelondb.*
-  //   Database.getInstance(dbName, context) // use the same dbName as in JS
+  // Deprecated: Android NativeModule-only. Ignored; SQLite no longer uses NativeModules.
   experimentalUnsafeNativeReuse?: boolean | undefined
 }
 
-export type DispatcherType = 'asynchronous' | 'jsi'
+export type DispatcherType = 'nitro' | 'jsi' | 'asynchronous'
 
 // This is the internal format of batch operations
 // It's ugly, but optimized for performance and versatility, e.g.:

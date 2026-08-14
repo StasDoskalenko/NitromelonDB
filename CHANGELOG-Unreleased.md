@@ -6,6 +6,7 @@
 - [iOS] Minimum deployment target is now iOS 15.1
 - [Android] Minimum SDK version is now 24
 - [iOS] CocoaPods spec renamed from `WatermelonDB` to `NitromelonDB`. Update Podfiles (`pod 'NitromelonDB'`) and bridging-header imports (`#import <NitromelonDB/WatermelonDB.h>`).
+- [SQLite][RN] iOS/Android SQLite is Nitro-only. NativeModules interop (`{ jsi: false }`) is removed. Windows still uses the JSI installer. Web and Electron keep the Node/better-sqlite3 dispatcher (`makeDispatcher/index.ts` / `index.web.ts`).
 
 ### Deprecations
 
@@ -24,7 +25,7 @@
 
 ### Changes
 
-- [Nitro] Scaffolded Nitrogen (`nitro.json`, `yarn specs`) with a C++ `Nitromelon` HybridObject smoke test (`ping()`). CocoaPods spec renamed to `NitromelonDB`. `react-native-nitro-modules` is an optional peer dependency. Expo SDK 57 example lives in `examples/nitro`.
+- [Nitro] Native SQLite uses a `NitromelonDatabase` HybridObject wrapping the existing C++ `Database`. `ping()` remains as a smoke test. `react-native-nitro-modules` is an optional peer dependency. Expo SDK 57 example lives in `examples/nitro`.
 - Migrated the JS source from Flow + hand-written `.d.ts` to TypeScript. Implementation under `src/` is now TypeScript, including adapters (SQLite, LokiJS, remote). `yarn typecheck` uses `strict`, `noUnusedLocals`, `noUnusedParameters`, and `exactOptionalPropertyTypes`, and forbids explicit `any`. Tests remain JavaScript.
 
 - ESLint and TypeScript are dedicated required CI jobs on every pull request. Implementation files under `src/` must be TypeScript (JavaScript is only allowed in tests). ESLint uses `@typescript-eslint/recommended` rather than turning core JS rules off by hand.

@@ -33,6 +33,7 @@ target_sources(
   # Autolinking Setup
   ../nitrogen/generated/android/NitromelonDBOnLoad.cpp
   # Shared Nitrogen C++ sources
+  ../nitrogen/generated/shared/c++/HybridNitromelonDatabaseSpec.cpp
   ../nitrogen/generated/shared/c++/HybridNitromelonSpec.cpp
   # Android-specific Nitrogen C++ sources
   

@@ -13,9 +13,12 @@
 #error NitroModules cannot be found! Are you sure you installed NitroModules properly?
 #endif
 
-
+// Forward declaration of `HybridNitromelonDatabaseSpec` to properly resolve imports.
+namespace margelo::nitro::watermelondb { class HybridNitromelonDatabaseSpec; }
 
 #include <string>
+#include <memory>
+#include "HybridNitromelonDatabaseSpec.hpp"
 
 namespace margelo::nitro::watermelondb {
 
@@ -49,6 +52,8 @@ namespace margelo::nitro::watermelondb {
     public:
       // Methods
       virtual std::string ping() = 0;
+      virtual std::shared_ptr<HybridNitromelonDatabaseSpec> createAdapter(const std::string& dbName, bool usesExclusiveLocking) = 0;
+      virtual void provideSyncJson(double id, const std::string& json) = 0;
 
     protected:
       // Hybrid Setup

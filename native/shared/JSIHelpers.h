@@ -1,15 +1,18 @@
 #pragma once
 
+#include <functional>
+#include <string>
+
 namespace watermelondb {
 
 using platform::consoleError;
 using platform::consoleLog;
 
-jsi::Value makeError(facebook::jsi::Runtime &rt, const std::string &desc) {
+inline jsi::Value makeError(facebook::jsi::Runtime &rt, const std::string &desc) {
     return rt.global().getPropertyAsFunction(rt, "Error").call(rt, desc);
 }
 
-jsi::Value runBlock(facebook::jsi::Runtime &rt, std::function<jsi::Value(void)> block) {
+inline jsi::Value runBlock(facebook::jsi::Runtime &rt, std::function<jsi::Value(void)> block) {
     jsi::Value retValue;
     // NOTE: C++ Exceptions don't work correctly on Android -- most likely due to the fact that
     // we don't share the C++ stdlib with React Native targets, which means that the executor
@@ -41,7 +44,7 @@ jsi::Value runBlock(facebook::jsi::Runtime &rt, std::function<jsi::Value(void)> 
 
 using jsiFunction = std::function<jsi::Value(jsi::Runtime &rt, const jsi::Value *args)>;
 
-void createMethod(jsi::Runtime &runtime, jsi::Object &object, const char *methodName, unsigned int argCount, jsiFunction func) {
+inline void createMethod(jsi::Runtime &runtime, jsi::Object &object, const char *methodName, unsigned int argCount, jsiFunction func) {
     jsi::PropNameID name = jsi::PropNameID::forAscii(runtime, methodName);
     jsi::Function function = jsi::Function::createFromHostFunction(runtime, name, argCount, [methodName, argCount, func]
                                                                    (jsi::Runtime &rt, const jsi::Value &, const jsi::Value *args, size_t count) {

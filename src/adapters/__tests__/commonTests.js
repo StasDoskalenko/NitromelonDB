@@ -575,7 +575,7 @@ export default () => {
     if (
       !(
         AdapterClass.name === 'SQLiteAdapter' &&
-        adapter.underlyingAdapter._dispatcherType === 'jsi' &&
+        adapter.underlyingAdapter._dispatcherType !== 'asynchronous' &&
         platform !== 'windows'
       )
     ) {
@@ -680,7 +680,7 @@ export default () => {
     if (
       !(
         AdapterClass.name === 'SQLiteAdapter' &&
-        adapter.underlyingAdapter._dispatcherType === 'jsi' &&
+        adapter.underlyingAdapter._dispatcherType !== 'asynchronous' &&
         platform !== 'windows'
       )
     ) {
@@ -710,7 +710,7 @@ export default () => {
     if (
       !(
         AdapterClass.name === 'SQLiteAdapter' &&
-        adapter.underlyingAdapter._dispatcherType === 'jsi' &&
+        adapter.underlyingAdapter._dispatcherType !== 'asynchronous' &&
         platform !== 'windows'
       )
     ) {

@@ -1,7 +1,6 @@
 #import "WMDatabaseBridge.h"
 #import "WMDatabaseDriver.h"
 #import "JSIInstaller.h"
-#import "Database.h"
 
 #import <ReactCommon/RCTInteropTurboModule.h>
 #import <ReactCommon/RCTTurboModule.h>
@@ -213,7 +212,9 @@ BRIDGE_METHOD(getLocal,
 - (void)installJSIBindingsWithRuntime:(jsi::Runtime &)runtime
                           callInvoker:(const std::shared_ptr<CallInvoker> &)callInvoker
 {
-    watermelondb::Database::install(&runtime);
+    (void)runtime;
+    (void)callInvoker;
+    // SQLite is a Nitro HybridObject. Keep this hook so the TurboModule still loads.
 }
 
 RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(initializeJSI)

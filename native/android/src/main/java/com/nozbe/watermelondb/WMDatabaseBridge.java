@@ -29,6 +29,7 @@ public class WMDatabaseBridge extends ReactContextBaseJavaModule {
     public WMDatabaseBridge(ReactApplicationContext reactContext) {
         super(reactContext);
         this.reactContext = reactContext;
+        NativeDatabasePath.install(reactContext);
     }
 
 

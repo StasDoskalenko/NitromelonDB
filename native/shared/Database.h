@@ -43,6 +43,9 @@ public:
     jsi::Value getLocal(jsi::String &key);
     void executeMultiple(std::string sql);
 
+    int getUserVersion();
+    void migrate(jsi::String &migrationSql, int fromVersion, int toVersion);
+
 private:
     bool initialized_;
     bool isDestroyed_;
@@ -73,9 +76,7 @@ private:
     void commit();
     void rollback();
 
-    int getUserVersion();
     void setUserVersion(int newVersion);
-    void migrate(jsi::String &migrationSql, int fromVersion, int toVersion);
 
     bool isCached(std::string cacheKey);
     void markAsCached(std::string cacheKey);
