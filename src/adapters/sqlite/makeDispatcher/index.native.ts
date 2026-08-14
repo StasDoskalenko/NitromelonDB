@@ -134,7 +134,8 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
           ).join(',')}`,
         )
       }
-      let result = method(...args)
+      // Nitro HybridObject methods read NativeState from `this`.
+      let result = method.apply(this._db, args)
       if (result instanceof Error) {
         throw result
       } else {
