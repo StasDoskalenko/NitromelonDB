@@ -2,9 +2,14 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "skipLibCheck": true,
     "paths": {
-      "@nozbe/watermelondb/src/nitro": ["../../src/nitro/index.ts"],
+      "@nozbe/watermelondb": ["../../src/index.ts"],
       "@nozbe/watermelondb/*": ["../../src/*"]
     }
-  }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "../../src/ambient.d.ts"],
+  "exclude": ["node_modules", "ios", "android"]
 }

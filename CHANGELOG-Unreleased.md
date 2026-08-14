@@ -26,7 +26,7 @@
 
 ### Changes
 
-- [Nitro] Native SQLite uses a typed `NitromelonDatabase` HybridObject wrapping the existing C++ `Database`. `react-native-nitro-modules` is an optional peer dependency. Expo SDK 57 example lives in `examples/nitro`.
+- [Nitro] Native SQLite uses a typed `NitromelonDatabase` HybridObject wrapping the existing C++ `Database`. `react-native-nitro-modules` is an optional peer dependency. The Expo SDK 57 app in `examples/nitro` uses `SQLiteAdapter` with a notes schema, migrations, and a list UI.
 - Migrated the JS source from Flow + hand-written `.d.ts` to TypeScript. Implementation under `src/` is now TypeScript, including adapters (SQLite, LokiJS, remote). `yarn typecheck` uses `strict`, `noUnusedLocals`, `noUnusedParameters`, and `exactOptionalPropertyTypes`, and forbids explicit `any`. Tests remain JavaScript.
 
 - ESLint and TypeScript are dedicated required CI jobs on every pull request. Implementation files under `src/` must be TypeScript (JavaScript is only allowed in tests). ESLint uses `@typescript-eslint/recommended` rather than turning core JS rules off by hand.

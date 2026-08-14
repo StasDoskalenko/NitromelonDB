@@ -14,7 +14,7 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ]
 config.resolver.extraNodeModules = {
-  '@nozbe/watermelondb': workspaceRoot,
+  '@nozbe/watermelondb': path.join(workspaceRoot, 'src'),
   react: path.resolve(projectRoot, 'node_modules/react'),
   'react-native': path.resolve(projectRoot, 'node_modules/react-native'),
   'react-native-nitro-modules': path.resolve(
