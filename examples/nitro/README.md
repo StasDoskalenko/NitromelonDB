@@ -19,6 +19,4 @@ If you already have a native build and only JS changed, reload Metro. After pull
 
 The app links the library via `file:../..`. Metro watches `src/` plus WatermelonDB's JS dependencies (`rxjs`, `sql-escape-string`, …) so those imports resolve outside the example's tree.
 
-`expo prebuild` applies `plugins/withSimdjsonModularHeaders.js` so CocoaPods can import `simdjson` from the Nitrogen-generated `NitromelonDB` module.
-
 `patches/expo-modules-jsi+57.0.4.patch` works around [expo#48522](https://github.com/expo/expo/issues/48522): on Xcode 26.3, C++ `abs` collides with Swift `abs` while compiling `ExpoModulesJSI`. Drop the patch once an `expo-modules-jsi` release includes `Swift.abs`.

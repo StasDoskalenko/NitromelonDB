@@ -9,7 +9,7 @@ hide_title: true
 
 ## ℹ️ NitromelonDB is a fork of WatermelonDB
 
-**[WatermelonDB](https://github.com/Nozbe/WatermelonDB)** (`@nozbe/watermelondb`) has not been updated in a while. React Native, iOS, and Android keep moving — New Architecture, yearly OS releases, Hermes → Static Hermes — and a reactive database that sits on native SQLite has to move with them.
+**[WatermelonDB](https://github.com/Nozbe/WatermelonDB)** (`@nozbe/watermelondb`) has not been updated in a while. React Native, iOS, and Android keep moving — New Architecture, yearly OS releases, new JS runtimes — and a reactive database that sits on native SQLite has to move with them.
 
 **NitromelonDB** continues that work. Same lazy, observable, SQLite-backed model you already know; a codebase we can keep evolving.
 
@@ -18,8 +18,8 @@ hide_title: true
 - **Upstream is quiet.** Apps still need the library to track frequent React Native, iOS, and Android version changes.
 - **New Architecture.** Native SQLite on iOS and Android now goes through [Nitro Modules](https://nitro.margelo.com) instead of aging bridge/JSI glue.
 - **One TypeScript codebase.** Implementation lives in TypeScript. That removes the standalone `.d.ts` layer, so types and runtime cannot drift and maintenance stays simpler.
-- **Static Hermes.** A typed, unified JS/TS surface is in a better place for future Hermes / Static Hermes optimizations.
-- **Same product, new package name.** Install `nitromelondb` and import from `nitromelondb` (not `@nozbe/watermelondb`). Step-by-step: **[Migrating from WatermelonDB](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs-website/docs/docs/Migrating.md)**.
+- **Performance.** We want to keep improving SQLite, native, and JS performance. The TypeScript rewrite is one step on that path (including future runtimes such as Static Hermes), alongside further native optimizations.
+- **Same product, new package name.** Install `nitromelondb` and import from `nitromelondb` (not `@nozbe/watermelondb`). Step-by-step: **[Migrating from WatermelonDB](https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating)**.
 
 ```bash
 yarn add nitromelondb

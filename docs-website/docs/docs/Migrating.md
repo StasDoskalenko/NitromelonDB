@@ -66,7 +66,7 @@ import { withObservables } from 'nitromelondb/react'
 import { synchronize } from 'nitromelondb/sync'
 ```
 
-Also update `node_modules` paths in native config:
+Also update `node_modules` paths if you still have any (Windows native projects, old manual Gradle):
 
 | From | To |
 | --- | --- |
@@ -75,23 +75,18 @@ Also update `node_modules` paths in native config:
 
 ## 3. iOS
 
-The CocoaPods spec is now `NitromelonDB` (was `WatermelonDB`).
-
-**Podfile**
+Autolinking picks up the `NitromelonDB` pod. **Remove** any WatermelonDB / simdjson lines you added by hand — simdjson is compiled into NitromelonDB from npm `@nozbe/simdjson`. You do not add a `pod 'simdjson'` (or `pod 'NitromelonDB'`) line.
 
 ```ruby
-# before
+# delete these if present
 # pod 'WatermelonDB', path: '../node_modules/@nozbe/watermelondb'
-pod 'simdjson', path: '../node_modules/@nozbe/simdjson', modular_headers: true
-
-# after
 # pod 'NitromelonDB', path: '../node_modules/nitromelondb'
 pod 'simdjson', path: '../node_modules/@nozbe/simdjson', modular_headers: true
 ```
 
-Autolinking still picks up the pod. Only uncomment the `NitromelonDB` line if you are not using autolinking.
+Then `pod install` (Expo: `npx expo prebuild`).
 
-**Bridging header** (if you import the native header yourself):
+**Bridging header** (only if you import the native header yourself):
 
 ```objc
 // before
@@ -99,12 +94,6 @@ Autolinking still picks up the pod. Only uncomment the `NitromelonDB` line if yo
 
 // after
 #import <NitromelonDB/WatermelonDB.h>
-```
-
-Then:
-
-```bash
-cd ios && bundle exec pod install
 ```
 
 Minimum iOS deployment target is **15.1**.
@@ -190,10 +179,11 @@ See [Flow support removed](./Advanced/Flow.md) and the [TypeScript example](http
 - [ ] `yarn remove @nozbe/watermelondb && yarn add nitromelondb`
 - [ ] `yarn add react-native-nitro-modules` (React Native iOS/Android)
 - [ ] Replace `@nozbe/watermelondb` → `nitromelondb` in imports and path aliases
-- [ ] Update `node_modules/@nozbe/watermelondb` → `node_modules/nitromelondb` in Podfile / Gradle / Windows project paths
-- [ ] Podfile: `WatermelonDB` → `NitromelonDB`; bridging header `#import <NitromelonDB/WatermelonDB.h>`
+- [ ] Update leftover `node_modules/@nozbe/watermelondb` paths (Gradle / Windows)
+- [ ] Remove hand-copied `pod 'WatermelonDB'` / `pod 'NitromelonDB'` / `pod 'simdjson'` lines from the Podfile
+- [ ] Bridging header, if you import it: `#import <NitromelonDB/WatermelonDB.h>`
 - [ ] Remove `watermelondb-jsi` / `WatermelonDBJSIPackage` from Android
 - [ ] Remove `{ jsi: false }` from `SQLiteAdapter` on iOS/Android
-- [ ] `pod install` and a **full native rebuild** (`npx expo run:ios` / `run:android`, or Xcode / Gradle)
+- [ ] Full native rebuild (`npx react-native run-ios` / `run-android`, or `npx expo run:ios` / `run:android`)
 
 Then continue with [Installation](./Installation.mdx) and [Setup](./Setup.md) if anything in native linking is still missing.

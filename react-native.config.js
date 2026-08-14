@@ -1,7 +1,12 @@
+const path = require('path')
+
 module.exports = {
-  // This is for auto-linking WatermelonDB as a library
+  // Library autolinking (consumed from node_modules/nitromelondb)
   dependency: {
     platforms: {
+      ios: {
+        podspecPath: path.join(__dirname, 'NitromelonDB.podspec'),
+      },
       android: {
         sourceDir: './native/android',
       },
@@ -12,8 +17,16 @@ module.exports = {
           {
             projectFile: 'WatermelonDB\\WatermelonDB.vcxproj',
             directDependency: true,
-          }
+          },
         ],
+      },
+    },
+  },
+  // Tester app in this repo: simdjson is compiled into NitromelonDB.podspec.
+  dependencies: {
+    '@nozbe/simdjson': {
+      platforms: {
+        ios: null,
       },
     },
   },

@@ -33,7 +33,7 @@
     "docs:build": "./scripts/update-docusaurus && cd docs-website && yarn build",
     "docs:deploy": "./scripts/update-docusaurus && cd docs-website && yarn deploy",
     "specs": "nitrogen",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package && node ./scripts/disable-simdjson-ios-autolink.js"
   },
   "types": "src/index.ts",
   "author": "@Nozbe",

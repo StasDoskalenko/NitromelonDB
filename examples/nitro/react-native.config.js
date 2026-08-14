@@ -2,7 +2,7 @@ module.exports = {
   dependencies: {
     '@nozbe/simdjson': {
       platforms: {
-        // Linked from plugins/withSimdjsonModularHeaders.js with modular_headers.
+        // Compiled into NitromelonDB.podspec; skip a second simdjson iOS target.
         ios: null,
       },
     },
