@@ -114,7 +114,7 @@ project(':watermelondb').projectDir =
     new File(rootProject.projectDir, '../node_modules/nitromelondb/native/android')
 ```
 
-Keep the Proguard rule if you use it (the Android library also ships this as a consumer rule, and the Expo config plugin writes it during prebuild):
+Keep the Proguard rule if you use it:
 
 ```
 -keep class com.nozbe.watermelondb.** { *; }

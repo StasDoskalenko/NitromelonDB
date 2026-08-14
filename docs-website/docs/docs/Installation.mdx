@@ -66,7 +66,7 @@ NitromelonDB fully supports Expo **development builds**, **EAS Build**, and **EA
    }
    ```
 
-   The plugin runs during `expo prebuild` (EAS Build does this for you). It writes Android ProGuard keep rules so release / EAS production minify cannot strip the Nitro JNI loader. It does **not** install the old `watermelondb-jsi` Android module — SQLite goes through Nitro autolinking.
+   The plugin runs during `expo prebuild` (EAS Build does this for you). It does **not** install the old `watermelondb-jsi` Android module — SQLite goes through Nitro autolinking.
 
    Optional:
 
@@ -191,8 +191,6 @@ Keep the Proguard rule if you use it:
 ```
 -keep class com.nozbe.watermelondb.** { *; }
 ```
-
-The Android AAR also ships this (plus a keep for `com.margelo.nitro.watermelondb.**`) via `consumer-rules.pro`. The Expo config plugin writes the same rules during prebuild.
 
 </details>
 

@@ -24,7 +24,6 @@
 - [LokiJS] Multitab sync issue fix
 - [Android] Added linker flag for building with 16kB page alignment
 - [Android] Generate `BuildConfig` under AGP 8+ (fixes `cannot find symbol: BuildConfig`)
-- [Android] Ship `consumer-rules.pro` so release minify keeps `com.nozbe.watermelondb.**` and `com.margelo.nitro.watermelondb.**`
 - [TS] make catchError visible to typescript
 
 ### Performance
