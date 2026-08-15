@@ -41,7 +41,7 @@ Run it from **master**: Actions → **Prepare Release** → Run workflow.
 4. Creates a GitHub Release (marked as prerelease for alpha/beta)
 5. Comments on the PR with npm and GitHub links (merge trigger only)
 
-Do **not** set `registry-url` on `actions/setup-node` in this workflow. That writes `_authToken=${NODE_AUTH_TOKEN}` into `.npmrc` and npm then skips OIDC (`E404` / `ENEEDAUTH`).
+OIDC publish uses `actions/setup-node@v6` + Node 24 (npm ≥ 11.5.1). Do **not** set `registry-url` (it writes `_authToken` and npm skips OIDC). The publish step runs `NODE_AUTH_TOKEN="" npm publish ./dist … --verbose` so a leftover dummy token cannot mask trusted publishing. Provenance is generated automatically on OIDC publishes from this public repo.
 
 ## Release process
 
@@ -159,7 +159,7 @@ Do not add an `NPM_TOKEN` secret to this repository.
 - Confirm the workflow has `id-token: write` (it does in `publish-release.yml`)
 - Confirm that version is not already on npm
 - Review the Publish Release logs
-- `ENEEDAUTH` or `E404` on `PUT https://registry.npmjs.org/nitromelondb` usually means npm never did the OIDC exchange. Typical cause: `actions/setup-node` `registry-url` wrote an empty `_authToken` into `.npmrc`. Re-run after that is removed; do not add an `NPM_TOKEN` secret.
+- `ENEEDAUTH` or `E404` on `PUT https://registry.npmjs.org/nitromelondb` usually means npm never did the OIDC exchange. Typical cause: `actions/setup-node` `registry-url` wrote `_authToken=${NODE_AUTH_TOKEN}` into `.npmrc`, or a dummy `NODE_AUTH_TOKEN`. Use Node 24 / setup-node v6, no `registry-url`, and `NODE_AUTH_TOKEN=""` on `npm publish`. Do not add an `NPM_TOKEN` secret.
 - `ENEEDAUTH` can also mean the workflow filename or repo name does not match the trusted publisher config (case-sensitive, include `.yml`)
 
 ### Retry a failed publish (no new version)

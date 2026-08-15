@@ -24,7 +24,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      id-token: write
+      id-token: write # Required for npm OIDC trusted publishing
     steps:
       - name: Ensure workflow ran from master
         if: github.event_name == 'workflow_dispatch'
@@ -45,20 +45,18 @@ jobs:
           echo "✅ Valid release branch: $BRANCH"
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
 
       - name: Set Node.js version
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 24.x
-          # Do not set registry-url. It writes `_authToken=${NODE_AUTH_TOKEN}` into
-          # .npmrc, which makes npm skip OIDC trusted publishing (E404 / ENEEDAUTH).
-
-      - name: Ensure npm supports OIDC trusted publishing
-        run: npm install -g npm@latest
+          node-version: '24'
+          # Do not set registry-url: it writes `_authToken=${NODE_AUTH_TOKEN}` and
+          # npm then skips OIDC. Node 24 ships npm >= 11.5.1 (required for OIDC).
+          package-manager-cache: false
 
       - name: Configure Git
         run: |
@@ -111,15 +109,10 @@ jobs:
 
       - name: Publish to npm
         run: |
-          unset NODE_AUTH_TOKEN
-          if [ -n "${NPM_CONFIG_USERCONFIG:-}" ] && [ -f "$NPM_CONFIG_USERCONFIG" ]; then
-            sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
-            sed -i '/always-auth/d' "$NPM_CONFIG_USERCONFIG"
-          fi
           if npm view "nitromelondb@${{ env.NEW_VERSION }}" version >/dev/null 2>&1; then
             echo "nitromelondb@${{ env.NEW_VERSION }} is already on npm, skipping publish"
           else
-            npm publish ./dist --access public --tag "${{ env.DIST_TAG }}"
+            NODE_AUTH_TOKEN="" npm publish ./dist --access public --tag "${{ env.DIST_TAG }}" --verbose
             echo "✅ Published nitromelondb@${{ env.NEW_VERSION }} with tag ${{ env.DIST_TAG }}"
           fi
 
