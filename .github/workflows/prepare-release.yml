@@ -4,14 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       version_bump:
-        description: 'Version bump type'
+        description: 'Version bump (none = keep current X.Y.Z, next -alpha.N / graduate)'
         required: true
         type: choice
         options:
+          - none
           - patch
           - minor
           - major
-        default: 'patch'
+        default: 'none'
       prerelease:
         description: 'Prerelease channel (repeat alpha/beta increments -alpha.N / -beta.N)'
         required: true
@@ -20,7 +21,7 @@ on:
           - none
           - alpha
           - beta
-        default: 'none'
+        default: 'alpha'
 
 jobs:
   prepare:
