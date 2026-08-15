@@ -5,6 +5,7 @@ package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
 # Vendored amalgamation from https://github.com/simdjson/simdjson (see native/vendor/simdjson).
 # `s.dependency "simdjson"` would resolve CocoaPods trunk, which is the wrong library.
 # iOS links the system sqlite3; do not compile native/vendor/sqlite into this pod.
+
 simdjson_header = File.join(__dir__, 'native', 'vendor', 'simdjson', 'simdjson.h')
 unless File.exist?(simdjson_header)
   raise 'NitromelonDB: missing native/vendor/simdjson/simdjson.h (vendored simdjson amalgamation).'

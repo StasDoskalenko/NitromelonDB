@@ -75,7 +75,7 @@ Also update `node_modules` paths if you still have any (Windows native projects,
 
 ## 3. iOS
 
-Autolinking picks up the `NitromelonDB` pod. **Remove** any WatermelonDB / simdjson lines you added by hand — simdjson is compiled into NitromelonDB from vendored sources. You do not add a `pod 'simdjson'` (or `pod 'NitromelonDB'`) line.
+Autolinking picks up the `NitromelonDB` pod. **Remove** any WatermelonDB / simdjson / FMDB lines you added by hand — simdjson is compiled into NitromelonDB from vendored sources. You do not add a `pod 'simdjson'`, `pod 'FMDB'`, or `pod 'NitromelonDB'` line. FMDB is not used.
 
 ```ruby
 # delete these if present
@@ -202,7 +202,7 @@ See [Flow support removed](./Advanced/Flow.md) and the [TypeScript example](http
 - [ ] `yarn add react-native-nitro-modules` (React Native iOS/Android)
 - [ ] Replace `@nozbe/watermelondb` → `nitromelondb` in imports and path aliases
 - [ ] Update leftover `node_modules/@nozbe/watermelondb` paths (Gradle / Windows)
-- [ ] Remove hand-copied `pod 'WatermelonDB'` / `pod 'NitromelonDB'` / `pod 'simdjson'` lines from the Podfile
+- [ ] Remove hand-copied `pod 'WatermelonDB'` / `pod 'NitromelonDB'` / `pod 'simdjson'` / `pod 'FMDB'` lines from the Podfile
 - [ ] Bridging header, if you import it: `#import <NitromelonDB/WatermelonDB.h>`
 - [ ] Remove `watermelondb-jsi` / `WatermelonDBJSIPackage` from Android
 - [ ] Enable the New Architecture (old / Paper architecture is not supported)

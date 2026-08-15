@@ -121,7 +121,7 @@ npx react-native run-ios
 npx react-native run-android
 ```
 
-`run-ios` installs pods and applies autolinking. You do not add `pod 'NitromelonDB'` or `pod 'simdjson'` to the Podfile.
+`run-ios` installs pods and applies autolinking. You do not add `pod 'NitromelonDB'`, `pod 'simdjson'`, or `pod 'FMDB'` to the Podfile. FMDB is not used.
 
 We highly recommend that you _do not_ use `use_frameworks!`. If NitromelonDB fails to build in frameworks mode, [use this workaround](https://github.com/Nozbe/WatermelonDB/issues/1285#issuecomment-1381323060) to force static libraries. Manual (non-CocoaPods) iOS linking is not supported.
 
