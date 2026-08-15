@@ -68,31 +68,45 @@ const plugins = [
   ],
 ]
 
-module.exports = {
-  env: {
-    development: {
-      plugins,
-    },
-    production: {
-      plugins: [
-        ...plugins,
-        'minify-flip-comparisons',
-        'minify-guarded-expressions',
-        'minify-dead-code-elimination',
-      ],
-    },
-    test: {
-      plugins: [...plugins, '@babel/plugin-syntax-jsx'],
-    },
+const minifyPlugins = [
+  'minify-flip-comparisons',
+  'minify-guarded-expressions',
+  'minify-dead-code-elimination',
+]
+
+const typescriptPlugin = (isTSX) => [
+  '@babel/plugin-transform-typescript',
+  { allowDeclareFields: true, isTSX },
+]
+
+const envPlugins = (head = []) => ({
+  development: {
+    plugins: [...head, ...plugins],
   },
+  production: {
+    plugins: [...head, ...plugins, ...minifyPlugins],
+  },
+  test: {
+    plugins: [...head, ...plugins, '@babel/plugin-syntax-jsx'],
+  },
+})
+
+// TypeScript must run before class-properties / decorators. Babel concatenates
+// override plugins after parent plugins, so TS files get a full plugin list here
+// instead of a parent config plus a trailing transform-typescript override.
+module.exports = {
   overrides: [
     {
       test: /\.tsx$/,
-      plugins: [['@babel/plugin-transform-typescript', { allowDeclareFields: true, isTSX: true }]],
+      env: envPlugins([typescriptPlugin(true)]),
     },
     {
       test: /\.ts$/,
-      plugins: [['@babel/plugin-transform-typescript', { allowDeclareFields: true }]],
+      env: envPlugins([typescriptPlugin(false)]),
+    },
+    {
+      exclude: /\.tsx?$/,
+      env: envPlugins(),
     },
   ],
 }

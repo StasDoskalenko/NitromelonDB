@@ -135,7 +135,6 @@ const copyNonJavaScriptFiles = (buildPath) => {
     'native/shared',
     'native/ios',
     'native/android',
-    'native/android-jsi',
     'native/nitro',
     'native/windows',
     'native/vendor/simdjson',
@@ -173,10 +172,6 @@ module.exports = {
   cleanFolder(`${buildPath}/native/ios/WatermelonDB.xcodeproj/xcuserdata`)
   cleanFolder(`${buildPath}/native/android/build`)
   cleanFolder(`${buildPath}/native/android/bin/build`)
-  cleanFolder(`${buildPath}/native/android-jsi/.cxx`)
-  cleanFolder(`${buildPath}/native/android-jsi/.externalNativeBuild`)
-  cleanFolder(`${buildPath}/native/android-jsi/build`)
-  cleanFolder(`${buildPath}/native/android-jsi/bin/build`)
   cleanFolder(`${buildPath}/native/windows/.vs`)
   cleanFolder(`${buildPath}/native/windows/x64`)
   cleanFolder(`${buildPath}/native/windows/WatermelonDB/Generated Files`)
@@ -216,7 +211,6 @@ if (isDevelopment) {
         resolvePath('native/ios/WatermelonDB'),
         resolvePath('native/shared'),
         resolvePath('native/android/src/main'),
-        resolvePath('native/android-jsi/src/main'),
         resolvePath('native/nitro'),
       ],
       {
