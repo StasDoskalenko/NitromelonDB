@@ -1,0 +1,15 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "skipLibCheck": true,
+    "paths": {
+      "nitromelondb": ["../../../src/index.ts"],
+      "nitromelondb/*": ["../../../src/*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "../shared/**/*.ts", "../shared/**/*.tsx", "../../../src/ambient.d.ts"],
+  "exclude": ["node_modules", "ios", "android"]
+}

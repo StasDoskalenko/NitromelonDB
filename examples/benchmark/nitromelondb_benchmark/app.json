@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "NitromelonDB Benchmark",
+    "slug": "nitromelondb-benchmark",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "plugins": ["expo-dev-client", "nitromelondb"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nitromelondb.benchmark"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#18181b",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.nitromelondb.benchmark"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
