@@ -124,7 +124,7 @@ const copyNonJavaScriptFiles = (buildPath) => {
   createPackageJson(buildPath, pkg)
   copyFiles(buildPath, [
     'LICENSE',
-    // 'README.md',
+    'README.md',
     'yarn.lock',
     'app.plugin.js',
     'plugin',

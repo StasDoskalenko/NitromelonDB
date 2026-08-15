@@ -22,9 +22,9 @@ jobs:
       )
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      id-token: write # Required for OIDC (npm trusted publishers)
+      contents: write # Tag + GitHub Release (official example is contents: read because it only publishes)
       pull-requests: write
-      id-token: write # Required for npm OIDC trusted publishing
     steps:
       - name: Ensure workflow ran from master
         if: github.event_name == 'workflow_dispatch'
@@ -54,8 +54,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '24'
-          # Do not set registry-url: it writes `_authToken=${NODE_AUTH_TOKEN}` and
-          # npm then skips OIDC. Node 24 ships npm >= 11.5.1 (required for OIDC).
+          registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
 
       - name: Configure Git
@@ -106,7 +105,7 @@ jobs:
           if npm view "nitromelondb@${{ env.NEW_VERSION }}" version >/dev/null 2>&1; then
             echo "nitromelondb@${{ env.NEW_VERSION }} is already on npm, skipping publish"
           else
-            NODE_AUTH_TOKEN="" npm publish ./dist --access public --tag "${{ env.DIST_TAG }}" --verbose
+            npm publish ./dist --access public --tag "${{ env.DIST_TAG }}"
             echo "✅ Published nitromelondb@${{ env.NEW_VERSION }} with tag ${{ env.DIST_TAG }}"
           fi
 

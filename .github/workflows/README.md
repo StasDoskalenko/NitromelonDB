@@ -41,7 +41,9 @@ Run it from **master**: Actions → **Prepare Release** → Run workflow.
 4. Creates a GitHub Release (marked as prerelease for alpha/beta)
 5. Comments on the PR with npm and GitHub links (merge trigger only)
 
-OIDC publish uses `actions/setup-node@v6` + Node 24 (npm ≥ 11.5.1). Do **not** set `registry-url` (it writes `_authToken` and npm skips OIDC). The publish step runs `NODE_AUTH_TOKEN="" npm publish ./dist … --verbose` so a leftover dummy token cannot mask trusted publishing. Provenance is generated automatically on OIDC publishes from this public repo.
+OIDC publish follows the [npm trusted publishers GitHub Actions example](https://docs.npmjs.com/trusted-publishers#github-actions-configuration): `actions/checkout@v6`, `actions/setup-node@v6`, Node 24, `registry-url: https://registry.npmjs.org`, `package-manager-cache: false`, and `id-token: write`. We still `yarn build` and `npm publish ./dist` (this repo publishes the built tree, not the source root). Provenance is generated automatically on OIDC publishes from this public repo.
+
+We do **not** use `on: push: tags: v*` as the primary trigger. This workflow creates the git tag with `GITHUB_TOKEN` after a release PR merge; events from `GITHUB_TOKEN` do not start a second workflow, so a tag-only job would never run. Merge + **Actions → Publish Release** (retry) is the equivalent.
 
 ## Release process
 
@@ -159,8 +161,8 @@ Do not add an `NPM_TOKEN` secret to this repository.
 - Confirm the workflow has `id-token: write` (it does in `publish-release.yml`)
 - Confirm that version is not already on npm
 - Review the Publish Release logs
-- `ENEEDAUTH` or `E404` on `PUT https://registry.npmjs.org/nitromelondb` usually means npm never did the OIDC exchange. Typical cause: `actions/setup-node` `registry-url` wrote `_authToken=${NODE_AUTH_TOKEN}` into `.npmrc`, or a dummy `NODE_AUTH_TOKEN`. Use Node 24 / setup-node v6, no `registry-url`, and `NODE_AUTH_TOKEN=""` on `npm publish`. Do not add an `NPM_TOKEN` secret.
-- `ENEEDAUTH` can also mean the workflow filename or repo name does not match the trusted publisher config (case-sensitive, include `.yml`)
+- `ENEEDAUTH` or `OIDC token exchange error - package not found` usually means the Trusted Publisher on npmjs.com is missing or does not match this workflow. Use `StasDoskalenko` / `NitromelonDB` / `publish-release.yml`, leave Environment empty, allow `npm publish`, and click **Save**.
+- `ENEEDAUTH` can also mean the workflow filename or repo name does not match (case-sensitive, include `.yml`)
 
 ### Retry a failed publish (no new version)
 Do **not** run Prepare Release again — that would bump to the next `-alpha.N` / `-beta.N`. After the fix is on `master`: Actions → **Publish Release** → Run workflow (branch **master**). That publishes the version already in `package.json`, then creates the git tag and GitHub Release if they are missing.
