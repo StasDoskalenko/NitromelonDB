@@ -13,10 +13,10 @@ Every merged change should already have a note there. Prepare Release copies tho
 1. GitHub → **Actions** → **Prepare Release**
 2. Run the workflow from **master**
 3. Choose:
-   - **Version bump:** `patch` / `minor` / `major`
+   - **Version bump:** `none` / `patch` / `minor` / `major` (`none` keeps the current X.Y.Z)
    - **Prerelease:** `none` / `alpha` / `beta`
 
-Repeat alpha/beta releases of the same version increment the counter (`0.29.0-alpha.0`, then `0.29.0-alpha.1`). Choosing `none` on an in-progress prerelease publishes that version as stable.
+To ship another alpha of the same version: bump **`none`** + prerelease **`alpha`** (`0.30.0-alpha.0` → `0.30.0-alpha.1`). Choosing prerelease `none` on an in-progress alpha/beta publishes that version as stable.
 
 ### Step 3: Review and merge the PR
 

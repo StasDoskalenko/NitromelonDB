@@ -12,7 +12,7 @@ Automated releases for `nitromelondb`, modeled on the two-step process used in [
 
 | Field | Options | Purpose |
 | --- | --- | --- |
-| Version bump | `patch`, `minor`, `major` | Semver bump from the current `package.json` version |
+| Version bump | `none`, `patch`, `minor`, `major` | Semver bump. `none` keeps the current X.Y.Z (next `-alpha.N`, or graduate if prerelease is `none`) |
 | Prerelease | `none`, `alpha`, `beta` | Optional prerelease channel |
 
 **What it does:**
@@ -56,27 +56,18 @@ flowchart TD
 
 ## Versioning
 
-`package.json` is currently `0.28.1-0` (an unpublished prerelease of 0.28.1). Typical first releases:
+`package.json` is currently `0.30.0-alpha.0`. To ship another alpha of the same version, use bump **`none`** + prerelease **`alpha`**.
 
 | Current | Bump | Prerelease | Result |
 | --- | --- | --- | --- |
-| `0.28.1-0` | minor | alpha | `0.29.0-alpha.0` |
-| `0.28.1-0` | major | alpha | `1.0.0-alpha.0` |
-| `0.28.1-0` | minor | none | `0.29.0` |
-| `0.28.1-0` | patch | none | `0.28.1` |
-
-After that, repeating the same bump + channel increments the prerelease counter:
-
-| Current | Bump | Prerelease | Result |
-| --- | --- | --- | --- |
-| `0.29.0-alpha.0` | minor | alpha | `0.29.0-alpha.1` |
-| `0.29.0-alpha.1` | minor | beta | `0.29.0-beta.0` |
-| `0.29.0-beta.0` | minor | none | `0.29.0` |
-| `1.0.0-alpha.0` | major | alpha | `1.0.0-alpha.1` |
-| `1.0.0-alpha.2` | major | none | `1.0.0` |
+| `0.30.0-alpha.0` | none | alpha | `0.30.0-alpha.1` |
+| `0.30.0-alpha.1` | none | beta | `0.30.0-beta.0` |
+| `0.30.0-beta.0` | none | none | `0.30.0` |
+| `0.30.0-alpha.0` | major | alpha | `1.0.0-alpha.0` |
+| `0.28.1` | minor | alpha | `0.29.0-alpha.0` |
 | `0.28.1` | patch | none | `0.28.2` |
 
-Repeating the **same** bump + channel increments `-alpha.N` / `-beta.N`. Choosing `none` on an in-progress prerelease publishes that core version as stable. A *different* bump starts a new core version (`0.29.0-alpha.0` + major + alpha → `1.0.0-alpha.0`).
+`none` only works while a prerelease is in progress. Starting a new line still needs `patch` / `minor` / `major`. Repeating the **same** bump + channel also increments `-alpha.N` / `-beta.N`.
 
 npm dist-tags:
 
