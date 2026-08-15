@@ -5,6 +5,7 @@ on:
     types: [closed]
     branches:
       - master
+  workflow_dispatch:
 
 concurrency:
   group: publish-release
@@ -13,16 +14,28 @@ concurrency:
 jobs:
   publish:
     if: |
-      github.event.pull_request.merged == true &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      startsWith(github.event.pull_request.head.ref, 'release/v')
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.pull_request.merged == true &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        startsWith(github.event.pull_request.head.ref, 'release/v')
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
       id-token: write
     steps:
+      - name: Ensure workflow ran from master
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/master" ]; then
+            echo "❌ Run Publish Release from the master branch (selected: ${{ github.ref_name }})"
+            exit 1
+          fi
+
       - name: Validate release branch
+        if: github.event_name == 'pull_request_target'
         run: |
           BRANCH="${{ github.event.pull_request.head.ref }}"
           if [[ ! "$BRANCH" =~ ^release/v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)\.[0-9]+)?$ ]]; then
@@ -34,14 +47,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
 
       - name: Set Node.js version
         uses: actions/setup-node@v4
         with:
           node-version: 24.x
-          registry-url: 'https://registry.npmjs.org'
+          # Do not set registry-url. It writes `_authToken=${NODE_AUTH_TOKEN}` into
+          # .npmrc, which makes npm skip OIDC trusted publishing (E404 / ENEEDAUTH).
 
       - name: Ensure npm supports OIDC trusted publishing
         run: npm install -g npm@latest
@@ -98,6 +112,10 @@ jobs:
       - name: Publish to npm
         run: |
           unset NODE_AUTH_TOKEN
+          if [ -n "${NPM_CONFIG_USERCONFIG:-}" ] && [ -f "$NPM_CONFIG_USERCONFIG" ]; then
+            sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
+            sed -i '/always-auth/d' "$NPM_CONFIG_USERCONFIG"
+          fi
           if npm view "nitromelondb@${{ env.NEW_VERSION }}" version >/dev/null 2>&1; then
             echo "nitromelondb@${{ env.NEW_VERSION }} is already on npm, skipping publish"
           else
@@ -133,6 +151,7 @@ jobs:
           fi
 
       - name: Comment on PR
+        if: github.event_name == 'pull_request_target'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

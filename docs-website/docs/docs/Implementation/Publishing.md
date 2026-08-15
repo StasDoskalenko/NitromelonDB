@@ -30,6 +30,8 @@ Merging the PR:
 - Publishes `nitromelondb` to npm (`latest`, `alpha`, or `beta`)
 - Creates the git tag and GitHub Release
 
+If npm publish fails, do not run Prepare Release again. After the fix is on `master`, run **Actions → Publish Release** from **master** to retry the same version.
+
 ### Local helpers
 
 ```bash

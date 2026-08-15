@@ -38,7 +38,10 @@
     "vendor:sqlite": "node ./scripts/vendor-sqlite.mjs"
   },
   "types": "src/index.ts",
-  "author": "@Nozbe",
+  "author": {
+    "name": "Stanislav Doskalenko",
+    "url": "https://github.com/StasDoskalenko"
+  },
   "homepage": "https://stasdoskalenko.github.io/NitromelonDB/",
   "bugs": "https://github.com/StasDoskalenko/NitromelonDB/issues",
   "license": "MIT",
