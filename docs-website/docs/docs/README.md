@@ -16,7 +16,7 @@ hide_title: true
 **Why this fork exists**
 
 - **Upstream is quiet.** Apps still need the library to track frequent React Native, iOS, and Android version changes.
-- **New Architecture.** Native SQLite on iOS and Android now goes through [Nitro Modules](https://nitro.margelo.com) instead of aging bridge/JSI glue.
+- **New Architecture only.** Native SQLite on iOS and Android goes through [Nitro Modules](https://nitro.margelo.com). The old React Native architecture (Paper / the legacy bridge) is not supported.
 - **One TypeScript codebase.** Implementation lives in TypeScript. That removes the standalone `.d.ts` layer, so types and runtime cannot drift and maintenance stays simpler.
 - **Performance.** We want to keep improving SQLite, native, and JS performance. The TypeScript rewrite is one step on that path (including future runtimes such as Static Hermes), alongside further native optimizations.
 - **Same product, new package name.** Install `nitromelondb` and import from `nitromelondb` (not `@nozbe/watermelondb`). Step-by-step: **[Migrating from WatermelonDB](https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating)**.
@@ -25,6 +25,8 @@ hide_title: true
 yarn add nitromelondb
 # or: npm install nitromelondb
 ```
+
+On Expo, add `"nitromelondb"` to the `plugins` array in `app.json` (development builds, EAS Build, and EAS Update). See [Installation](https://stasdoskalenko.github.io/NitromelonDB/docs/Installation#expo).
 
 ```js
 import { Database } from 'nitromelondb'
@@ -65,7 +67,7 @@ Full credit to [@Nozbe](https://github.com/Nozbe) and [Radek Pietruszewski](http
 | 📈 | **Highly scalable** from hundreds to tens of thousands of records |
 | 😎 | **Lazy loaded**. Only load data when you need it |
 | 🔄 | **Offline-first.** [Sync](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs-website/docs/docs/Sync/Intro.md) with your own backend |
-| 📱 | **Multiplatform**. iOS, Android, Windows, web, and Node.js |
+| 📱 | **Multiplatform**. iOS, Android, Windows, web, Node.js, and **Expo** (EAS Build and EAS Update) |
 | ⚛️ | **Optimized for React.** Easily plug data into components |
 | 🧰 | **Framework-agnostic.** Use JS API to plug into other UI frameworks |
 | ⏱ | **Fast.** And getting faster with every release! |

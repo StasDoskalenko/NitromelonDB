@@ -7,8 +7,8 @@
 - [Android] Minimum SDK version is now 24
 - [iOS] CocoaPods spec renamed from `WatermelonDB` to `NitromelonDB`. Autolinking picks up the pod. Bridging-header imports, if you have them, are `#import <NitromelonDB/WatermelonDB.h>`.
 - [iOS] `simdjson` is vendored in `native/vendor/simdjson` and compiled into the `NitromelonDB` pod. Remove any hand-copied `pod 'simdjson'` Podfile lines; do not add `pod 'NitromelonDB'` either.
-- [iOS] Replaced in-tree FMDB 2.7.5 with CocoaPods `FMDB` ~> 2.7.12 (default `standard` subspec, system sqlite3). Autolinking pulls it in; do not add `pod 'FMDB'` yourself.
-- [SQLite][RN] iOS/Android SQLite is Nitro-only. NativeModules interop (`{ jsi: false }`) is removed. Windows still uses the JSI installer. Web and Electron keep the Node/better-sqlite3 dispatcher (`makeDispatcher/index.ts` / `index.web.ts`).
+- [SQLite][RN] iOS/Android SQLite is Nitro-only. NativeModules interop (`{ jsi: false }`) is removed. The old React Native architecture (Paper / the legacy bridge) is not supported. Windows still uses the JSI installer. Web and Electron keep the Node/better-sqlite3 dispatcher (`makeDispatcher/index.ts` / `index.web.ts`).
+- [SQLite][RN] Removed the leftover NativeModule SQLite stack: iOS `WMDatabaseBridge` / `WMDatabaseDriver` / FMDB, and the Android Java `WMDatabaseBridge` / `WMDatabase` / `WMDatabaseDriver` APIs. Random IDs use `Nitromelon.getRandomIds()` on Nitro. Android `WatermelonDBPackage` still installs the database path and closes SQLite on JS reload.
 - [Android] Removed `native/android-jsi` (`WatermelonDBJSIPackage`, `libwatermelondb-jsi.so`). Drop `include ':watermelondb-jsi'` and `WatermelonDBJSIPackage` from the app. Nitro autolinks. Native turbo-sync JSON injection uses `com.nozbe.watermelondb.NitromelonNative.provideSyncJson`.
 - [Nitro] The `NitromelonDatabase` HybridObject now exposes the full SQLite adapter API (`initialize`, `find`, `query`, `batchJSON`, …) as typed Nitrogen methods. The `ping()` / `nativeEngine` smoke-test API is removed. iOS/Android no longer install `nativeWatermelonCreateAdapter` JSI bindings.
 - The npm package is now `nitromelondb` (was `@nozbe/watermelondb`). Update install commands and imports (`yarn add nitromelondb`, `import { Database } from 'nitromelondb'`).
@@ -18,6 +18,7 @@
 ### New features
 
 - [Electron] Added `RemoteAdapter` so SQLite can run in Electron's main process over IPC (or any serializable transport). Cherry-picked from [Nozbe/WatermelonDB#1859](https://github.com/Nozbe/WatermelonDB/pull/1859) by [@feznyng](https://github.com/feznyng)
+- [Expo] First-class Expo support: config plugin (`app.plugin.js`) for development builds, EAS Build, and EAS Update. Add `"nitromelondb"` to `app.json` `plugins`. Replaces `@morrowdigital/watermelondb-expo-plugin` (Android JSI wiring is not used; SQLite is Nitro). Optional `{ "excludeSimArch": true }`.
 
 ### Fixes
 
@@ -44,7 +45,6 @@
 - [iOS] `simdjson` is vendored in `native/vendor/simdjson` and compiled into the `NitromelonDB` pod. Autolinking is enough; remove any hand-copied `pod 'simdjson'` Podfile lines.
 - Dropped the `@nozbe/simdjson` npm dependency. Native builds compile the official amalgamation from this repo.
 - Dropped the `@nozbe/sqlite` npm dependency. Android and Windows compile the official amalgamation from `native/vendor/sqlite`; iOS still links the system sqlite3.
-- [iOS] ObjC `WMDatabase` uses CocoaPods `FMDB` (~> 2.7.12) instead of the in-tree 2.7.5 copy.
 
 ### Internal
 
@@ -57,4 +57,3 @@
 - Bundle React Native 0.87 with its own Babel preset
 - [CI] Weekly `simdjson` bump workflow opens a PR when a newer official amalgamation is available (`scripts/vendor-simdjson.mjs`)
 - [CI] Weekly `sqlite` bump workflow opens a PR when a newer official amalgamation is available (`scripts/vendor-sqlite.mjs`)
-- [iOS] CocoaPods `FMDB` is a podspec dependency. The spec does not set `DEFINES_MODULE` (SPM's `Package.swift` does); NitromelonDB enables modular headers for `FMDB` during `pod install` so a Swift static library can depend on it.

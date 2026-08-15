@@ -126,6 +126,8 @@ const copyNonJavaScriptFiles = (buildPath) => {
     'LICENSE',
     // 'README.md',
     'yarn.lock',
+    'app.plugin.js',
+    'plugin',
     'NitromelonDB.podspec',
     'nitro.json',
     'android/CMakeLists.txt',

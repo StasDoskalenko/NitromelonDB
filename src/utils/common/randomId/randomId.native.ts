@@ -1,50 +1,41 @@
-/* eslint-disable no-bitwise */
-import nativeRandomId_v2 from './randomId_v2.native'
+/* eslint-disable global-require */
+
 import nativeRandomId_fallback from './fallback'
-import { wmDatabaseBridge } from './nativeBridge'
+import type { Nitromelon } from '../../../nitro/Nitromelon.nitro'
 
-const alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
-let randomNumbers: number[] = []
-let cur = 9999999
+let randomIds: string[] = []
+let cur = 9999
+let cachedNitromelon: Nitromelon | null | undefined
 
-// TODO: This is 3-5x slower than Math.random()-based implementation
-// Should be migrated to JSI, or simply implemented fully in native
-// (bridging is the bottleneck)
-function nativeRandomId_v1(): string {
-  let id = ''
-  let len = 0
-  let v = 0
-
-  while (len < 16) {
-    if (cur < 256) {
-      v = randomNumbers[cur] >> 2
-      cur++
-
-      if (v < 62) {
-        id += alphabet[v]
-        len++
-      }
-    } else {
-      const bytes = wmDatabaseBridge?.getRandomBytes?.(256)
-      if (!bytes) {
-        return nativeRandomId_fallback()
-      }
-      randomNumbers = bytes
-      cur = 0
-    }
+function nitromelonOrNull(): Nitromelon | null {
+  if (cachedNitromelon !== undefined) {
+    return cachedNitromelon
   }
 
-  return id
+  try {
+    const nitroModule = require('../../../nitro') as { nitromelon: Nitromelon }
+    if (typeof nitroModule.nitromelon.getRandomIds !== 'function') {
+      cachedNitromelon = null
+      return null
+    }
+    cachedNitromelon = nitroModule.nitromelon
+    return cachedNitromelon
+  } catch {
+    cachedNitromelon = null
+    return null
+  }
 }
 
-const nativeRandomId: () => string = (() => {
-  if (wmDatabaseBridge?.getRandomIds) {
-    return nativeRandomId_v2
-  } else if (wmDatabaseBridge?.getRandomBytes) {
-    return nativeRandomId_v1
+// NOTE: This is 2x faster than Math.random on iOS (6x faster than the old getRandomBytes path)
+export default function nativeRandomId(): string {
+  if (cur >= 64) {
+    const ids = nitromelonOrNull()?.getRandomIds()
+    if (!ids) {
+      return nativeRandomId_fallback()
+    }
+    randomIds = ids.split(',')
+    cur = 0
   }
 
-  return nativeRandomId_fallback
-})()
-
-export default nativeRandomId
+  return randomIds[cur++]
+}
