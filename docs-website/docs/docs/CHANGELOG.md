@@ -31,6 +31,8 @@ Contributors: Please add your changes to CHANGELOG-Unreleased.md
 - [Android] Added linker flag for building with 16kB page alignment
 - [Android] Generate `BuildConfig` under AGP 8+ (fixes `cannot find symbol: BuildConfig`)
 - [TS] make catchError visible to typescript
+- Stop copying the removed `native/android-jsi` tree in `yarn build` (package publish was failing with ENOENT)
+- Run `@babel/plugin-transform-typescript` before class-field plugins so `yarn build` can compile `declare` fields
 
 ### Changes
 
