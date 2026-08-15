@@ -88,8 +88,10 @@ export default class Collection<Record extends Model> {
    *
    * If the record is not found, the Promise will reject.
    */
-  async find(id: RecordId): Promise<Record> {
-    return toPromise((callback) => this._fetchRecord(id, callback))
+  find(id: RecordId): Promise<Record> {
+    return this.database._workQueue.followPromise(
+      toPromise((callback) => this._fetchRecord(id, callback)),
+    )
   }
 
   /**
@@ -149,7 +151,11 @@ export default class Collection<Record extends Model> {
    * })
    * ```
    */
-  async create(recordBuilder: (record: Record) => void = noop): Promise<Record> {
+  create(recordBuilder: (record: Record) => void = noop): Promise<Record> {
+    return this.database._workQueue.followPromise(this._performCreate(recordBuilder))
+  }
+
+  async _performCreate(recordBuilder: (record: Record) => void): Promise<Record> {
     this.database._ensureInWriter(`Collection.create()`)
 
     const record = this.prepareCreate(recordBuilder)

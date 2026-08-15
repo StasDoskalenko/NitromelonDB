@@ -110,8 +110,49 @@ export default class WorkQueue {
 
   _subActionIncoming: boolean = false
 
+  _inWorkTurn: boolean = false
+
   constructor(db: Database) {
     this._db = db
+  }
+
+  /**
+   * When a writer `await`s this promise, mark the next microtask as still inside that writer
+   * so a nested write() without callWriter throws.
+   */
+  followPromise<T>(promise: Promise<T>): Promise<T> {
+    if (!this._db.experimentalDetectNestedWriters || !this._inWorkTurn) {
+      return promise
+    }
+
+    const workItem = this._queue[0]
+    return new Promise((resolve, reject) => {
+      const resume = (): void => {
+        if (this._queue[0] === workItem) {
+          this._inWorkTurn = true
+        }
+      }
+      const endResume = (): void => {
+        queueMicrotask(() => {
+          if (this._queue[0] === workItem) {
+            this._inWorkTurn = false
+          }
+        })
+      }
+
+      promise.then(
+        (value) => {
+          resume()
+          resolve(value)
+          endResume()
+        },
+        (error) => {
+          resume()
+          reject(error)
+          endResume()
+        },
+      )
+    })
   }
 
   get isWriterRunning(): boolean {
@@ -142,6 +183,19 @@ export default class WorkQueue {
         invariant(!isWriter, 'Cannot call a writer block from a reader block')
       }
       return work(actionInterface(this, currentWork) as unknown as WriterInterface)
+    }
+
+    if (this._db.experimentalDetectNestedWriters && this._inWorkTurn) {
+      const currentWork = this._queue[0]
+      if (currentWork) {
+        const nestedKind = isWriter ? 'writer' : 'reader'
+        const currentKind = currentWork.isWriter ? 'writer' : 'reader'
+        throw new Error(
+          `Nested ${nestedKind} (${description || 'unnamed'}) called from ${currentKind} (${
+            currentWork.description || 'unnamed'
+          }) without callWriter()/callReader(). This deadlocks.`,
+        )
+      }
     }
 
     return new Promise((resolve, reject) => {
@@ -205,7 +259,13 @@ export default class WorkQueue {
     const { work, resolve, reject, isWriter } = workItem
 
     try {
-      const workPromise = work(actionInterface(this, workItem))
+      this._inWorkTurn = this._db.experimentalDetectNestedWriters
+      let workPromise: Promise<unknown>
+      try {
+        workPromise = work(actionInterface(this, workItem))
+      } finally {
+        this._inWorkTurn = false
+      }
 
       if (process.env.NODE_ENV !== 'production') {
         invariant(

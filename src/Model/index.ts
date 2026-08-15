@@ -105,7 +105,11 @@ export default class Model {
    *   task.name = 'New name'
    * })
    */
-  async update(recordUpdater: (record: this) => void = noop): Promise<this> {
+  update(recordUpdater: (record: this) => void = noop): Promise<this> {
+    return this.db._workQueue.followPromise(this._performUpdate(recordUpdater))
+  }
+
+  async _performUpdate(recordUpdater: (record: this) => void): Promise<this> {
     this.__ensureInWriter(`Model.update()`)
     const record = this.prepareUpdate(recordUpdater)
     await this.db.batch(this)

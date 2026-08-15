@@ -15,9 +15,18 @@ import CollectionMap from './CollectionMap'
 import type LocalStorage from './LocalStorage'
 import WorkQueue, { type ReaderInterface, type WriterInterface } from './WorkQueue'
 
-type DatabaseProps = {
+export type DatabaseProps = {
   adapter: DatabaseAdapter
   modelClasses: ModelClass<Model>[]
+  /**
+   * If true, calling `database.write()` / `database.read()` (or `@writer` / `@reader`) from inside
+   * an already running reader/writer, without `callWriter()` / `callReader()`, throws immediately
+   * instead of deadlocking.
+   *
+   * Detection covers nested calls on the same JS turn and after Watermelon adapter awaits
+   * (`find` / `query` / `batch`). Independent writers queued from the UI still wait as usual.
+   */
+  experimentalDetectNestedWriters?: boolean | undefined
 }
 
 type TableChange = [TableName, CollectionChangeSet<Model>]
@@ -44,13 +53,19 @@ export default class Database {
 
   _workQueue: WorkQueue = new WorkQueue(this)
 
+  /**
+   * When true, nested readers/writers without callReader/callWriter throw instead of deadlocking.
+   * @see {DatabaseProps#experimentalDetectNestedWriters}
+   */
+  experimentalDetectNestedWriters: boolean = false
+
   // (experimental) if true, Database is in a broken state and should not be used anymore
   _isBroken: boolean = false
 
   _localStorage: LocalStorage | undefined
 
   constructor(options: DatabaseProps) {
-    const { adapter, modelClasses } = options
+    const { adapter, modelClasses, experimentalDetectNestedWriters = false } = options
     if (process.env.NODE_ENV !== 'production') {
       invariant(adapter, `Missing adapter parameter for new Database()`)
       invariant(
@@ -58,6 +73,7 @@ export default class Database {
         `Missing modelClasses parameter for new Database()`,
       )
     }
+    this.experimentalDetectNestedWriters = experimentalDetectNestedWriters
     this.adapter = new DatabaseAdapterCompat(adapter)
     this.schema = adapter.schema
     this.collections = new CollectionMap(this, modelClasses)
@@ -98,7 +114,11 @@ export default class Database {
    */
   batch(...records: Array<Model | null | undefined | false>): Promise<void>
   batch(records: Array<Model | null | undefined | false>): Promise<void>
-  async batch(...args: unknown[]): Promise<void> {
+  batch(...args: unknown[]): Promise<void> {
+    return this._workQueue.followPromise(this._performBatch(args))
+  }
+
+  async _performBatch(args: unknown[]): Promise<void> {
     const actualRecords = fromArrayOrSpread<Model | null | undefined | false>(
       args,
       'Database.batch',
@@ -243,7 +263,8 @@ export default class Database {
    * the duration of this Writer (except if changed by it).
    *
    * To call another Writer (or Reader) from this one without deadlocking, use `callWriter`
-   * (or `callReader`).
+   * (or `callReader`). If {@link DatabaseProps#experimentalDetectNestedWriters} is enabled, a nested write
+   * without `callWriter` throws instead of hanging forever.
    *
    * See docs for more details and a practical guide.
    *

@@ -118,7 +118,9 @@ export default class Query<Record extends Model> {
    * Tip: For convenience, you can also use `await query`
    */
   fetch(): Promise<Record[]> {
-    return toPromise((callback) => this.collection._fetchQuery(this, callback))
+    return this.collection.database._workQueue.followPromise(
+      toPromise((callback) => this.collection._fetchQuery(this, callback)),
+    )
   }
 
   then<U>(
@@ -161,7 +163,9 @@ export default class Query<Record extends Model> {
    * Tip: For convenience you can also use `await query.count`
    */
   fetchCount(): Promise<number> {
-    return toPromise((callback) => this.collection._fetchCount(this, callback))
+    return this.collection.database._workQueue.followPromise(
+      toPromise((callback) => this.collection._fetchCount(this, callback)),
+    )
   }
 
   get count(): QueryCountProxy {
@@ -198,7 +202,9 @@ export default class Query<Record extends Model> {
    * Note: This is faster than using `fetch()` if you only need IDs
    */
   fetchIds(): Promise<RecordId[]> {
-    return toPromise((callback) => this.collection._fetchIds(this, callback))
+    return this.collection.database._workQueue.followPromise(
+      toPromise((callback) => this.collection._fetchIds(this, callback)),
+    )
   }
 
   /**
@@ -211,7 +217,9 @@ export default class Query<Record extends Model> {
    * (e.g. pragmas, statistics, groupped results, records with extra columns, etc...)
    */
   unsafeFetchRaw(): Promise<unknown[]> {
-    return toPromise((callback) => this.collection._unsafeFetchRaw(this, callback))
+    return this.collection.database._workQueue.followPromise(
+      toPromise((callback) => this.collection._unsafeFetchRaw(this, callback)),
+    )
   }
 
   /**
