@@ -55,6 +55,8 @@ jobs:
       - run: yarn
       - run: yarn test
       - run: yarn test:metro-transform
+      - run: node scripts/next-version.mjs --self-test
+      - run: node scripts/prepare-changelog.mjs --self-test
       - name: Gradle Wrapper Validation
         uses: gradle/actions/wrapper-validation@v4
       - name: Check docs build
