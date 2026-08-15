@@ -1,0 +1,11 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "skipLibCheck": true
+  },
+  "include": ["**/*.ts", "**/*.tsx", "../shared/**/*.ts", "../shared/**/*.tsx"],
+  "exclude": ["node_modules", "ios", "android"]
+}
