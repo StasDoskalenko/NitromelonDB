@@ -17,9 +17,8 @@ Supported frameworks:
     - iOS
     - Android
   - Implementations:
-    - JSI adapter
-    - New NativeModule (added in 0.26)
-    - Legacy NativeModule (deprecated in 0.26)
+    - Nitro HybridObject (iOS and Android; New Architecture only)
+    - JSI adapter (Windows)
 - NodeJS
   - via `better-sqlite3` - contributed by Sid Ferreira
 
@@ -65,16 +64,16 @@ Check out `native/android` and `native/ios` for two implementation examples. You
 
 Let's say you want to add support for a new JS+native framework, like Electron, Tauri, NativeScript or Capacitor.
 
-This takes more work, but ultimately, given that (iOS, Android, JS, C++, Objective-C, Java) are supported already (just for React Native and Node), you only need to develop the glue code necessary to bridge the gap between `src/adapters/sqlite` JS code, and the native but non-React-Native-specific bits. You'll need some familiarity with the platform you're trying to support, but little WatermelonDB/React Native/C++ familiary will be needed to get this done.
+This takes more work, but ultimately, given that (iOS, Android, JS, C++) are supported already (just for React Native and Node), you only need to develop the glue code necessary to bridge the gap between `src/adapters/sqlite` JS code, and the native but non-React-Native-specific bits. You'll need some familiarity with the platform you're trying to support, but little WatermelonDB/React Native/C++ familiary will be needed to get this done.
 
 ### JS-side glue
 
-The general SQLite implementation is in `src/adapters/sqlite/index.js`. It forwards database calls to `this._dispatcher`. The dispatcher is the JS-side bridge/glue code.
+The general SQLite implementation is in `src/adapters/sqlite/index.ts`. It forwards database calls to `this._dispatcher`. The dispatcher is the JS-side bridge/glue code.
 
 See `src/adapters/sqlite/makeDispatcher` to see concrete dispatchers and add your own, depending on the platform's convention of calling native code. For example:
 
-- `makeDispatcher/index.js` (Node JS) just imports more JS code, since native=JS in this case
-- `makeDispatcher/index.native.js` (React Native) calls `require('react-native').NativeModules`
+- `makeDispatcher/index.ts` (Node JS) just imports more JS code, since native=JS in this case
+- `makeDispatcher/index.native.ts` (React Native) uses the `Nitromelon` HybridObject on iOS/Android, and the JSI installer on Windows
 
 ### Native-side glue
 
@@ -82,12 +81,7 @@ Depending on the capabilities of the framework you want to support, there's a fe
 
 **The easy (JS-only) way**. If your framework has existing SQLite bindings in JavaScript **that work synchronously** (similar to [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) in Node), you can reuse code in `src/adapters/sqlite/sqlite-node`
 
-**The Java/Objective-C way**. If your framework targets iOS, macOS, or Android, and you're terrified of C++, you can reuse the React Native NativeModule implementation.
-
-  - Look at `native/ios/WatermelonDB/objc/WMDatabase.{h,m}` and `WMDatabaseDriver.{h,m}` for the iOS implementation. These files contain SQLite, WatermelonDB, and iOS-specific logic, but without React Native details. You need to provide an equivalent of `WMDatabaseBridge` (the React Native glue between `WMDatabaseDriver` and JS) for your framework
-  - For Android, look at `native/android/src/main/java/com/nozbe/watermelondb/WMDatabase.java` and `WMDatabaseDriver.java`
-
-**The C++ way**. The best way is to refactor the React Native C++ JSI module to split off React Native-specific logic and leave a framework-independent core. Doing this way ensures that your port will receive support for new operating systems, and all the new features, as the core React Native module will focus on the C++ implementation in the long term. Contact @radex for guidance about this.
+**The C++ way**. Reuse `native/shared` and wrap it the way your framework talks to native code. On React Native iOS/Android that wrapper is the `Nitromelon` / `NitromelonDatabase` Nitro HybridObject (`native/nitro`, spec in `src/nitro/Nitromelon.nitro.ts`). On Windows it is still `Database::install(jsi::Runtime *)`.
 
 ## Adding new databases
 

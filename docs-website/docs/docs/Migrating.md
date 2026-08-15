@@ -106,7 +106,9 @@ Nitro autolinks. Remove the old JSI Gradle module if you had it:
 - `implementation project(':watermelondb-jsi')` from `android/app/build.gradle`
 - `WatermelonDBJSIPackage` from `MainApplication`
 
-If you still link the Android library manually, point it at the new package path:
+Do not register `WatermelonDBPackage` by hand — that is the old architecture. Autolinking is required.
+
+If a leftover Gradle `projectDir` still points at the old npm path, update it:
 
 ```gradle
 include ':watermelondb'
@@ -146,7 +148,7 @@ Then `npx expo prebuild` (or let EAS Build do it). Development builds, EAS Build
 
 ## 6. SQLiteAdapter on React Native
 
-iOS and Android SQLite is **Nitro-only**. NativeModules interop is gone.
+iOS and Android SQLite is **Nitro-only**. NativeModules interop is gone. The **old React Native architecture** (Paper / the legacy bridge) is **not supported** — enable the New Architecture (on by default in React Native 0.87).
 
 ```js
 const adapter = new SQLiteAdapter({
@@ -190,7 +192,7 @@ See [Flow support removed](./Advanced/Flow.md) and the [TypeScript example](http
 | Requirement | WatermelonDB 0.28 | NitromelonDB |
 | --- | --- | --- |
 | Node.js | 18+ (typical) | **22+** |
-| React Native | 0.74+ in 0.28 | **0.87** (New Architecture) |
+| React Native | 0.74+ in 0.28 | **0.87**, New Architecture only (old / Paper architecture is not supported) |
 | iOS | 12+ | **15.1** |
 | Android minSdk | 21 (typical) | **24** |
 
@@ -203,6 +205,7 @@ See [Flow support removed](./Advanced/Flow.md) and the [TypeScript example](http
 - [ ] Remove hand-copied `pod 'WatermelonDB'` / `pod 'NitromelonDB'` / `pod 'simdjson'` lines from the Podfile
 - [ ] Bridging header, if you import it: `#import <NitromelonDB/WatermelonDB.h>`
 - [ ] Remove `watermelondb-jsi` / `WatermelonDBJSIPackage` from Android
+- [ ] Enable the New Architecture (old / Paper architecture is not supported)
 - [ ] Remove `{ jsi: false }` from `SQLiteAdapter` on iOS/Android
 - [ ] Expo: add `"nitromelondb"` to `app.json` `plugins` and remove `@morrowdigital/watermelondb-expo-plugin`
 - [ ] Full native rebuild (`npx react-native run-ios` / `run-android`, or `npx expo run:ios` / `run:android`)

@@ -11,7 +11,7 @@
 **Why this fork exists**
 
 - **Upstream is quiet.** Apps still need the library to track frequent React Native, iOS, and Android version changes.
-- **New Architecture.** Native SQLite on iOS and Android now goes through [Nitro Modules](https://nitro.margelo.com) instead of aging bridge/JSI glue.
+- **New Architecture only.** Native SQLite on iOS and Android goes through [Nitro Modules](https://nitro.margelo.com). The old React Native architecture (Paper / the legacy bridge) is not supported.
 - **One TypeScript codebase.** Implementation lives in TypeScript. That removes the standalone `.d.ts` layer, so types and runtime cannot drift and maintenance stays simpler.
 - **Performance.** We want to keep improving SQLite, native, and JS performance. The TypeScript rewrite is one step on that path (including future runtimes such as Static Hermes), alongside further native optimizations.
 - **Same product, new package name.** Install `nitromelondb` and import from `nitromelondb` (not `@nozbe/watermelondb`). Step-by-step: **[Migrating from WatermelonDB](https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating)**.

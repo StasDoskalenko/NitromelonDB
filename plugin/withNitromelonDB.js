@@ -3,6 +3,7 @@
  *
  * Native SQLite is a Nitro HybridObject and autolinks. This plugin does not
  * wire the old Android JSI Gradle module (`watermelondb-jsi`).
+ * The old React Native architecture is not supported.
  * Optional `{ excludeSimArch: true }` excludes arm64 from iOS simulator builds.
  *
  * Evaluated by Expo CLI / EAS Build during `expo prebuild`. Requires Expo in
@@ -49,6 +50,11 @@ function withExcludedSimulatorArchitectures(config) {
  * @param {{ excludeSimArch?: boolean }} [options]
  */
 function withNitromelonDB(config, options = {}) {
+  if (config.newArchEnabled === false) {
+    throw new Error(
+      'NitromelonDB requires the React Native New Architecture. Remove `"newArchEnabled": false` from app.json / app.config.',
+    )
+  }
   if (options.excludeSimArch === true) {
     return withExcludedSimulatorArchitectures(config)
   }

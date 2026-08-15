@@ -17,6 +17,10 @@ npm install nitromelondb
 
 Native SQLite on iOS and Android uses [Nitro Modules](https://nitro.margelo.com) and React Native **autolinking** (`react-native.config.js` + the `NitromelonDB` podspec). `simdjson` is compiled into that pod from vendored sources. You do not add CocoaPods or Gradle lines by hand, and you do not run a separate setup CLI. Expo is fully supported — development builds, EAS Build, and EAS Update. See [Expo](#expo).
 
+:::warning New Architecture only
+NitromelonDB does **not** support the old React Native architecture (Paper / the legacy bridge). Enable the New Architecture. React Native 0.87 has it on by default.
+:::
+
 ```bash
 yarn add nitromelondb react-native-nitro-modules
 ```
@@ -42,11 +46,11 @@ yarn add nitromelondb react-native-nitro-modules
 
 3. Rebuild the native app after adding these packages. Autolinking runs as part of the usual Expo / React Native CLI flow (`use_native_modules!` on iOS). There is no extra setup command.
 
-Minimums: Xcode 15+, iOS 15.1, Android minSdk 24. This will not run in Expo Go.
+Minimums: Xcode 15+, iOS 15.1, Android minSdk 24, React Native **New Architecture**. This will not run in Expo Go.
 
 ## Expo
 
-NitromelonDB fully supports Expo **development builds**, **EAS Build**, and **EAS Update**. Native SQLite is not available in Expo Go.
+NitromelonDB fully supports Expo **development builds**, **EAS Build**, and **EAS Update**. Native SQLite is not available in Expo Go. The New Architecture must stay enabled (`newArchEnabled` must not be `false`).
 
 1. Install NitromelonDB and the Nitro peer:
 
@@ -66,7 +70,7 @@ NitromelonDB fully supports Expo **development builds**, **EAS Build**, and **EA
    }
    ```
 
-   The plugin runs during `expo prebuild` (EAS Build does this for you). It does **not** install the old `watermelondb-jsi` Android module — SQLite goes through Nitro autolinking.
+   The plugin runs during `expo prebuild` (EAS Build does this for you). It does **not** install the old `watermelondb-jsi` Android module — SQLite goes through Nitro autolinking. It rejects `"newArchEnabled": false`.
 
    Optional:
 
@@ -123,47 +127,7 @@ We highly recommend that you _do not_ use `use_frameworks!`. If NitromelonDB fai
 
 ### Android (React Native)
 
-Autolinking is enough. No Gradle or `MainApplication` changes.
-
-<details>
-  <summary>Linking Manually</summary>
-
-By default, React Native uses **autolinking**, and **you don't need the steps below**! Only use this with old versions of React Native or if you opt out of autolinking.
-
-1. In `android/settings.gradle`, add:
-
-```gradle
-include ':watermelondb'
-project(':watermelondb').projectDir =
-    new File(rootProject.projectDir, '../node_modules/nitromelondb/native/android')
-```
-
-2. In `android/app/build.gradle`, add:
-
-```gradle
-// ...
-dependencies {
-    // ...
-    implementation project(':watermelondb')  // ⬅️ This!
-}
-```
-
-3. And finally, in `android/app/src/main/java/{YOUR_APP_PACKAGE}/MainApplication.java`, add:
-
-```java
-// ...
-import com.nozbe.watermelondb.WatermelonDBPackage; // ⬅️ This!
-// ...
-@Override
-protected List<ReactPackage> getPackages() {
-  return Arrays.<ReactPackage>asList(
-    new MainReactPackage(),
-    new WatermelonDBPackage() // ⬅️ Here!
-  );
-}
-```
-
-</details>
+Autolinking is enough. No Gradle or `MainApplication` changes. Manual `ReactPackage` registration is the old architecture and is not supported.
 
 <details>
   <summary>Troubleshooting</summary>

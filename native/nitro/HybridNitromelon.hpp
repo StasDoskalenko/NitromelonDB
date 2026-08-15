@@ -17,6 +17,7 @@ public:
   }
 
   void provideSyncJson(double id, const std::string& json) override;
+  std::string getRandomIds() override;
 };
 
 } // namespace margelo::nitro::watermelondb

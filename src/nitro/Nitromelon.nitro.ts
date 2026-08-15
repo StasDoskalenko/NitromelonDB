@@ -34,4 +34,5 @@ export interface NitromelonDatabase extends HybridObject<{ ios: 'c++'; android: 
 export interface Nitromelon extends HybridObject<{ ios: 'c++'; android: 'c++' }> {
   createAdapter(dbName: string, usesExclusiveLocking: boolean): NitromelonDatabase
   provideSyncJson(id: number, json: string): void
+  getRandomIds(): string
 }
