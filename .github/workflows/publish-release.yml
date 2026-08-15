@@ -54,7 +54,9 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
+          # Do not set registry-url. setup-node then writes
+          # `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}` and a dummy
+          # NODE_AUTH_TOKEN, and npm skips OIDC (PUT 404 / ENEEDAUTH).
           package-manager-cache: false
 
       - name: Configure Git
@@ -102,10 +104,19 @@ jobs:
 
       - name: Publish to npm
         run: |
+          unset NODE_AUTH_TOKEN
+          if [ -n "${NPM_CONFIG_USERCONFIG:-}" ] && [ -f "$NPM_CONFIG_USERCONFIG" ]; then
+            sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
+            sed -i '/always-auth/d' "$NPM_CONFIG_USERCONFIG"
+          fi
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "❌ ACTIONS_ID_TOKEN_REQUEST_URL is unset; id-token: write did not take effect"
+            exit 1
+          fi
           if npm view "nitromelondb@${{ env.NEW_VERSION }}" version >/dev/null 2>&1; then
             echo "nitromelondb@${{ env.NEW_VERSION }} is already on npm, skipping publish"
           else
-            npm publish ./dist --access public --tag "${{ env.DIST_TAG }}"
+            npm publish ./dist --access public --tag "${{ env.DIST_TAG }}" --verbose
             echo "✅ Published nitromelondb@${{ env.NEW_VERSION }} with tag ${{ env.DIST_TAG }}"
           fi
 

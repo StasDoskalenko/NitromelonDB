@@ -6,6 +6,10 @@ Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
 ## 0.30.0-alpha.3 - 2026-08-15
 
+### Internal
+
+- Publish Release omits `setup-node` `registry-url` so npm uses OIDC instead of a dummy `NODE_AUTH_TOKEN` (which caused `PUT 404` for a package that already exists).
+
 ## 0.30.0-alpha.2 - 2026-08-15
 
 ### Fixes
