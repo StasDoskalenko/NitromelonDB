@@ -1,32 +1,57 @@
-# Publishing WatermelonDB
+# Publishing NitromelonDB
 
-### Step 1: Run all automated tests
+Releases are done with GitHub Actions. Do not publish to npm from your laptop.
+
+Full details: [`.github/workflows/README.md`](https://github.com/StasDoskalenko/NitromelonDB/blob/master/.github/workflows/README.md).
+
+### Step 1: Keep `CHANGELOG-Unreleased.md` current
+
+Every merged change should already have a note there. Prepare Release copies those notes into `CHANGELOG.md` automatically.
+
+### Step 2: Prepare the release
+
+1. GitHub → **Actions** → **Prepare Release**
+2. Run the workflow from **master**
+3. Choose:
+   - **Version bump:** `patch` / `minor` / `major`
+   - **Prerelease:** `none` / `alpha` / `beta`
+
+Repeat alpha/beta releases of the same version increment the counter (`0.29.0-alpha.0`, then `0.29.0-alpha.1`). Choosing `none` on an in-progress prerelease publishes that version as stable.
+
+### Step 3: Review and merge the PR
+
+The workflow opens a `release/v…` PR with the version bump and changelog. CI runs on that PR. Merge when it looks right.
+
+### Step 4: Automatic publish
+
+Merging the PR:
+
+- Builds `dist/`
+- Publishes `nitromelondb` to npm (`latest`, `alpha`, or `beta`)
+- Creates the git tag and GitHub Release
+
+### Local helpers
 
 ```bash
-yarn ci:check && yarn test:ios && yarn test:android && yarn ktlint
+# Preview the next version without changing files
+node scripts/next-version.mjs minor alpha
+
+# Version calculator tests
+node scripts/next-version.mjs --self-test
 ```
 
-### Step 2: Test manually in a real app
+The interactive `yarn release` script is legacy. Use Actions instead.
 
-```bash
-yarn build
-```
+### npm authentication
 
-Then copy `dist/` and replace `app/node_modules/nitromelondb` with it.
+No `NPM_TOKEN` secret. Releases authenticate with [npm trusted publishing (OIDC)](https://docs.npmjs.com/trusted-publishers/).
 
-If a quick smoke test passes, proceed to publish.
+One-time: if `nitromelondb` is not on npm yet, publish once from your machine (`yarn build && npm publish ./dist --otp=…`), then on [package access settings](https://www.npmjs.com/package/nitromelondb/access) add a GitHub Actions trusted publisher:
 
-### Step 3: Update CHANGELOG
+- Organization or user: `StasDoskalenko`
+- Repository: `NitromelonDB`
+- Workflow filename: `publish-release.yml` (filename only)
+- Environment: leave empty
+- Allowed actions: `npm publish`
 
-Change `Unreleased` header to the new version, add new Unreleased
-
-### Step 4: Publish
-
-```bash
-npm run release
-
-# skips checks (only use on prerelease)
-npm run release --skip-checks
-```
-
-Don't use `yarn release` (or `yarn publish`) — it won't work (yarn doesn't support NPM 2FA).
+After the first Actions publish works, set **Require two-factor authentication and disallow tokens** on that same page. Details: [`.github/workflows/README.md`](https://github.com/StasDoskalenko/NitromelonDB/blob/master/.github/workflows/README.md).

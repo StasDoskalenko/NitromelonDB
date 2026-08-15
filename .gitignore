@@ -30,3 +30,7 @@ msbuild.binlog
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Local GitHub Actions secrets for `act` (never commit)
+.secrets
+.github/workflows/.secrets

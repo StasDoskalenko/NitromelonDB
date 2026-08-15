@@ -24,9 +24,9 @@ If you make or are considering making an app using NitromelonDB, please let us k
    ```bash
    yarn prettier
    ```
-4. Mark your changes in CHANGELOG
+4. Mark your changes in `CHANGELOG-Unreleased.md`
 
-   Put a one-line description of your change under Added/Changed section. See [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+   Put a one-line description under the matching section (New features, Fixes, Changes, …). Those notes are copied into `CHANGELOG.md` automatically when a release is prepared. See [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Running Watermelon in development
 
