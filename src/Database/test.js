@@ -641,6 +641,97 @@ describe('Database', () => {
       })
       expect(called).toBe(0)
     })
+    it('experimentalDetectNestedWriters throws instead of deadlocking on nested writers', async () => {
+      const { database } = mockDatabase({ experimentalDetectNestedWriters: true })
+
+      const nested = () => database.write(async () => 1, 'nested writer')
+
+      await expectToRejectWithMessage(
+        database.write(async () => nested(), 'outer writer'),
+        'This deadlocks',
+      )
+
+      await expectToRejectWithMessage(
+        database.write(async () => {
+          nested()
+        }, 'outer writer'),
+        'This deadlocks',
+      )
+    })
+    it('experimentalDetectNestedWriters throws on nested readers without callReader', async () => {
+      const { database } = mockDatabase({ experimentalDetectNestedWriters: true })
+
+      const nested = () => database.read(async () => 1, 'nested reader')
+
+      await expectToRejectWithMessage(
+        database.write(async () => nested(), 'outer writer'),
+        'This deadlocks',
+      )
+    })
+    it('experimentalDetectNestedWriters still allows callWriter/callReader and queued writers', async () => {
+      const { database } = mockDatabase({ experimentalDetectNestedWriters: true })
+
+      const nested = () => database.write(async () => 42, 'nested writer')
+      expect(
+        await database.write(async (writer) => writer.callWriter(() => nested()), 'outer writer'),
+      ).toBe(42)
+
+      const first = database.write(delayPromise, 'first writer')
+      const second = database.write(async () => 'queued', 'second writer')
+      await first
+      expect(await second).toBe('queued')
+    })
+    it('experimentalDetectNestedWriters throws after await find without callWriter', async () => {
+      const { database, tasks } = mockDatabase({ experimentalDetectNestedWriters: true })
+      const task = await database.write(() => tasks.create())
+      const nested = () => database.write(async () => 1, 'nested writer')
+
+      await expectToRejectWithMessage(
+        database.write(async () => {
+          await tasks.find(task.id)
+          await nested()
+        }, 'outer writer'),
+        'This deadlocks',
+      )
+    })
+    it('experimentalDetectNestedWriters throws after a cached find without callWriter', async () => {
+      const { database, tasks } = mockDatabase({ experimentalDetectNestedWriters: true })
+      const task = await database.write(() => tasks.create())
+      await tasks.find(task.id)
+      const nested = () => database.write(async () => 1, 'nested writer')
+
+      await expectToRejectWithMessage(
+        database.write(async () => {
+          await tasks.find(task.id)
+          await nested()
+        }, 'outer writer'),
+        'This deadlocks',
+      )
+    })
+    it('experimentalDetectNestedWriters still queues writers started after an adapter await', async () => {
+      const { database, tasks } = mockDatabase({ experimentalDetectNestedWriters: true })
+      const task = await database.write(() => tasks.create())
+
+      const first = database.write(async () => {
+        await tasks.find(task.id)
+        await delayPromise()
+      }, 'first writer')
+      const second = database.write(async () => 'queued', 'second writer')
+      await first
+      expect(await second).toBe('queued')
+    })
+    it('experimentalDetectNestedWriters still allows callWriter after await find', async () => {
+      const { database, tasks } = mockDatabase({ experimentalDetectNestedWriters: true })
+      const task = await database.write(() => tasks.create())
+      const nested = () => database.write(async () => 42, 'nested writer')
+
+      expect(
+        await database.write(async (writer) => {
+          await tasks.find(task.id)
+          return writer.callWriter(() => nested())
+        }, 'outer writer'),
+      ).toBe(42)
+    })
     it(`can call readers with callReader`, async () => {
       const { db } = mockDatabase()
 

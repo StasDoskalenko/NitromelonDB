@@ -2,6 +2,7 @@ import * as Q from './QueryDescription'
 
 export { default as Collection } from './Collection'
 export { default as Database } from './Database'
+export type { DatabaseProps } from './Database'
 export { default as Relation } from './Relation'
 export { default as Model, associations } from './Model'
 export { default as Query } from './Query'

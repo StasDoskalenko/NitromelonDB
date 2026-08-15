@@ -17,6 +17,7 @@
 
 ### New features
 
+- [Database] `new Database({ experimentalDetectNestedWriters: true })` throws immediately when a reader/writer is called from another without `callWriter()`/`callReader()`, instead of deadlocking. Detection covers the same JS turn and the continuation after Watermelon adapter awaits (`find` / `query` / `batch`).
 - [Electron] Added `RemoteAdapter` so SQLite can run in Electron's main process over IPC (or any serializable transport). Cherry-picked from [Nozbe/WatermelonDB#1859](https://github.com/Nozbe/WatermelonDB/pull/1859) by [@feznyng](https://github.com/feznyng)
 - [Expo] First-class Expo support: config plugin (`app.plugin.js`) for development builds, EAS Build, and EAS Update. Add `"nitromelondb"` to `app.json` `plugins`. Replaces `@morrowdigital/watermelondb-expo-plugin` (Android JSI wiring is not used; SQLite is Nitro). Optional `{ "excludeSimArch": true }`.
 

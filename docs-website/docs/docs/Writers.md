@@ -241,6 +241,22 @@ database.write(async writer => {
 
 The same is true with Readers - use `callReader` to nest readers.
 
+If you forget `callWriter` / `callReader` and `await` the nested call, the inner work is queued behind the outer one and **neither ever finishes**.
+
+To fail fast instead of hanging, pass `experimentalDetectNestedWriters: true` when creating the database:
+
+```js
+const database = new Database({
+  adapter,
+  modelClasses: [
+    // ...
+  ],
+  experimentalDetectNestedWriters: true,
+})
+```
+
+This throws as soon as a nested `database.write()` / `database.read()` (or `@writer` / `@reader`) runs without `callWriter()` / `callReader()`. That includes nested calls on the same JS turn and after a Watermelon await (`find`, `query`, `batch`). Independent writers queued from the UI (for example while sync is running) still wait as usual.
+
 * * *
 
 ## Next steps
