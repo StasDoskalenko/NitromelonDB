@@ -1,0 +1,158 @@
+name: Publish Release
+
+on:
+  pull_request_target:
+    types: [closed]
+    branches:
+      - master
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: |
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'release/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Validate release branch
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          if [[ ! "$BRANCH" =~ ^release/v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)\.[0-9]+)?$ ]]; then
+            echo "❌ Branch name '$BRANCH' doesn't match release/vX.Y.Z or release/vX.Y.Z-alpha.N / -beta.N"
+            exit 1
+          fi
+          echo "✅ Valid release branch: $BRANCH"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Ensure npm supports OIDC trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get version from package.json
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *"-alpha."* ]]; then
+            DIST_TAG=alpha
+            IS_PRERELEASE=true
+          elif [[ "$VERSION" == *"-beta."* ]]; then
+            DIST_TAG=beta
+            IS_PRERELEASE=true
+          else
+            DIST_TAG=latest
+            IS_PRERELEASE=false
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "NEW_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "DIST_TAG=$DIST_TAG" >> "$GITHUB_ENV"
+          echo "IS_PRERELEASE=$IS_PRERELEASE" >> "$GITHUB_ENV"
+          echo "📦 Version: $VERSION (npm tag: $DIST_TAG)"
+
+      - name: Extract release notes
+        run: |
+          if ! node scripts/prepare-changelog.mjs extract "${{ env.NEW_VERSION }}" > /tmp/release_notes.md; then
+            echo "See the changelog for details." > /tmp/release_notes.md
+          fi
+          if [ ! -s /tmp/release_notes.md ]; then
+            echo "See the changelog for details." > /tmp/release_notes.md
+          fi
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: 'node_modules'
+          key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
+
+      - name: Install dependencies
+        run: yarn
+
+      - name: Build package
+        run: yarn build
+
+      - name: Publish to npm
+        run: |
+          unset NODE_AUTH_TOKEN
+          if npm view "nitromelondb@${{ env.NEW_VERSION }}" version >/dev/null 2>&1; then
+            echo "nitromelondb@${{ env.NEW_VERSION }} is already on npm, skipping publish"
+          else
+            npm publish ./dist --access public --tag "${{ env.DIST_TAG }}"
+            echo "✅ Published nitromelondb@${{ env.NEW_VERSION }} with tag ${{ env.DIST_TAG }}"
+          fi
+
+      - name: Create git tag
+        run: |
+          TAG="v${{ env.NEW_VERSION }}"
+          git fetch --tags
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists, skipping create"
+          else
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+            echo "✅ Tag created: $TAG"
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ env.NEW_VERSION }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "GitHub Release $TAG already exists, skipping create"
+          elif [ "${{ env.IS_PRERELEASE }}" = "true" ]; then
+            gh release create "$TAG" --title "$TAG" --notes-file /tmp/release_notes.md --prerelease
+            echo "✅ GitHub Release created: $TAG (prerelease)"
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file /tmp/release_notes.md
+            echo "✅ GitHub Release created: $TAG"
+          fi
+
+      - name: Comment on PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --body \
+            "🎉 **nitromelondb@${{ env.NEW_VERSION }} published**
+
+          📦 **npm:** [nitromelondb@${{ env.NEW_VERSION }}](https://www.npmjs.com/package/nitromelondb/v/${{ env.NEW_VERSION }}) (\`${{ env.DIST_TAG }}\`)
+          🔖 **Release:** [v${{ env.NEW_VERSION }}](https://github.com/${{ github.repository }}/releases/tag/v${{ env.NEW_VERSION }})
+
+          Install with:
+          \`\`\`bash
+          npm install nitromelondb@${{ env.NEW_VERSION }}
+          # or
+          yarn add nitromelondb@${{ env.NEW_VERSION }}
+          \`\`\`"
+
+          echo "✅ PR comment posted"
+
+      - name: Summary
+        run: |
+          echo "🎉 Release v${{ env.NEW_VERSION }} complete!"
+          echo "✅ npm: https://www.npmjs.com/package/nitromelondb/v/${{ env.NEW_VERSION }}"
+          echo "✅ Release: https://github.com/${{ github.repository }}/releases/tag/v${{ env.NEW_VERSION }}"

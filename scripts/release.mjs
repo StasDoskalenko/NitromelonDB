@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
 
+// Legacy interactive publisher. Prefer GitHub Actions:
+// Actions → Prepare Release → merge the PR → Publish Release runs automatically.
+// See .github/workflows/README.md
+//
 // inspired by `np` – https://github.com/sindresorhus/np
 
 import Listr from 'listr'
