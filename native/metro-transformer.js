@@ -11,7 +11,7 @@ const isNodeModule = (filename) => {
 const isTypeScript = (filename) => /\.tsx?$/.test(filename) && !filename.endsWith('.d.ts')
 
 const pluginsForProjectFile = (filename) => {
-  const basePlugins = babelConfig.env.test.plugins
+  const basePlugins = babelConfig.testPlugins
   if (!isTypeScript(filename)) {
     return basePlugins
   }

@@ -91,22 +91,33 @@ const envPlugins = (head = []) => ({
   },
 })
 
+const testPlugins = [...plugins, '@babel/plugin-syntax-jsx']
+
 // TypeScript must run before class-properties / decorators. Babel concatenates
 // override plugins after parent plugins, so TS files get a full plugin list here
 // instead of a parent config plus a trailing transform-typescript override.
-module.exports = {
-  overrides: [
-    {
-      test: /\.tsx$/,
-      env: envPlugins([typescriptPlugin(true)]),
-    },
-    {
-      test: /\.ts$/,
-      env: envPlugins([typescriptPlugin(false)]),
-    },
-    {
-      exclude: /\.tsx?$/,
-      env: envPlugins(),
-    },
-  ],
+// Export a function so Metro can attach `testPlugins` without Babel treating it
+// as an unknown config option.
+function babelConfig(api) {
+  api.cache(true)
+  return {
+    overrides: [
+      {
+        test: /\.tsx$/,
+        env: envPlugins([typescriptPlugin(true)]),
+      },
+      {
+        test: /\.ts$/,
+        env: envPlugins([typescriptPlugin(false)]),
+      },
+      {
+        exclude: /\.tsx?$/,
+        env: envPlugins(),
+      },
+    ],
+  }
 }
+
+babelConfig.testPlugins = testPlugins
+
+module.exports = babelConfig
