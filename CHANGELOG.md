@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
+## 0.30.0-alpha.1 - 2026-08-15
+
+### Internal
+
+- Prepare Release accepts version bump `none` so another alpha/beta of the same X.Y.Z does not require picking patch/minor/major.
+
 ## 0.30.0-alpha.0 - 2026-08-15
 
 ### BREAKING CHANGES
