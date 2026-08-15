@@ -49,10 +49,10 @@ The interactive `yarn release` script is legacy. Use Actions instead.
 
 No `NPM_TOKEN` secret. Releases authenticate with [npm trusted publishing (OIDC)](https://docs.npmjs.com/trusted-publishers/).
 
-One-time: if `nitromelondb` is not on npm yet, publish once from your machine (`yarn build && npm publish ./dist --otp=…`), then on [package access settings](https://www.npmjs.com/package/nitromelondb/access) add a GitHub Actions trusted publisher:
+One-time: if `nitromelondb` is not on npm yet, publish once from your machine (`yarn build && npm publish ./dist --otp=…`), then on [package access settings](https://www.npmjs.com/package/nitromelondb/access) add a GitHub Actions trusted publisher. Owner and repository are **case-sensitive** and must match GitHub (`StasDoskalenko` / `NitromelonDB`), not the lowercase npm package name.
 
-- Organization or user: `StasDoskalenko`
-- Repository: `NitromelonDB`
+- Organization or user: `StasDoskalenko` (not `stasdoskalenko`)
+- Repository: `NitromelonDB` (not `nitromelondb`)
 - Workflow filename: `publish-release.yml` (filename only)
 - Environment: leave empty
 - Allowed actions: `npm publish`

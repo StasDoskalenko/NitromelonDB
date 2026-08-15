@@ -127,15 +127,15 @@ Then:
 
 1. Open [nitromelondb access settings](https://www.npmjs.com/package/nitromelondb/access)
 2. Under **Trusted Publisher**, choose **GitHub Actions**
-3. Fill in exactly:
+3. Fill in **exactly** (these fields are case-sensitive and must match GitHub, **not** the npm package name `nitromelondb`):
 
-   | Field | Value |
-   | --- | --- |
-   | Organization or user | `StasDoskalenko` |
-   | Repository | `NitromelonDB` |
-   | Workflow filename | `publish-release.yml` |
-   | Environment name | *(leave empty)* |
-   | Allowed actions | `npm publish` |
+   | Field | Value | Notes |
+   | --- | --- | --- |
+   | Organization or user | `StasDoskalenko` | GitHub login, not `stasdoskalenko` |
+   | Repository | `NitromelonDB` | GitHub repo name, **not** `nitromelondb` |
+   | Workflow filename | `publish-release.yml` | Filename only, not a path |
+   | Environment name | *(leave empty)* | This workflow does not use a GitHub Environment |
+   | Allowed actions | `npm publish` | |
 
 4. After the first Actions publish succeeds: Settings → **Publishing access** → **Require two-factor authentication and disallow tokens**. That blocks classic tokens; OIDC keeps working.
 
@@ -161,7 +161,7 @@ Do not add an `NPM_TOKEN` secret to this repository.
 - Confirm the workflow has `id-token: write` (it does in `publish-release.yml`)
 - Confirm that version is not already on npm
 - Review the Publish Release logs
-- `ENEEDAUTH` or `OIDC token exchange error - package not found` usually means the Trusted Publisher on npmjs.com is missing or does not match this workflow. Use `StasDoskalenko` / `NitromelonDB` / `publish-release.yml`, leave Environment empty, allow `npm publish`, and click **Save**.
+- `ENEEDAUTH` or `OIDC token exchange error - package not found` usually means the Trusted Publisher on npmjs.com is missing, unsaved, or does not match GitHub's casing. Owner/repo in that form are **case-sensitive** and must be `StasDoskalenko` / `NitromelonDB` (the GitHub repo), not the lowercase npm name `nitromelondb`. Workflow filename `publish-release.yml`, Environment empty, allow `npm publish`, then **Save**.
 - `ENEEDAUTH` can also mean the workflow filename or repo name does not match (case-sensitive, include `.yml`)
 
 ### Retry a failed publish (no new version)
