@@ -18,12 +18,13 @@ Automated releases for `nitromelondb`, modeled on the two-step process used in [
 **What it does:**
 
 1. Calculates the next version (see [Versioning](#versioning))
-2. Creates a `release/vX.Y.Z` branch (or `release/vX.Y.Z-alpha.N` / `-beta.N`)
-3. Bumps `package.json`
-4. Moves `CHANGELOG-Unreleased.md` into `CHANGELOG.md` under the new version heading
-5. Resets `CHANGELOG-Unreleased.md` to empty section headers
-6. Syncs `docs-website/docs/docs/CHANGELOG.md`
-7. Opens a PR to `master` for review
+2. Skips versions that already have a git tag, GitHub Release, or npm publish (alpha/beta then increment `-alpha.N`)
+3. Creates or recreates a `release/vX.Y.Z` branch from master (leftover branches without a tag/release are reused; already-open PRs are not)
+4. Bumps `package.json`
+5. Moves `CHANGELOG-Unreleased.md` into `CHANGELOG.md` under the new version heading
+6. Resets `CHANGELOG-Unreleased.md` to empty section headers
+7. Syncs `docs-website/docs/docs/CHANGELOG.md`
+8. Opens a PR to `master` for review
 
 Run it from **master**: Actions → **Prepare Release** → Run workflow.
 
@@ -139,7 +140,9 @@ Do not add an `NPM_TOKEN` secret to this repository.
 
 ### PR not created
 - Check the Prepare Release run logs
-- Confirm `release/v…` does not already exist
+- If an open `release/v…` PR already exists, merge or close it first
+- A leftover `release/v…` branch with **no** git tag, GitHub Release, or npm version is recreated from master on retry
+- If that version already has a tag, GitHub Release, or npm publish, Prepare Release skips it and takes the next free version (for alpha, `0.30.0-alpha.1` → `0.30.0-alpha.2`)
 
 ### npm publish did not run
 - PR must come from `release/vX.Y.Z` (or `-alpha.N` / `-beta.N`) in this repository

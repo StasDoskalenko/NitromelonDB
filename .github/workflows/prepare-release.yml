@@ -57,9 +57,52 @@ jobs:
 
       - name: Calculate new version
         id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+
+          version_taken_by() {
+            local ver="$1"
+            local tag="v${ver}"
+            if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+              echo "git tag ${tag}"
+              return 0
+            fi
+            if gh release view "${tag}" >/dev/null 2>&1; then
+              echo "GitHub Release ${tag}"
+              return 0
+            fi
+            if npm view "nitromelondb@${ver}" version >/dev/null 2>&1; then
+              echo "npm nitromelondb@${ver}"
+              return 0
+            fi
+            return 1
+          }
+
           CURRENT_VERSION=$(node -p "require('./package.json').version")
-          NEW_VERSION=$(node scripts/next-version.mjs "${{ inputs.version_bump }}" "${{ inputs.prerelease }}" "$CURRENT_VERSION")
+          BUMP="${{ inputs.version_bump }}"
+          PREID="${{ inputs.prerelease }}"
+          NEW_VERSION=$(node scripts/next-version.mjs "$BUMP" "$PREID" "$CURRENT_VERSION")
+
+          echo "Current version: $CURRENT_VERSION"
+          echo "Bump: $BUMP / prerelease: $PREID"
+          echo "Candidate: $NEW_VERSION"
+
+          for _ in $(seq 1 50); do
+            if TAKEN_BY=$(version_taken_by "$NEW_VERSION"); then
+              echo "⚠️ v${NEW_VERSION} already exists (${TAKEN_BY}); computing the next version"
+              NEW_VERSION=$(node scripts/next-version.mjs "$BUMP" "$PREID" "$NEW_VERSION")
+              echo "Candidate: $NEW_VERSION"
+              continue
+            fi
+            break
+          done
+
+          if TAKEN_BY=$(version_taken_by "$NEW_VERSION"); then
+            echo "❌ Could not find a free version; last candidate v${NEW_VERSION} is still taken (${TAKEN_BY})"
+            exit 1
+          fi
 
           if [[ "$NEW_VERSION" == *-* ]]; then
             IS_PRERELEASE=true
@@ -72,21 +115,34 @@ jobs:
           echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
           echo "NEW_VERSION=$NEW_VERSION" >> "$GITHUB_ENV"
           echo "IS_PRERELEASE=$IS_PRERELEASE" >> "$GITHUB_ENV"
-
-          echo "Current version: $CURRENT_VERSION"
-          echo "Bump: ${{ inputs.version_bump }} / prerelease: ${{ inputs.prerelease }}"
           echo "✅ New version: $NEW_VERSION"
 
       - name: Create release branch
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           BRANCH_NAME="release/v${{ env.NEW_VERSION }}"
-          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
-            echo "❌ Branch $BRANCH_NAME already exists on origin"
+
+          OPEN_PR=$(gh pr list --head "$BRANCH_NAME" --base master --state open --json url --jq '.[0].url // empty')
+          if [ -n "$OPEN_PR" ]; then
+            echo "❌ An open PR for $BRANCH_NAME already exists: $OPEN_PR"
             exit 1
           fi
-          git checkout -b "$BRANCH_NAME"
+
+          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
+            echo "⚠️ Branch $BRANCH_NAME exists but has no git tag, GitHub Release, or npm version."
+            echo "Treating it as a leftover from a failed run and recreating it from master."
+            git fetch origin "$BRANCH_NAME"
+            git checkout -B "$BRANCH_NAME" origin/master
+            echo "FORCE_PUSH=true" >> "$GITHUB_ENV"
+          else
+            git checkout -b "$BRANCH_NAME"
+            echo "FORCE_PUSH=false" >> "$GITHUB_ENV"
+          fi
+
           echo "PR_BRANCH=$BRANCH_NAME" >> "$GITHUB_ENV"
-          echo "✅ Branch created: $BRANCH_NAME"
+          echo "✅ Branch ready: $BRANCH_NAME"
 
       - name: Update package.json
         run: |
@@ -128,7 +184,11 @@ jobs:
             git add docs-website/package.json
           fi
           git commit -m "chore: release v${{ env.NEW_VERSION }}"
-          git push origin "${{ env.PR_BRANCH }}"
+          if [ "${{ env.FORCE_PUSH }}" = "true" ]; then
+            git push --force-with-lease origin "${{ env.PR_BRANCH }}"
+          else
+            git push origin "${{ env.PR_BRANCH }}"
+          fi
           echo "✅ Pushed ${{ env.PR_BRANCH }}"
 
       - name: Create Pull Request
