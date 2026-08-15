@@ -48,7 +48,9 @@ jobs:
           node-version: 24.x
 
       - name: Verify version calculator
-        run: node scripts/next-version.mjs --self-test
+        run: |
+          node scripts/next-version.mjs --self-test
+          node scripts/prepare-changelog.mjs --self-test
 
       - name: Configure Git
         run: |
@@ -214,6 +216,7 @@ jobs:
             echo "- Moves \`CHANGELOG-Unreleased.md\` into \`CHANGELOG.md\`"
             echo "- Resets \`CHANGELOG-Unreleased.md\` for the next cycle"
             if [ "${{ env.IS_PRERELEASE }}" = "false" ]; then
+              echo "- Folds same-version alpha/beta changelog entries into one official release entry"
               echo "- Bumps \`docs-website/package.json\` to \`${{ env.NEW_VERSION }}\`"
             fi
             echo ""

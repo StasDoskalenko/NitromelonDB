@@ -22,9 +22,10 @@ Automated releases for `nitromelondb`, modeled on the two-step process used in [
 3. Creates or recreates a `release/vX.Y.Z` branch from master (leftover branches without a tag/release are reused; already-open PRs are not)
 4. Bumps `package.json`
 5. Moves `CHANGELOG-Unreleased.md` into `CHANGELOG.md` under the new version heading
-6. Resets `CHANGELOG-Unreleased.md` to empty section headers
-7. Syncs `docs-website/docs/docs/CHANGELOG.md`
-8. Opens a PR to `master` for review
+6. When graduating to a stable release, folds every same-version `-alpha.N` / `-beta.N` changelog entry into that one official heading and removes the prerelease sections
+7. Resets `CHANGELOG-Unreleased.md` to empty section headers
+8. Syncs `docs-website/docs/docs/CHANGELOG.md`
+9. Opens a PR to `master` for review
 
 Run it from **master**: Actions → **Prepare Release** → Run workflow.
 
@@ -87,6 +88,7 @@ Local check:
 ```bash
 node scripts/next-version.mjs --self-test
 node scripts/next-version.mjs minor alpha
+node scripts/prepare-changelog.mjs --self-test
 ```
 
 ## Unreleased changelog
@@ -101,6 +103,8 @@ Contributors add notes to `CHANGELOG-Unreleased.md`. Prepare Release copies non-
 ```
 
 Empty section headers are dropped. The unreleased file is then reset for the next cycle.
+
+When **prerelease is `none`** on an in-progress alpha/beta (for example `0.30.0-beta.0` → `0.30.0`), Prepare Release combines every `0.30.0-alpha.*` and `0.30.0-beta.*` section with the current unreleased notes into a single `## 0.30.0` entry. Duplicate bullets are dropped. Individual alpha/beta headings are removed from `CHANGELOG.md` (GitHub Releases for those prereleases stay as-is). A major/minor/patch that starts a **different** X.Y.Z leaves the previous line's prerelease notes alone.
 
 ## npm trusted publishing (OIDC)
 

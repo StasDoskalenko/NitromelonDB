@@ -6,7 +6,7 @@ Full details: [`.github/workflows/README.md`](https://github.com/StasDoskalenko/
 
 ### Step 1: Keep `CHANGELOG-Unreleased.md` current
 
-Every merged change should already have a note there. Prepare Release copies those notes into `CHANGELOG.md` automatically.
+Every merged change should already have a note there. Prepare Release copies those notes into `CHANGELOG.md` automatically. Graduating an alpha/beta to stable also folds that version's prerelease changelog sections into one official entry.
 
 ### Step 2: Prepare the release
 
@@ -36,8 +36,9 @@ Merging the PR:
 # Preview the next version without changing files
 node scripts/next-version.mjs minor alpha
 
-# Version calculator tests
+# Version calculator and changelog-fold tests
 node scripts/next-version.mjs --self-test
+node scripts/prepare-changelog.mjs --self-test
 ```
 
 The interactive `yarn release` script is legacy. Use Actions instead.
