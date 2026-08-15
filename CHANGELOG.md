@@ -6,6 +6,10 @@ Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
 ## 0.30.0-alpha.2 - 2026-08-15
 
+### Fixes
+
+- Include `README.md` in the published npm package so the registry page is not empty.
+
 ### Internal
 
 - Prepare Release skips versions that already have a git tag, GitHub Release, or npm publish, and only reuses a leftover `release/v…` branch when none of those exist.
