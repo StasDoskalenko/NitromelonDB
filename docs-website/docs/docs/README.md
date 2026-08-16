@@ -18,6 +18,7 @@ hide_title: true
 - **Upstream is quiet.** Apps still need the library to track frequent React Native, iOS, and Android version changes.
 - **New Architecture only.** Native SQLite on iOS and Android goes through [Nitro Modules](https://nitro.margelo.com). The old React Native architecture (Paper / the legacy bridge) is not supported.
 - **One TypeScript codebase.** Implementation lives in TypeScript. That removes the standalone `.d.ts` layer, so types and runtime cannot drift and maintenance stays simpler.
+- **Observability.** Nested writers, stuck readers, and incorrect `callWriter`/`callReader` usage should fail loudly so engineers can see *where* — not hang in production. See [Observability](./Advanced/Observability.md).
 - **Performance.** We want to keep improving SQLite, native, and JS performance. The TypeScript rewrite is one step on that path (including future runtimes such as Static Hermes), alongside further native optimizations.
 - **Same product, new package name.** Install `nitromelondb` and import from `nitromelondb` (not `@nozbe/watermelondb`). Step-by-step: **[Migrating from WatermelonDB](https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating)**.
 
@@ -33,14 +34,16 @@ import { Database } from 'nitromelondb'
 import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
 ```
 
-Full credit to [@Nozbe](https://github.com/Nozbe) and [Radek Pietruszewski](https://github.com/radex) for designing and shipping WatermelonDB.
+Full credit to [@Nozbe](https://github.com/Nozbe) and [Radek Pietruszewski](https://github.com/radex) for designing and shipping the original WatermelonDB.
 
 </td>
 </tr>
 </table>
 
+### ➡️ **Learn more:** [see full documentation](./Installation.mdx)
+
 <p align="center">
-  <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/logo-horizontal2.png" alt="WatermelonDB" width="539" />
+  <img src="/img/nitromelon-icon.png" alt="NitromelonDB" width="220" />
 </p>
 
 <h4 align="center">
@@ -147,8 +150,6 @@ const enhance = withObservables(['post'], ({ post }) => ({
 ```
 
 The result is fully reactive! Whenever a post or comment is added, changed, or removed, the right components **will automatically re-render** on screen. Doesn't matter if a change occurred in a totally different part of the app, it all just works out of the box!
-
-### ➡️ **Learn more:** [see full documentation](https://stasdoskalenko.github.io/NitromelonDB/)
 
 ## Who uses WatermelonDB
 

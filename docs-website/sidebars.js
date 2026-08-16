@@ -45,6 +45,8 @@ const sidebars = {
       'docs/Advanced/Flow',
       'docs/Advanced/LocalStorage',
       'docs/Advanced/ProTips',
+      'docs/Advanced/Observability',
+      'docs/Advanced/Logging',
       'docs/Advanced/DetectNestedWriters',
       'docs/Advanced/Performance',
       'docs/Advanced/SharingDatabaseAcrossTargets',
