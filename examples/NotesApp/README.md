@@ -1,13 +1,15 @@
-# NitromelonDB Nitro example
+# NotesApp (iOS / Android)
 
 Expo SDK 57 development-build app that opens SQLite through `SQLiteAdapter` → a typed `NitromelonDatabase` HybridObject. This will not run in Expo Go. New Architecture is required. `app.json` includes the `nitromelondb` config plugin (Nitro autolinking covers native SQLite; the old Android JSI Gradle module is not used).
 
 The screen is a small notes list: schema v2, a v1→v2 migration that adds `pinned`, and create / pin / delete against the live database.
 
+Windows lives in a sibling app, [`../NotesApp_windows`](../NotesApp_windows), because React Native Windows 0.84 tracks RN 0.84.1 while this Expo app uses RN 0.86.2.
+
 ![NitromelonDB notes screen on iOS, showing two notes, Nitro SQLite, and schema v2](assets/screenshot.png)
 
 ```sh
-cd examples/nitro
+cd examples/NotesApp
 npm install
 npx expo prebuild
 npx expo run:ios

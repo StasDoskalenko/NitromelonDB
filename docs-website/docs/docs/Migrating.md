@@ -231,7 +231,7 @@ Assigning `record.id` anywhere else throws. `_raw.id` and `prepareCreateFromDirt
 | Requirement | WatermelonDB 0.28 | NitromelonDB |
 | --- | --- | --- |
 | Node.js | 18+ (typical) | App Node version follows your React Native release. This repo's example/CI uses **22+**. |
-| React Native | 0.74+ in 0.28 | **New Architecture required.** Tested on **0.83+**. The example app uses 0.87 (New Architecture on by default). Old / Paper architecture is not supported. |
+| React Native | 0.74+ in 0.28 | **New Architecture required.** Tested on **0.83+**. [`examples/NotesApp`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp) uses Expo SDK 57 (RN 0.86). [`examples/NotesApp_windows`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp_windows) uses RN 0.84.1 to match RNW 0.84. Old / Paper architecture is not supported. |
 | iOS | 12+ | **15.1** |
 | Android minSdk | 21 (typical) | **24** |
 | `react-native-nitro-modules` | n/a | **≥ 0.35.2** (optional peer on web) |

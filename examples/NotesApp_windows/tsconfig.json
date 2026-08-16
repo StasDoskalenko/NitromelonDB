@@ -1,0 +1,16 @@
+{
+  "extends": "@react-native/typescript-config",
+  "compilerOptions": {
+    "types": ["jest"],
+    "strict": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "skipLibCheck": true,
+    "paths": {
+      "nitromelondb": ["../../src/index.ts"],
+      "nitromelondb/*": ["../../src/*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "../../src/ambient.d.ts"],
+  "exclude": ["**/node_modules", "**/Pods", "windows", "android", "ios"]
+}

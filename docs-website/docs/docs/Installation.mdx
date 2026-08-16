@@ -108,6 +108,8 @@ NitromelonDB fully supports Expo **development builds**, **EAS Build**, and **EA
 
 You do **not** need `@morrowdigital/watermelondb-expo-plugin`. Remove it if you used it with `@nozbe/watermelondb`.
 
+The Expo notes example is [`examples/NotesApp`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp).
+
 ### EAS Update
 
 [EAS Update](https://docs.expo.dev/eas-update/introduction/) ships a new JavaScript bundle on top of an existing native binary. Models, queries, schema, and migrations live in JS, so those changes work over OTA as long as the native SQLite engine is already in the app.
@@ -123,6 +125,8 @@ npx react-native run-android
 ```
 
 `run-ios` installs pods and applies autolinking. You do not add `pod 'NitromelonDB'` or `pod 'simdjson'` to the Podfile.
+
+Windows New Architecture (RNW 0.84 / RN 0.84.1) is the [`examples/NotesApp_windows`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp_windows) playground. Native SQLite for that stack is still being ported; the old UWP Paper module in `native/windows` does not autolink into WinAppSDK.
 
 We highly recommend that you _do not_ use `use_frameworks!`. If you need it (RN Firebase often uses `use_frameworks! :linkage => :static`), prefer **static** linkage. If NitromelonDB fails to build in frameworks mode, [use this workaround](https://github.com/Nozbe/WatermelonDB/issues/1285#issuecomment-1381323060) to force static libraries. Manual (non-CocoaPods) iOS linking is not supported.
 

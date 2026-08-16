@@ -151,6 +151,15 @@ const enhance = withObservables(['post'], ({ post }) => ({
 
 The result is fully reactive! Whenever a post or comment is added, changed, or removed, the right components **will automatically re-render** on screen. Doesn't matter if a change occurred in a totally different part of the app, it all just works out of the box!
 
+## Example apps
+
+A notes list (schema v2, migrations, create / pin / delete) ships as two apps, because React Native Windows **0.84** tracks RN **0.84.1** while Expo SDK 57 uses RN **0.86.2**:
+
+- **[examples/NotesApp](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp)** — iOS and Android (Expo development build; not Expo Go)
+- **[examples/NotesApp_windows](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp_windows)** — Windows New Architecture playground (Fabric / WinAppSDK)
+
+See each folder's README for run instructions.
+
 ## Who uses WatermelonDB
 
   <a href="https://nozbe.com/?c=watermelon">
