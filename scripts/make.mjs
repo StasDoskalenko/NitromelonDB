@@ -233,17 +233,16 @@ if (isDevelopment) {
   createFolder(DIST_PATH)
   copyNonJavaScriptFiles(DIST_PATH)
 
-  buildSrcModules(modules)
-  buildCjsModules(modules)
+  await buildSrcModules(modules)
+  await buildCjsModules(modules)
 
   emitDeclarations(DIST_PATH)
   cleanFolder(`${DIST_PATH}/__typetests__`)
   assertDeclarationJsSiblings(DIST_PATH)
 
   // copy remaining hand-written typescript definitions for unconverted modules
-  glob(`${SOURCE_PATH}/**/*.d.ts`, {}, (err, files) => {
-    files.forEach((file) => {
-      fs.copySync(file, path.join(DIST_PATH, replace(SOURCE_PATH, '', file)))
-    })
+  const dtsFiles = glob.sync(`${SOURCE_PATH}/**/*.d.ts`)
+  dtsFiles.forEach((file) => {
+    fs.copySync(file, path.join(DIST_PATH, replace(SOURCE_PATH, '', file)))
   })
 }
