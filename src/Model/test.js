@@ -135,6 +135,20 @@ describe('CRUD', () => {
       number: 0,
     })
   })
+  it('_prepareCreate: can set a custom id', () => {
+    const database = makeDatabase()
+    const collection = database.get('mock')
+    const m1 = MockModel._prepareCreate(collection, (record) => {
+      record.id = 'custom-id-123'
+      record.name = 'Named'
+    })
+
+    expect(m1.id).toBe('custom-id-123')
+    expect(m1.name).toBe('Named')
+    expect(() => {
+      m1.id = 'nope'
+    }).toThrow(/Cannot set id/)
+  })
   it('_prepareCreateFromDirtyRaw: can instantiate new records', () => {
     const database = makeDatabase()
     const collection = database.get('mock')
@@ -403,7 +417,7 @@ describe('Safety features', () => {
       )
     })
   })
-  it('diallows direct manipulation of id', async () => {
+  it('disallows changing id after create', async () => {
     const db = makeDatabase()
     db.adapter.batch = jest.fn()
     await db.write(async () => {
@@ -413,7 +427,7 @@ describe('Safety features', () => {
         model.update(() => {
           model.id = 'newId'
         }),
-        'Cannot set property id',
+        'Cannot set id',
       )
     })
   })

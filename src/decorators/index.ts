@@ -1,6 +1,7 @@
 export { default as action, writer, reader } from './action'
 export { default as children } from './children'
 export { default as json } from './json'
+export type { Sanitizer, Options as JsonOptions } from './json'
 export { default as nochange } from './nochange'
 export { default as field } from './field'
 export { default as date } from './date'

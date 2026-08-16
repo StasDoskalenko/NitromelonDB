@@ -16,11 +16,11 @@ import { ensureDecoratorUsedProperly, type ModelDecoratorHost } from '../common'
 // Examples:
 //   @json('contact_info', jsonValue => jasonValue || {}) contactInfo: ContactInfo
 
-export type Sanitizer = (source: unknown, model?: Model) => unknown
+export type Sanitizer<T = unknown> = (source: T, model?: Model) => T
 
 export type Options = {
   /** Use cached value if possible rather than sanitizing the raw value for every read. Default: `false` */
-  memo: boolean
+  memo?: boolean
 }
 
 const parseJSON = (value: unknown): unknown => {
@@ -37,9 +37,9 @@ const parseJSON = (value: unknown): unknown => {
 
 const defaultOptions: Options = { memo: false }
 
-export function json(
+export function json<T>(
   rawFieldName: ColumnName,
-  sanitizer: Sanitizer,
+  sanitizer: Sanitizer<T>,
   options: Options = defaultOptions,
 ): PropertyDecorator {
   return (target: object, key: string | symbol, descriptor?: PropertyDescriptor) => {
@@ -62,7 +62,7 @@ export function json(
         }
 
         const parsedValue = parseJSON(rawValue)
-        const sanitized = sanitizer(parsedValue, model as unknown as Model)
+        const sanitized = sanitizer(parsedValue as T, model as unknown as Model)
 
         if (options.memo) {
           model._jsonDecoratorCache = model._jsonDecoratorCache || {}
@@ -73,7 +73,7 @@ export function json(
       },
       set(this: ModelDecoratorHost, jsonValue: unknown): void {
         const model = this
-        const sanitizedValue = sanitizer(jsonValue, model as unknown as Model)
+        const sanitizedValue = sanitizer(jsonValue as T, model as unknown as Model)
         const stringifiedValue = sanitizedValue != null ? JSON.stringify(sanitizedValue) : null
 
         model.asModel._setRaw(rawFieldName, stringifiedValue)

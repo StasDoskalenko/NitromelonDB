@@ -16,6 +16,7 @@ export { localStorageKey } from './Database/LocalStorage'
 export type { DatabaseAdapter } from './adapters/type'
 export type { RawRecord, DirtyRaw } from './RawRecord'
 export type { RecordId } from './Model'
+export type { RelationId } from './Relation'
 export type {
   TableName,
   ColumnName,

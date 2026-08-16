@@ -77,9 +77,20 @@ export default class Model {
 
   /**
    * Record's ID
+   *
+   * Assign only inside `collection.create()` / `prepareCreate()`. IDs are immutable afterwards.
    */
   get id(): RecordId {
     return this._raw.id
+  }
+
+  set id(newId: RecordId) {
+    invariant(
+      this._preparedState === 'create' && this._isEditing,
+      `Cannot set id of ${this.__debugName} after create. Assign \`record.id\` only inside \`collection.create()\` / \`prepareCreate()\`.`,
+    )
+    invariant(typeof newId === 'string' && newId.length > 0, 'Model.id must be a non-empty string')
+    this._raw.id = newId
   }
 
   /**

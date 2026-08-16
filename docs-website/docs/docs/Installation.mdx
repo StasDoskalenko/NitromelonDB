@@ -18,14 +18,16 @@ npm install nitromelondb
 Native SQLite on iOS and Android uses [Nitro Modules](https://nitro.margelo.com) and React Native **autolinking** (`react-native.config.js` + the `NitromelonDB` podspec). `simdjson` is compiled into that pod from vendored sources. You do not add CocoaPods or Gradle lines by hand, and you do not run a separate setup CLI. Expo is fully supported — development builds, EAS Build, and EAS Update. See [Expo](#expo).
 
 :::warning New Architecture only
-NitromelonDB does **not** support the old React Native architecture (Paper / the legacy bridge). Enable the New Architecture. React Native 0.87 has it on by default.
+NitromelonDB does **not** support the old React Native architecture (Paper / the legacy bridge). Enable the New Architecture. Tested on React Native **0.83+**. React Native 0.87 has it on by default.
 :::
 
 ```bash
-yarn add nitromelondb react-native-nitro-modules
+yarn add nitromelondb rxjs@^7.8.0
+# skip if the app already depends on it:
+yarn add react-native-nitro-modules
 ```
 
-`react-native-nitro-modules` is required for SQLite on iOS and Android. It is optional on web / Node / Electron.
+`rxjs` `^7.8.0` is a peer dependency. `react-native-nitro-modules` `>=0.35.2` is required for SQLite on iOS and Android. It is optional on web / Node / Electron. Do not add `react-native-nitro-modules` a second time if it is already in the app.
 
 1. Install the Babel plugin for decorators if you haven't already:
 
@@ -46,7 +48,7 @@ yarn add nitromelondb react-native-nitro-modules
 
 3. Rebuild the native app after adding these packages. Autolinking runs as part of the usual Expo / React Native CLI flow (`use_native_modules!` on iOS). There is no extra setup command.
 
-Minimums: Xcode 15+, iOS 15.1, Android minSdk 24, React Native **New Architecture**. This will not run in Expo Go.
+Minimums: Xcode 15+, iOS 15.1, Android minSdk 24, React Native **0.83+ with New Architecture**. This will not run in Expo Go.
 
 ## Expo
 
@@ -70,7 +72,7 @@ NitromelonDB fully supports Expo **development builds**, **EAS Build**, and **EA
    }
    ```
 
-   The plugin runs during `expo prebuild` (EAS Build does this for you). It does **not** install the old `watermelondb-jsi` Android module — SQLite goes through Nitro autolinking. It rejects `"newArchEnabled": false`.
+   The plugin is optional for **bare** React Native — autolinking is what actually links SQLite. On Expo it runs during `expo prebuild` (EAS Build does this for you). It does **not** install the old `watermelondb-jsi` Android module. It rejects `"newArchEnabled": false`.
 
    Optional:
 
@@ -123,7 +125,7 @@ npx react-native run-android
 
 `run-ios` installs pods and applies autolinking. You do not add `pod 'NitromelonDB'` or `pod 'simdjson'` to the Podfile.
 
-We highly recommend that you _do not_ use `use_frameworks!`. If NitromelonDB fails to build in frameworks mode, [use this workaround](https://github.com/Nozbe/WatermelonDB/issues/1285#issuecomment-1381323060) to force static libraries. Manual (non-CocoaPods) iOS linking is not supported.
+We highly recommend that you _do not_ use `use_frameworks!`. If you need it (RN Firebase often uses `use_frameworks! :linkage => :static`), prefer **static** linkage. If NitromelonDB fails to build in frameworks mode, [use this workaround](https://github.com/Nozbe/WatermelonDB/issues/1285#issuecomment-1381323060) to force static libraries. Manual (non-CocoaPods) iOS linking is not supported.
 
 ### Android (React Native)
 
