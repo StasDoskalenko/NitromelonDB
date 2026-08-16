@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { pipe, filter, map, mapAsync, prop, replace, omit, merge, forEach } from 'rambdax'
+import { pipe, filter, map, mapAsync, prop, replace, forEach } from 'rambdax'
 
 import babel from '@babel/core'
 import klaw from 'klaw-sync'
@@ -17,6 +17,7 @@ import rimraf from 'rimraf'
 import { execSync } from 'child_process'
 
 import pkg from './pkg.cjs'
+import { preparePublishedPackageJson } from './published-package.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -100,15 +101,7 @@ const buildModule = (format) => (file) => {
   fs.writeFileSync(filename, code)
 }
 
-const prepareJson = pipe(
-  omit(['scripts', 'bin']),
-  merge({
-    main: './index.js',
-    sideEffects: false,
-    types: 'index.d.ts',
-  }),
-  (obj) => prettyJson(obj),
-)
+const prepareJson = (obj) => prettyJson(preparePublishedPackageJson(obj))
 
 const createPackageJson = (dir, obj) => {
   const json = prepareJson(obj)

@@ -17,7 +17,8 @@
     "test": "jest --config=./jest.config.js --forceExit",
     "ci": "yarn ci:check",
     "test:metro-transform": "node ./scripts/check-metro-transform.mjs",
-    "ci:check": "concurrently -c auto -n jest,eslint,ts,ts-examples,metro 'npm run test' 'npm run eslint' 'npm run typecheck' 'npm run test:typescript' 'npm run test:metro-transform' --kill-others-on-fail",
+    "ci:check": "concurrently -c auto -n jest,eslint,ts,ts-examples,metro,pkg 'npm run test' 'npm run eslint' 'npm run typecheck' 'npm run test:typescript' 'npm run test:metro-transform' 'npm run test:published-package' --kill-others-on-fail",
+    "test:published-package": "node ./scripts/published-package.mjs --self-test",
     "test:android": "cd native/androidTest && ./gradlew connectedAndroidTest",
     "test:ios": "scripts/test-ios",
     "test:windows": "react-native run-windows",
@@ -73,11 +74,12 @@
     "@babel/runtime": "7.26.0",
     "hoist-non-react-statics": "^3.3.2",
     "lokijs": "npm:@nozbe/lokijs@1.5.12-wmelon8",
-    "rxjs": "^7.8.2",
+    "rxjs": "^7.8.0",
     "sql-escape-string": "^1.1.0"
   },
   "peerDependencies": {
-    "react-native-nitro-modules": "*"
+    "rxjs": "^7.8.0",
+    "react-native-nitro-modules": ">=0.35.2"
   },
   "peerDependenciesMeta": {
     "react-native-nitro-modules": {
