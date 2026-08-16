@@ -4,17 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       version_bump:
-        description: 'Version bump (none = keep current X.Y.Z, next -alpha.N / graduate)'
+        description: 'none = next -alpha.N / -beta.N; promote = official X.Y.Z (folds changelog)'
         required: true
         type: choice
         options:
           - none
+          - promote
           - patch
           - minor
           - major
         default: 'none'
       prerelease:
-        description: 'Prerelease channel (repeat alpha/beta increments -alpha.N / -beta.N)'
+        description: 'Channel (ignored when bump is promote)'
         required: true
         type: choice
         options:
@@ -22,6 +23,16 @@ on:
           - alpha
           - beta
         default: 'alpha'
+      npm_dist_tag:
+        description: 'npm dist-tag (none = alpha→alpha, beta→beta, official→latest)'
+        required: true
+        type: choice
+        options:
+          - none
+          - latest
+          - alpha
+          - beta
+        default: 'none'
 
 jobs:
   prepare:
@@ -85,6 +96,9 @@ jobs:
           CURRENT_VERSION=$(node -p "require('./package.json').version")
           BUMP="${{ inputs.version_bump }}"
           PREID="${{ inputs.prerelease }}"
+          if [ "$BUMP" = "promote" ]; then
+            PREID=none
+          fi
           NEW_VERSION=$(node scripts/next-version.mjs "$BUMP" "$PREID" "$CURRENT_VERSION")
 
           echo "Current version: $CURRENT_VERSION"
@@ -93,6 +107,10 @@ jobs:
 
           for _ in $(seq 1 50); do
             if TAKEN_BY=$(version_taken_by "$NEW_VERSION"); then
+              if [ "$BUMP" = "promote" ]; then
+                echo "❌ Cannot promote: v${NEW_VERSION} already exists (${TAKEN_BY})"
+                exit 1
+              fi
               echo "⚠️ v${NEW_VERSION} already exists (${TAKEN_BY}); computing the next version"
               NEW_VERSION=$(node scripts/next-version.mjs "$BUMP" "$PREID" "$NEW_VERSION")
               echo "Candidate: $NEW_VERSION"
@@ -117,6 +135,7 @@ jobs:
           echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
           echo "NEW_VERSION=$NEW_VERSION" >> "$GITHUB_ENV"
           echo "IS_PRERELEASE=$IS_PRERELEASE" >> "$GITHUB_ENV"
+          echo "PREID=$PREID" >> "$GITHUB_ENV"
           echo "✅ New version: $NEW_VERSION"
 
       - name: Create release branch
@@ -179,9 +198,16 @@ jobs:
           fi
           echo "✅ Changelog updated from CHANGELOG-Unreleased.md"
 
+      - name: Record npm dist-tag
+        run: |
+          # Always write the choice (including none) so a leftover "latest" cannot stick on the next release.
+          TAG="${{ inputs.npm_dist_tag }}"
+          printf '%s\n' "$TAG" > .github/publish-npm-tag
+          echo "✅ npm dist-tag choice: $TAG"
+
       - name: Commit release files
         run: |
-          git add package.json CHANGELOG.md CHANGELOG-Unreleased.md docs-website/docs/docs/CHANGELOG.md
+          git add package.json CHANGELOG.md CHANGELOG-Unreleased.md docs-website/docs/docs/CHANGELOG.md .github/publish-npm-tag
           if [ "${{ env.IS_PRERELEASE }}" = "false" ]; then
             git add docs-website/package.json
           fi
@@ -200,7 +226,11 @@ jobs:
           {
             echo "## Release v${{ env.NEW_VERSION }}"
             echo ""
-            echo "This PR prepares **v${{ env.NEW_VERSION }}** (\`${{ inputs.version_bump }}\` / \`${{ inputs.prerelease }}\`)."
+            echo "This PR prepares **v${{ env.NEW_VERSION }}** (\`${{ inputs.version_bump }}\` / \`${{ env.PREID }}\` / dist-tag \`${{ inputs.npm_dist_tag }}\`)."
+            if [ "${{ inputs.version_bump }}" = "promote" ]; then
+              echo ""
+              echo "This is a **promote** to the official release (alpha/beta changelogs are folded into one heading)."
+            fi
             echo ""
             echo "Previous version: \`${{ steps.version.outputs.current }}\`"
             echo ""
@@ -223,10 +253,17 @@ jobs:
             echo "**Merging this PR will:**"
             echo "- Create git tag \`v${{ env.NEW_VERSION }}\`"
             echo "- Create a GitHub Release"
-            if [ "${{ env.IS_PRERELEASE }}" = "true" ]; then
-              echo "- Publish \`nitromelondb@${{ env.NEW_VERSION }}\` to npm with dist-tag \`${{ inputs.prerelease }}\`"
+            if [ "${{ inputs.npm_dist_tag }}" = "none" ]; then
+              if [ "${{ env.IS_PRERELEASE }}" = "true" ]; then
+                echo "- Publish \`nitromelondb@${{ env.NEW_VERSION }}\` to npm with dist-tag \`${{ env.PREID }}\`"
+              else
+                echo "- Publish \`nitromelondb@${{ env.NEW_VERSION }}\` to npm with dist-tag \`latest\`"
+              fi
             else
-              echo "- Publish \`nitromelondb@${{ env.NEW_VERSION }}\` to npm with dist-tag \`latest\`"
+              echo "- Publish \`nitromelondb@${{ env.NEW_VERSION }}\` to npm with dist-tag \`${{ inputs.npm_dist_tag }}\`"
+              if [ "${{ env.IS_PRERELEASE }}" = "true" ]; then
+                echo "- Also try to keep channel dist-tag \`${{ env.PREID }}\` on this version"
+              fi
             fi
           } > /tmp/pr_body.md
 

@@ -69,23 +69,42 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           if [[ "$VERSION" == *"-alpha."* ]]; then
-            DIST_TAG=alpha
+            CHANNEL_TAG=alpha
             IS_PRERELEASE=true
           elif [[ "$VERSION" == *"-beta."* ]]; then
-            DIST_TAG=beta
+            CHANNEL_TAG=beta
             IS_PRERELEASE=true
           else
-            DIST_TAG=latest
+            CHANNEL_TAG=latest
             IS_PRERELEASE=false
+          fi
+
+          OVERRIDE=none
+          if [ -f .github/publish-npm-tag ]; then
+            OVERRIDE=$(tr -d '[:space:]' < .github/publish-npm-tag)
+          fi
+          case "$OVERRIDE" in
+            none|latest|alpha|beta|'') ;;
+            *)
+              echo "⚠️ Ignoring invalid .github/publish-npm-tag value: $OVERRIDE"
+              OVERRIDE=none
+              ;;
+          esac
+          if [ -z "$OVERRIDE" ] || [ "$OVERRIDE" = "none" ]; then
+            DIST_TAG="$CHANNEL_TAG"
+          else
+            DIST_TAG="$OVERRIDE"
           fi
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+          echo "channel_tag=$CHANNEL_TAG" >> "$GITHUB_OUTPUT"
           echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
           echo "NEW_VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "DIST_TAG=$DIST_TAG" >> "$GITHUB_ENV"
+          echo "CHANNEL_TAG=$CHANNEL_TAG" >> "$GITHUB_ENV"
           echo "IS_PRERELEASE=$IS_PRERELEASE" >> "$GITHUB_ENV"
-          echo "📦 Version: $VERSION (npm tag: $DIST_TAG)"
+          echo "📦 Version: $VERSION (npm tag: $DIST_TAG, channel: $CHANNEL_TAG)"
 
       - name: Extract release notes
         run: |
@@ -118,6 +137,13 @@ jobs:
           else
             npm publish ./dist --access public --tag "${{ env.DIST_TAG }}" --verbose
             echo "✅ Published nitromelondb@${{ env.NEW_VERSION }} with tag ${{ env.DIST_TAG }}"
+            if [ "${{ env.IS_PRERELEASE }}" = "true" ] && [ "${{ env.DIST_TAG }}" != "${{ env.CHANNEL_TAG }}" ]; then
+              if npm dist-tag add "nitromelondb@${{ env.NEW_VERSION }}" "${{ env.CHANNEL_TAG }}"; then
+                echo "✅ Also set dist-tag ${{ env.CHANNEL_TAG }}"
+              else
+                echo "⚠️ Could not add dist-tag ${{ env.CHANNEL_TAG }} (OIDC may only allow npm publish)"
+              fi
+            fi
           fi
 
       - name: Create git tag

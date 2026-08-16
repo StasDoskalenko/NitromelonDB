@@ -12,8 +12,9 @@ Automated releases for `nitromelondb`, modeled on the two-step process used in [
 
 | Field | Options | Purpose |
 | --- | --- | --- |
-| Version bump | `none`, `patch`, `minor`, `major` | Semver bump. `none` keeps the current X.Y.Z (next `-alpha.N`, or graduate if prerelease is `none`) |
-| Prerelease | `none`, `alpha`, `beta` | Optional prerelease channel |
+| Version bump | `none`, `promote`, `patch`, `minor`, `major` | Semver bump. `none` keeps the current X.Y.Z (next `-alpha.N`, or graduate if prerelease is `none`). `promote` ships the in-progress alpha/beta as official `X.Y.Z` and folds the changelog |
+| Prerelease | `none`, `alpha`, `beta` | Optional prerelease channel. Ignored when bump is `promote` |
+| npm dist-tag | `none`, `latest`, `alpha`, `beta` | `none` (default) uses the version's channel tag. Pick `latest` only when this version should be what `npm i nitromelondb` installs |
 
 **What it does:**
 
@@ -22,10 +23,11 @@ Automated releases for `nitromelondb`, modeled on the two-step process used in [
 3. Creates or recreates a `release/vX.Y.Z` branch from master (leftover branches without a tag/release are reused; already-open PRs are not)
 4. Bumps `package.json`
 5. Moves `CHANGELOG-Unreleased.md` into `CHANGELOG.md` under the new version heading
-6. When graduating to a stable release, folds every same-version `-alpha.N` / `-beta.N` changelog entry into that one official heading and removes the prerelease sections
-7. Resets `CHANGELOG-Unreleased.md` to empty section headers
-8. Syncs `docs-website/docs/docs/CHANGELOG.md`
-9. Opens a PR to `master` for review
+6. When graduating to a stable release (`promote`, or bump `none` + prerelease `none`), folds every same-version `-alpha.N` / `-beta.N` changelog entry into that one official heading and removes the prerelease sections
+7. Records the npm dist-tag choice in `.github/publish-npm-tag` (always written, including `none`)
+8. Resets `CHANGELOG-Unreleased.md` to empty section headers
+9. Syncs `docs-website/docs/docs/CHANGELOG.md`
+10. Opens a PR to `master` for review
 
 Run it from **master**: Actions → **Prepare Release** → Run workflow.
 
@@ -36,7 +38,7 @@ Run it from **master**: Actions → **Prepare Release** → Run workflow.
 **What it does:**
 
 1. Builds the package (`yarn build` → `dist/`)
-2. Publishes `nitromelondb` to npm (`latest`, `alpha`, or `beta` dist-tag) via OIDC trusted publishing
+2. Publishes `nitromelondb` to npm via OIDC trusted publishing. Dist-tag is `alpha` / `beta` / `latest` from the version unless Prepare Release recorded an override in `.github/publish-npm-tag`
 3. Creates git tag `vX.Y.Z`
 4. Creates a GitHub Release (marked as prerelease for alpha/beta)
 5. Comments on the PR with npm and GitHub links (merge trigger only)
@@ -64,12 +66,13 @@ flowchart TD
 
 ## Versioning
 
-`package.json` is currently `0.30.0-alpha.0`. To ship another alpha of the same version, use bump **`none`** + prerelease **`alpha`**.
+`package.json` is currently `0.30.0-alpha.3`. To ship another alpha of the same version, use bump **`none`** + prerelease **`alpha`**. To ship that line as official, use bump **`promote`** (prerelease is ignored).
 
 | Current | Bump | Prerelease | Result |
 | --- | --- | --- | --- |
 | `0.30.0-alpha.0` | none | alpha | `0.30.0-alpha.1` |
 | `0.30.0-alpha.1` | none | beta | `0.30.0-beta.0` |
+| `0.30.0-alpha.3` | promote | *(ignored)* | `0.30.0` |
 | `0.30.0-beta.0` | none | none | `0.30.0` |
 | `0.30.0-alpha.0` | major | alpha | `1.0.0-alpha.0` |
 | `0.28.1` | minor | alpha | `0.29.0-alpha.0` |
@@ -77,11 +80,15 @@ flowchart TD
 
 `none` only works while a prerelease is in progress. Starting a new line still needs `patch` / `minor` / `major`. Repeating the **same** bump + channel also increments `-alpha.N` / `-beta.N`.
 
-npm dist-tags:
+npm dist-tags (`npm_dist_tag` = **`none`**, the default):
 
 - stable → `latest`
 - `-alpha.N` → `alpha`
 - `-beta.N` → `beta`
+
+Set **npm dist-tag** to `latest` only when this publish should become what `npm i nitromelondb` installs — for example a chosen beta **before** an official `0.30.0` exists, while `latest` is still stuck on an old alpha. After a stable exists, leave this on `none` so a later beta does not replace it. Prepare always writes `.github/publish-npm-tag` (including `none`) so a leftover override cannot stick.
+
+If a prerelease is published with `--tag latest`, Publish Release also tries `npm dist-tag add … alpha|beta` so the channel tag still points at that version. That extra command may fail under OIDC (trusted publishing is for `npm publish`); the publish itself still succeeds.
 
 ```bash
 npm install nitromelondb@latest
@@ -110,7 +117,7 @@ Contributors add notes to `CHANGELOG-Unreleased.md`. Prepare Release copies non-
 
 Empty section headers are dropped. The unreleased file is then reset for the next cycle.
 
-When **prerelease is `none`** on an in-progress alpha/beta (for example `0.30.0-beta.0` → `0.30.0`), Prepare Release combines every `0.30.0-alpha.*` and `0.30.0-beta.*` section with the current unreleased notes into a single `## 0.30.0` entry. Duplicate bullets are dropped. Individual alpha/beta headings are removed from `CHANGELOG.md` (GitHub Releases for those prereleases stay as-is). A major/minor/patch that starts a **different** X.Y.Z leaves the previous line's prerelease notes alone.
+When **bump is `promote`**, or **prerelease is `none`** on an in-progress alpha/beta (for example `0.30.0-beta.0` → `0.30.0`), Prepare Release combines every `0.30.0-alpha.*` and `0.30.0-beta.*` section with the current unreleased notes into a single `## 0.30.0` entry. Duplicate bullets are dropped. Individual alpha/beta headings are removed from `CHANGELOG.md` (GitHub Releases for those prereleases stay as-is). A major/minor/patch that starts a **different** X.Y.Z leaves the previous line's prerelease notes alone.
 
 ## npm trusted publishing (OIDC)
 
