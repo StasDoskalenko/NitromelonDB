@@ -42,7 +42,8 @@ function nitromelonOrNull(): Nitromelon | null {
   }
 
   try {
-    const nitroModule = require('../../../nitro') as { nitromelon: Nitromelon }
+    // `/index` is required: Metro prefers package-root `nitro.json` over `nitro/index.js`.
+    const nitroModule = require('../../../nitro/index') as { nitromelon: Nitromelon }
     if (typeof nitroModule.nitromelon.createAdapter !== 'function') {
       cachedNitromelon = null
       return null

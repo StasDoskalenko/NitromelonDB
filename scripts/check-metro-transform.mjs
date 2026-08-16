@@ -37,6 +37,20 @@ if (!files.length) {
   throw new Error('No TypeScript sources found to transform')
 }
 
+// Metro prefers `nitro.json` over `nitro/index.js` when the specifier is `.../nitro`.
+const nitroJsonCollision = /require\((['"])([^'"]*\/)?nitro\1\)/
+for (const file of files) {
+  if (!file.startsWith(src)) {
+    continue
+  }
+  const source = fs.readFileSync(file, 'utf8')
+  if (nitroJsonCollision.test(source)) {
+    throw new Error(
+      `${path.relative(root, file)}: require('.../nitro') resolves to package-root nitro.json in Metro. Use '.../nitro/index'.`,
+    )
+  }
+}
+
 for (const file of files) {
   const source = fs.readFileSync(file, 'utf8')
   try {

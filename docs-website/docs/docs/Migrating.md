@@ -221,6 +221,7 @@ Assigning `record.id` anywhere else throws. `_raw.id` and `prepareCreateFromDirt
 - Move `__mocks__/@nozbe/watermelondb` to `__mocks__/nitromelondb` (and the same for any subpath mocks).
 - Do **not** path-map `nitromelondb` to unpublished `.ts` sources or to a `.d.ts` file. The published package is compiled JS at the package root.
 - That compiled JS does **not** need `transformIgnorePatterns` for `nitromelondb`.
+- If a release bundle loads `nitro.json` and SQLite never opens, you are on `0.30.0-beta.1`. Upgrade; do not patch `require('.../nitro')` yourself after that.
 
 ## 9. Platform floor
 

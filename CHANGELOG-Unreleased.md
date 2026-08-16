@@ -15,6 +15,7 @@
 - **npm types:** the published `package.json` now points `types` at `index.d.ts`. Ramda `merge` was leaving `"types": "src/index.ts"`, which is not in the tarball.
 - **`@json` sanitizers:** `json<T>()` accepts typed sanitizers again (`(source: T) => T`). `memo` on the options object is optional.
 - **`Model.id`:** assigning `record.id = 'custom'` inside `create()` / `prepareCreate()` works. It throws after create instead of silently no-op'ing.
+- **Metro / `nitro.json`:** native `require('.../nitro')` resolved to package-root `nitro.json` instead of `nitro/index.js`, so the HybridObject never loaded in release bundles. Requires now use `.../nitro/index`.
 
 ### Performance
 
