@@ -8,8 +8,8 @@ type ContactInfo = { email: string }
 const sanitizeContact = (source: ContactInfo): ContactInfo =>
   source && typeof source.email === 'string' ? source : { email: '' }
 
-const accessLevelSanitizer = (accessLevels: string): string[] =>
-  typeof accessLevels === 'string' ? accessLevels.split(',') : []
+const sanitizeTags = (raw: string): string[] =>
+  typeof raw === 'string' ? raw.split(',') : []
 
 const sanitizeReactions = (raw: unknown): string[] =>
   Array.isArray(raw) ? raw.map(String) : []
@@ -26,8 +26,8 @@ class Person extends Model {
   @json('contact_info', sanitizeContact, {})
   contactInfoDefaultMemo!: ContactInfo
 
-  @json('access_levels', accessLevelSanitizer)
-  accessLevels!: string[]
+  @json('tags', sanitizeTags)
+  tags!: string[]
 
   @json('reactions', sanitizeReactions)
   reactions!: string[]
@@ -49,17 +49,17 @@ export function wrappedJsonWithOptions<T>(
   return json(rawFieldName, sanitizer, options)
 }
 
-class Account extends Model {
-  static table = 'accounts'
+class Note extends Model {
+  static table = 'notes'
 
-  @wrappedJson('access_levels', accessLevelSanitizer)
-  accessLevels!: string[]
+  @wrappedJson('tags', sanitizeTags)
+  tags!: string[]
 }
 
-export { Person, Account }
+export { Person, Note }
 export const personType: Person = null as unknown as Person
 export const email: string = personType.contactInfo.email
-export const accessLevels: string[] = personType.accessLevels
+export const tags: string[] = personType.tags
 export const reactions: string[] = personType.reactions
-export const accountAccessLevels: string[] = (null as unknown as Account).accessLevels
+export const noteTags: string[] = (null as unknown as Note).tags
 export const relationId: RelationId<Model> = 'record-id'

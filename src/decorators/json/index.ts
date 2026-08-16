@@ -15,7 +15,7 @@ import { ensureDecoratorUsedProperly, type ModelDecoratorHost } from '../common'
 //
 // Examples:
 //   @json('contact_info', jsonValue => jasonValue || {}) contactInfo: ContactInfo
-//   @json('access_levels', (raw: unknown) => Array.isArray(raw) ? raw.map(String) : []) accessLevels: string[]
+//   @json('tags', (raw: unknown) => Array.isArray(raw) ? raw.map(String) : []) tags: string[]
 
 export type Sanitizer<TInput = unknown, TOutput = TInput> = (
   source: TInput,
