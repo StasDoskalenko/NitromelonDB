@@ -22,12 +22,11 @@ NitromelonDB does **not** support the old React Native architecture (Paper / the
 :::
 
 ```bash
-yarn add nitromelondb rxjs@^7.8.0
 # skip if the app already depends on it:
 yarn add react-native-nitro-modules
 ```
 
-`rxjs` `^7.8.0` is a peer dependency. `react-native-nitro-modules` `>=0.35.2` is required for SQLite on iOS and Android. It is optional on web / Node / Electron. Do not add `react-native-nitro-modules` a second time if it is already in the app.
+`react-native-nitro-modules` `>=0.35.2` is required for SQLite on iOS and Android. It is optional on web / Node / Electron. Do not add it a second time if it is already in the app.
 
 1. Install the Babel plugin for decorators if you haven't already:
 
@@ -152,13 +151,13 @@ If you previously installed JSI manually, remove:
 - `implementation project(':watermelondb-jsi')` from `android/app/build.gradle`
 - `WatermelonDBJSIPackage` from `MainApplication`
 
-Keep the Proguard rule if you use it:
+</details>
+
+If you minify with R8 / Proguard, keep this rule. The Android Java package is still `com.nozbe.watermelondb`:
 
 ```
 -keep class com.nozbe.watermelondb.** { *; }
 ```
-
-</details>
 
 ## Web setup
 

@@ -3,6 +3,10 @@ title: Check out the README
 hide_title: true
 ---
 
+<p align="center">
+  <img src="https://github.com/StasDoskalenko/NitromelonDB/raw/master/assets/logo-horizontal.png" alt="NitromelonDB" width="539" />
+</p>
+
 <table>
 <tr>
 <td>
@@ -41,10 +45,6 @@ Full credit to [@Nozbe](https://github.com/Nozbe) and [Radek Pietruszewski](http
 </table>
 
 ### ➡️ **Learn more:** [see full documentation](./Installation.mdx)
-
-<p align="center">
-  <img src="/img/nitromelon-icon.png" alt="NitromelonDB" width="220" />
-</p>
 
 <h4 align="center">
   NitromelonDB — a reactive database framework

@@ -17,14 +17,14 @@ Your existing SQLite files, schema version, migrations, and model classes keep w
 
 ```bash
 yarn remove @nozbe/watermelondb
-yarn add nitromelondb rxjs@^7.8.0
+yarn add nitromelondb
 
 # (or with npm:)
 npm uninstall @nozbe/watermelondb
-npm install nitromelondb rxjs@^7.8.0
+npm install nitromelondb
 ```
 
-`rxjs` is a **peer dependency** (`^7.8.0`). Most apps already have it. Aligning the range avoids Yarn nesting a second copy (which breaks `Observable` / `Subscription` types).
+`rxjs` `^7.8.0` is both a **dependency** and a **peer**. The dependency is what `yarn add nitromelondb` / `npm install nitromelondb` installs for you. The peer is so Yarn/npm hoist a single copy if the app already has RxJS (two copies break `Observable` / `Subscription` types). You do not add it yourself.
 
 On React Native (iOS and Android), also add the Nitro peer and rebuild native code — **skip this if `react-native-nitro-modules` is already in the app** (do not double-install it):
 
@@ -79,10 +79,13 @@ import { synchronize } from 'nitromelondb/sync'
 Autolinking picks up the `NitromelonDB` pod. **Remove** any WatermelonDB / simdjson / FMDB lines you added by hand — simdjson is compiled into NitromelonDB from vendored sources. You do not add a `pod 'simdjson'`, `pod 'FMDB'`, or `pod 'NitromelonDB'` line. FMDB is not used.
 
 ```ruby
-# delete these if present
+# Remove these lines if they are in your Podfile.
+# Autolinking provides NitromelonDB. simdjson is compiled into that pod —
+# there is no separate simdjson (or FMDB) pod to add.
+#
 # pod 'WatermelonDB', path: '../node_modules/@nozbe/watermelondb'
 # pod 'NitromelonDB', path: '../node_modules/nitromelondb'
-pod 'simdjson', path: '../node_modules/@nozbe/simdjson', modular_headers: true
+# pod 'simdjson', path: '../node_modules/@nozbe/simdjson', modular_headers: true
 ```
 
 Then `pod install` (Expo: `npx expo prebuild`).
@@ -126,13 +129,13 @@ That path **does not exist**. Remove the whole JSI block. Do not point it at `na
 
 Do not register `WatermelonDBPackage` by hand — that is the old architecture. Autolinking is required.
 
-Keep the Proguard rule if you use it:
+The Android Java package is still `com.nozbe.watermelondb`. If you already have this R8 / Proguard rule, **leave it** — do not delete it:
 
 ```
 -keep class com.nozbe.watermelondb.** { *; }
 ```
 
-The Java package name `com.nozbe.watermelondb` is unchanged. Turbo-sync JSON injection now goes through `com.nozbe.watermelondb.NitromelonNative.provideSyncJson`.
+Turbo-sync JSON injection now goes through `com.nozbe.watermelondb.NitromelonNative.provideSyncJson`.
 
 Minimum Android SDK is **24**.
 
@@ -232,12 +235,11 @@ Assigning `record.id` anywhere else throws. `_raw.id` and `prepareCreateFromDirt
 | iOS | 12+ | **15.1** |
 | Android minSdk | 21 (typical) | **24** |
 | `react-native-nitro-modules` | n/a | **≥ 0.35.2** (optional peer on web) |
-| `rxjs` | transitive | **peer `^7.8.0`** |
+| `rxjs` | transitive | **dependency + peer `^7.8.0`** (installed with the package) |
 
 ## Checklist
 
 - [ ] `yarn remove @nozbe/watermelondb && yarn add nitromelondb`
-- [ ] Install or align `rxjs@^7.8.0` (peer). Do not leave two copies in `node_modules`.
 - [ ] `yarn add react-native-nitro-modules` if it is not already a dependency (`>=0.35.2`)
 - [ ] Replace `@nozbe/watermelondb` → `nitromelondb` in **JS/TS imports**, Jest mocks, and path aliases — not in native JSI / SupportingFiles paths
 - [ ] Remove hand-copied `pod 'WatermelonDB'` / `pod 'NitromelonDB'` / `pod 'simdjson'` / `pod 'FMDB'` lines from the Podfile

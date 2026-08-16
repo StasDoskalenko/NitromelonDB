@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://github.com/StasDoskalenko/NitromelonDB/raw/master/assets/logo-horizontal.png" alt="NitromelonDB" width="539" />
+</p>
+
 <table>
 <tr>
 <td>
@@ -36,10 +40,6 @@ Full credit to [@Nozbe](https://github.com/Nozbe) and [Radek Pietruszewski](http
 </table>
 
 ### ➡️ **Learn more:** [see full documentation](https://stasdoskalenko.github.io/NitromelonDB/)
-
-<p align="center">
-  <img src="assets/nitromelon-icon.png" alt="NitromelonDB" width="220" />
-</p>
 
 <h4 align="center">
   NitromelonDB — a reactive database framework
