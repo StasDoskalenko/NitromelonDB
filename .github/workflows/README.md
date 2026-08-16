@@ -26,8 +26,9 @@ Automated releases for `nitromelondb`, modeled on the two-step process used in [
 6. When graduating to a stable release (`promote`, or bump `none` + prerelease `none`), folds every same-version `-alpha.N` / `-beta.N` changelog entry into that one official heading and removes the prerelease sections
 7. Records the npm dist-tag choice in `.github/publish-npm-tag` (always written, including `none`)
 8. Resets `CHANGELOG-Unreleased.md` to empty section headers
-9. Syncs `docs-website/docs/docs/CHANGELOG.md`
-10. Opens a PR to `master` for review
+9. Bumps `docs-website/package.json` (so the docs version badge matches, including alpha/beta)
+10. Syncs `docs-website/docs/docs/CHANGELOG.md`
+11. Opens a PR to `master` for review
 
 Run it from **master**: Actions → **Prepare Release** → Run workflow.
 

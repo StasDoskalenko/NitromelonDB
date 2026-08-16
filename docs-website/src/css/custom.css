@@ -26,6 +26,6 @@
   --ifm-color-primary-lightest: #eb8a97;
 }
 
-/* 
-Use this tool to generate colors: https://docusaurus.io/docs/2.0.1/migration/manual#updated-fields
-*/
+.navbar__logo img {
+  border-radius: 6px;
+}

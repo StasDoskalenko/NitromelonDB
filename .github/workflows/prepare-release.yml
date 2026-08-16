@@ -176,7 +176,6 @@ jobs:
           echo "✅ package.json updated to v${{ env.NEW_VERSION }}"
 
       - name: Update docs-website version
-        if: env.IS_PRERELEASE == 'false'
         run: |
           node -e "
             const fs = require('fs');
@@ -207,10 +206,7 @@ jobs:
 
       - name: Commit release files
         run: |
-          git add package.json CHANGELOG.md CHANGELOG-Unreleased.md docs-website/docs/docs/CHANGELOG.md .github/publish-npm-tag
-          if [ "${{ env.IS_PRERELEASE }}" = "false" ]; then
-            git add docs-website/package.json
-          fi
+          git add package.json CHANGELOG.md CHANGELOG-Unreleased.md docs-website/docs/docs/CHANGELOG.md docs-website/package.json .github/publish-npm-tag
           git commit -m "chore: release v${{ env.NEW_VERSION }}"
           if [ "${{ env.FORCE_PUSH }}" = "true" ]; then
             git push --force-with-lease origin "${{ env.PR_BRANCH }}"
@@ -243,11 +239,11 @@ jobs:
             echo "### What this PR does"
             echo ""
             echo "- Bumps \`package.json\` to \`${{ env.NEW_VERSION }}\`"
+            echo "- Bumps \`docs-website/package.json\` to \`${{ env.NEW_VERSION }}\`"
             echo "- Moves \`CHANGELOG-Unreleased.md\` into \`CHANGELOG.md\`"
             echo "- Resets \`CHANGELOG-Unreleased.md\` for the next cycle"
             if [ "${{ env.IS_PRERELEASE }}" = "false" ]; then
               echo "- Folds same-version alpha/beta changelog entries into one official release entry"
-              echo "- Bumps \`docs-website/package.json\` to \`${{ env.NEW_VERSION }}\`"
             fi
             echo ""
             echo "**Merging this PR will:**"

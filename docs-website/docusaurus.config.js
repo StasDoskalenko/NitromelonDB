@@ -10,7 +10,7 @@ const { version } = require('./package.json')
 const config = {
   title: 'NitromelonDB',
   tagline: 'A reactive database framework',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/favicon.png',
 
   // GitHub Pages: https://stasdoskalenko.github.io/NitromelonDB/
   url: 'https://stasdoskalenko.github.io',
@@ -75,12 +75,12 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       // Replace with your project's social card
-      image: 'img/watermelon-social-card.png',
+      image: 'img/nitromelon-icon.png',
       navbar: {
         title: 'NitromelonDB',
         logo: {
           alt: 'NitromelonDB Logo',
-          src: 'img/logo.svg',
+          src: 'img/nitromelon-icon.png',
         },
         items: [
           {
