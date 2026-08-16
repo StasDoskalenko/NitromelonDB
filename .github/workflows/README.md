@@ -33,7 +33,9 @@ Run it from **master**: Actions → **Prepare Release** → Run workflow.
 
 ### 2. `publish-release.yml` — Publish Release
 
-**Trigger:** Automatic when a `release/v*` PR is merged to `master`. Also manual (`workflow_dispatch` from **master`) to retry a version that is already on `master` but never made it to npm / git tag / GitHub Release.
+**Trigger:** Automatic on a `push` to `master` whose commit is a release (`chore: release v…`, `Release v…`, or a merge of `release/v*`). Also manual (`workflow_dispatch` from **master`) to retry a version that is already on `master` but never made it to npm / git tag / GitHub Release.
+
+Do **not** trigger publish with `pull_request_target`. npm trusted publishing rejects those OIDC tokens (`POST …/oidc/token/exchange` 404, `OIDC token exchange error - package not found`) even when the same workflow succeeds as `workflow_dispatch` from master. See [npm/cli#8739](https://github.com/npm/cli/issues/8739).
 
 **What it does:**
 
@@ -47,7 +49,7 @@ OIDC publish uses `actions/checkout@v6`, `actions/setup-node@v6`, Node 24, `pack
 
 **Do not set `registry-url` on `setup-node`.** The [npm trusted publishers example](https://docs.npmjs.com/trusted-publishers#github-actions-configuration) includes it, but `setup-node` then writes `_authToken=${NODE_AUTH_TOKEN}` and a dummy `NODE_AUTH_TOKEN`. npm treats that as classic auth, skips OIDC, and fails with `PUT … 404 Not Found` even though `nitromelondb` exists. The publish step also `unset NODE_AUTH_TOKEN` and strips leftover `_authToken` lines. Provenance is generated automatically on OIDC publishes from this public repo.
 
-We do **not** use `on: push: tags: v*` as the primary trigger. This workflow creates the git tag with `GITHUB_TOKEN` after a release PR merge; events from `GITHUB_TOKEN` do not start a second workflow, so a tag-only job would never run. Merge + **Actions → Publish Release** (retry) is the equivalent.
+We do **not** use `on: push: tags: v*` as the primary trigger. This workflow creates the git tag with `GITHUB_TOKEN` after publish; events from `GITHUB_TOKEN` do not start a second workflow, so a tag-only job would never run. A `push` of the release commit to `master` is what npm OIDC accepts. **Actions → Publish Release** (retry) is the same job if that push publish failed.
 
 ## Release process
 
@@ -66,7 +68,7 @@ flowchart TD
 
 ## Versioning
 
-`package.json` is currently `0.30.0-alpha.3`. To ship another alpha of the same version, use bump **`none`** + prerelease **`alpha`**. To ship that line as official, use bump **`promote`** (prerelease is ignored).
+`package.json` is currently `0.30.0-beta.1`. To ship another beta of the same version, use bump **`none`** + prerelease **`beta`**. To ship that line as official, use bump **`promote`** (prerelease is ignored).
 
 | Current | Bump | Prerelease | Result |
 | --- | --- | --- | --- |
@@ -162,8 +164,8 @@ Do not add an `NPM_TOKEN` secret to this repository.
 - If that version already has a tag, GitHub Release, or npm publish, Prepare Release skips it and takes the next free version (for alpha, `0.30.0-alpha.1` → `0.30.0-alpha.2`)
 
 ### npm publish did not run
-- PR must come from `release/vX.Y.Z` (or `-alpha.N` / `-beta.N`) in this repository
-- PR must be merged, not only closed
+- The merge commit on `master` must look like a release (`chore: release v…` / `Release v…` / merge of `release/v*`)
+- Or run **Actions → Publish Release** from **master**
 
 ### npm publish failed
 - Confirm the trusted publisher on npmjs.com matches `StasDoskalenko` / `NitromelonDB` / `publish-release.yml`
@@ -171,7 +173,7 @@ Do not add an `NPM_TOKEN` secret to this repository.
 - Confirm that version is not already on npm
 - Review the Publish Release logs
 - `PUT https://registry.npmjs.org/nitromelondb` **404** with **no** `/-/npm/v1/oidc/token/exchange` line means npm skipped OIDC (dummy `NODE_AUTH_TOKEN` from `setup-node` `registry-url`). This workflow must not set `registry-url`.
-- `ENEEDAUTH` or `OIDC token exchange error - package not found` means OIDC ran but Trusted Publisher does not match GitHub's casing: `StasDoskalenko` / `NitromelonDB` / `publish-release.yml` (not the lowercase npm name `nitromelondb`). Environment empty, allow `npm publish`, then **Save**.
+- `ENEEDAUTH` or `OIDC token exchange error - package not found` after a token-exchange POST usually means the OIDC claims did not match. Check Trusted Publisher casing (`StasDoskalenko` / `NitromelonDB` / `publish-release.yml`, environment empty). Also: `pull_request_target` is not a valid publish trigger — retry from **master** with **Publish Release**.
 
 ### Retry a failed publish (no new version)
 Do **not** run Prepare Release again — that would bump to the next `-alpha.N` / `-beta.N`. After the fix is on `master`: Actions → **Publish Release** → Run workflow (branch **master**). That publishes the version already in `package.json`, then creates the git tag and GitHub Release if they are missing.
