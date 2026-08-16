@@ -1,8 +1,10 @@
 name: Publish Release
 
 on:
-  pull_request_target:
-    types: [closed]
+  # npm OIDC trusted publishing rejects pull_request_target tokens
+  # (OIDC token exchange 404 "package not found"). workflow_dispatch
+  # from master works; so does push to master. See npm/cli#8739.
+  push:
     branches:
       - master
   workflow_dispatch:
@@ -16,9 +18,12 @@ jobs:
     if: |
       github.event_name == 'workflow_dispatch' ||
       (
-        github.event.pull_request.merged == true &&
-        github.event.pull_request.head.repo.full_name == github.repository &&
-        startsWith(github.event.pull_request.head.ref, 'release/v')
+        github.event.head_commit != null &&
+        (
+          startsWith(github.event.head_commit.message, 'chore: release v') ||
+          startsWith(github.event.head_commit.message, 'Release v') ||
+          contains(github.event.head_commit.message, '/release/v')
+        )
       )
     runs-on: ubuntu-latest
     permissions:
@@ -34,20 +39,9 @@ jobs:
             exit 1
           fi
 
-      - name: Validate release branch
-        if: github.event_name == 'pull_request_target'
-        run: |
-          BRANCH="${{ github.event.pull_request.head.ref }}"
-          if [[ ! "$BRANCH" =~ ^release/v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)\.[0-9]+)?$ ]]; then
-            echo "❌ Branch name '$BRANCH' doesn't match release/vX.Y.Z or release/vX.Y.Z-alpha.N / -beta.N"
-            exit 1
-          fi
-          echo "✅ Valid release branch: $BRANCH"
-
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
 
       - name: Set Node.js version
@@ -174,11 +168,16 @@ jobs:
           fi
 
       - name: Comment on PR
-        if: github.event_name == 'pull_request_target'
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr comment ${{ github.event.pull_request.number }} --body \
+          PR=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" --jq '.[0].number // empty')
+          if [ -z "$PR" ]; then
+            echo "No merged PR found for this commit, skipping comment"
+            exit 0
+          fi
+          gh pr comment "$PR" --body \
             "🎉 **nitromelondb@${{ env.NEW_VERSION }} published**
 
           📦 **npm:** [nitromelondb@${{ env.NEW_VERSION }}](https://www.npmjs.com/package/nitromelondb/v/${{ env.NEW_VERSION }}) (\`${{ env.DIST_TAG }}\`)

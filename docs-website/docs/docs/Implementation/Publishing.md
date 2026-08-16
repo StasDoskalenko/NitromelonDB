@@ -27,13 +27,13 @@ The workflow opens a `release/v…` PR with the version bump and changelog. CI r
 
 ### Step 4: Automatic publish
 
-Merging the PR:
+Merging the PR pushes the release commit to `master`, which runs Publish Release:
 
 - Builds `dist/`
 - Publishes `nitromelondb` to npm (`latest`, `alpha`, or `beta`, unless Prepare recorded an override)
 - Creates the git tag and GitHub Release
 
-If npm publish fails, do not run Prepare Release again. After the fix is on `master`, run **Actions → Publish Release** from **master** to retry the same version.
+If npm publish fails, do not run Prepare Release again. Run **Actions → Publish Release** from **master** to retry the same version.
 
 ### Local helpers
 
