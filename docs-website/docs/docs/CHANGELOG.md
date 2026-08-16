@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
+## 0.30.0-beta.1 - 2026-08-16
+
+### Internal
+
+- Drop leftover FMDB comments and regenerate `native/iosTest` CocoaPods so the Xcode project links `NitromelonDB` (sqlite3 C API), not the old WatermelonDB/FMDB sources.
+- Prepare Release: version bump **`promote`** graduates the in-progress alpha/beta to official `X.Y.Z` (changelog fold). Optional **npm dist-tag** dropdown defaults to `none` (channel tags); pick `latest` only when `npm i` should install that version.
+
 ## 0.30.0-beta.0 - 2026-08-16
 
 ## 0.30.0-alpha.3 - 2026-08-15

@@ -1,7 +1,7 @@
 {
   "name": "nitromelondb",
   "description": "Reactive SQLite database for React Native and React web. A maintained fork of WatermelonDB.",
-  "version": "0.30.0-beta.0",
+  "version": "0.30.0-beta.1",
   "engines": {
     "node": ">=22"
   },
