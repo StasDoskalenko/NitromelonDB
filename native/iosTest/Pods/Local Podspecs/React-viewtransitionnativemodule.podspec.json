@@ -1,0 +1,36 @@
+{
+  "name": "React-viewtransitionnativemodule",
+  "version": "0.87.0",
+  "summary": "React Native view transition native module",
+  "homepage": "https://reactnative.dev/",
+  "license": "MIT",
+  "authors": "Meta Platforms, Inc. and its affiliates",
+  "platforms": {
+    "ios": "15.1"
+  },
+  "source": {
+    "git": "https://github.com/facebook/react-native.git",
+    "tag": "v0.87.0"
+  },
+  "source_files": "*.h",
+  "header_dir": "react/nativemodule/viewtransition",
+  "pod_target_xcconfig": {
+    "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
+    "HEADER_SEARCH_PATHS": "$(PODS_ROOT)/Headers/Private/Yoga $(PODS_ROOT)/ReactNativeDependencies/Headers \"${PODS_ROOT}/React-runtimeexecutor\" \"${PODS_ROOT}/React-runtimeexecutor/platform/ios\" \"${PODS_ROOT}/React-RCTFBReactNativeSpec\"",
+    "OTHER_CFLAGS": "$(inherited)",
+    "DEFINES_MODULE": "YES"
+  },
+  "dependencies": {
+    "React-jsi": [],
+    "React-jsiexecutor": [],
+    "hermes-engine": [],
+    "ReactNativeDependencies": [],
+    "React-Core-prebuilt": [],
+    "Yoga": [],
+    "ReactCommon/turbomodule/core": [],
+    "React-Fabric": [],
+    "React-Fabric/bridging": [],
+    "React-runtimeexecutor": [],
+    "React-RCTFBReactNativeSpec": []
+  }
+}

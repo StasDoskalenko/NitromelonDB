@@ -1,0 +1,6 @@
+module NitromelonDB {
+  umbrella header "NitromelonDB-umbrella.h"
+
+  export *
+  module * { export * }
+}

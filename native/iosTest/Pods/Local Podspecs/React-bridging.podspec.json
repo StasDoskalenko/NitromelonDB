@@ -1,0 +1,32 @@
+{
+  "name": "React-bridging",
+  "version": "0.87.0",
+  "summary": "-",
+  "homepage": "https://reactnative.dev/",
+  "license": "MIT",
+  "authors": "Meta Platforms, Inc. and its affiliates",
+  "platforms": {
+    "ios": "15.1"
+  },
+  "source": {
+    "git": "https://github.com/facebook/react-native.git",
+    "tag": "v0.87.0"
+  },
+  "source_files": "*.h",
+  "header_dir": "react/bridging",
+  "pod_target_xcconfig": {
+    "USE_HEADERMAP": "YES",
+    "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
+    "DEFINES_MODULE": "YES",
+    "HEADER_SEARCH_PATHS": [
+      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
+    ]
+  },
+  "dependencies": {
+    "React-jsi": [],
+    "React-callinvoker": [],
+    "React-timing": [],
+    "ReactNativeDependencies": [],
+    "React-Core-prebuilt": []
+  }
+}

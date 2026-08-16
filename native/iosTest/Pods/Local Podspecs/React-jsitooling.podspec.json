@@ -1,0 +1,49 @@
+{
+  "name": "React-jsitooling",
+  "version": "0.87.0",
+  "summary": "-",
+  "homepage": "https://reactnative.dev/",
+  "license": "MIT",
+  "authors": "Meta Platforms, Inc. and its affiliates",
+  "platforms": {
+    "ios": "15.1"
+  },
+  "source": {
+    "git": "https://github.com/facebook/react-native.git",
+    "tag": "v0.87.0"
+  },
+  "source_files": "react/runtime/*.h",
+  "header_dir": "react/runtime",
+  "pod_target_xcconfig": {
+    "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
+    "DEFINES_MODULE": "YES",
+    "HEADER_SEARCH_PATHS": [
+      "${PODS_ROOT}/React-debug",
+      "${PODS_ROOT}/React-runtimeexecutor",
+      "${PODS_ROOT}/React-runtimeexecutor/platform/ios",
+      "${PODS_ROOT}/React-jsinspector",
+      "${PODS_ROOT}/React-jsinspectorcdp",
+      "${PODS_ROOT}/React-jsinspectortracing",
+      "${PODS_ROOT}/React-utils",
+      "${PODS_ROOT}/React-utils/react/utils/platform/ios",
+      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
+    ]
+  },
+  "dependencies": {
+    "React-cxxreact": [
+      "0.87.0"
+    ],
+    "React-jsi": [
+      "0.87.0"
+    ],
+    "React-debug": [],
+    "React-runtimeexecutor": [],
+    "React-jsinspector": [],
+    "React-jsinspectorcdp": [],
+    "React-jsinspectortracing": [],
+    "React-utils": [],
+    "hermes-engine": [],
+    "ReactNativeDependencies": [],
+    "React-Core-prebuilt": []
+  }
+}

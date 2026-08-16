@@ -1,0 +1,21 @@
+{
+  "name": "React-cxxstableapi",
+  "version": "0.87.0",
+  "summary": "Header-only guards for React Native's C++ stable API.",
+  "homepage": "https://reactnative.dev/",
+  "license": "MIT",
+  "authors": "Meta Platforms, Inc. and its affiliates",
+  "platforms": {
+    "ios": "15.1"
+  },
+  "source": {
+    "git": "https://github.com/facebook/react-native.git",
+    "tag": "v0.87.0"
+  },
+  "source_files": "*.h",
+  "header_dir": "react/cxxstableapi",
+  "pod_target_xcconfig": {
+    "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
+    "DEFINES_MODULE": "YES"
+  }
+}

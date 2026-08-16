@@ -1,0 +1,1 @@
+../../../../../../React-Core-prebuilt/Headers/react/renderer/imagemanager/RCTImagePrimitivesConversions.h

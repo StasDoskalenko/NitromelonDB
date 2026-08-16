@@ -1,0 +1,1 @@
+../../../../../../nitrogen/generated/ios/NitromelonDB-Swift-Cxx-Umbrella.hpp
