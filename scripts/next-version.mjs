@@ -5,20 +5,20 @@
  * Compute the next NitromelonDB version from a semver bump + optional prerelease channel.
  *
  * Usage:
- *   node scripts/next-version.mjs <none|patch|minor|major> <none|alpha|beta> [currentVersion]
+ *   node scripts/next-version.mjs <none|promote|patch|minor|major> <none|alpha|beta> [currentVersion]
  *   node scripts/next-version.mjs --self-test
  *
  * Repeat alpha/beta releases of the same in-progress version increment the prerelease
  * counter (1.0.0-alpha.0 → 1.0.0-alpha.1). Switching channel resets it (alpha → beta.0).
  * Choosing bump `none` keeps the current X.Y.Z (next -alpha.N, or graduate if prerelease is none).
- * Choosing prerelease `none` on a prerelease publishes that core version as stable.
+ * Choosing bump `promote` (or prerelease `none` on a prerelease) publishes that core version as stable.
  */
 
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const BUMPS = new Set(['none', 'patch', 'minor', 'major'])
+const BUMPS = new Set(['none', 'promote', 'patch', 'minor', 'major'])
 const PREIDS = new Set(['none', 'alpha', 'beta'])
 
 const VERSION_RE = /^(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z]+)(?:\.(\d+))?|-(\d+))?$/
@@ -97,6 +97,15 @@ export function nextVersion(current, bump, preid) {
   const parsed = parseVersion(current)
   const currentCore = formatCore(parsed)
 
+  if (bump === 'promote') {
+    if (!parsed.hasPrerelease) {
+      throw new Error(
+        'Version bump "promote" only works on an in-progress alpha/beta. The current version is already stable.',
+      )
+    }
+    return currentCore
+  }
+
   if (bump === 'none' && !parsed.hasPrerelease) {
     throw new Error(
       'Version bump "none" only works on an in-progress alpha/beta. Pick patch, minor, or major to start a new version.',
@@ -153,6 +162,9 @@ const SELF_TESTS = [
   ['0.30.0-alpha.1', 'none', 'alpha', '0.30.0-alpha.2'],
   ['0.30.0-alpha.1', 'none', 'beta', '0.30.0-beta.0'],
   ['0.30.0-beta.0', 'none', 'none', '0.30.0'],
+  ['0.30.0-alpha.3', 'promote', 'none', '0.30.0'],
+  ['0.30.0-alpha.3', 'promote', 'alpha', '0.30.0'],
+  ['0.30.0-beta.1', 'promote', 'beta', '0.30.0'],
   ['1.0.0-alpha.0', 'none', 'alpha', '1.0.0-alpha.1'],
   ['1.0.0-alpha.2', 'none', 'none', '1.0.0'],
 ]
@@ -178,6 +190,7 @@ function runSelfTest() {
   const errorCases = [
     ['0.30.0', 'none', 'alpha'],
     ['0.30.0', 'none', 'none'],
+    ['0.30.0', 'promote', 'none'],
   ]
   for (const [current, bump, preid] of errorCases) {
     try {
@@ -208,7 +221,7 @@ function main(argv) {
   const current = argv[2] || readCurrentVersion()
 
   if (!bump || !preid) {
-    console.error('Usage: node scripts/next-version.mjs <none|patch|minor|major> <none|alpha|beta> [currentVersion]')
+    console.error('Usage: node scripts/next-version.mjs <none|promote|patch|minor|major> <none|alpha|beta> [currentVersion]')
     process.exit(1)
   }
 

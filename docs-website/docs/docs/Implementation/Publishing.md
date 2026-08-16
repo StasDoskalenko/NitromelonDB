@@ -13,10 +13,13 @@ Every merged change should already have a note there. Prepare Release copies tho
 1. GitHub → **Actions** → **Prepare Release**
 2. Run the workflow from **master**
 3. Choose:
-   - **Version bump:** `none` / `patch` / `minor` / `major` (`none` keeps the current X.Y.Z)
-   - **Prerelease:** `none` / `alpha` / `beta`
+   - **Version bump:** `none` / `promote` / `patch` / `minor` / `major` (`none` keeps the current X.Y.Z; `promote` ships the in-progress alpha/beta as official `X.Y.Z`)
+   - **Prerelease:** `none` / `alpha` / `beta` (ignored when bump is `promote`)
+   - **npm dist-tag:** `none` / `latest` / `alpha` / `beta` (`none` is default behavior: alpha→`alpha`, beta→`beta`, official→`latest`)
 
-To ship another alpha of the same version: bump **`none`** + prerelease **`alpha`** (`0.30.0-alpha.0` → `0.30.0-alpha.1`). Choosing prerelease `none` on an in-progress alpha/beta publishes that version as stable.
+To ship another alpha of the same version: bump **`none`** + prerelease **`alpha`** (`0.30.0-alpha.0` → `0.30.0-alpha.1`). To graduate that line: bump **`promote`**. Choosing prerelease `none` on an in-progress alpha/beta also publishes that version as stable.
+
+Leave **npm dist-tag** on `none` unless this version should become what `npm i nitromelondb` installs. Do not put every beta on `latest` after a stable exists.
 
 ### Step 3: Review and merge the PR
 
@@ -27,7 +30,7 @@ The workflow opens a `release/v…` PR with the version bump and changelog. CI r
 Merging the PR:
 
 - Builds `dist/`
-- Publishes `nitromelondb` to npm (`latest`, `alpha`, or `beta`)
+- Publishes `nitromelondb` to npm (`latest`, `alpha`, or `beta`, unless Prepare recorded an override)
 - Creates the git tag and GitHub Release
 
 If npm publish fails, do not run Prepare Release again. After the fix is on `master`, run **Actions → Publish Release** from **master** to retry the same version.
