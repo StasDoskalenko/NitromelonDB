@@ -44,13 +44,17 @@ function nitromelonOrNull(): Nitromelon | null {
   try {
     // `/index` is required: Metro prefers package-root `nitro.json` over `nitro/index.js`.
     const nitroModule = require('../../../nitro/index') as { nitromelon: Nitromelon }
-    if (typeof nitroModule.nitromelon.createAdapter !== 'function') {
+    if (typeof nitroModule.nitromelon?.createAdapter !== 'function') {
       cachedNitromelon = null
       return null
     }
     cachedNitromelon = nitroModule.nitromelon
     return nitroModule.nitromelon
-  } catch {
+  } catch (error) {
+    logger.warn(
+      '[SQLite] Failed to load Nitromelon HybridObject. If the next error says to install react-native-nitro-modules, this is the underlying cause:',
+      error,
+    )
     cachedNitromelon = null
     return null
   }

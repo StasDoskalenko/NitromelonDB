@@ -1,6 +1,7 @@
 /* eslint-disable global-require */
 
 import nativeRandomId_fallback from './fallback'
+import logger from '../logger'
 import type { Nitromelon } from '../../../nitro/Nitromelon.nitro'
 
 let randomIds: string[] = []
@@ -15,13 +16,14 @@ function nitromelonOrNull(): Nitromelon | null {
   try {
     // `/index` is required: Metro prefers package-root `nitro.json` over `nitro/index.js`.
     const nitroModule = require('../../../nitro/index') as { nitromelon: Nitromelon }
-    if (typeof nitroModule.nitromelon.getRandomIds !== 'function') {
+    if (typeof nitroModule.nitromelon?.getRandomIds !== 'function') {
       cachedNitromelon = null
       return null
     }
     cachedNitromelon = nitroModule.nitromelon
     return cachedNitromelon
-  } catch {
+  } catch (error) {
+    logger.warn('[SQLite] Failed to load Nitromelon for native random IDs; using JS fallback.', error)
     cachedNitromelon = null
     return null
   }
