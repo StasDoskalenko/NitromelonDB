@@ -1,0 +1,1 @@
+../../../../../../../React-Core-prebuilt/Headers/react/renderer/components/legacyviewmanagerinterop/UnstableLegacyViewManagerAutomaticShadowNode.h

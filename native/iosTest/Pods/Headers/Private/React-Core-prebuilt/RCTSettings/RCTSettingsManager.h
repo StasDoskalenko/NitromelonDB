@@ -1,0 +1,1 @@
+../../../../React-Core-prebuilt/Headers/RCTSettings/RCTSettingsManager.h

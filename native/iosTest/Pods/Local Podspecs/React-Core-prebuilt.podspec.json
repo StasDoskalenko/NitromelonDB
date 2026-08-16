@@ -1,0 +1,34 @@
+{
+  "name": "React-Core-prebuilt",
+  "version": "0.87.0",
+  "summary": "The core of React Native prebuilt frameworks.",
+  "homepage": "https://reactnative.dev/",
+  "license": "MIT",
+  "authors": "Meta Platforms, Inc. and its affiliates",
+  "platforms": {
+    "ios": "15.1"
+  },
+  "source": {
+    "http": "https://repo1.maven.org/maven2/com/facebook/react/react-native-artifacts/0.87.0/react-native-artifacts-0.87.0-reactnative-core-debug.tar.gz"
+  },
+  "vendored_frameworks": "React.xcframework",
+  "preserve_paths": "**/*.*",
+  "header_mappings_dir": "Headers",
+  "source_files": "Headers/**/*.{h,hpp}",
+  "public_header_files": "Headers/**/*.h",
+  "dependencies": {
+    "ReactNativeDependencies": []
+  },
+  "pod_target_xcconfig": {
+    "HEADER_SEARCH_PATHS": [
+      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
+    ]
+  },
+  "prepare_command": "CURRENT_PATH=$(pwd)\nXCFRAMEWORK_PATH=\"${CURRENT_PATH}/React.xcframework\"\n\n# Flatten ReactNativeHeaders' headers (identical across slices) into Headers/\n# BEFORE we sweep stray root entries into React.xcframework. Fail closed:\n# a tarball without ReactNativeHeaders.xcframework (an artifact published\n# before the headers-spec layout, or a truncated download) would otherwise\n# yield a green install with an empty Headers/ and every <react/...> or\n# <yoga/...> include failing much later, far from the cause.\nmkdir -p Headers\nRNH_XCFRAMEWORK_PATH=$(find \"$CURRENT_PATH\" -type d -name \"ReactNativeHeaders.xcframework\" | head -n 1)\nif [ -z \"$RNH_XCFRAMEWORK_PATH\" ]; then\n  echo \"[React-Core-prebuilt] ERROR: ReactNativeHeaders.xcframework not found in the prebuilt tarball.\" >&2\n  echo \"The artifact predates the headers-spec layout or is incomplete; use a matching react-native version.\" >&2\n  exit 1\nfi\nRNH_HEADERS_PATH=$(find \"$RNH_XCFRAMEWORK_PATH\" -type d -name \"Headers\" | head -n 1)\nif [ -z \"$RNH_HEADERS_PATH\" ]; then\n  echo \"[React-Core-prebuilt] ERROR: no Headers directory inside $RNH_XCFRAMEWORK_PATH.\" >&2\n  exit 1\nfi\ncp -R \"$RNH_HEADERS_PATH/.\" Headers\nrm -rf \"$RNH_XCFRAMEWORK_PATH\"\n\nmkdir -p \"${XCFRAMEWORK_PATH}\"\nfind \"$CURRENT_PATH\" -mindepth 1 -maxdepth 1 \\\n  ! -name \"$(basename \"$XCFRAMEWORK_PATH\")\" ! -name \"Headers\" \\\n  -exec mv {} \"$XCFRAMEWORK_PATH\" \\;",
+  "script_phases": {
+    "name": "[RNCore] Replace React Native Core for the right configuration, if needed",
+    "execution_position": "before_compile",
+    "script": "      . \"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\n\n      CONFIG=\"Release\"\n      if echo $GCC_PREPROCESSOR_DEFINITIONS | grep -q \"DEBUG=1\"; then\n        CONFIG=\"Debug\"\n      fi\n\n      \"$NODE_BINARY\" \"$REACT_NATIVE_PATH/scripts/replace-rncore-version.js\" -c \"$CONFIG\" -r \"0.87.0\" -p \"$PODS_ROOT\"\n",
+    "always_out_of_date": "1"
+  }
+}

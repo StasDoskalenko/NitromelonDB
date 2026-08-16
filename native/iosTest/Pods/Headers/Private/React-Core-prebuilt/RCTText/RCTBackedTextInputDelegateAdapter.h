@@ -1,0 +1,1 @@
+../../../../React-Core-prebuilt/Headers/RCTText/RCTBackedTextInputDelegateAdapter.h

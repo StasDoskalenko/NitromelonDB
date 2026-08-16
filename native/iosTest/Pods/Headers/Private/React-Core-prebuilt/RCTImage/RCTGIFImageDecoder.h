@@ -1,0 +1,1 @@
+../../../../React-Core-prebuilt/Headers/RCTImage/RCTGIFImageDecoder.h

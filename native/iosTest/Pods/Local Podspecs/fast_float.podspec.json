@@ -1,0 +1,17 @@
+{
+  "name": "fast_float",
+  "version": "8.0.0",
+  "summary": "Prebuilt facade for fast_float (code + headers live in ReactNativeDependencies).",
+  "homepage": "https://reactnative.dev/",
+  "license": "MIT",
+  "authors": "Meta Platforms, Inc. and its affiliates",
+  "platforms": {
+    "ios": "15.1"
+  },
+  "source": {
+    "git": "https://github.com/facebook/react-native.git"
+  },
+  "dependencies": {
+    "ReactNativeDependencies": []
+  }
+}
