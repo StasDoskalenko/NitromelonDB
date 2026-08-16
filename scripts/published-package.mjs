@@ -15,6 +15,7 @@
 
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isSourceFile } from './source-files.mjs'
 
 const SUBPATH_EXPORT = {
   types: './*/index.d.ts',
@@ -76,10 +77,24 @@ function runSelfTest() {
   assert(published.exports['./app.plugin.js'] === './app.plugin.js', 'Expo plugin export missing')
   assert(published.name === 'nitromelondb', 'package name must be preserved')
 
+  assert(isSourceFile('/src/react/withDatabase.tsx'), '.tsx files must be compiled into the tarball')
+  assert(isSourceFile('/src/react/DatabaseProvider.tsx'), '.tsx files must be compiled into the tarball')
+  assert(isSourceFile('/src/react/index.ts'), '.ts files must be compiled')
+  assert(!isSourceFile('/src/react/index.d.ts'), '.d.ts files are not Babel inputs')
+  assert(!isSourceFile('/src/react/DatabaseProvider.test.js'), 'tests must not be compiled')
+
+  const srcRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src')
+  const requiredTsx = ['react/withDatabase.tsx', 'react/DatabaseProvider.tsx']
+  for (const rel of requiredTsx) {
+    const abs = path.join(srcRoot, rel)
+    assert(isSourceFile(abs), `${rel} would be skipped by the JS build`)
+  }
+
   console.log('ok    types overwritten to ./index.d.ts')
   console.log('ok    scripts/bin omitted')
   console.log('ok    exports map present')
-  console.log('\n3 tests passed')
+  console.log('ok    .tsx sources are included in the JS build')
+  console.log('\n4 tests passed')
 }
 
 const isDirectRun =

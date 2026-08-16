@@ -18,6 +18,7 @@ import { execSync } from 'child_process'
 
 import pkg from './pkg.cjs'
 import { preparePublishedPackageJson } from './published-package.mjs'
+import { DO_NOT_BUILD_PATHS, isSourceFile } from './source-files.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -33,26 +34,9 @@ const DEV_PATH = process.env.DEV_PATH || resolvePath('dev')
 
 const DIR_PATH = isDevelopment ? DEV_PATH : DIST_PATH
 
-const DO_NOT_BUILD_PATHS = [
-  /__tests__/,
-  /__typetests__/,
-  /__playground__/,
-  /test\.js/,
-  /test\.ts/,
-  /integrationTest/,
-  /__mocks__/,
-  /\.DS_Store/,
-  /package\.json/,
-]
-
 const isNotIncludedInBuildPaths = (value) => !anymatch(DO_NOT_BUILD_PATHS, value)
 
 const cleanFolder = (dir) => rimraf.sync(dir)
-
-const isSourceFile = (value) =>
-  (value.endsWith('.js') || value.endsWith('.ts')) &&
-  !value.endsWith('.d.ts') &&
-  isNotIncludedInBuildPaths(value)
 
 const takeFiles = pipe(prop('path'), isSourceFile)
 
@@ -88,6 +72,23 @@ const emitDeclarations = (outDir) => {
     stdio: 'inherit',
     cwd: resolvePath(),
   })
+}
+
+const DECLARATION_ONLY = [/\/ambient\.d\.ts$/, /\/__typetests__\//]
+
+function assertDeclarationJsSiblings(buildPath) {
+  const missing = klaw(buildPath, { nodir: true })
+    .map((entry) => entry.path)
+    .filter((file) => file.endsWith('.d.ts') && !file.endsWith('.d.ts.map'))
+    .filter((file) => !DECLARATION_ONLY.some((pattern) => pattern.test(file)))
+    .filter((file) => !fs.existsSync(file.replace(/\.d\.ts$/, '.js')))
+    .map((file) => path.relative(buildPath, file))
+
+  if (missing.length) {
+    throw new Error(
+      `Published .d.ts without sibling .js (JS build skipped the source):\n${missing.join('\n')}`,
+    )
+  }
 }
 
 const buildModule = (format) => (file) => {
@@ -236,6 +237,8 @@ if (isDevelopment) {
   buildCjsModules(modules)
 
   emitDeclarations(DIST_PATH)
+  cleanFolder(`${DIST_PATH}/__typetests__`)
+  assertDeclarationJsSiblings(DIST_PATH)
 
   // copy remaining hand-written typescript definitions for unconverted modules
   glob(`${SOURCE_PATH}/**/*.d.ts`, {}, (err, files) => {
