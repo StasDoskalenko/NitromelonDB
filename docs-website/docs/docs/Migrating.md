@@ -202,7 +202,7 @@ See [Flow support removed](./Advanced/Flow.md) and the [TypeScript example](http
 
 ### `@json` sanitizers
 
-`json()` is generic: `json<T>(column, (source: T) => T)`. Typed sanitizers from WatermelonDB apps type-check again. `memo` on the options object is optional (default `false`).
+`json()` is generic: `json<TInput, TOutput>(column, (source: TInput) => TOutput)`. Typed sanitizers from WatermelonDB apps type-check, including ones that change the type (`(source: string) => string[]`). `memo` on the options object is optional (default `false`).
 
 ### Custom `Model.id`
 

@@ -38,7 +38,7 @@ comment.update(() => {
 
 As the second argument, pass a **sanitizer function**. This is a function that receives whatever `JSON.parse()` returns for the serialized JSON, and returns whatever type you expect in your app. In other words, it turns raw, dirty, untrusted data (that might be missing, or malformed by a bug in previous version of the app) into trusted format.
 
-`json()` is generic (`json<T>(column, (source: T) => T)`), so a sanitizer typed as `(source: ContactInfo) => ContactInfo` type-checks. The sanitizer might also receive `null` if the column is nullable, or `undefined` if the field doesn't contain valid JSON.
+`json()` is generic (`json<TInput, TOutput>(column, (source: TInput) => TOutput)`). Identity sanitizers like `(source: ContactInfo) => ContactInfo` type-check, and so do transforming ones like `(source: string) => string[]` or `(raw: unknown) => string[]`. The sanitizer might also receive `null` if the column is nullable, or `undefined` if the field doesn't contain valid JSON.
 
 Pass `{ memo: true }` as a third argument to reuse the last sanitized value when the raw column has not changed. `memo` is optional and defaults to `false`.
 
