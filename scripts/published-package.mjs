@@ -59,7 +59,6 @@ function runSelfTest() {
     bin: { fake: './bin.js' },
     dependencies: { rxjs: '^7.8.0' },
     peerDependencies: {
-      rxjs: '^7.8.0',
       'react-native-nitro-modules': '>=0.35.2',
     },
   }
