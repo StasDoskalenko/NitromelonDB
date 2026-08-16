@@ -24,7 +24,7 @@ npm uninstall @nozbe/watermelondb
 npm install nitromelondb
 ```
 
-`rxjs` `^7.8.0` is a regular dependency of `nitromelondb` and is installed with the package. You do not add it yourself.
+`rxjs` `^7.8.0` is both a **dependency** and a **peer**. The dependency is what `yarn add nitromelondb` / `npm install nitromelondb` installs for you. The peer is so Yarn/npm hoist a single copy if the app already has RxJS (two copies break `Observable` / `Subscription` types). You do not add it yourself.
 
 On React Native (iOS and Android), also add the Nitro peer and rebuild native code — **skip this if `react-native-nitro-modules` is already in the app** (do not double-install it):
 
@@ -235,7 +235,7 @@ Assigning `record.id` anywhere else throws. `_raw.id` and `prepareCreateFromDirt
 | iOS | 12+ | **15.1** |
 | Android minSdk | 21 (typical) | **24** |
 | `react-native-nitro-modules` | n/a | **≥ 0.35.2** (optional peer on web) |
-| `rxjs` | transitive | **dependency `^7.8.0`** (installed with the package) |
+| `rxjs` | transitive | **dependency + peer `^7.8.0`** (installed with the package) |
 
 ## Checklist
 
