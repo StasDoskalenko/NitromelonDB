@@ -22,5 +22,5 @@
 
 ### Internal
 
-- CI: Windows job uses `windows-2025` (preinstalled VS 2022, SDK 26100, Node 24.19, WinAppDriver). It builds NotesApp and runs the Cavy SQLite integration suite via `@react-native-windows/automation`.
+- CI: Windows job uses `windows-2025` (VS 2026, SDK 26100, Node 24.19, WinAppDriver). It builds NotesApp and runs the Cavy SQLite integration suite via `@react-native-windows/automation`.
 - Windows Nitro `<NitroModules/…>` header map is generated on install / MSBuild (`scripts/windows-nitro-shims.mjs`), not checked in.

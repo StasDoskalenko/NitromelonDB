@@ -53,6 +53,10 @@
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <CharacterSet>Unicode</CharacterSet>
     <GenerateManifest>false</GenerateManifest>
+    <!-- After Cpp.Default.props. Empty/v100 here is VS 2010; VS 2026 CI was hitting that. -->
+    <PlatformToolset Condition="'$(PlatformToolset)' == '' or '$(PlatformToolset)' == 'v100'">$(DefaultPlatformToolset)</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' &gt;= '18.0' and ('$(PlatformToolset)' == '' or '$(PlatformToolset)' == 'v100')">v145</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' &gt;= '17.0' and ('$(PlatformToolset)' == '' or '$(PlatformToolset)' == 'v100')">v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
     <UseDebugLibraries>true</UseDebugLibraries>

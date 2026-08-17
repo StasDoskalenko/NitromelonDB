@@ -131,9 +131,8 @@ jobs:
           script: ./gradlew connectedAndroidTest
       - run: yarn ktlint
   windows:
-    # windows-2025 already has VS 2022 17.14, SDK 10.0.26100, Node 24.19.0,
-    # NuGet, and WinAppDriver. Do not use windows-11-vs2026-arm (slow extra
-    # downloads) or setup-msbuild. Inherit MSVC from the image (v143).
+    # windows-2025 currently ships VS 2026 (v180 / MSVC v145), SDK 10.0.26100,
+    # Node 24.19.0, NuGet, and WinAppDriver. Inherit MSVC from the image.
     runs-on: windows-2025
     name: Windows NotesApp
     timeout-minutes: 90
