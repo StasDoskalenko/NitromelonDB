@@ -57,6 +57,10 @@ Full credit to [@Nozbe](https://github.com/Nozbe) and [Radek Pietruszewski](http
   <a href="https://www.npmjs.com/package/nitromelondb">
     <img src="https://img.shields.io/npm/v/nitromelondb.svg" alt="npm"/>
   </a>
+
+  <a href="https://discord.gg/aXqqy3HPb">
+    <img src="https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white" alt="Discord"/>
+  </a>
 </p>
 
 |   | NitromelonDB |
@@ -260,6 +264,8 @@ If there's a missing feature, a bug, or other improvement you'd like, we encoura
 If you're just getting started, see [good first issues](https://github.com/StasDoskalenko/NitromelonDB/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) that are easy to contribute to.
 
 If you make or are considering making an app using NitromelonDB, please let us know!
+
+Join the community on [Discord](https://discord.gg/aXqqy3HPb).
 
 ## Author and license
 
