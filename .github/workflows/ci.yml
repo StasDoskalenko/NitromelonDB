@@ -158,8 +158,11 @@ jobs:
       - name: Install NotesApp Windows
         run: yarn install --frozen-lockfile --ignore-scripts
       - name: Build and deploy NotesApp (x64 Release, integration bundle)
+        # UseDevBundle=true embeds a dev JS bundle (Metro keeps `__DEV__`/`process.env.NODE_ENV`
+        # intact) so the integration suite runs the same DEV assertions as iOS/Android, which
+        # test against a Metro dev server. The native module is still built Release.
         run: |
           Copy-Item -Force index.integration.js index.js
-          yarn windows -- --arch x64 --release --logging --no-packager --no-launch
+          yarn windows -- --arch x64 --release --logging --no-packager --no-launch --msbuildprops "UseDevBundle=true"
       - name: Run SQLite integration e2e
         run: yarn test:windows:e2e

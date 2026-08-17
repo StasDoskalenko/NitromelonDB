@@ -35,11 +35,6 @@ export default () => {
   const it = (name, test) => commonTests.push([name, test])
   it.only = (name, test) => commonTests.push([name, test, true])
   it('validates adapter options', async (_adapter, AdapterClass, extraAdapterOptions) => {
-    // validateAdapter() is compiled out of production bundles (Windows CI is Release).
-    if (globalThis.__DEV__ === false) {
-      return
-    }
-
     const schema = { ...testSchema, version: 10 }
 
     const makeAdapter = (options) =>
