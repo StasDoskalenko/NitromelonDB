@@ -90,34 +90,20 @@ function formatTime(date: Date): string {
 }
 
 export default function App() {
-  const [session, setSession] = useState<
-    | { ok: true; db: ExampleDatabase }
-    | { ok: false; message: string }
-    | null
-  >(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      try {
-        setSession({ ok: true, db: createExampleDatabase() });
-      } catch (error) {
-        setSession({
-          ok: false,
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
+  const [session] = useState(() => {
+    try {
+      return { ok: true as const, db: createExampleDatabase() };
+    } catch (error) {
+      return {
+        ok: false as const,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
 
   return (
     <View style={styles.screen}>
-      {session == null ? (
-        <View style={styles.header}>
-          <Text style={styles.title}>NitromelonDB</Text>
-          <Text style={styles.subtitle}>Starting…</Text>
-        </View>
-      ) : session.ok ? (
+      {session.ok ? (
         <NotesScreen db={session.db} />
       ) : (
         <View style={styles.centered}>
