@@ -36,7 +36,7 @@ export default () => {
   it.only = (name, test) => commonTests.push([name, test, true])
   it('validates adapter options', async (_adapter, AdapterClass, extraAdapterOptions) => {
     // validateAdapter() is compiled out of production bundles (Windows CI is Release).
-    if (typeof __DEV__ !== 'undefined' && !__DEV__) {
+    if (globalThis.__DEV__ === false) {
       return
     }
 
@@ -573,7 +573,7 @@ export default () => {
     expect(await adapter.getDeletedRecords('tasks')).toHaveLength(0)
     expect(await queryAll()).toHaveLength(1)
   })
-  it(`can unsafely load from sync JSON`, async (adapter, AdapterClass, extraAdapterOptions) => {
+  it(`can unsafely load from sync JSON`, async (adapter, AdapterClass, _extraAdapterOptions) => {
     if (
       !(
         AdapterClass.name === 'SQLiteAdapter' &&
@@ -677,7 +677,7 @@ export default () => {
       'bad changeset field',
     )
   })
-  it(`can return residual JSON from sync JSON`, async (adapter, AdapterClass, extraAdapterOptions) => {
+  it(`can return residual JSON from sync JSON`, async (adapter, AdapterClass, _extraAdapterOptions) => {
     if (
       !(
         AdapterClass.name === 'SQLiteAdapter' &&
@@ -706,7 +706,7 @@ export default () => {
     await check({ naughty: 'foo{\nbar\0' })
     await check({ _naughty: { '_naughty\n{\0': 'yes' } })
   })
-  it(`destroys provided jsons after being used`, async (adapter, AdapterClass, extraAdapterOptions) => {
+  it(`destroys provided jsons after being used`, async (adapter, AdapterClass, _extraAdapterOptions) => {
     if (
       !(
         AdapterClass.name === 'SQLiteAdapter' &&
