@@ -22,8 +22,7 @@ function resolveDep(name) {
   return local;
 }
 
-// JS deps of nitromelondb. Metro only indexes projectRoot + watchFolders,
-// so src/ imports of rxjs fail unless those packages are watched too.
+// Library JS plus packages the Cavy integration bundle pulls in from src/.
 const libraryDeps = [
   'rxjs',
   'sql-escape-string',
@@ -31,8 +30,8 @@ const libraryDeps = [
   '@babel/runtime',
   'cavy',
   '@nozbe/watermelondb_expect',
-  // Integration tests (`src/adapters/__tests__/helpers.js`) import this.
   'rambdax',
+  'big-list-of-naughty-strings',
 ];
 
 /**

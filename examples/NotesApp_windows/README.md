@@ -40,7 +40,7 @@ yarn windows
 
 CI runs the library SQLite integration suite inside this app (`index.integration.js` + `yarn test:windows:e2e`). That uses WinAppDriver, which is already on `windows-2025` runners.
 
-The app links the library via `file:../..`. Metro watches `src/` plus WatermelonDB JS dependencies (`rxjs`, `sql-escape-string`, `rambdax`, …) so those imports resolve outside the example tree.
+The app links the library via `file:../..`. Metro watches `src/` plus WatermelonDB JS / integration-test dependencies (`rxjs`, `sql-escape-string`, `rambdax`, `big-list-of-naughty-strings`, …) so those imports resolve outside the example tree.
 
 ## Native SQLite
 
