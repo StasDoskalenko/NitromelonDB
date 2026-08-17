@@ -1,9 +1,6 @@
 const path = require('path');
+const { windowsAppDependencies } = require('../../windows-autolink');
 
-// The published/library `react-native.config.js` still points at the old
-// UWP Paper native project (`native/windows`). That vcxproj cannot autolink
-// into this WinAppSDK New Architecture app. Keep Windows unlinked here until
-// the New Arch SQLite module ships.
 module.exports = {
   project: {
     windows: {
@@ -14,17 +11,7 @@ module.exports = {
       },
     },
   },
-  dependencies: {
-    nitromelondb: {
-      root: path.resolve(__dirname, '../..'),
-      platforms: {
-        windows: null,
-      },
-    },
-    'react-native-nitro-modules': {
-      platforms: {
-        windows: null,
-      },
-    },
-  },
+  dependencies: windowsAppDependencies({
+    root: path.resolve(__dirname, '../..'),
+  }),
 };

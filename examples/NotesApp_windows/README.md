@@ -1,6 +1,6 @@
 # NotesApp for Windows (New Architecture)
 
-React Native Windows **0.84** NotesApp using the New Architecture (`cpp-app` / Fabric / WinAppSDK). This is the playground for bringing NitromelonDB SQLite to RNW New Architecture.
+React Native Windows **0.84** NotesApp using the New Architecture (`cpp-app` / Fabric / WinAppSDK). This is the playground for NitromelonDB SQLite on RNW.
 
 iOS and Android live in the sibling Expo app, [`../NotesApp`](../NotesApp). They cannot share one `package.json` yet: RNW 0.84 tracks React Native **0.84.1**, while the Expo app is on **0.86.2**.
 
@@ -26,11 +26,14 @@ npm run windows
 
 The app links the library via `file:../..`. Metro watches `src/` plus WatermelonDB JS dependencies (`rxjs`, `sql-escape-string`, …) so those imports resolve outside the example tree.
 
-## Native SQLite status
+## Native SQLite
 
-`native/windows` is the **old** UWP Paper module (`Microsoft.ReactNative.Uwp.CppLib`). It cannot autolink into this WinAppSDK New Architecture app, so `react-native.config.js` currently disables Windows autolinking for `nitromelondb` and `react-native-nitro-modules`.
+This app autolinks `native/windows`, a WinAppSDK module that:
 
-Until the New Architecture Windows SQLite module lands, the UI still loads and shows the setup error from `SQLiteAdapter`. Use this app to iterate on that native port.
+1. Implements the `NitroModules` TurboModule (`install()`) that `react-native-nitro-modules` JS expects
+2. Registers the `Nitromelon` HybridObject and runs SQLite through the same C++ engine as iOS/Android
+
+`react-native-nitro-modules` still has no official Windows autolink ([nitro#168](https://github.com/mrousavy/nitro/issues/168)), so `react-native.config.js` spreads `windowsAppDependencies()` from `windows-autolink.js`. That skips Nitro's missing Windows project; NitromelonDB's DLL is the install entry point.
 
 ## Regenerating the Windows project
 

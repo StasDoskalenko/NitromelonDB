@@ -1,10 +1,14 @@
 ### Highlights
 
+### New features
+
+- **Windows:** React Native Windows New Architecture (RNW 0.84 / WinAppSDK) uses Nitro SQLite. Autolinking points at `native/windows`. Apps spread `windowsAppDependencies()` from `nitromelondb/windows-autolink` so `react-native-nitro-modules` is not searched for a Windows project it does not ship.
+
 ### BREAKING CHANGES
 
-### Deprecations
+- **Windows:** the UWP Paper `WMDatabaseBridge` JSI installer is removed. `{ jsi: false }` is rejected on Windows the same as iOS/Android.
 
-### New features
+### Deprecations
 
 ### Fixes
 
@@ -17,3 +21,5 @@
 - Migration / install docs: remove leftover `pod 'simdjson'` and clarify that the `com.nozbe.watermelondb` Proguard keep rule stays.
 
 ### Internal
+
+- CI: replace the disabled UWP WatermelonTester job with an ARM64 Release build of `examples/NotesApp_windows` on `windows-11-vs2026-arm` (VS 2026 / v145).

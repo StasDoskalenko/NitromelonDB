@@ -131,33 +131,22 @@ jobs:
           script: ./gradlew connectedAndroidTest
       - run: yarn ktlint
   windows:
-    # FIXME: Windows port is unmaintained. If you're interested in sponsoring continued maintenance,
-    # please email me!
-    if: false
-    runs-on: windows-2022
-    name: Windows tests
+    # RNW 0.84 needs MSVC v145 (VS 2026). GitHub windows-2022/2025 only ship VS 2022.
+    # windows-11-vs2026-arm is the hosted image with VS 2026 + SDK 10.0.26100.
+    # The old UWP WatermelonTester + native/windowsE2E (RNW 0.71) path is retired.
+    runs-on: windows-11-vs2026-arm
+    name: Windows NotesApp
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - name: Set Node.js version
         uses: actions/setup-node@v4
         with:
           node-version: 24.x
-      - uses: actions/cache@v4
-        with:
-          path: 'node_modules'
-          key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
-      - run: yarn --network-timeout 100000
-      # FIXME: concurrently seems broken on windows
-      # - run: yarn ci
-      - run: yarn test
-      - run: yarn eslint
-      - run: yarn typecheck
-      # FIXME: TS broken on Windows?
-      # - run: yarn test:typescript
-      # Build WatermelonTester and run in background
-      - run: yarn test:windows
-      # Give it some time to bundle
-      - run: sleep 90
-      # Start E2E runner to capture integration test results
-      - run: cd native/windowsE2E && yarn
-      - run: yarn test:windows:ci
+      - uses: microsoft/setup-msbuild@v2
+      - name: Install NotesApp Windows
+        working-directory: examples/NotesApp_windows
+        run: npm install --ignore-scripts
+      - name: Build NotesApp Windows (ARM64 Release)
+        working-directory: examples/NotesApp_windows
+        run: npx @react-native-community/cli run-windows --arch ARM64 --release --logging --no-packager --no-launch

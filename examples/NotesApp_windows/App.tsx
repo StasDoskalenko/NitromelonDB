@@ -118,8 +118,8 @@ export default function App() {
           <Text style={styles.title}>NitromelonDB</Text>
           <Text style={styles.error}>{session.message}</Text>
           <Text style={styles.hint}>
-            Native SQLite for React Native Windows New Architecture is still
-            being ported. Rebuild after native changes (`npm run windows`).
+            Rebuild the native app after SQLite or Nitro changes (`npm run
+            windows`).
           </Text>
         </View>
       )}

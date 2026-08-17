@@ -1,4 +1,5 @@
 const path = require('path')
+const { windowsNativeProject } = require('./windows-autolink')
 
 module.exports = {
   // Library autolinking (consumed from node_modules/nitromelondb)
@@ -10,16 +11,7 @@ module.exports = {
       android: {
         sourceDir: './native/android',
       },
-      windows: {
-        sourceDir: '.\\native\\windows',
-        solutionFile: 'WatermelonDB.sln',
-        projects: [
-          {
-            projectFile: 'WatermelonDB\\WatermelonDB.vcxproj',
-            directDependency: true,
-          },
-        ],
-      },
+      windows: windowsNativeProject,
     },
   },
   // This is for WatermelonDB project internals

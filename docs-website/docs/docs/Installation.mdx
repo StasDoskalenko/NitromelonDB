@@ -15,7 +15,7 @@ npm install nitromelondb
 
 ## React Native setup
 
-Native SQLite on iOS and Android uses [Nitro Modules](https://nitro.margelo.com) and React Native **autolinking** (`react-native.config.js` + the `NitromelonDB` podspec). `simdjson` is compiled into that pod from vendored sources. You do not add CocoaPods or Gradle lines by hand, and you do not run a separate setup CLI. Expo is fully supported — development builds, EAS Build, and EAS Update. See [Expo](#expo).
+Native SQLite on iOS, Android, and Windows uses [Nitro Modules](https://nitro.margelo.com) and React Native **autolinking** (`react-native.config.js`; iOS also uses the `NitromelonDB` podspec). `simdjson` is compiled into the iOS pod from vendored sources. You do not add CocoaPods or Gradle lines by hand, and you do not run a separate setup CLI. Expo is fully supported — development builds, EAS Build, and EAS Update. See [Expo](#expo).
 
 :::warning New Architecture only
 NitromelonDB does **not** support the old React Native architecture (Paper / the legacy bridge). Enable the New Architecture. Tested on React Native **0.83+**. React Native 0.87 has it on by default.
@@ -26,7 +26,7 @@ NitromelonDB does **not** support the old React Native architecture (Paper / the
 yarn add react-native-nitro-modules
 ```
 
-`react-native-nitro-modules` `>=0.35.2` is required for SQLite on iOS and Android. It is optional on web / Node / Electron. Do not add it a second time if it is already in the app.
+`react-native-nitro-modules` `>=0.35.2` is required for SQLite on iOS, Android, and Windows. It is optional on web / Node / Electron. Do not add it a second time if it is already in the app.
 
 1. Install the Babel plugin for decorators if you haven't already:
 
@@ -47,7 +47,7 @@ yarn add react-native-nitro-modules
 
 3. Rebuild the native app after adding these packages. Autolinking runs as part of the usual Expo / React Native CLI flow (`use_native_modules!` on iOS). There is no extra setup command.
 
-Minimums: Xcode 15+, iOS 15.1, Android minSdk 24, React Native **0.83+ with New Architecture**. This will not run in Expo Go.
+Minimums: Xcode 15+, iOS 15.1, Android minSdk 24, React Native **0.83+ with New Architecture**, Windows **RNW 0.84**. This will not run in Expo Go.
 
 ## Expo
 
@@ -126,7 +126,7 @@ npx react-native run-android
 
 `run-ios` installs pods and applies autolinking. You do not add `pod 'NitromelonDB'` or `pod 'simdjson'` to the Podfile.
 
-Windows New Architecture (RNW 0.84 / RN 0.84.1) is the [`examples/NotesApp_windows`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp_windows) playground. Native SQLite for that stack is still being ported; the old UWP Paper module in `native/windows` does not autolink into WinAppSDK.
+Windows uses the same Nitro SQLite engine. See [Windows (React Native)](#windows-react-native).
 
 We highly recommend that you _do not_ use `use_frameworks!`. If you need it (RN Firebase often uses `use_frameworks! :linkage => :static`), prefer **static** linkage. If NitromelonDB fails to build in frameworks mode, [use this workaround](https://github.com/Nozbe/WatermelonDB/issues/1285#issuecomment-1381323060) to force static libraries. Manual (non-CocoaPods) iOS linking is not supported.
 
@@ -254,24 +254,47 @@ export default defineConfig({
 
 ## Windows (React Native)
 
-WatermelonDB has **experimental** support for [React Native Windows](https://microsoft.github.io/react-native-windows/), added in v0.27.
+NitromelonDB supports [React Native Windows](https://microsoft.github.io/react-native-windows/) **New Architecture** (RNW **0.84** / WinAppSDK / Fabric) through Nitro — the same `Nitromelon` HybridObject as iOS and Android.
 
-NOTE: As of v0.28, Windows support is not maintained due to lack of resources, minimal demand, and difficulty maintaining support over React Native upgrades. If you're interested in sponsoring Windows support, please email me.
+RNW 0.84 is New Architecture only and pairs with React Native **0.84.1**. Expo NotesApp is on a newer RN, so the Windows playground is a separate app: [`examples/NotesApp_windows`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp_windows).
 
-To set up:
+Requirements:
 
-1. Set up Babel config in your project - See instructions above for all React Native platforms
-2. Run `npx react-native autolink-windows` to perform autolinking. See section below if you don't use autolinking.
+- Node.js **22.11+**
+- [RNW native dependencies](https://microsoft.github.io/react-native-windows/docs/rnw-dependencies), including Visual Studio with the **Windows App SDK** workload
 
-Caveats to keep in mind about React Native Windows support:
+Install the packages (skip `react-native-nitro-modules` if the app already has it):
 
-- Windows support is new and experimental
-- Only JSI port is available, so you must initialize `SQLiteAdapter` with `{ jsi: true }`
-- JSI means that Remote Debugging (WebDebugger) is not available. Use direct debugging.
-- Enable Hermes when using WatermelonDB on RNW. Chakra has not been tested and may not work.
-- Turbo Sync has not been implemented
-- onDestroy event has not been implemented. This only causes issues if you need to reload JS bundle
-  at runtime (other than in development).
+```bash
+yarn add nitromelondb react-native-nitro-modules
+```
+
+Set up Babel decorators the same way as [React Native setup](#react-native-setup).
+
+Autolinking picks up `native/windows`. Rebuild:
+
+```bash
+npx @react-native-community/cli run-windows
+```
+
+`react-native-nitro-modules` does not ship a Windows project yet ([nitro#168](https://github.com/mrousavy/nitro/issues/168)). NitromelonDB's WinAppSDK DLL implements the `NitroModules` TurboModule `install()` entry point and registers `HybridNitromelon` in the same binary. Add this to the app `react-native.config.js` so RNW does not look for a Nitro Windows project:
+
+```js
+const { windowsAppDependencies } = require('nitromelondb/windows-autolink')
+
+module.exports = {
+  // ...existing project.windows...
+  dependencies: windowsAppDependencies(),
+}
+```
+
+If you link NitromelonDB with `file:` (a monorepo), pass `{ root: path.resolve(__dirname, '../path-to-nitromelondb') }`.
+
+Caveats:
+
+- Direct debugging only (no Remote JS Debugging)
+- Turbo Sync (`unsafeLoadFromSync` / `provideSyncJson`) goes through Nitro
+- The old UWP Paper / `WMDatabaseBridge` JSI installer is removed
 
 <details>
   <summary>Linking Manually</summary>
@@ -280,10 +303,10 @@ By default, React Native uses **autolinking**, and **you don't need the steps be
 
 Follow [instructions on React Native Windows website](https://microsoft.github.io/react-native-windows/docs/native-modules-using), noting that:
 
-- Path to vcxproj: `node_modules\nitromelondb\native\windows\WatermelonDB\WatermelonDB.vcxproj`
-- Name of project to reference: `WatermelonDB`
-- Header for PCH: `#include "winrt/WatermelonDB.h"`
-- Package provider: `PackageProviders().Append(winrt::WatermelonDB::ReactPackageProvider());`
+- Path to vcxproj: `node_modules\nitromelondb\native\windows\NitromelonDB\NitromelonDB.vcxproj`
+- Name of project to reference: `NitromelonDB`
+- Header for PCH: `#include "winrt/NitromelonDB.h"`
+- Package provider: `PackageProviders().Append(winrt::NitromelonDB::ReactPackageProvider());`
 
 </details>
 

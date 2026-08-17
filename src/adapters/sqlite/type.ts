@@ -17,8 +17,8 @@ export type SQLiteAdapterOptions = {
   dbName?: string | undefined
   schema: AppSchema
   migrations?: SchemaMigrations | undefined
-  // Ignored on iOS/Android (always Nitro) and on Windows (always JSI).
-  // `{ jsi: false }` is rejected on iOS/Android — NativeModules SQLite interop is gone.
+  // Ignored on React Native (always Nitro: iOS, Android, Windows New Architecture).
+  // `{ jsi: false }` is rejected — NativeModules SQLite interop is gone.
   jsi?: boolean | undefined
   migrationEvents?: MigrationEvents | undefined
   // Called when database failed to set up (initialize) correctly. It's possible that

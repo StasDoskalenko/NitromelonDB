@@ -134,10 +134,12 @@ const copyNonJavaScriptFiles = (buildPath) => {
     'native/vendor/simdjson',
     'native/vendor/sqlite',
     'nitrogen',
+    'windows-autolink.js',
   ])
   fs.writeFileSync(
     path.join(buildPath, 'react-native.config.js'),
     `const path = require('path')
+const { windowsNativeProject } = require('./windows-autolink')
 
 module.exports = {
   dependency: {
@@ -148,16 +150,7 @@ module.exports = {
       android: {
         sourceDir: './native/android',
       },
-      windows: {
-        sourceDir: '.\\\\native\\\\windows',
-        solutionFile: 'WatermelonDB.sln',
-        projects: [
-          {
-            projectFile: 'WatermelonDB\\\\WatermelonDB.vcxproj',
-            directDependency: true,
-          },
-        ],
-      },
+      windows: windowsNativeProject,
     },
   },
 }
@@ -168,9 +161,9 @@ module.exports = {
   cleanFolder(`${buildPath}/native/android/bin/build`)
   cleanFolder(`${buildPath}/native/windows/.vs`)
   cleanFolder(`${buildPath}/native/windows/x64`)
-  cleanFolder(`${buildPath}/native/windows/WatermelonDB/Generated Files`)
-  cleanFolder(`${buildPath}/native/windows/WatermelonDB/obj`)
-  cleanFolder(`${buildPath}/native/windows/WatermelonDB/x64`)
+  cleanFolder(`${buildPath}/native/windows/NitromelonDB/Generated Files`)
+  cleanFolder(`${buildPath}/native/windows/NitromelonDB/obj`)
+  cleanFolder(`${buildPath}/native/windows/NitromelonDB/x64`)
 }
 
 if (isDevelopment) {

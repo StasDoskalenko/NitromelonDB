@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- WinAppSDK / Composition NitromelonDB + Nitro install module. -->
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)\ExperimentalFeatures.props" Condition="Exists('$(SolutionDir)\ExperimentalFeatures.props')" />
+  <PropertyGroup Label="Globals">
+    <CppWinRTOptimized>true</CppWinRTOptimized>
+    <MinimalCoreWin>true</MinimalCoreWin>
+    <ProjectGuid>{8F2C4A91-6E3B-4D17-B9A8-1C5E7F0D3B24}</ProjectGuid>
+    <ProjectName>NitromelonDB</ProjectName>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>NitromelonDB</RootNamespace>
+    <WindowsTargetPlatformVersion Condition="'$(WindowsTargetPlatformVersion)' == ''">10.0</WindowsTargetPlatformVersion>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <MinimumVisualStudioVersion>17.0</MinimumVisualStudioVersion>
+    <AppxPackage>false</AppxPackage>
+  </PropertyGroup>
+  <PropertyGroup Label="ReactNativeWindowsProps">
+    <ReactNativeWindowsDir Condition="'$(ReactNativeWindowsDir)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove($(SolutionDir), 'node_modules\react-native-windows\package.json'))\node_modules\react-native-windows\</ReactNativeWindowsDir>
+    <NitroModulesDir Condition="'$(NitroModulesDir)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove($(SolutionDir), 'node_modules\react-native-nitro-modules\package.json'))\node_modules\react-native-nitro-modules\</NitroModulesDir>
+    <NitromelonNativeDir Condition="'$(NitromelonNativeDir)' == ''">$(MSBuildThisFileDirectory)..\..\</NitromelonNativeDir>
+    <RunAutolinkCheck>false</RunAutolinkCheck>
+    <RunCodegenWindows>false</RunCodegenWindows>
+  </PropertyGroup>
+  <Import Project="$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.WindowsSdk.Default.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM64">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+    <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="ReactNativeWindowsPropertySheets">
+    <Import Project="$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.props" Condition="Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.props')" />
+  </ImportGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile>
+      <WarningLevel>Level4</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <ForcedIncludeFiles>NitroMsvcStdCompat.h</ForcedIncludeFiles>
+      <AdditionalOptions>%(AdditionalOptions) /bigobj /Zc:__cplusplus</AdditionalOptions>
+      <DisableSpecificWarnings>4100;4244;4267;4453;28204</DisableSpecificWarnings>
+      <PreprocessorDefinitions>_WINRT_DLL;SQLITE_THREADSAFE=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
+      <AdditionalIncludeDirectories>
+        $(MSBuildThisFileDirectory);
+        $(MSBuildThisFileDirectory)..\include;
+        $(NitromelonNativeDir)nitro;
+        $(NitromelonNativeDir)shared;
+        $(NitromelonNativeDir)vendor\sqlite;
+        $(NitromelonNativeDir)vendor\simdjson;
+        $(NitromelonNativeDir)..\nitrogen\generated\shared\c++;
+        $(NitroModulesDir)cpp\core;
+        $(NitroModulesDir)cpp\entrypoint;
+        $(NitroModulesDir)cpp\jsi;
+        $(NitroModulesDir)cpp\platform;
+        $(NitroModulesDir)cpp\prototype;
+        $(NitroModulesDir)cpp\registry;
+        $(NitroModulesDir)cpp\templates;
+        $(NitroModulesDir)cpp\threading;
+        $(NitroModulesDir)cpp\utils;
+        $(NitroModulesDir)cpp\views;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>shell32.lib;user32.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Console</SubSystem>
+      <GenerateWindowsMetadata>true</GenerateWindowsMetadata>
+      <ModuleDefinitionFile>NitromelonDB.def</ModuleDefinitionFile>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <PropertyGroup Label="UserMacros" />
+  <ItemGroup>
+    <ClInclude Include="NitroMsvcStdCompat.h" />
+    <ClInclude Include="ReactPackageProvider.h">
+      <DependentUpon>ReactPackageProvider.idl</DependentUpon>
+    </ClInclude>
+    <ClInclude Include="UIThreadDispatcher.hpp" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="targetver.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="NitromelonDB.cpp" />
+    <ClCompile Include="ReactPackageProvider.cpp">
+      <DependentUpon>ReactPackageProvider.idl</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="DatabasePlatformWindows.cpp" />
+    <ClCompile Include="NitroLogger.cpp" />
+    <ClCompile Include="ThreadUtils.cpp" />
+    <ClCompile Include="UIThreadDispatcher.cpp" />
+    <ClCompile Include="$(GeneratedFilesDir)module.g.cpp" />
+    <ClCompile Include="$(NitromelonNativeDir)nitro\HybridNitromelon.cpp" />
+    <ClCompile Include="$(NitromelonNativeDir)nitro\HybridNitromelonDatabase.cpp" />
+    <ClCompile Include="$(NitromelonNativeDir)..\nitrogen\generated\shared\c++\HybridNitromelonSpec.cpp" />
+    <ClCompile Include="$(NitromelonNativeDir)..\nitrogen\generated\shared\c++\HybridNitromelonDatabaseSpec.cpp" />
+    <ClCompile Include="$(NitromelonNativeDir)shared\Database.cpp" />
+    <ClCompile Include="$(NitromelonNativeDir)shared\Database-batch.cpp" />
+    <ClCompile Include="$(NitromelonNativeDir)shared\Database-jsi.cpp" />
+    <ClCompile Include="$(NitromelonNativeDir)shared\Database-query.cpp" />
+    <ClCompile Include="$(NitromelonNativeDir)shared\Database-sqlite.cpp" />
+    <ClCompile Include="$(NitromelonNativeDir)shared\Database-turboSync.cpp" />
+    <ClCompile Include="$(NitromelonNativeDir)shared\Sqlite.cpp" />
+    <ClCompile Include="$(NitromelonNativeDir)vendor\sqlite\sqlite3.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <ForcedIncludeFiles />
+    </ClCompile>
+    <ClCompile Include="$(NitromelonNativeDir)vendor\simdjson\simdjson.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+    </ClCompile>
+    <ClCompile Include="$(NitroModulesDir)cpp\core\AnyMap.cpp" />
+    <ClCompile Include="$(NitroModulesDir)cpp\core\ArrayBuffer.cpp" />
+    <ClCompile Include="$(NitroModulesDir)cpp\core\BoxedHybridObject.cpp" />
+    <ClCompile Include="$(NitroModulesDir)cpp\core\HybridObject.cpp" />
+    <ClCompile Include="$(NitroModulesDir)cpp\core\Promise.cpp" />
+    <ClCompile Include="$(NitroModulesDir)cpp\entrypoint\HybridNitroModulesProxy.cpp" />
+    <ClCompile Include="$(NitroModulesDir)cpp\entrypoint\InstallNitro.cpp" />
+    <ClCompile Include="$(NitroModulesDir)cpp\jsi\JSICache.cpp" />
+    <ClCompile Include="$(NitroModulesDir)cpp\prototype\HybridObjectPrototype.cpp" />
+    <ClCompile Include="$(NitroModulesDir)cpp\registry\HybridObjectRegistry.cpp" />
+    <ClCompile Include="$(NitroModulesDir)cpp\threading\Dispatcher.cpp" />
+    <ClCompile Include="$(NitroModulesDir)cpp\threading\ThreadPool.cpp" />
+    <ClCompile Include="$(NitroModulesDir)cpp\utils\CommonGlobals.cpp" />
+    <ClCompile Include="$(NitroModulesDir)cpp\utils\NitroTypeInfo.cpp" />
+    <ClCompile Include="$(NitroModulesDir)cpp\utils\PropNameIDCache.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Midl Include="ReactPackageProvider.idl" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="NitromelonDB.rc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ReactNativeWindowsTargets">
+    <Import Project="$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.targets" Condition="Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.targets')" />
+  </ImportGroup>
+  <Target Name="EnsureReactNativeWindowsTargets" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references targets in your node_modules\react-native-windows folder. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.props')" Text="$([System.String]::Format('$(ErrorText)', '$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.props'))" />
+    <Error Condition="!Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.targets')" Text="$([System.String]::Format('$(ErrorText)', '$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.targets'))" />
+    <Error Condition="!Exists('$(NitroModulesDir)package.json')" Text="react-native-nitro-modules was not found. Install the peer next to react-native-windows." />
+  </Target>
+</Project>
