@@ -1,13 +1,9 @@
-const path = require('path')
 const { windowsNativeProject } = require('./windows-autolink')
 
 module.exports = {
   // Library autolinking (consumed from node_modules/nitromelondb)
   dependency: {
     platforms: {
-      ios: {
-        podspecPath: path.join(__dirname, 'NitromelonDB.podspec'),
-      },
       android: {
         sourceDir: './native/android',
       },

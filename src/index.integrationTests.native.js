@@ -81,7 +81,7 @@ if (openPlayground) {
 
   AppRegistry.registerComponent(
     // FIXME: Should be consistent; find RNW API to change module name or rename RNW project
-    Platform.OS === 'windows' ? 'WatermelonTester' : 'watermelonTest',
+    Platform.OS === 'windows' ? 'NitromelonWindows' : 'watermelonTest',
     () => TestRoot,
   )
 }

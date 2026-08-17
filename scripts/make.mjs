@@ -138,15 +138,11 @@ const copyNonJavaScriptFiles = (buildPath) => {
   ])
   fs.writeFileSync(
     path.join(buildPath, 'react-native.config.js'),
-    `const path = require('path')
-const { windowsNativeProject } = require('./windows-autolink')
+    `const { windowsNativeProject } = require('./windows-autolink')
 
 module.exports = {
   dependency: {
     platforms: {
-      ios: {
-        podspecPath: path.join(__dirname, 'NitromelonDB.podspec'),
-      },
       android: {
         sourceDir: './native/android',
       },

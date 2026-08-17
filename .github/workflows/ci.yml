@@ -131,22 +131,36 @@ jobs:
           script: ./gradlew connectedAndroidTest
       - run: yarn ktlint
   windows:
-    # RNW 0.84 needs MSVC v145 (VS 2026). GitHub windows-2022/2025 only ship VS 2022.
-    # windows-11-vs2026-arm is the hosted image with VS 2026 + SDK 10.0.26100.
-    # The old UWP WatermelonTester + native/windowsE2E (RNW 0.71) path is retired.
-    runs-on: windows-11-vs2026-arm
+    # windows-2025 already has VS 2022 17.14, SDK 10.0.26100, Node 24.19.0,
+    # NuGet, and WinAppDriver. Do not use windows-11-vs2026-arm (slow extra
+    # downloads) or setup-msbuild. Inherit MSVC from the image (v143).
+    runs-on: windows-2025
     name: Windows NotesApp
     timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: examples/NotesApp_windows
+        shell: pwsh
     steps:
       - uses: actions/checkout@v4
       - name: Set Node.js version
         uses: actions/setup-node@v4
         with:
-          node-version: 24.x
-      - uses: microsoft/setup-msbuild@v2
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: examples/NotesApp_windows/package-lock.json
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            ${{ github.workspace }}/examples/NotesApp_windows/windows/packages
+          key: nuget-notesapp-windows-${{ hashFiles('examples/NotesApp_windows/windows/**/*.vcxproj', 'native/windows/**/*.vcxproj') }}
       - name: Install NotesApp Windows
-        working-directory: examples/NotesApp_windows
-        run: npm install --ignore-scripts
-      - name: Build NotesApp Windows (ARM64 Release)
-        working-directory: examples/NotesApp_windows
-        run: npx @react-native-community/cli run-windows --arch ARM64 --release --logging --no-packager --no-launch
+        run: npm ci --ignore-scripts
+      - name: Build and deploy NotesApp (x64 Release, integration bundle)
+        run: |
+          Copy-Item -Force index.integration.js index.js
+          npx @react-native-community/cli run-windows --arch x64 --release --logging --no-packager --no-launch
+      - name: Run SQLite integration e2e
+        run: npm run test:windows:e2e

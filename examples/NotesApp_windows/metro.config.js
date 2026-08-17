@@ -29,6 +29,8 @@ const libraryDeps = [
   'sql-escape-string',
   'hoist-non-react-statics',
   '@babel/runtime',
+  'cavy',
+  '@nozbe/watermelondb_expect',
 ];
 
 /**

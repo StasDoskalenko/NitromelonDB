@@ -24,6 +24,8 @@ npm run windows
 
 `run-windows` builds the WinAppSDK app and starts Metro. After JS-only changes, reload Metro. After native SQLite/Nitro changes, rebuild.
 
+CI runs the library SQLite integration suite inside this app (`index.integration.js` + `npm run test:windows:e2e`). That uses WinAppDriver, which is already on `windows-2025` runners.
+
 The app links the library via `file:../..`. Metro watches `src/` plus WatermelonDB JS dependencies (`rxjs`, `sql-escape-string`, …) so those imports resolve outside the example tree.
 
 ## Native SQLite

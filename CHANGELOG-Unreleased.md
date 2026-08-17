@@ -22,4 +22,4 @@
 
 ### Internal
 
-- CI: replace the disabled UWP WatermelonTester job with an ARM64 Release build of `examples/NotesApp_windows` on `windows-11-vs2026-arm` (VS 2026 / v145).
+- CI: Windows job uses `windows-2025` (preinstalled VS 2022, SDK 26100, Node 24.19, WinAppDriver). It builds NotesApp and runs the Cavy SQLite integration suite via `@react-native-windows/automation`.
