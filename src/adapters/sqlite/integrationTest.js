@@ -6,10 +6,9 @@ import { invariant } from '../../utils/common'
 import DatabaseAdapterCompat from '../compat'
 
 const SQLiteAdapterTest = (spec) => {
-  const configurations =
-    Platform.OS === 'windows'
-      ? [{ name: 'SQLiteAdapter (JSI)', options: {}, expectedDispatcherType: 'jsi' }]
-      : [{ name: 'SQLiteAdapter (Nitro)', options: {}, expectedDispatcherType: 'nitro' }]
+  const configurations = [
+    { name: 'SQLiteAdapter (Nitro)', options: {}, expectedDispatcherType: 'nitro' },
+  ]
 
   configurations.forEach(({ name: configurationName, options, expectedDispatcherType }) => {
     spec.describe(configurationName, () => {

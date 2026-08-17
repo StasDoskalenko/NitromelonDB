@@ -26,7 +26,7 @@ npm install nitromelondb
 
 `rxjs` `^7.8.0` is both a **dependency** and a **peer**. The dependency is what `yarn add nitromelondb` / `npm install nitromelondb` installs for you. The peer is so Yarn/npm hoist a single copy if the app already has RxJS (two copies break `Observable` / `Subscription` types). You do not add it yourself.
 
-On React Native (iOS and Android), also add the Nitro peer and rebuild native code — **skip this if `react-native-nitro-modules` is already in the app** (do not double-install it):
+On React Native (iOS, Android, and Windows), also add the Nitro peer and rebuild native code — **skip this if `react-native-nitro-modules` is already in the app** (do not double-install it):
 
 ```bash
 yarn add react-native-nitro-modules
@@ -34,13 +34,13 @@ yarn add react-native-nitro-modules
 
 Use `react-native-nitro-modules` **0.35.2 or newer**. NitromelonDB is built against 0.36.x; a `*` peer range used to hide ABI mismatches that only show up in Xcode or Gradle.
 
-`react-native-nitro-modules` is optional for web / Node / Electron. It is **required** for SQLite on iOS and Android.
+`react-native-nitro-modules` is optional for web / Node / Electron. It is **required** for SQLite on iOS, Android, and Windows.
 
 After the JS swap you still need **`pod install` and a full native rebuild**. Metro reload is not enough.
 
 ## 2. Rewrite imports
 
-Replace the old scope in **JavaScript/TypeScript source, tests, and Jest mocks** — not in leftover native project files (see [iOS](#3-ios) and [Android](#4-android)):
+Replace the old scope in **JavaScript/TypeScript source, tests, and Jest mocks** — not in leftover native project files (see [iOS](#3-ios), [Android](#4-android), and [Windows](#5-windows)):
 
 | From | To |
 | --- | --- |
@@ -139,7 +139,23 @@ Turbo-sync JSON injection now goes through `com.nozbe.watermelondb.NitromelonNat
 
 Minimum Android SDK is **24**.
 
-## 5. Expo
+## 5. Windows
+
+RNW **New Architecture** (0.84 / WinAppSDK) uses Nitro, not the old UWP `WMDatabaseBridge` JSI installer. Autolinking picks up `native/windows`.
+
+Add this to the app `react-native.config.js` so RNW does not look for a `react-native-nitro-modules` Windows project ([nitro#168](https://github.com/mrousavy/nitro/issues/168)):
+
+```js
+const { windowsAppDependencies } = require('nitromelondb/windows-autolink')
+
+module.exports = {
+  dependencies: windowsAppDependencies(),
+}
+```
+
+See [Installation — Windows](./Installation.mdx#windows-react-native).
+
+## 6. Expo
 
 The config plugin is **optional for bare React Native**. Autolinking is what actually links SQLite. On Expo, add the plugin so prebuild keeps the New Architecture on (it **rejects** `"newArchEnabled": false`).
 
@@ -161,7 +177,7 @@ In `app.json` / `app.config.js`, replace it with `"nitromelondb"`:
 
 Then `npx expo prebuild` (or let EAS Build do it). Development builds, EAS Build, and EAS Update are supported. Expo Go is not. See [Installation — Expo](./Installation.mdx#expo).
 
-## 6. SQLiteAdapter on React Native
+## 7. SQLiteAdapter on React Native
 
 iOS and Android SQLite is **Nitro-only**. NativeModules interop is gone. The **old React Native architecture** (Paper / the legacy bridge) is **not supported** — enable the New Architecture (on by default in React Native 0.87; required on 0.83+ as well).
 
@@ -174,13 +190,13 @@ const adapter = new SQLiteAdapter({
 })
 ```
 
-- **Do not** pass `{ jsi: false }` on iOS/Android.
+- **Do not** pass `{ jsi: false }` on React Native.
 - Web still uses LokiJS (or Node SQLite in Electron/Node).
-- Windows still uses the JSI installer (`{ jsi: true }`).
+- Windows New Architecture uses Nitro (same HybridObject as iOS/Android). The UWP JSI installer is removed.
 
 If SQLiteAdapter cannot create a native database, install `react-native-nitro-modules` and rebuild the app — Metro reload is not enough.
 
-## 7. TypeScript (Flow and hand-written `.d.ts` are gone)
+## 8. TypeScript (Flow and hand-written `.d.ts` are gone)
 
 The library implementation is TypeScript. The **published** package ships `index.d.ts` next to compiled JS. Do **not** add `tsconfig` path aliases to `node_modules/nitromelondb/src/*.ts` or to a `.d.ts` file in isolation — those files are not what npm installs, and mapping the package onto them breaks Metro and Jest.
 
@@ -219,21 +235,22 @@ await collection.create(record => {
 
 Assigning `record.id` anywhere else throws. `_raw.id` and `prepareCreateFromDirtyRaw` still work.
 
-## 8. Jest / Metro
+## 9. Jest / Metro
 
 - Move `__mocks__/@nozbe/watermelondb` to `__mocks__/nitromelondb` (and the same for any subpath mocks).
 - Do **not** path-map `nitromelondb` to unpublished `.ts` sources or to a `.d.ts` file. The published package is compiled JS at the package root.
 - That compiled JS does **not** need `transformIgnorePatterns` for `nitromelondb`.
 - If a release bundle loads `nitro.json` and SQLite never opens, you are on `0.30.0-beta.1`. Upgrade; do not patch `require('.../nitro')` yourself after that.
 
-## 9. Platform floor
+## 10. Platform floor
 
 | Requirement | WatermelonDB 0.28 | NitromelonDB |
 | --- | --- | --- |
 | Node.js | 18+ (typical) | App Node version follows your React Native release. This repo's example/CI uses **22+**. |
-| React Native | 0.74+ in 0.28 | **New Architecture required.** Tested on **0.83+**. The example app uses 0.87 (New Architecture on by default). Old / Paper architecture is not supported. |
+| React Native | 0.74+ in 0.28 | **New Architecture required.** Tested on **0.83+**. [`examples/NotesApp`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp) uses Expo SDK 57 (RN 0.86). [`examples/NotesApp_windows`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp_windows) uses RN 0.84.1 to match RNW 0.84. Old / Paper architecture is not supported. |
 | iOS | 12+ | **15.1** |
 | Android minSdk | 21 (typical) | **24** |
+| React Native Windows | experimental UWP / JSI | **RNW 0.84** New Architecture (WinAppSDK). See [Windows](#5-windows). |
 | `react-native-nitro-modules` | n/a | **≥ 0.35.2** (optional peer on web) |
 | `rxjs` | transitive | **dependency + peer `^7.8.0`** (installed with the package) |
 
@@ -246,9 +263,10 @@ Assigning `record.id` anywhere else throws. `_raw.id` and `prepareCreateFromDirt
 - [ ] Delete pbxproj `SupportingFiles` / old Watermelon header search paths; do not retarget them
 - [ ] Bridging header, if you import it: `#import <NitromelonDB/WatermelonDB.h>`
 - [ ] **Delete** `watermelondb-jsi` / `WatermelonDBJSIPackage` from Android. Do not retarget `native/android-jsi`
+- [ ] Windows: spread `windowsAppDependencies()` from `nitromelondb/windows-autolink`; remove UWP `WatermelonDB.vcxproj` / `WMDatabaseBridge` linking
 - [ ] Enable the New Architecture (old / Paper architecture is not supported)
-- [ ] Remove `{ jsi: false }` from `SQLiteAdapter` on iOS/Android
+- [ ] Remove `{ jsi: false }` from `SQLiteAdapter` on React Native
 - [ ] Expo: add `"nitromelondb"` to `app.json` `plugins` and remove `@morrowdigital/watermelondb-expo-plugin`. Bare apps can skip the plugin.
-- [ ] `pod install` and a full native rebuild (`npx react-native run-ios` / `run-android`, or `npx expo run:ios` / `run:android`) — not a Metro reload
+- [ ] `pod install` and a full native rebuild (`npx react-native run-ios` / `run-android` / `run-windows`, or `npx expo run:ios` / `run:android`) — not a Metro reload
 
 Then continue with [Installation](./Installation.mdx) and [Setup](./Setup.md) if anything in native linking is still missing.

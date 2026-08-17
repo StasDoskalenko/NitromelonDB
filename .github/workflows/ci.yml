@@ -131,33 +131,38 @@ jobs:
           script: ./gradlew connectedAndroidTest
       - run: yarn ktlint
   windows:
-    # FIXME: Windows port is unmaintained. If you're interested in sponsoring continued maintenance,
-    # please email me!
-    if: false
-    runs-on: windows-2022
-    name: Windows tests
+    # windows-2025 currently ships VS 2026 (v180 / MSVC v145), SDK 10.0.26100,
+    # Node 24.19.0, NuGet, and WinAppDriver. Inherit MSVC from the image.
+    runs-on: windows-2025
+    name: Windows NotesApp
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: examples/NotesApp_windows
+        shell: pwsh
     steps:
       - uses: actions/checkout@v4
       - name: Set Node.js version
         uses: actions/setup-node@v4
         with:
-          node-version: 24.x
-      - uses: actions/cache@v4
+          node-version: '24.19.0'
+          cache: yarn
+          cache-dependency-path: examples/NotesApp_windows/yarn.lock
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
         with:
-          path: 'node_modules'
-          key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
-      - run: yarn --network-timeout 100000
-      # FIXME: concurrently seems broken on windows
-      # - run: yarn ci
-      - run: yarn test
-      - run: yarn eslint
-      - run: yarn typecheck
-      # FIXME: TS broken on Windows?
-      # - run: yarn test:typescript
-      # Build WatermelonTester and run in background
-      - run: yarn test:windows
-      # Give it some time to bundle
-      - run: sleep 90
-      # Start E2E runner to capture integration test results
-      - run: cd native/windowsE2E && yarn
-      - run: yarn test:windows:ci
+          path: |
+            ~/.nuget/packages
+            ${{ github.workspace }}/examples/NotesApp_windows/windows/packages
+          key: nuget-notesapp-windows-${{ hashFiles('examples/NotesApp_windows/windows/**/*.vcxproj', 'native/windows/**/*.vcxproj') }}
+      - name: Install NotesApp Windows
+        run: yarn install --frozen-lockfile --ignore-scripts
+      - name: Build and deploy NotesApp (x64 Release, integration bundle)
+        # UseDevBundle=true embeds a dev JS bundle (Metro keeps `__DEV__`/`process.env.NODE_ENV`
+        # intact) so the integration suite runs the same DEV assertions as iOS/Android, which
+        # test against a Metro dev server. The native module is still built Release.
+        run: |
+          Copy-Item -Force index.integration.js index.js
+          yarn windows -- --arch x64 --release --logging --no-packager --no-launch --msbuildprops "UseDevBundle=true"
+      - name: Run SQLite integration e2e
+        run: yarn test:windows:e2e

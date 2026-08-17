@@ -34,7 +34,7 @@ if (openPlayground) {
     const sendReport = (report) => {
       // eslint-disable-next-line
       console.log('Done:')
-      const { results, ...rest } = report
+      const { results = [], ...rest } = report
       // eslint-disable-next-line
       console.log(rest)
       // eslint-disable-next-line
@@ -43,7 +43,23 @@ if (openPlayground) {
       if (Platform.OS !== 'windows') {
         NativeModules.BridgeTestReporter.testsFinished(report)
       }
-      setStatus(report.errorCount ? 'error' : 'done')
+      if (!report.errorCount) {
+        setStatus('done')
+        return
+      }
+      const failed = results.filter((result) => result.passed === false || result.error)
+      const summary = failed
+        .slice(0, 6)
+        .map((result) => {
+          const name = result.message || result.title || result.name || 'test'
+          const error = result.error
+          const errText =
+            (error && error.message) || (typeof error === 'string' ? error : '') || result.reason || ''
+          return errText ? `${name}: ${errText}` : name
+        })
+        .join(' | ')
+      // WinAppDriver only sees this Text; keep "Error" so e2e can wait, then the failures.
+      setStatus(`Error (${report.errorCount})${summary ? `: ${summary}` : ''}`)
     }
 
     return (
@@ -56,22 +72,22 @@ if (openPlayground) {
         sendReport={true}
         customReporter={sendReport}
       >
-        <View testID="WatermelonTesterContent">
-          <Text style={{ paddingTop: 100 }}>Watermelon tester!</Text>
+        <View testID="NitromelonTesterContent" accessible>
+          <Text style={{ paddingTop: 100 }}>Nitromelon tester!</Text>
           <Text>Using hermes? {global.HermesInternal ? 'YES' : 'NO'}</Text>
           {status === 'testing' ? (
-            <Text testID="WatermelonTesterStatus" style={{ fontSize: 30 }}>
+            <Text testID="NitromelonTesterStatus" accessible style={{ fontSize: 30 }}>
               The tests are running. Please remain calm.
             </Text>
           ) : null}
           {status === 'done' ? (
-            <Text testID="WatermelonTesterStatus" style={{ fontSize: 30, color: 'green' }}>
+            <Text testID="NitromelonTesterStatus" accessible style={{ fontSize: 30, color: 'green' }}>
               Done
             </Text>
           ) : null}
-          {status === 'error' ? (
-            <Text testID="WatermelonTesterStatus" style={{ fontSize: 30, color: 'red' }}>
-              Error
+          {status !== 'testing' && status !== 'done' ? (
+            <Text testID="NitromelonTesterStatus" accessible style={{ fontSize: 16, color: 'red' }}>
+              {status}
             </Text>
           ) : null}
         </View>
@@ -81,7 +97,7 @@ if (openPlayground) {
 
   AppRegistry.registerComponent(
     // FIXME: Should be consistent; find RNW API to change module name or rename RNW project
-    Platform.OS === 'windows' ? 'WatermelonTester' : 'watermelonTest',
+    Platform.OS === 'windows' ? 'NitromelonWindows' : 'watermelonTest',
     () => TestRoot,
   )
 }

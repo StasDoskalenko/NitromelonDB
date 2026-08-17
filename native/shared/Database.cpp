@@ -22,7 +22,14 @@ Database::Database(jsi::Runtime *runtime, std::string path, bool usesExclusiveLo
     initSql += "pragma temp_store = memory;";
     #endif
 
+    // Packaged WinAppSDK apps often cannot create WAL/SHM next to a URI memory
+    // DB (cwd is not writable). Keep WAL for on-disk databases.
+    #if defined(_WIN32)
+    const bool isMemoryDb = path == ":memory:" || path.find("mode=memory") != std::string::npos;
+    initSql += isMemoryDb ? "pragma journal_mode = MEMORY;" : "pragma journal_mode = WAL;";
+    #else
     initSql += "pragma journal_mode = WAL;";
+    #endif
 
     // set timeout before SQLITE_BUSY error is returned
     initSql += "pragma busy_timeout = 5000;";

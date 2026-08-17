@@ -1,0 +1,24 @@
+# NotesApp (iOS / Android)
+
+Expo SDK 57 development-build app that opens SQLite through `SQLiteAdapter` → a typed `NitromelonDatabase` HybridObject. This will not run in Expo Go. New Architecture is required. `app.json` includes the `nitromelondb` config plugin (Nitro autolinking covers native SQLite; the old Android JSI Gradle module is not used).
+
+The screen is a small notes list: schema v2, a v1→v2 migration that adds `pinned`, and create / pin / delete against the live database.
+
+Windows lives in a sibling app, [`../NotesApp_windows`](../NotesApp_windows), because React Native Windows 0.84 tracks RN 0.84.1 while this Expo app uses RN 0.86.2.
+
+![NitromelonDB notes screen on iOS, showing two notes, Nitro SQLite, and schema v2](assets/screenshot.png)
+
+```sh
+cd examples/NotesApp
+yarn
+npx expo prebuild
+npx expo run:ios
+# or
+npx expo run:android
+```
+
+If you already have a native build and only JS changed, reload Metro. After pulling native SQLite/Nitro changes, rebuild (`npx expo run:ios` / `run:android`).
+
+The app links the library via `file:../..`. Metro watches `src/` plus WatermelonDB's JS dependencies (`rxjs`, `sql-escape-string`, …) so those imports resolve outside the example's tree.
+
+`patches/expo-modules-jsi+57.0.4.patch` works around [expo#48522](https://github.com/expo/expo/issues/48522): on Xcode 26.3, C++ `abs` collides with Swift `abs` while compiling `ExpoModulesJSI`. Drop the patch once an `expo-modules-jsi` release includes `Swift.abs`.

@@ -29,6 +29,7 @@ export const PUBLISHED_EXPORTS = {
   },
   './package.json': './package.json',
   './app.plugin.js': './app.plugin.js',
+  './windows-autolink': './windows-autolink.js',
   './*': SUBPATH_EXPORT,
 }
 
@@ -75,6 +76,10 @@ function runSelfTest() {
   assert(published.exports['./decorators'] === undefined, 'directory imports go through ./*')
   assert(published.exports['./*'].types === './*/index.d.ts', 'subpath types must resolve */index.d.ts')
   assert(published.exports['./app.plugin.js'] === './app.plugin.js', 'Expo plugin export missing')
+  assert(
+    published.exports['./windows-autolink'] === './windows-autolink.js',
+    'Windows autolink helper export missing',
+  )
   assert(published.name === 'nitromelondb', 'package name must be preserved')
 
   assert(isSourceFile('/src/react/withDatabase.tsx'), '.tsx files must be compiled into the tarball')

@@ -134,30 +134,22 @@ const copyNonJavaScriptFiles = (buildPath) => {
     'native/vendor/simdjson',
     'native/vendor/sqlite',
     'nitrogen',
+    'windows-autolink.js',
+    'scripts/windows-nitro-shims.mjs',
   ])
+  // Generated at install / MSBuild; do not ship whatever is on the developer's disk.
+  fs.removeSync(path.join(buildPath, 'native/windows/include/NitroModules'))
   fs.writeFileSync(
     path.join(buildPath, 'react-native.config.js'),
-    `const path = require('path')
+    `const { windowsNativeProject } = require('./windows-autolink')
 
 module.exports = {
   dependency: {
     platforms: {
-      ios: {
-        podspecPath: path.join(__dirname, 'NitromelonDB.podspec'),
-      },
       android: {
         sourceDir: './native/android',
       },
-      windows: {
-        sourceDir: '.\\\\native\\\\windows',
-        solutionFile: 'WatermelonDB.sln',
-        projects: [
-          {
-            projectFile: 'WatermelonDB\\\\WatermelonDB.vcxproj',
-            directDependency: true,
-          },
-        ],
-      },
+      windows: windowsNativeProject,
     },
   },
 }
@@ -168,9 +160,9 @@ module.exports = {
   cleanFolder(`${buildPath}/native/android/bin/build`)
   cleanFolder(`${buildPath}/native/windows/.vs`)
   cleanFolder(`${buildPath}/native/windows/x64`)
-  cleanFolder(`${buildPath}/native/windows/WatermelonDB/Generated Files`)
-  cleanFolder(`${buildPath}/native/windows/WatermelonDB/obj`)
-  cleanFolder(`${buildPath}/native/windows/WatermelonDB/x64`)
+  cleanFolder(`${buildPath}/native/windows/NitromelonDB/Generated Files`)
+  cleanFolder(`${buildPath}/native/windows/NitromelonDB/obj`)
+  cleanFolder(`${buildPath}/native/windows/NitromelonDB/x64`)
 }
 
 if (isDevelopment) {
@@ -243,6 +235,6 @@ if (isDevelopment) {
   // copy remaining hand-written typescript definitions for unconverted modules
   const dtsFiles = glob.sync(`${SOURCE_PATH}/**/*.d.ts`)
   dtsFiles.forEach((file) => {
-    fs.copySync(file, path.join(DIST_PATH, replace(SOURCE_PATH, '', file)))
+    fs.copySync(file, path.join(DIST_PATH, path.relative(SOURCE_PATH, file)))
   })
 }

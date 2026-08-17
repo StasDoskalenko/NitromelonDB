@@ -15,7 +15,13 @@ const config = {
     'plugin:jest/recommended',
   ],
   parser: '@babel/eslint-parser',
-  ignorePatterns: ['examples/typescript/**/*.ts', 'examples/nitro/**', 'nitrogen/**', 'node_modules/**'],
+  ignorePatterns: [
+    'examples/typescript/**/*.ts',
+    'examples/NotesApp/**',
+    'examples/NotesApp_windows/**',
+    'nitrogen/**',
+    'node_modules/**',
+  ],
   settings: {
     'import/ignore': ['node_modules/react-native'],
     'import/parsers': {

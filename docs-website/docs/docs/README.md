@@ -20,7 +20,7 @@ hide_title: true
 **Why this fork exists**
 
 - **Upstream is quiet.** Apps still need the library to track frequent React Native, iOS, and Android version changes.
-- **New Architecture only.** Native SQLite on iOS and Android goes through [Nitro Modules](https://nitro.margelo.com). The old React Native architecture (Paper / the legacy bridge) is not supported.
+- **New Architecture only.** Native SQLite on iOS, Android, and Windows goes through [Nitro Modules](https://nitro.margelo.com). The old React Native architecture (Paper / the legacy bridge) is not supported.
 - **One TypeScript codebase.** Implementation lives in TypeScript. That removes the standalone `.d.ts` layer, so types and runtime cannot drift and maintenance stays simpler.
 - **Observability.** Nested writers, stuck readers, and incorrect `callWriter`/`callReader` usage should fail loudly so engineers can see *where* — not hang in production. See [Observability](./Advanced/Observability.md).
 - **Performance.** We want to keep improving SQLite, native, and JS performance. The TypeScript rewrite is one step on that path (including future runtimes such as Static Hermes), alongside further native optimizations.
@@ -150,6 +150,15 @@ const enhance = withObservables(['post'], ({ post }) => ({
 ```
 
 The result is fully reactive! Whenever a post or comment is added, changed, or removed, the right components **will automatically re-render** on screen. Doesn't matter if a change occurred in a totally different part of the app, it all just works out of the box!
+
+## Example apps
+
+A notes list (schema v2, migrations, create / pin / delete) ships as two apps, because React Native Windows **0.84** tracks RN **0.84.1** while Expo SDK 57 uses RN **0.86.2**:
+
+- **[examples/NotesApp](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp)** — iOS and Android (Expo development build; not Expo Go)
+- **[examples/NotesApp_windows](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp_windows)** — Windows New Architecture playground (Fabric / WinAppSDK)
+
+See each folder's README for run instructions.
 
 ## Who uses WatermelonDB
 

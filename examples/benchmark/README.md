@@ -20,7 +20,7 @@ These apps will not run in Expo Go. New Architecture is required.
 
 ```sh
 cd examples/benchmark/nitromelondb_benchmark
-npm install
+yarn
 npx expo prebuild
 npx expo run:ios
 # or
@@ -33,7 +33,7 @@ Links the local library via `file:../../..`. After native SQLite / Nitro changes
 
 ```sh
 cd examples/benchmark/watermelondb_benchmark
-npm install
+yarn
 npx expo prebuild
 npx expo run:ios
 # or

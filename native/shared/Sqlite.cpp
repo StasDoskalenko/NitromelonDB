@@ -25,7 +25,13 @@ SqliteDb::SqliteDb(std::string path) {
     #endif
 
     auto resolvedPath = resolveDatabasePath(path);
-    int openResult = sqlite3_open(resolvedPath.c_str(), &sqlite);
+    // SQLITE_OPEN_URI so `file:name?mode=memory&cache=shared` works even if
+    // sqlite3_config(SQLITE_CONFIG_URI) lost the race with another initializer.
+    int openResult = sqlite3_open_v2(
+        resolvedPath.c_str(),
+        &sqlite,
+        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_URI,
+        nullptr);
 
     if (openResult != SQLITE_OK) {
         if (sqlite) {

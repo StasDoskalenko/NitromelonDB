@@ -568,12 +568,11 @@ export default () => {
     expect(await adapter.getDeletedRecords('tasks')).toHaveLength(0)
     expect(await queryAll()).toHaveLength(1)
   })
-  it(`can unsafely load from sync JSON`, async (adapter, AdapterClass, extraAdapterOptions, platform) => {
+  it(`can unsafely load from sync JSON`, async (adapter, AdapterClass, _extraAdapterOptions) => {
     if (
       !(
         AdapterClass.name === 'SQLiteAdapter' &&
-        adapter.underlyingAdapter._dispatcherType !== 'asynchronous' &&
-        platform !== 'windows'
+        adapter.underlyingAdapter._dispatcherType !== 'asynchronous'
       )
     ) {
       await expectToRejectWithMessage(
@@ -673,12 +672,11 @@ export default () => {
       'bad changeset field',
     )
   })
-  it(`can return residual JSON from sync JSON`, async (adapter, AdapterClass, extraAdapterOptions, platform) => {
+  it(`can return residual JSON from sync JSON`, async (adapter, AdapterClass, _extraAdapterOptions) => {
     if (
       !(
         AdapterClass.name === 'SQLiteAdapter' &&
-        adapter.underlyingAdapter._dispatcherType !== 'asynchronous' &&
-        platform !== 'windows'
+        adapter.underlyingAdapter._dispatcherType !== 'asynchronous'
       )
     ) {
       await expectToRejectWithMessage(
@@ -703,12 +701,11 @@ export default () => {
     await check({ naughty: 'foo{\nbar\0' })
     await check({ _naughty: { '_naughty\n{\0': 'yes' } })
   })
-  it(`destroys provided jsons after being used`, async (adapter, AdapterClass, extraAdapterOptions, platform) => {
+  it(`destroys provided jsons after being used`, async (adapter, AdapterClass, _extraAdapterOptions) => {
     if (
       !(
         AdapterClass.name === 'SQLiteAdapter' &&
-        adapter.underlyingAdapter._dispatcherType !== 'asynchronous' &&
-        platform !== 'windows'
+        adapter.underlyingAdapter._dispatcherType !== 'asynchronous'
       )
     ) {
       await expectToRejectWithMessage(

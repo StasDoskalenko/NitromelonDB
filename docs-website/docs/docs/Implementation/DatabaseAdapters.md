@@ -16,9 +16,9 @@ Supported frameworks:
   - Operating systems:
     - iOS
     - Android
+    - Windows (RNW New Architecture / WinAppSDK)
   - Implementations:
-    - Nitro HybridObject (iOS and Android; New Architecture only)
-    - JSI adapter (Windows)
+    - Nitro HybridObject (iOS, Android, and Windows)
 - NodeJS
   - via `better-sqlite3` - contributed by Sid Ferreira
 
@@ -37,7 +37,7 @@ Why [LokiJS](http://techfort.github.io/LokiJS/)? WebSQL would be a perfect fit f
 
 Please contribute to WatermelonDB. We'd love to support these platforms and databases:
 
-- [React Native for Windows and macOS](https://microsoft.github.io/react-native-windows/)
+- [React Native for macOS](https://microsoft.github.io/react-native-macos/)
 - [Realm database](https://github.com/realm/realm-cpp)
 - SQLite for web ([sql.js](https://github.com/sql-js/sql.js/) or [absurd-sql](https://github.com/jlongster/absurd-sql))
 - LokiJS NodeJS storage option
@@ -46,7 +46,7 @@ Please contribute to WatermelonDB. We'd love to support these platforms and data
 
 ## Adding new React Native operating systems
 
-Thanks to our cross-platform JSI (C++) SQLite adapter, it takes very little code to add support for new React Native platforms (like macOS or Windows).
+Thanks to our cross-platform C++ SQLite adapter, it takes very little code to add support for new React Native platforms (like macOS).
 
 All you have to do is this:
 
@@ -73,7 +73,7 @@ The general SQLite implementation is in `src/adapters/sqlite/index.ts`. It forwa
 See `src/adapters/sqlite/makeDispatcher` to see concrete dispatchers and add your own, depending on the platform's convention of calling native code. For example:
 
 - `makeDispatcher/index.ts` (Node JS) just imports more JS code, since native=JS in this case
-- `makeDispatcher/index.native.ts` (React Native) uses the `Nitromelon` HybridObject on iOS/Android, and the JSI installer on Windows
+- `makeDispatcher/index.native.ts` (React Native) uses the `Nitromelon` HybridObject on iOS, Android, and Windows.
 
 ### Native-side glue
 
@@ -81,7 +81,7 @@ Depending on the capabilities of the framework you want to support, there's a fe
 
 **The easy (JS-only) way**. If your framework has existing SQLite bindings in JavaScript **that work synchronously** (similar to [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) in Node), you can reuse code in `src/adapters/sqlite/sqlite-node`
 
-**The C++ way**. Reuse `native/shared` and wrap it the way your framework talks to native code. On React Native iOS/Android that wrapper is the `Nitromelon` / `NitromelonDatabase` Nitro HybridObject (`native/nitro`, spec in `src/nitro/Nitromelon.nitro.ts`). On Windows it is still `Database::install(jsi::Runtime *)`.
+**The C++ way**. Reuse `native/shared` and wrap it the way your framework talks to native code. On React Native that wrapper is the `Nitromelon` / `NitromelonDatabase` Nitro HybridObject (`native/nitro`, spec in `src/nitro/Nitromelon.nitro.ts`), including Windows (`native/windows`).
 
 ## Adding new databases
 

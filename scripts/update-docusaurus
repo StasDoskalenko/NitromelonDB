@@ -8,6 +8,7 @@ title: Check out the README
 hide_title: true
 ---
 " | cat - ./docs-website/docs/docs/README.md > temp && mv temp ./docs-website/docs/docs/README.md && \
+node scripts/rewrite-readme-docs-links.mjs ./docs-website/docs/docs/README.md && \
 cp CONTRIBUTING.md ./docs-website/docs/docs/CONTRIBUTING.md && \
 echo "---
 title: Contributing

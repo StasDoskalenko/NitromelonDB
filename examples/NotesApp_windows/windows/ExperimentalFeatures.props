@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <PropertyGroup Label="Microsoft.ReactNative Experimental Features">
+    <!--
+      Required for building a New Architecture project.
+
+      App projects should not change this value.
+
+      See https://microsoft.github.io/react-native-windows/docs/new-architecture
+    -->
+    <RnwNewArch>true</RnwNewArch>
+
+    <!--
+      Changes compilation to assume use of Microsoft.ReactNative NuGet packages
+      instead of building the framework from source. Defaults to true.
+
+      This is set during app project creation and should not be changed.
+
+      See https://microsoft.github.io/react-native-windows/docs/nuget
+    -->
+    <UseExperimentalNuget>true</UseExperimentalNuget>
+
+    <ReactExperimentalFeaturesSet>true</ReactExperimentalFeaturesSet>
+
+    <!--
+      RNW New Arch defaults to 10.0.22621.0. This machine has 10.0.26100.0
+      installed (not 22621), and VersionLessThan('10.0', '10.0.22621.0') would
+      otherwise force the missing SDK and fail with MSB8036.
+    -->
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <TargetPlatformVersion>10.0.26100.0</TargetPlatformVersion>
+  </PropertyGroup>
+
+</Project>
