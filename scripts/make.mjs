@@ -235,6 +235,6 @@ if (isDevelopment) {
   // copy remaining hand-written typescript definitions for unconverted modules
   const dtsFiles = glob.sync(`${SOURCE_PATH}/**/*.d.ts`)
   dtsFiles.forEach((file) => {
-    fs.copySync(file, path.join(DIST_PATH, replace(SOURCE_PATH, '', file)))
+    fs.copySync(file, path.join(DIST_PATH, path.relative(SOURCE_PATH, file)))
   })
 }
