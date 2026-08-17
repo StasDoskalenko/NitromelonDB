@@ -13,6 +13,7 @@ describe('NitromelonDB Windows', () => {
       {timeout: 180000},
     )
 
-    expect(await view.getText()).toMatch(/Done/)
+    const statusText = await view.getText()
+    expect(statusText).toMatch(/Done/)
   })
 })

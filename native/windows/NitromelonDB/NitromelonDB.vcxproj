@@ -84,7 +84,7 @@
       <ForcedIncludeFiles>NitroMsvcStdCompat.h</ForcedIncludeFiles>
       <AdditionalOptions>%(AdditionalOptions) /bigobj /Zc:__cplusplus</AdditionalOptions>
       <DisableSpecificWarnings>4100;4244;4267;4453;28204</DisableSpecificWarnings>
-      <PreprocessorDefinitions>_WINRT_DLL;SQLITE_THREADSAFE=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINRT_DLL;SQLITE_THREADSAFE=1;SQLITE_USE_URI=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <AdditionalIncludeDirectories>
         $(MSBuildThisFileDirectory);

@@ -12,6 +12,8 @@
 
 ### Fixes
 
+- **Windows:** SQLite integration tests run Nitro turbo-sync (`unsafeLoadFromSync` / `provideSyncJson`) instead of expecting those APIs to be missing. Memory URI databases open with `SQLITE_OPEN_URI` and use an in-memory journal so WAL files are not created in a packaged app's cwd. The DEV-only `validates adapter options` case is skipped in production Hermes bundles.
+
 ### Performance
 
 ### Changes
