@@ -56,21 +56,21 @@ if (openPlayground) {
         sendReport={true}
         customReporter={sendReport}
       >
-        <View testID="WatermelonTesterContent">
+        <View testID="WatermelonTesterContent" accessible>
           <Text style={{ paddingTop: 100 }}>Watermelon tester!</Text>
           <Text>Using hermes? {global.HermesInternal ? 'YES' : 'NO'}</Text>
           {status === 'testing' ? (
-            <Text testID="WatermelonTesterStatus" style={{ fontSize: 30 }}>
+            <Text testID="WatermelonTesterStatus" accessible style={{ fontSize: 30 }}>
               The tests are running. Please remain calm.
             </Text>
           ) : null}
           {status === 'done' ? (
-            <Text testID="WatermelonTesterStatus" style={{ fontSize: 30, color: 'green' }}>
+            <Text testID="WatermelonTesterStatus" accessible style={{ fontSize: 30, color: 'green' }}>
               Done
             </Text>
           ) : null}
           {status === 'error' ? (
-            <Text testID="WatermelonTesterStatus" style={{ fontSize: 30, color: 'red' }}>
+            <Text testID="WatermelonTesterStatus" accessible style={{ fontSize: 30, color: 'red' }}>
               Error
             </Text>
           ) : null}
