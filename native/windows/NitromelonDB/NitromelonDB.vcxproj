@@ -205,6 +205,7 @@
       <NitroShimOutDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\include\NitroModules'))</NitroShimOutDir>
     </PropertyGroup>
     <Error Condition="!Exists('$(NitroShimScript)')" Text="Missing Nitro Windows shim generator: $(NitroShimScript)" />
-    <Exec Command="node &quot;$(NitroShimScript)&quot; --out &quot;$(NitroShimOutDir)&quot; --nitro &quot;$(NitroModulesDir)&quot;" />
+    <!-- Trailing \ in NitroModulesDir would escape the closing quote (`"path\"`). -->
+    <Exec Command="node &quot;$(NitroShimScript)&quot; --out &quot;$(NitroShimOutDir)&quot; --nitro &quot;$(NitroModulesDir).&quot;" />
   </Target>
 </Project>

@@ -21,6 +21,15 @@ import { fileURLToPath } from 'node:url'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
+function cleanPath(value) {
+  if (!value) {
+    return ''
+  }
+  // MSBuild `"$(Dir)\"` treats the trailing backslash as an escape, so argv
+  // can include a literal quote. `"$(Dir)."` is the workaround and leaves `\.`.
+  return value.replace(/["']+$/g, '').replace(/[\\/]+(\.)?$/, '')
+}
+
 function parseArgs(argv) {
   const args = { nitro: '', out: '', optional: false }
   for (let i = 0; i < argv.length; i += 1) {
@@ -28,10 +37,10 @@ function parseArgs(argv) {
     if (arg === '--optional') {
       args.optional = true
     } else if (arg === '--nitro') {
-      args.nitro = argv[i + 1]
+      args.nitro = cleanPath(argv[i + 1])
       i += 1
     } else if (arg === '--out') {
-      args.out = argv[i + 1]
+      args.out = cleanPath(argv[i + 1])
       i += 1
     }
   }
