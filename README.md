@@ -15,11 +15,16 @@
 **Why this fork exists**
 
 - **Upstream is quiet.** Apps still need the library to track frequent React Native, iOS, and Android version changes.
-- **New Architecture only.** Native SQLite on iOS, Android, and Windows goes through [Nitro Modules](https://nitro.margelo.com). The old React Native architecture (Paper / the legacy bridge) is not supported.
-- **One TypeScript codebase.** Implementation lives in TypeScript. That removes the standalone `.d.ts` layer, so types and runtime cannot drift and maintenance stays simpler.
+- **New Architecture only.** Native SQLite on iOS, Android, and Windows (RNW 0.84 / WinAppSDK) goes through [Nitro Modules](https://nitro.margelo.com). The old React Native architecture (Paper / the legacy bridge) is not supported.
+- **First-class Expo.** A config plugin covers development builds, EAS Build, and EAS Update. It replaces `@morrowdigital/watermelondb-expo-plugin`. Expo Go is not supported.
+- **One TypeScript codebase.** Implementation lives in TypeScript under `strict` checking. That removes Flow and the standalone `.d.ts` layer, so types and runtime cannot drift.
+- **Simpler native install.** SQLite and simdjson are vendored in-tree. No FMDB, no `@nozbe/sqlite` / `@nozbe/simdjson`, no separate `android-jsi` package. Autolinking is enough.
+- **Current platforms.** Tested on React Native 0.83+ (NotesApp is Expo SDK 57 / RN 0.86) and React 19. Android builds with 16kB page alignment. Electron can run SQLite in the main process via `RemoteAdapter`.
 - **Observability.** Nested writers, stuck readers, and incorrect `callWriter`/`callReader` usage should fail loudly so engineers can see *where* — not hang in production. See [Observability](https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Observability).
 - **Performance.** We want to keep improving SQLite, native, and JS performance. The TypeScript rewrite is one step on that path (including future runtimes such as Static Hermes), alongside further native optimizations.
-- **Same product, new package name.** Install `nitromelondb` and import from `nitromelondb` (not `@nozbe/watermelondb`). Step-by-step: **[Migrating from WatermelonDB](https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating)**.
+- **Same product, new package name.** Install `nitromelondb` and import from `nitromelondb` (not `@nozbe/watermelondb`). Existing SQLite files, schema, and models keep working. Step-by-step: **[Migrating from WatermelonDB](https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating)**.
+
+**On the roadmap:** [SQLCipher](https://github.com/StasDoskalenko/NitromelonDB/issues/60) (including existing databases), [VACUUM](https://github.com/StasDoskalenko/NitromelonDB/issues/59), [macOS](https://github.com/StasDoskalenko/NitromelonDB/issues/49), [wa-sqlite on the web](https://github.com/StasDoskalenko/NitromelonDB/issues/44), [paginated sync](https://github.com/StasDoskalenko/NitromelonDB/issues/50), [more reliable migrations](https://github.com/StasDoskalenko/NitromelonDB/issues/57), and [clearer critical-error handling](https://github.com/StasDoskalenko/NitromelonDB/issues/61).
 
 ```bash
 yarn add nitromelondb
