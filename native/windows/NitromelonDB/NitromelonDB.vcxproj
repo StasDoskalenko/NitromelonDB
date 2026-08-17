@@ -199,4 +199,12 @@
     <Error Condition="!Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.targets')" Text="$([System.String]::Format('$(ErrorText)', '$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.targets'))" />
     <Error Condition="!Exists('$(NitroModulesDir)package.json')" Text="react-native-nitro-modules was not found. Install the peer next to react-native-windows." />
   </Target>
+  <Target Name="GenerateNitroIncludeShims" AfterTargets="EnsureReactNativeWindowsTargets">
+    <PropertyGroup>
+      <NitroShimScript>$([System.IO.Path]::GetFullPath('$(NitromelonNativeDir)..\scripts\windows-nitro-shims.mjs'))</NitroShimScript>
+      <NitroShimOutDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\include\NitroModules'))</NitroShimOutDir>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(NitroShimScript)')" Text="Missing Nitro Windows shim generator: $(NitroShimScript)" />
+    <Exec Command="node &quot;$(NitroShimScript)&quot; --out &quot;$(NitroShimOutDir)&quot; --nitro &quot;$(NitroModulesDir)&quot;" />
+  </Target>
 </Project>

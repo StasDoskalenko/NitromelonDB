@@ -39,3 +39,7 @@ packages/
 *.nupkg
 *project.lock.json
 packages.lock.json
+
+# Header map for <NitroModules/Foo.hpp>. Generated from react-native-nitro-modules
+# by scripts/windows-nitro-shims.mjs (postinstall and MSBuild).
+include/NitroModules/

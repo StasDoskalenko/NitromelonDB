@@ -135,7 +135,10 @@ const copyNonJavaScriptFiles = (buildPath) => {
     'native/vendor/sqlite',
     'nitrogen',
     'windows-autolink.js',
+    'scripts/windows-nitro-shims.mjs',
   ])
+  // Generated at install / MSBuild; do not ship whatever is on the developer's disk.
+  fs.removeSync(path.join(buildPath, 'native/windows/include/NitroModules'))
   fs.writeFileSync(
     path.join(buildPath, 'react-native.config.js'),
     `const { windowsNativeProject } = require('./windows-autolink')

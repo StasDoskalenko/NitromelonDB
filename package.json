@@ -33,7 +33,7 @@
     "docs:build": "./scripts/update-docusaurus && cd docs-website && yarn build",
     "docs:deploy": "./scripts/update-docusaurus && cd docs-website && yarn deploy",
     "specs": "nitrogen",
-    "postinstall": "patch-package",
+    "postinstall": "patch-package && node scripts/windows-nitro-shims.mjs --optional",
     "vendor:simdjson": "node ./scripts/vendor-simdjson.mjs",
     "vendor:sqlite": "node ./scripts/vendor-sqlite.mjs"
   },

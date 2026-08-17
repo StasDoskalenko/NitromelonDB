@@ -10,8 +10,4 @@ The DLL:
 2. Registers the `Nitromelon` HybridObject
 3. Compiles Nitro C++ from `react-native-nitro-modules` plus `native/nitro`, `native/shared`, and vendored SQLite / simdjson
 
-`include/NitroModules/*.hpp` are one-line shims (`#include <NitroModules/Foo.hpp>` → `Foo.hpp`). Regenerate them after bumping Nitro:
-
-```sh
-node scripts/windows-nitro-shims.mjs
-```
+`include/NitroModules/` is gitignored. Yarn postinstall (and the vcxproj, before compile) generate one-line shims so `#include <NitroModules/Foo.hpp>` resolves on MSVC. `--ignore-scripts` still works: MSBuild runs the same generator.

@@ -9,8 +9,10 @@
  * one-line shims that include the real header by basename (the vcxproj
  * already puts every nitro cpp/ subdirectory on the include path).
  *
- * Run after bumping react-native-nitro-modules:
+ * Runs from yarn postinstall and from the Windows vcxproj before compile:
  *   node scripts/windows-nitro-shims.mjs
+ *   node scripts/windows-nitro-shims.mjs --optional
+ *   node scripts/windows-nitro-shims.mjs --nitro <dir> --out <dir>
  */
 
 import fs from 'node:fs'
@@ -20,10 +22,12 @@ import { fileURLToPath } from 'node:url'
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 function parseArgs(argv) {
-  const args = { nitro: '', out: '' }
+  const args = { nitro: '', out: '', optional: false }
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
-    if (arg === '--nitro') {
+    if (arg === '--optional') {
+      args.optional = true
+    } else if (arg === '--nitro') {
       args.nitro = argv[i + 1]
       i += 1
     } else if (arg === '--out') {
@@ -34,7 +38,7 @@ function parseArgs(argv) {
   return args
 }
 
-function findNitroRoot(explicit) {
+function findNitroRoot(explicit, optional) {
   if (explicit) {
     return path.resolve(explicit)
   }
@@ -46,6 +50,9 @@ function findNitroRoot(explicit) {
     if (fs.existsSync(path.join(candidate, 'package.json'))) {
       return candidate
     }
+  }
+  if (optional) {
+    return null
   }
   throw new Error('react-native-nitro-modules not found. Pass --nitro <dir>.')
 }
@@ -89,7 +96,11 @@ function writeShims(outDir, names) {
 }
 
 const args = parseArgs(process.argv.slice(2))
-const nitroRoot = findNitroRoot(args.nitro)
+const nitroRoot = findNitroRoot(args.nitro, args.optional)
+if (!nitroRoot) {
+  console.warn('skip Nitro Windows include shims: react-native-nitro-modules is not installed')
+  process.exit(0)
+}
 const cppRoot = path.join(nitroRoot, 'cpp')
 if (!fs.existsSync(cppRoot)) {
   throw new Error(`No cpp/ folder in ${nitroRoot}`)
