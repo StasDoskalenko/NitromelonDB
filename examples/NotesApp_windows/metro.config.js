@@ -31,6 +31,8 @@ const libraryDeps = [
   '@babel/runtime',
   'cavy',
   '@nozbe/watermelondb_expect',
+  // Integration tests (`src/adapters/__tests__/helpers.js`) import this.
+  'rambdax',
 ];
 
 /**

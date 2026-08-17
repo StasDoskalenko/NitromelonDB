@@ -10,7 +10,7 @@ Windows lives in a sibling app, [`../NotesApp_windows`](../NotesApp_windows), be
 
 ```sh
 cd examples/NotesApp
-npm install
+yarn
 npx expo prebuild
 npx expo run:ios
 # or

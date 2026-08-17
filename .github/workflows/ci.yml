@@ -146,8 +146,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24.19.0'
-          cache: npm
-          cache-dependency-path: examples/NotesApp_windows/package-lock.json
+          cache: yarn
+          cache-dependency-path: examples/NotesApp_windows/yarn.lock
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
@@ -156,10 +156,10 @@ jobs:
             ${{ github.workspace }}/examples/NotesApp_windows/windows/packages
           key: nuget-notesapp-windows-${{ hashFiles('examples/NotesApp_windows/windows/**/*.vcxproj', 'native/windows/**/*.vcxproj') }}
       - name: Install NotesApp Windows
-        run: npm ci --ignore-scripts
+        run: yarn install --frozen-lockfile --ignore-scripts
       - name: Build and deploy NotesApp (x64 Release, integration bundle)
         run: |
           Copy-Item -Force index.integration.js index.js
-          npx @react-native-community/cli run-windows --arch x64 --release --logging --no-packager --no-launch
+          yarn windows -- --arch x64 --release --logging --no-packager --no-launch
       - name: Run SQLite integration e2e
-        run: npm run test:windows:e2e
+        run: yarn test:windows:e2e

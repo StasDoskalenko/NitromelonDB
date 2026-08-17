@@ -258,12 +258,33 @@ NitromelonDB supports [React Native Windows](https://microsoft.github.io/react-n
 
 RNW 0.84 is New Architecture only and pairs with React Native **0.84.1**. Expo NotesApp is on a newer RN, so the Windows playground is a separate app: [`examples/NotesApp_windows`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp_windows).
 
-Requirements:
+### Tools
 
-- Node.js **22.11+**
-- [RNW native dependencies](https://microsoft.github.io/react-native-windows/docs/rnw-dependencies), including Visual Studio with the **Windows App SDK** workload
+| Tool | Version / notes |
+| --- | --- |
+| Windows | Windows 10 22H2+ or Windows 11 |
+| Node.js | **22.11+** |
+| Yarn | Classic (v1) |
+| Visual Studio | **2022** (MSVC **v143**) or **2026** (MSVC **v145**) |
+| Workloads | Desktop development with C++; Windows application development (Windows App SDK / WinUI) |
+| Windows SDK | **10.0.26100** recommended (the example pins this) |
 
-Install the packages (skip `react-native-nitro-modules` if the app already has it):
+If anything is missing, run [RNW's dependency script](https://microsoft.github.io/react-native-windows/docs/rnw-dependencies) from an elevated PowerShell prompt.
+
+### How Nitro is wired
+
+`react-native-nitro-modules` has no official Windows autolink ([nitro#168](https://github.com/mrousavy/nitro/issues/168)). NitromelonDB's WinAppSDK DLL **is** the install entry:
+
+1. JS calls `TurboModuleRegistry.getEnforcing('NitroModules').install()`, same as iOS/Android.
+2. `native/windows` exports that TurboModule. `install()` runs `margelo::nitro::install()` with RNW's `CallInvoker`, then registers `HybridNitromelon`.
+3. The vcxproj compiles Nitro C++ from `node_modules/react-native-nitro-modules/cpp` plus NitromelonDB's SQLite engine.
+4. Apps must tell RNW **not** to look for a Nitro Windows project (next snippet).
+
+Longer write-up: [`native/windows/README.md`](https://github.com/StasDoskalenko/NitromelonDB/blob/master/native/windows/README.md).
+
+### Install
+
+Skip `react-native-nitro-modules` if the app already has it:
 
 ```bash
 yarn add nitromelondb react-native-nitro-modules
@@ -271,13 +292,7 @@ yarn add nitromelondb react-native-nitro-modules
 
 Set up Babel decorators the same way as [React Native setup](#react-native-setup).
 
-Autolinking picks up `native/windows`. Rebuild:
-
-```bash
-npx @react-native-community/cli run-windows
-```
-
-`react-native-nitro-modules` does not ship a Windows project yet ([nitro#168](https://github.com/mrousavy/nitro/issues/168)). NitromelonDB's WinAppSDK DLL implements the `NitroModules` TurboModule `install()` entry point and registers `HybridNitromelon` in the same binary. Add this to the app `react-native.config.js` so RNW does not look for a Nitro Windows project:
+Autolinking picks up `native/windows`. Add this to the app `react-native.config.js`:
 
 ```js
 const { windowsAppDependencies } = require('nitromelondb/windows-autolink')
@@ -289,6 +304,12 @@ module.exports = {
 ```
 
 If you link NitromelonDB with `file:` (a monorepo), pass `{ root: path.resolve(__dirname, '../path-to-nitromelondb') }`.
+
+Rebuild:
+
+```bash
+yarn react-native run-windows
+```
 
 Caveats:
 
