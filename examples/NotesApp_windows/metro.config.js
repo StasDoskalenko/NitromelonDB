@@ -1,4 +1,5 @@
 const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
+const { resolve } = require('metro-resolver');
 
 const fs = require('fs');
 const path = require('node:path');
@@ -34,6 +35,34 @@ const libraryDeps = [
   'big-list-of-naughty-strings',
 ];
 
+function resolveLibrarySource(moduleName) {
+  const rest =
+    moduleName === 'nitromelondb' ? 'index' : moduleName.slice('nitromelondb/'.length);
+  const librarySrc = path.join(workspaceRoot, 'src');
+  const candidates = [
+    path.join(librarySrc, `${rest}.ts`),
+    path.join(librarySrc, `${rest}.tsx`),
+    path.join(librarySrc, `${rest}.js`),
+    path.join(librarySrc, rest, 'index.ts'),
+    path.join(librarySrc, rest, 'index.js'),
+  ];
+  return candidates.find(candidate => fs.existsSync(candidate));
+}
+
+function resolveDefault(context, moduleName, platform) {
+  let name = moduleName;
+  // Same redirect the RN CLI installs — our resolveRequest would otherwise
+  // replace it, and `react-native` has no Platform.windows.js.
+  if (platform === 'windows') {
+    if (name === 'react-native') {
+      name = 'react-native-windows';
+    } else if (name.startsWith('react-native/')) {
+      name = `react-native-windows/${name.slice('react-native/'.length)}`;
+    }
+  }
+  return resolve({ ...context, resolveRequest: undefined }, name, platform);
+}
+
 /**
  * Metro configuration
  * https://facebook.github.io/metro/docs/configuration
@@ -63,13 +92,23 @@ const config = {
     extraNodeModules: {
       nitromelondb: path.join(workspaceRoot, 'src'),
       react: path.resolve(projectRoot, 'node_modules/react'),
-      'react-native': path.resolve(projectRoot, 'node_modules/react-native'),
       'react-native-windows': rnwPath,
       'react-native-nitro-modules': path.resolve(
         projectRoot,
         'node_modules/react-native-nitro-modules',
       ),
       ...Object.fromEntries(libraryDeps.map(name => [name, resolveDep(name)])),
+    },
+    // Yarn's file: link is found first, so extraNodeModules never runs.
+    // Point App.tsx at workspace src/ (there is no published index.js).
+    resolveRequest: (context, moduleName, platform) => {
+      if (moduleName === 'nitromelondb' || moduleName.startsWith('nitromelondb/')) {
+        const filePath = resolveLibrarySource(moduleName);
+        if (filePath) {
+          return { type: 'sourceFile', filePath };
+        }
+      }
+      return resolveDefault(context, moduleName, platform);
     },
   },
   transformer: {

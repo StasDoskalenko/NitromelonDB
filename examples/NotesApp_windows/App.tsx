@@ -8,17 +8,11 @@ import { useEffect, useState } from 'react';
 import {
   FlatList,
   Pressable,
-  StatusBar,
   StyleSheet,
   Text,
   TextInput,
-  useColorScheme,
   View,
 } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
 import { Q } from 'nitromelondb';
 import { createExampleDatabase, type ExampleDatabase } from './database';
 import Note from './model/Note';
@@ -96,39 +90,50 @@ function formatTime(date: Date): string {
 }
 
 export default function App() {
-  const isDarkMode = useColorScheme() === 'dark';
-  const [session] = useState(() => {
-    try {
-      return { ok: true as const, db: createExampleDatabase() };
-    } catch (error) {
-      return {
-        ok: false as const,
-        message: error instanceof Error ? error.message : String(error),
-      };
-    }
-  });
+  const [session, setSession] = useState<
+    | { ok: true; db: ExampleDatabase }
+    | { ok: false; message: string }
+    | null
+  >(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        setSession({ ok: true, db: createExampleDatabase() });
+      } catch (error) {
+        setSession({
+          ok: false,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      {session.ok ? (
+    <View style={styles.screen}>
+      {session == null ? (
+        <View style={styles.header}>
+          <Text style={styles.title}>NitromelonDB</Text>
+          <Text style={styles.subtitle}>Starting…</Text>
+        </View>
+      ) : session.ok ? (
         <NotesScreen db={session.db} />
       ) : (
         <View style={styles.centered}>
           <Text style={styles.title}>NitromelonDB</Text>
           <Text style={styles.error}>{session.message}</Text>
           <Text style={styles.hint}>
-            Rebuild the native app after SQLite or Nitro changes (`npm run
+            Rebuild the native app after SQLite or Nitro changes (`yarn
             windows`).
           </Text>
         </View>
       )}
-    </SafeAreaProvider>
+    </View>
   );
 }
 
 function NotesScreen({ db }: { db: ExampleDatabase }) {
-  const insets = useSafeAreaInsets();
   const { notes, error: loadError } = useNotes(db);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -166,7 +171,7 @@ function NotesScreen({ db }: { db: ExampleDatabase }) {
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 24) }]}>
+      <View style={styles.header}>
         <Text style={styles.title}>NitromelonDB</Text>
         <Text style={styles.subtitle}>
           {db.sqliteEngine} · schema v{db.schemaVersion} · {notes.length} note
@@ -212,12 +217,7 @@ function NotesScreen({ db }: { db: ExampleDatabase }) {
         )}
       />
 
-      <View
-        style={[
-          styles.composer,
-          { paddingBottom: Math.max(insets.bottom, 16) },
-        ]}
-      >
+      <View style={styles.composer}>
         <TextInput
           style={styles.input}
           placeholder="Note title"
@@ -263,6 +263,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
+    paddingTop: 24,
     paddingBottom: 12,
   },
   title: {

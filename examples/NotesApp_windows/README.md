@@ -6,6 +6,8 @@ iOS and Android live in the sibling Expo app, [`../NotesApp`](../NotesApp). They
 
 The screen is the same notes list: schema v2, a v1→v2 `pinned` migration, plus create / pin / delete.
 
+![NitromelonDB notes screen on Windows, showing two notes, Nitro SQLite, and schema v2](assets/screenshot.png)
+
 ## Tools
 
 | Tool | Version / notes |
