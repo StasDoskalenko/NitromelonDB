@@ -12,6 +12,7 @@
 
 ### Fixes
 
+- **Web:** init no longer crashes when `window.performance.now` exists but is not a function (`now.bind is not a function`). Timing falls back to `Date.now`. ([#46](https://github.com/StasDoskalenko/NitromelonDB/issues/46))
 - **Windows:** SQLite integration tests run Nitro turbo-sync (`unsafeLoadFromSync` / `provideSyncJson`) instead of expecting those APIs to be missing. Memory URI databases open with `SQLITE_OPEN_URI` and use an in-memory journal so WAL files are not created in a packaged app's cwd. The CI integration app embeds a dev JS bundle (`UseDevBundle=true`) so the suite runs the same DEV assertions as iOS/Android.
 
 ### Performance

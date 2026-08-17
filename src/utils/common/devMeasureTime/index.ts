@@ -1,7 +1,11 @@
 const getPreciseTimeFunction: () => () => number = () => {
-  if (typeof global !== 'undefined' && global.nativePerformanceNow) {
+  if (typeof global !== 'undefined' && typeof global.nativePerformanceNow === 'function') {
     return global.nativePerformanceNow;
-  } else if (typeof window !== 'undefined' && window.performance && window.performance.now) {
+  } else if (
+    typeof window !== 'undefined' &&
+    window.performance &&
+    typeof window.performance.now === 'function'
+  ) {
     return window.performance.now.bind(window.performance);
   }
 
