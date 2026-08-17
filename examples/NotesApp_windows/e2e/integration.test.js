@@ -2,7 +2,7 @@ const {app} = require('@react-native-windows/automation')
 
 describe('NitromelonDB Windows', () => {
   test('SQLite integration tests pass', async () => {
-    const view = await app.findElementByTestID('WatermelonTesterStatus')
+    const view = await app.findElementByTestID('NitromelonTesterStatus')
 
     await app.waitUntil(
       async () => {

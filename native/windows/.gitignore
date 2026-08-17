@@ -28,6 +28,9 @@ ipch/
 [Bb]in
 [Dd]ebug*/
 [Rr]elease*/
+x64/
+ARM/
+ARM64/
 .vs/
 
 **/Generated Files/**

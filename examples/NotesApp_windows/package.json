@@ -3,8 +3,6 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "android": "react-native run-android",
-    "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest",
@@ -13,11 +11,11 @@
     "test:windows:e2e": "jest --config jest.e2e.config.js --forceExit"
   },
   "dependencies": {
-    "nitromelondb": "file:../..",
+    "hoist-non-react-statics": "^3.3.2",
+    "nitromelondb": "link:../..",
     "react": "19.2.3",
     "react-native": "0.84.1",
     "react-native-nitro-modules": "0.36.5",
-    "react-native-safe-area-context": "^5.5.2",
     "react-native-windows": "0.84.0",
     "rxjs": "^7.8.2",
     "sql-escape-string": "^1.1.0"

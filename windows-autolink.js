@@ -16,7 +16,7 @@
  *     dependencies: windowsAppDependencies(),
  *   }
  *
- * Pass `{ root }` only for a `file:` / monorepo link of nitromelondb.
+ * Pass `{ root }` only for a `link:` / `file:` / monorepo checkout of nitromelondb.
  */
 
 const windowsNativeProject = {

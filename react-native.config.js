@@ -18,12 +18,5 @@ module.exports = {
     ios: {
       sourceDir: './native/iosTest',
     },
-    windows: {
-      sourceDir: 'native\\windowsTest',
-      solutionFile: 'WatermelonTester.sln',
-      project: {
-        projectFile: 'WatermelonTester\\WatermelonTester.vcxproj',
-      },
-    },
   },
 }

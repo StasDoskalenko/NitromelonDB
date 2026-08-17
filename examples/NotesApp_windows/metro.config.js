@@ -1,11 +1,16 @@
 const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
-const { resolve } = require('metro-resolver');
 
 const fs = require('fs');
 const path = require('node:path');
 
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, '../..');
+
+// The RN CLI installs the `react-native` -> `react-native-windows` platform
+// redirect on this before the project config is evaluated. Capture it once and
+// delegate to it so we don't have to re-implement the redirect ourselves.
+const defaultConfig = getDefaultConfig(__dirname);
+const baseResolveRequest = defaultConfig.resolver.resolveRequest;
 
 const rnwPath = fs.realpathSync(
   path.resolve(require.resolve('react-native-windows/package.json'), '..'),
@@ -49,20 +54,6 @@ function resolveLibrarySource(moduleName) {
   return candidates.find(candidate => fs.existsSync(candidate));
 }
 
-function resolveDefault(context, moduleName, platform) {
-  let name = moduleName;
-  // Same redirect the RN CLI installs — our resolveRequest would otherwise
-  // replace it, and `react-native` has no Platform.windows.js.
-  if (platform === 'windows') {
-    if (name === 'react-native') {
-      name = 'react-native-windows';
-    } else if (name.startsWith('react-native/')) {
-      name = `react-native-windows/${name.slice('react-native/'.length)}`;
-    }
-  }
-  return resolve({ ...context, resolveRequest: undefined }, name, platform);
-}
-
 /**
  * Metro configuration
  * https://facebook.github.io/metro/docs/configuration
@@ -79,6 +70,11 @@ const config = {
       // This stops "npx @react-native-community/cli run-windows" from causing the metro server to crash if its already running
       new RegExp(
         `${path.resolve(__dirname, 'windows').replace(/[/\\]/g, '/')}.*`,
+      ),
+      // Yarn link: junctions the repo root into node_modules. Don't crawl back
+      // into this app (or other examples) through that path.
+      new RegExp(
+        `${path.resolve(projectRoot, 'node_modules', 'nitromelondb', 'examples').replace(/[/\\]/g, '/')}.*`,
       ),
       // This prevents "npx @react-native-community/cli run-windows" from hitting: EBUSY: resource busy or locked, open msbuild.ProjectImports.zip or other files produced by msbuild
       new RegExp(`${rnwPath}/build/.*`),
@@ -99,7 +95,7 @@ const config = {
       ),
       ...Object.fromEntries(libraryDeps.map(name => [name, resolveDep(name)])),
     },
-    // Yarn's file: link is found first, so extraNodeModules never runs.
+    // Yarn's link: symlink is found first, so extraNodeModules never runs.
     // Point App.tsx at workspace src/ (there is no published index.js).
     resolveRequest: (context, moduleName, platform) => {
       if (moduleName === 'nitromelondb' || moduleName.startsWith('nitromelondb/')) {
@@ -108,7 +104,9 @@ const config = {
           return { type: 'sourceFile', filePath };
         }
       }
-      return resolveDefault(context, moduleName, platform);
+      return baseResolveRequest
+        ? baseResolveRequest(context, moduleName, platform)
+        : context.resolveRequest(context, moduleName, platform);
     },
   },
   transformer: {
@@ -121,4 +119,4 @@ const config = {
   },
 };
 
-module.exports = mergeConfig(getDefaultConfig(__dirname), config);
+module.exports = mergeConfig(defaultConfig, config);
