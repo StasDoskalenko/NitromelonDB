@@ -37,6 +37,7 @@ export function preparePublishedPackageJson(pkg) {
   const rest = { ...pkg }
   delete rest.scripts
   delete rest.bin
+  delete rest.packageManager
   return {
     ...rest,
     main: './index.js',
@@ -58,6 +59,7 @@ function runSelfTest() {
     types: 'src/index.ts',
     scripts: { build: 'true' },
     bin: { fake: './bin.js' },
+    packageManager: 'yarn@4.18.0',
     dependencies: { rxjs: '^7.8.0' },
     peerDependencies: {
       rxjs: '^7.8.0',
@@ -72,6 +74,7 @@ function runSelfTest() {
   assert(published.sideEffects === false, 'sideEffects must be false')
   assert(published.scripts === undefined, 'scripts must be omitted')
   assert(published.bin === undefined, 'bin must be omitted')
+  assert(published.packageManager === undefined, 'packageManager must be omitted')
   assert(published.exports['.'].types === './index.d.ts', 'exports["."] types must be ./index.d.ts')
   assert(published.exports['./decorators'] === undefined, 'directory imports go through ./*')
   assert(published.exports['./*'].types === './*/index.d.ts', 'subpath types must resolve */index.d.ts')
@@ -97,9 +100,10 @@ function runSelfTest() {
 
   console.log('ok    types overwritten to ./index.d.ts')
   console.log('ok    scripts/bin omitted')
+  console.log('ok    packageManager omitted')
   console.log('ok    exports map present')
   console.log('ok    .tsx sources are included in the JS build')
-  console.log('\n4 tests passed')
+  console.log('\n5 tests passed')
 }
 
 const isDirectRun =

@@ -6,9 +6,10 @@
     "test": "tsc --noEmit"
   },
   "devDependencies": {
-    "nitromelondb": "link:../../",
     "@types/lokijs": "^1.5.3",
+    "nitromelondb": "link:../../",
     "tsd-check": "^0.6.0",
     "typescript": "^6.0.3"
-  }
+  },
+  "packageManager": "yarn@4.18.0"
 }

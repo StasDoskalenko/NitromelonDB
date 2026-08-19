@@ -147,7 +147,7 @@ const buildTasks = (options) => {
     // },
     {
       title: 'bump version',
-      task: () => execa('yarn', ['version', '--new-version', version]),
+      task: () => execa('yarn', ['version', version]),
     },
     {
       title: 'build package',

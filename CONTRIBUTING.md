@@ -32,6 +32,8 @@ If you make or are considering making an app using NitromelonDB, please let us k
 
 ### Download source and dependencies
 
+This repo is pinned to **Yarn 4.18** (`packageManager` in `package.json`, binary in `.yarn/releases`). A `yarn` on your PATH is enough; the project's `yarnPath` boots the pinned version.
+
 ```bash
 git clone https://github.com/StasDoskalenko/NitromelonDB.git
 cd NitromelonDB

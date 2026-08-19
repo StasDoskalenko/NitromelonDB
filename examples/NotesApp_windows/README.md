@@ -14,7 +14,7 @@ The screen is the same notes list: schema v2, a v1→v2 `pinned` migration, plus
 | --- | --- |
 | Windows | Windows 10 22H2+ or Windows 11 |
 | Node.js | **22.11+** (RNW 0.84 refuses older engines) |
-| Yarn | Classic (v1) — do not use npm / `package-lock.json` in this example |
+| Yarn | 4.18 (pinned) — do not use npm / `package-lock.json` in this example |
 | Visual Studio | **2022** (MSVC **v143**) or **2026** (MSVC **v145**) |
 | Workloads | Desktop development with C++; Windows application development (Windows App SDK / WinUI) |
 | Windows SDK | **10.0.26100** (pinned in `windows/ExperimentalFeatures.props`) |
@@ -32,11 +32,11 @@ How Nitro is injected (TurboModule `install()` inside the NitromelonDB DLL, head
 
 ```sh
 cd examples/NotesApp_windows
-yarn install --ignore-scripts
+yarn
 yarn windows
 ```
 
-`--ignore-scripts` skips the library `postinstall` (`patch-package`). That script belongs to the repo root, not this example. MSBuild still generates the Nitro `<NitroModules/…>` header map before compile.
+Library `postinstall` only generates the Nitro `<NitroModules/…>` header map (`scripts/windows-nitro-shims.mjs`). MSBuild runs the same generator before compile, so a skipped install script is still safe.
 
 `yarn windows` builds the WinAppSDK app and starts Metro. After JS-only changes, reload Metro. After native SQLite/Nitro changes, rebuild.
 

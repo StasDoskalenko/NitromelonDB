@@ -27,7 +27,7 @@ npx expo run:ios
 npx expo run:android
 ```
 
-Links the local library via `file:../../..`. After native SQLite / Nitro changes, rebuild.
+Links the local library via `link:../../..`. After native SQLite / Nitro changes, rebuild.
 
 ## WatermelonDB
 
