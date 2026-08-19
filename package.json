@@ -85,6 +85,11 @@
       "optional": true
     }
   },
+  "dependenciesMeta": {
+    "better-sqlite3": {
+      "built": false
+    }
+  },
   "publishConfig": {
     "access": "public"
   },
