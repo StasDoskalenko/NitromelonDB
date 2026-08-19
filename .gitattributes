@@ -1,3 +1,4 @@
+.yarn/releases/* binary linguist-generated=true
 native/iosTests/Pods/* linguist-generated=true
 native/vendor/simdjson/simdjson.h linguist-generated=true
 native/vendor/simdjson/simdjson.cpp linguist-generated=true

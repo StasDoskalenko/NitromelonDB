@@ -51,7 +51,7 @@ Pieces:
 2. **Skip Nitro's missing Windows project** — apps spread `windowsAppDependencies()` from `windows-autolink.js`, which sets `react-native-nitro-modules` `platforms.windows` to `null`.
 3. **Same JS as iOS/Android** — `SQLiteAdapter` uses the `Nitromelon` HybridObject (`makeDispatcher/index.native.ts`). `{ jsi: false }` is rejected on Windows too.
 4. **Compile Nitro C++ from node_modules** — the vcxproj compiles `react-native-nitro-modules/cpp` plus `native/nitro`, `native/shared`, and vendored SQLite / simdjson.
-5. **MSVC header map** — Nitrogen emits `#include <NitroModules/Foo.hpp>`. iOS/Android header maps provide that prefix; MSVC does not. `include/NitroModules/` is gitignored. Yarn postinstall (and the vcxproj, before compile) run `scripts/windows-nitro-shims.mjs` to emit one-line shims. `--ignore-scripts` still works because MSBuild runs the same generator.
+5. **MSVC header map** — Nitrogen emits `#include <NitroModules/Foo.hpp>`. iOS/Android header maps provide that prefix; MSVC does not. `include/NitroModules/` is gitignored. Yarn postinstall in this repo (and the vcxproj, before compile) run `scripts/windows-nitro-shims.mjs` to emit one-line shims. Skipping install scripts is still safe because MSBuild runs the same generator.
 
 ## App install
 

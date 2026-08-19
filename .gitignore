@@ -24,12 +24,15 @@ docs-build/
 msbuild.binlog
 
 # Yarn
+.pnp.*
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+**/.yarn/cache
+**/.yarn/install-state.gz
 
 # Local GitHub Actions secrets for `act` (never commit)
 .secrets

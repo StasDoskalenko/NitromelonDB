@@ -26,7 +26,7 @@ jobs:
           cache: yarn
           cache-dependency-path: docs-website/yarn.lock
       - name: Install docs dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
         working-directory: docs-website
       - name: Build website
         run: yarn docs:build
