@@ -68,7 +68,7 @@ if (openPlayground) {
         store={testHookStore}
         // start delay allows initial render to occur while running JSI (blocking) tests
         startDelay={500}
-        waitTime={4000}
+        waitTime={30000}
         sendReport={true}
         customReporter={sendReport}
       >

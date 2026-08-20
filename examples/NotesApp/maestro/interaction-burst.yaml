@@ -1,0 +1,56 @@
+# Rapid add / pin / delete (C8). Seeded list is already 100 notes.
+# Run from examples/NotesApp: maestro test maestro/interaction-burst.yaml
+
+appId: com.nitromelondb.example
+---
+- launchApp:
+    clearState: true
+
+- assertVisible:
+    text: "100 notes"
+
+- tapOn:
+    id: "title-input"
+- inputText: "Burst Note 1"
+- tapOn:
+    id: "add-note-button"
+
+- tapOn:
+    id: "title-input"
+- inputText: "Burst Note 2"
+- tapOn:
+    id: "add-note-button"
+
+- tapOn:
+    id: "title-input"
+- inputText: "Burst Note 3"
+- tapOn:
+    id: "add-note-button"
+
+- assertVisible:
+    text: "Burst Note 1"
+- assertVisible:
+    text: "Burst Note 2"
+- assertVisible:
+    text: "Burst Note 3"
+- assertVisible:
+    text: "103 notes"
+
+- tapOn:
+    text: "Pin"
+- tapOn:
+    text: "Pin"
+- tapOn:
+    text: "Pin"
+
+- tapOn:
+    text: "Delete"
+
+- assertNotVisible:
+    text: "Burst Note 3"
+
+- assertVisible:
+    text: "102 notes"
+
+- assertVisible:
+    id: "notes-list"

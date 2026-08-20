@@ -53,10 +53,28 @@ std::string resolveDatabasePath(std::string path)
   return winrt::to_string(localAppDataPath) + "\\" + path;
 }
 
+static void deleteFileIfExists(std::string filePath) {
+  winrt::hstring widePath = winrt::to_hstring(filePath);
+  if (!DeleteFileW(widePath.c_str())) {
+    DWORD error = GetLastError();
+    // ERROR_FILE_NOT_FOUND (2) and ERROR_PATH_NOT_FOUND (3) are expected
+    // when the file doesn't exist — only warn if warnIfDoesNotExist is true
+    if (error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND && warnIfDoesNotExist) {
+      std::string fullMessage = "Failed to delete file: " + filePath + " (error " + std::to_string(error) + ")";
+      consoleError(fullMessage);
+    }
+  }
+}
+
 void deleteDatabaseFile(std::string path, bool warnIfDoesNotExist)
 {
-  (void)path;
-  (void)warnIfDoesNotExist;
+  deleteFileIfExists(path);
+
+  // Delete WAL and SHM sidecars if they exist
+  std::string walPath = path + "-wal";
+  std::string shmPath = path + "-shm";
+  deleteFileIfExists(walPath);
+  deleteFileIfExists(shmPath);
 }
 
 void onMemoryAlert(std::function<void(void)> callback)

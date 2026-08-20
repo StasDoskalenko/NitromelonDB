@@ -2,6 +2,7 @@ import { Platform } from 'react-native'
 import SQLiteAdapter from './index'
 import { testSchema } from '../__tests__/helpers'
 import commonTests from '../__tests__/commonTests'
+import sqliteTests from '../__tests__/sqliteTests'
 import { invariant } from '../../utils/common'
 import DatabaseAdapterCompat from '../compat'
 
@@ -22,6 +23,25 @@ const SQLiteAdapterTest = (spec) => {
       const testCasesToRun = onlyTestCases.length ? onlyTestCases : testCases
 
       testCasesToRun.forEach((testCase) => {
+        const [name, test] = testCase
+        spec.it(name, async () => {
+          const dbName = `file:testdb${Math.random()}?mode=memory&cache=shared`
+          const adapter = new SQLiteAdapter({ schema: testSchema, dbName, ...options })
+          invariant(
+            adapter._dispatcherType === expectedDispatcherType,
+            `Expected adapter to be ${expectedDispatcherType}`,
+          )
+          await test(
+            new DatabaseAdapterCompat(adapter),
+            SQLiteAdapter,
+            { dbName, ...options },
+            Platform.OS,
+          )
+        })
+      })
+
+      // sqlite-specific tests (file-backed only, skip on LokiJS)
+      sqliteTests().forEach((testCase) => {
         const [name, test] = testCase
         spec.it(name, async () => {
           const dbName = `file:testdb${Math.random()}?mode=memory&cache=shared`

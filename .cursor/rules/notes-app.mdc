@@ -1,0 +1,19 @@
+---
+description: NotesApp is the example, not the library. Run Expo and Maestro from this folder.
+globs: examples/NotesApp/**
+alwaysApply: false
+---
+
+# NotesApp example
+
+This folder is the iOS/Android demo app. The library is `../..` (`src/`, `native/`).
+
+```bash
+cd examples/NotesApp
+yarn expo run:ios
+maestro test maestro/
+```
+
+Before `expo run:*` or `yarn start`, check Metro on port **8081** is already running (terminals, `lsof -i :8081`, or `curl -s http://localhost:8081/status`). Reuse it — do not start a second dev server.
+
+App id: `com.nitromelondb.example`. Not Expo Go. Rebuild after native changes.

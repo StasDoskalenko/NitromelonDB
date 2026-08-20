@@ -1,0 +1,40 @@
+# Data must survive process death (Documents-directory SQLite).
+# Run from examples/NotesApp: maestro test maestro/kill-and-relaunch.yaml
+
+appId: com.nitromelondb.example
+---
+- launchApp:
+    clearState: true
+
+- assertVisible:
+    text: "100 notes"
+
+- tapOn:
+    id: "title-input"
+
+- inputText: "Persistent Note"
+
+- tapOn:
+    id: "add-note-button"
+
+- assertVisible:
+    text: "Persistent Note"
+
+- assertVisible:
+    text: "101 notes"
+
+- killApp
+
+- launchApp: {}
+
+- assertVisible:
+    id: "subtitle"
+
+- assertVisible:
+    text: "Persistent Note"
+
+- assertVisible:
+    text: "101 notes"
+
+- assertVisible:
+    id: "notes-list"
