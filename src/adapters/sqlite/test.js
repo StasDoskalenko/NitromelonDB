@@ -1,6 +1,7 @@
 import fs from 'fs'
 import { testSchema } from '../__tests__/helpers'
 import commonTests from '../__tests__/commonTests'
+import sqliteTests from '../__tests__/sqliteTests'
 
 import SqliteAdapter from './index'
 import DatabaseAdapterCompat from '../compat'
@@ -12,9 +13,12 @@ function removeIfExists(file, dbName) {
 }
 
 describe.each([
-  // ['SQLiteAdapterNode', 'Asynchronous', 'File'],
+  ['SQLiteAdapterNode', 'Asynchronous', 'File'],
   ['SQLiteAdapterNode', 'Asynchronous', 'Memory'],
 ])('%s (%s/%s)', (adapterSubclass, fileString) => {
+  const file = fileString.toLowerCase() === 'file'
+
+  // common tests (run on all adapters)
   commonTests().forEach((testCase) => {
     const [name, test] = testCase
 
@@ -53,4 +57,26 @@ describe.each([
       }
     })
   })
+
+  // sqlite-specific tests (file-backed only, skip on LokiJS)
+  if (file) {
+    sqliteTests().forEach((testCase) => {
+      const [name, test] = testCase
+      // eslint-disable-next-line jest/valid-title
+      it(name, async () => {
+        const dbName = `${process.cwd()}/test${Math.random()}.db`
+        const adapter = new SqliteAdapter({
+          dbName,
+          schema: testSchema,
+        })
+
+        try {
+          await adapter.initializingPromise
+          await test(new DatabaseAdapterCompat(adapter), SqliteAdapter, { dbName }, 'node')
+        } finally {
+          removeIfExists(true, dbName)
+        }
+      })
+    })
+  }
 })

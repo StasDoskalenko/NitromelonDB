@@ -1,0 +1,80 @@
+# Load more paginates existing rows (Q.take). It must not insert notes.
+# First page is 20 newest: Note #100 … Note #81. Total stays 100.
+# Run from examples/NotesApp: maestro test maestro/pagination-seed.yaml
+
+appId: com.nitromelondb.example
+---
+- launchApp:
+    clearState: true
+
+- assertVisible:
+    id: "subtitle"
+
+- assertVisible:
+    text: "100 notes"
+
+- assertVisible:
+    text: "Note #100"
+
+- assertNotVisible:
+    text: "Note #80"
+
+- scrollUntilVisible:
+    element:
+      id: "load-more-button"
+    direction: DOWN
+    timeout: 10000
+
+- tapOn:
+    id: "load-more-button"
+
+- assertVisible:
+    text: "100 notes"
+
+- scrollUntilVisible:
+    element:
+      text: "Note #80"
+    direction: DOWN
+    timeout: 10000
+
+- assertVisible:
+    text: "Note #80"
+
+- scrollUntilVisible:
+    element:
+      id: "load-more-button"
+    direction: DOWN
+    timeout: 10000
+
+- tapOn:
+    id: "load-more-button"
+
+- scrollUntilVisible:
+    element:
+      id: "load-more-button"
+    direction: DOWN
+    timeout: 10000
+
+- tapOn:
+    id: "load-more-button"
+
+- scrollUntilVisible:
+    element:
+      id: "load-more-button"
+    direction: DOWN
+    timeout: 10000
+
+- tapOn:
+    id: "load-more-button"
+
+- scrollUntilVisible:
+    element:
+      text: "Note #1"
+    direction: DOWN
+    timeout: 10000
+
+- assertVisible:
+    text: "Note #1"
+
+- assertVisible:
+    text: "100 notes"

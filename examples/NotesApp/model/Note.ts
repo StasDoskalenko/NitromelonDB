@@ -13,6 +13,8 @@ export default class Note extends Model {
   createdAt!: Date
   @field('pinned')
   pinned!: boolean
+  @field('sort_order')
+  sortOrder!: number
 
   @writer
   async togglePinned() {

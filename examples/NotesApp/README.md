@@ -2,7 +2,7 @@
 
 Expo SDK 57 development-build app that opens SQLite through `SQLiteAdapter` → a typed `NitromelonDatabase` HybridObject. This will not run in Expo Go. New Architecture is required. `app.json` includes the `nitromelondb` config plugin (Nitro autolinking covers native SQLite; the old Android JSI Gradle module is not used).
 
-The screen is a small notes list: schema v2, a v1→v2 migration that adds `pinned`, and create / pin / delete against the live database.
+The screen is a notes list: schema v3, v1→v2 `pinned`, v2→v3 `sort_order`, create / pin / delete, and `Q.take` pagination against the live database.
 
 Windows lives in a sibling app, [`../NotesApp_windows`](../NotesApp_windows), because React Native Windows 0.84 tracks RN 0.84.1 while this Expo app uses RN 0.86.2.
 

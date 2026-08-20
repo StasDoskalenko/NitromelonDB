@@ -20,7 +20,7 @@ Pod::Spec.new do |s|
   s.license      = package["license"]
   s.author       = { "author" => package["author"] }
   s.platforms    = { :ios => "15.1", :tvos => "15.1" }
-  s.source = { :git => "https://github.com/StasDoskalenko/NitromelonDB.git", :tag => "v#{s.version}" }
+  s.source = { :path => "." }
   s.source_files = "native/ios/**/*.{h,m,mm,swift,c,cpp}", "native/shared/**/*.{h,c,cpp}", "native/nitro/**/*.{h,hpp,c,cpp}", "native/vendor/simdjson/*.{h,cpp}"
   s.public_header_files = [
     # FIXME: I don't think we should be exporting all headers as public

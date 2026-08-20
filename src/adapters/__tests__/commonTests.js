@@ -21,6 +21,7 @@ import {
   MockTask,
   MockSyncTestRecord,
   mockProjectRaw,
+  MockProject,
   mockTagAssignmentRaw,
   projectQuery,
   modelQuery,
@@ -517,6 +518,131 @@ export default () => {
     expect(await adapter.query(taskQuery())).toEqual(['t1', 't2'])
 
     expect(await adapter.getDeletedRecords('tasks')).toEqual(['t4'])
+  })
+  // B4: Mixed large batch across ≥3 tables in one call
+  it('can run mixed batch across multiple tables', async (adapter) => {
+    // Seed initial data
+    const task1 = mockTaskRaw({ id: 't1', text1: 'task one', num1: 1 })
+    const task2 = mockTaskRaw({ id: 't2', text1: 'task two' })
+    const task3 = mockTaskRaw({ id: 't3', text1: 'task three' })
+    await adapter.batch([
+      ['create', 'tasks', task1],
+      ['create', 'tasks', task2],
+      ['create', 'tasks', task3],
+    ])
+
+    const proj1 = mockProjectRaw({ id: 'p1', text1: 'project one', num1: 10 })
+    const proj2 = mockProjectRaw({ id: 'p2', text1: 'project two' })
+    await adapter.batch([
+      ['create', 'projects', proj1],
+      ['create', 'projects', proj2],
+    ])
+
+    // Mixed batch: creates + updates + markAsDeleted + destroyPermanently across 3 tables
+    task1.num1 = 999 // modify for update
+    proj1.num1 = 888 // modify for update
+    await adapter.batch([
+      ['create', 'tasks', mockTaskRaw({ id: 't4', text1: 'task four' })],
+      ['update', 'tasks', task1],
+      ['markAsDeleted', 'tasks', 't2'],
+      ['destroyPermanently', 'tasks', 't3'],
+      ['create', 'projects', mockProjectRaw({ id: 'p3', text1: 'project three' })],
+      ['update', 'projects', proj1],
+      ['markAsDeleted', 'projects', 'p2'],
+      ['create', 'tag_assignments', mockTagAssignmentRaw({ id: 'ta1', task_id: 't1' })],
+      ['destroyPermanently', 'tag_assignments', 'ta1'], // create and destroy in same batch
+    ])
+
+    // Verify tasks: t1 and t4 present; t2 marked deleted; t3 destroyed
+    expect(await adapter.query(taskQuery())).toHaveLength(2)
+    expect(await adapter.find('tasks', 't1')).not.toBeNull()
+    expect(await adapter.find('tasks', 't4')).not.toBeNull()
+    expect(await adapter.find('tasks', 't3')).toBeNull() // destroyPermanently → null
+
+    // Verify projects: p1 and p3 present; p2 marked deleted
+    expect(await adapter.query(projectQuery())).toHaveLength(2)
+    expect(await adapter.find('projects', 'p1')).not.toBeNull()
+    expect(await adapter.find('projects', 'p3')).not.toBeNull()
+
+    // Verify tag_assignments: ta1 destroyed
+    expect(await adapter.find('tag_assignments', 'ta1')).toBeNull()
+
+    // Verify deleted records (markAsDeleted goes to deleted records)
+    expect(await adapter.getDeletedRecords('tasks')).toContain('t2')
+    expect(await adapter.getDeletedRecords('projects')).toContain('p2')
+  })
+  // B5: Batch rollback leaves the JS-side ID cache consistent
+  it('batch rollback leaves JS-side ID cache consistent', async (adapter, AdapterClass) => {
+    // Create a record first
+    await adapter.batch([['create', 'tasks', mockTaskRaw({ id: 't1' })]])
+    expect(await adapter.query(taskQuery())).toHaveLength(1)
+
+    // Attempt a failing batch that would create t2 (duplicate)
+    await expectToRejectWithMessage(
+      adapter.batch([
+        ['create', 'tasks', mockTaskRaw({ id: 't2' })],
+        ['create', 'tasks', mockTaskRaw({ id: 't2' })], // duplicate — causes rollback
+      ]),
+      AdapterClass.name === 'SQLiteAdapter'
+        ? /UNIQUE constraint failed: tasks.id/
+        : /Duplicate key for property id: t2/,
+    )
+
+    // After rollback, `find` on t2 should return null (not a cached ID)
+    if (AdapterClass.name !== 'LokiJSAdapter') {
+      // Loki is not transactional, so t2 may exist
+      const found = await adapter.find('tasks', 't2')
+      expect(found).toBeNull()
+
+      // t1 should still be queryable, and count should be exactly 1
+      expect(await adapter.query(taskQuery())).toHaveLength(1)
+    }
+  })
+  // B7: markAsDeleted at scale → getDeletedRecords → destroyDeletedRecords
+  it('full sync-deletion loop at scale', async (adapter) => {
+    // Create 100 records
+    const records = Array.from({ length: 100 }, (_, i) =>
+      mockTaskRaw({ id: `t${i}`, text1: `task ${i}` }),
+    )
+    await adapter.batch(records.map((r) => ['create', 'tasks', r]))
+    expect(await adapter.query(taskQuery())).toHaveLength(100)
+
+    // Mark all as deleted
+    await adapter.batch(records.map((r) => ['markAsDeleted', 'tasks', r.id]))
+    expect(await adapter.query(taskQuery())).toHaveLength(0)
+
+    // Get deleted records
+    const deleted = await adapter.getDeletedRecords('tasks')
+    expect(deleted).toHaveLength(100)
+
+    // Destroy deleted records
+    await adapter.destroyDeletedRecords('tasks', deleted)
+    expect(await adapter.getDeletedRecords('tasks')).toHaveLength(0)
+    expect(await adapter.query(taskQuery())).toHaveLength(0)
+
+    // Verify records are truly gone after reopen
+    const reopened = await adapter.testClone()
+    expect(await reopened.query(taskQuery())).toHaveLength(0)
+    expect(await reopened.getDeletedRecords('tasks')).toHaveLength(0)
+  })
+  // B8: Empty batch and no-op entries succeed and change nothing
+  it('empty batch and no-op batch succeed', async (adapter) => {
+    // Seed
+    const t1 = mockTaskRaw({ id: 't1' })
+    await adapter.batch([['create', 'tasks', t1]])
+    expect(await adapter.query(taskQuery())).toHaveLength(1)
+
+    // Empty batch
+    await adapter.batch([])
+    expect(await adapter.query(taskQuery())).toHaveLength(1)
+
+    // No-op batch (update a record to the same values)
+    await adapter.batch([['update', 'tasks', t1]])
+    expect(await adapter.query(taskQuery())).toHaveLength(1)
+
+    // Verify still works after reopen
+    const reopened = await adapter.testClone()
+    expect(await reopened.query(taskQuery())).toHaveLength(1)
   })
   it('batches are transactional', async (adapter, AdapterClass) => {
     // sanity check
@@ -1254,5 +1380,206 @@ export default () => {
   it('can retrieve dbName', async (adapter, _, { dbName }) => {
     expect(adapter.dbName).toBe(dbName)
   })
+
+  // M1: Three sequential hops v1→v2→v3→v4 in one launch
+  it('migrates database through three sequential hops (v1→v2→v3→v4)', async (_adapter, AdapterClass) => {
+    if (AdapterClass.name === 'LokiJSAdapter') {
+      // LokiJS handles version bumps without steps
+      return
+    }
+
+    // Start at v1
+    const taskColumnsV1 = [{ name: 'text1', type: 'string' }]
+    const testSchemaV1 = appSchema({
+      version: 1,
+      tables: [tableSchema({ name: 'tasks', columns: taskColumnsV1 })],
+    })
+
+    let adapter = new DatabaseAdapterCompat(
+      new AdapterClass({
+        schema: testSchemaV1,
+        migrations: schemaMigrations({ migrations: [] }),
+        ...(AdapterClass.name === 'LokiJSAdapter' ? { useWebWorker: false, useIncrementalIndexedDB: false } : {}),
+      }),
+    )
+
+    // Add some data at v1
+    await adapter.batch([['create', 'tasks', { id: 't1', text1: 'hello' }]])
+    expect(await adapter.count(taskQuery())).toBe(1)
+
+    // Migrate to v2 (add text2)
+    const taskColumnsV2 = [...taskColumnsV1, { name: 'text2', type: 'string' }]
+    const testSchemaV2 = appSchema({
+      version: 2,
+      tables: [tableSchema({ name: 'tasks', columns: taskColumnsV2 })],
+    })
+    const migrationsV2 = schemaMigrations({
+      migrations: [{ toVersion: 2, steps: [addColumns({ table: 'tasks', columns: [{ name: 'text2', type: 'string' }] })] }],
+    })
+    adapter = await adapter.testClone({
+      schema: testSchemaV2,
+      migrations: migrationsV2,
+    })
+
+    // Data preserved, text2 has default
+    expect(await adapter.count(taskQuery())).toBe(1)
+    const t1 = await adapter.find('tasks', 't1')
+    expect(t1.text2).toBe('')
+
+    // Migrate to v3 (add bool1)
+    const taskColumnsV3 = [...taskColumnsV2, { name: 'bool1', type: 'boolean' }]
+    const testSchemaV3 = appSchema({
+      version: 3,
+      tables: [tableSchema({ name: 'tasks', columns: taskColumnsV3 })],
+    })
+    const migrationsV3 = schemaMigrations({
+      migrations: [{ toVersion: 3, steps: [addColumns({ table: 'tasks', columns: [{ name: 'bool1', type: 'boolean' }] })] }],
+    })
+    adapter = await adapter.testClone({
+      schema: testSchemaV3,
+      migrations: migrationsV3,
+    })
+
+    expect(await adapter.count(taskQuery())).toBe(1)
+    const t1v3 = await adapter.find('tasks', 't1')
+    expect(t1v3.bool1).toBe(false)
+
+    // Migrate to v4 (add order)
+    const taskColumnsV4 = [...taskColumnsV3, { name: 'order', type: 'number' }]
+    const testSchemaV4 = appSchema({
+      version: 4,
+      tables: [tableSchema({ name: 'tasks', columns: taskColumnsV4 })],
+    })
+    const migrationsV4 = schemaMigrations({
+      migrations: [{ toVersion: 4, steps: [addColumns({ table: 'tasks', columns: [{ name: 'order', type: 'number' }] })] }],
+    })
+    adapter = await adapter.testClone({
+      schema: testSchemaV4,
+      migrations: migrationsV4,
+    })
+
+    // Data preserved through all hops
+    expect(await adapter.count(taskQuery())).toBe(1)
+    const t1v4 = await adapter.find('tasks', 't1')
+    expect(t1v4.order).toBe(0) // default for number column
+  })
+
+  // M2: Sequential hops stepping one version at a time across reopen
+  it('migrates database through sequential hops, stepping one version at a time across reopen', async (_adapter, AdapterClass) => {
+    // Start at v1
+    const taskColumnsV1 = [{ name: 'text1', type: 'string' }]
+    const testSchemaV1 = appSchema({
+      version: 1,
+      tables: [tableSchema({ name: 'tasks', columns: taskColumnsV1 })],
+    })
+
+    let adapter = new DatabaseAdapterCompat(
+      new AdapterClass({
+        schema: testSchemaV1,
+        migrations: schemaMigrations({ migrations: [] }),
+        ...(AdapterClass.name === 'LokiJSAdapter' ? { useWebWorker: false, useIncrementalIndexedDB: false } : {}),
+      }),
+    )
+
+    await adapter.batch([['create', 'tasks', { id: 't1', text1: 'hello' }]])
+
+    // Step 1: v1 → v2
+    const taskColumnsV2 = [...taskColumnsV1, { name: 'text2', type: 'string' }]
+    const testSchemaV2 = appSchema({
+      version: 2,
+      tables: [tableSchema({ name: 'tasks', columns: taskColumnsV2 })],
+    })
+    const migrationsV2 = schemaMigrations({
+      migrations: [{ toVersion: 2, steps: [addColumns({ table: 'tasks', columns: [{ name: 'text2', type: 'string' }] })] }],
+    })
+    adapter = await adapter.testClone({
+      schema: testSchemaV2,
+      migrations: migrationsV2,
+    })
+    expect((await adapter.find('tasks', 't1')).text2).toBe('')
+
+    // Step 2: v2 → v3
+    const taskColumnsV3 = [...taskColumnsV2, { name: 'bool1', type: 'boolean' }]
+    const testSchemaV3 = appSchema({
+      version: 3,
+      tables: [tableSchema({ name: 'tasks', columns: taskColumnsV3 })],
+    })
+    const migrationsV3 = schemaMigrations({
+      migrations: [{ toVersion: 3, steps: [addColumns({ table: 'tasks', columns: [{ name: 'bool1', type: 'boolean' }] })] }],
+    })
+    adapter = await adapter.testClone({
+      schema: testSchemaV3,
+      migrations: migrationsV3,
+    })
+    expect((await adapter.find('tasks', 't1')).bool1).toBe(false)
+
+    // Step 3: v3 → v4
+    const taskColumnsV4 = [...taskColumnsV3, { name: 'order', type: 'number' }]
+    const testSchemaV4 = appSchema({
+      version: 4,
+      tables: [tableSchema({ name: 'tasks', columns: taskColumnsV4 })],
+    })
+    const migrationsV4 = schemaMigrations({
+      migrations: [{ toVersion: 4, steps: [addColumns({ table: 'tasks', columns: [{ name: 'order', type: 'number' }] })] }],
+    })
+    adapter = await adapter.testClone({
+      schema: testSchemaV4,
+      migrations: migrationsV4,
+    })
+    expect((await adapter.find('tasks', 't1')).order).toBe(0)
+  })
+
+  // M6: createTable in a migration, then write to and query the new table, then reopen
+  it('createTable in migration, then write/query, then reopen', async (_adapter, AdapterClass) => {
+    if (AdapterClass.name === 'LokiJSAdapter') {
+      // LokiJS doesn't support querying projects via MockProject
+      return
+    }
+
+    // Start at v1 with only tasks
+    const testSchemaV1 = appSchema({
+      version: 1,
+      tables: [tableSchema({ name: 'tasks', columns: [{ name: 'text1', type: 'string' }] })],
+    })
+
+    let adapter = new DatabaseAdapterCompat(
+      new AdapterClass({
+        schema: testSchemaV1,
+        migrations: schemaMigrations({ migrations: [] }),
+      }),
+    )
+
+    await adapter.batch([['create', 'tasks', { id: 't1', text1: 'hello' }]])
+
+    // Migrate: add projects table
+    const testSchemaV2 = appSchema({
+      version: 2,
+      tables: [
+        tableSchema({ name: 'tasks', columns: [{ name: 'text1', type: 'string' }] }),
+        tableSchema({ name: 'projects', columns: [{ name: 'title', type: 'string' }] }),
+      ],
+    })
+    const migrationsV2 = schemaMigrations({
+      migrations: [{ toVersion: 2, steps: [createTable({ name: 'projects', columns: [{ name: 'title', type: 'string' }] })] }],
+    })
+
+    adapter = await adapter.testClone({
+      schema: testSchemaV2,
+      migrations: migrationsV2,
+    })
+
+    // Write to new table
+    await adapter.batch([['create', 'projects', mockProjectRaw({ id: 'p1', title: 'My Project' })]])
+
+    // Query it
+    const projects = await adapter.query(projectQuery())
+    expect(projects).toHaveLength(1)
+
+    // Reopen and query again
+    adapter = await adapter.testClone()
+    const projectsReopened = await adapter.query(projectQuery())
+    expect(projectsReopened).toHaveLength(1)
+  })
+
   return commonTests
 }
