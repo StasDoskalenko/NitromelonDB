@@ -16,19 +16,18 @@ import Note from './model/Note'
 
 const SEEDED_KEY = 'example.seeded'
 
-function useNotes(session: ExampleDatabase): { notes: Note[]; error: string | null } {
+function useNotes(session: ExampleDatabase, page: number, pageSize: number): { notes: Note[]; totalCount: number; error: string | null } {
   const [notes, setNotes] = useState<Note[]>([])
+  const [totalCount, setTotalCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    const unsubscribe = session.notes
-      .query(Q.sortBy('pinned', Q.desc), Q.sortBy('created_at', Q.desc))
-      .experimentalSubscribeWithColumns(['title', 'body', 'pinned'], (next) => {
-        if (!cancelled) {
-          setNotes(next)
-        }
-      })
+    const unsubscribeCount = session.notes.query().experimentalSubscribeToCount((count) => {
+      if (!cancelled) {
+        setTotalCount(count)
+      }
+    })
 
     const seed = async () => {
       try {
@@ -37,19 +36,15 @@ function useNotes(session: ExampleDatabase): { notes: Note[]; error: string | nu
           return
         }
         await session.database.write(async () => {
-          await session.notes.create((note) => {
-            note.title = 'Welcome to NitromelonDB'
-            note.body = 'SQLite on iOS and Android runs through typed Nitro HybridObjects.'
-            note.createdAt = new Date()
-            note.pinned = true
-          })
-          await session.notes.create((note) => {
-            note.title = 'Schema and migrations'
-            note.body =
-              'This app ships schema v2. Existing v1 databases gain a pinned column via migration.'
-            note.createdAt = new Date(Date.now() - 60_000)
-            note.pinned = false
-          })
+          for (let i = 0; i < 100; i++) {
+            await session.notes.create((note) => {
+              note.title = `Note #${i + 1}`
+              note.body = `This is note number ${i + 1}.`
+              note.createdAt = new Date(Date.now() - (100 - i) * 60_000)
+              note.sortOrder = i + 1
+              note.pinned = false
+            })
+          }
         })
         await session.database.localStorage.set(SEEDED_KEY, true)
       } catch (seedError) {
@@ -62,11 +57,31 @@ function useNotes(session: ExampleDatabase): { notes: Note[]; error: string | nu
     void seed()
     return () => {
       cancelled = true
-      unsubscribe()
+      unsubscribeCount()
     }
   }, [session])
 
-  return { notes, error }
+  useEffect(() => {
+    let cancelled = false
+    const unsubscribe = session.notes
+      .query(
+        Q.sortBy('pinned', Q.desc),
+        Q.sortBy('sort_order', Q.desc),
+        Q.take(page * pageSize),
+      )
+      .experimentalSubscribeWithColumns(['title', 'body', 'pinned', 'sort_order'], (next) => {
+        if (!cancelled) {
+          setNotes(next)
+        }
+      })
+
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
+  }, [session, page, pageSize])
+
+  return { notes, totalCount, error }
 }
 
 function formatTime(date: Date): string {
@@ -105,7 +120,9 @@ export default function App() {
 }
 
 function NotesScreen({ db }: { db: ExampleDatabase }) {
-  const { notes, error: loadError } = useNotes(db)
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 20
+  const { notes, totalCount, error: loadError } = useNotes(db, page, PAGE_SIZE)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
@@ -126,16 +143,27 @@ function NotesScreen({ db }: { db: ExampleDatabase }) {
           note.title = nextTitle
           note.body = body.trim()
           note.createdAt = new Date()
+          note.sortOrder = Date.now()
           note.pinned = false
         })
       })
       setTitle('')
       setBody('')
+      setPage(1)
     } catch (writeError) {
       setActionError(writeError instanceof Error ? writeError.message : String(writeError))
     } finally {
       setBusy(false)
     }
+  }
+
+  const hasMore = notes.length < totalCount
+
+  const loadMore = () => {
+    if (!hasMore) {
+      return
+    }
+    setPage((current) => current + 1)
   }
 
   return (
@@ -145,9 +173,9 @@ function NotesScreen({ db }: { db: ExampleDatabase }) {
     >
       <View style={styles.header}>
         <Text style={styles.title}>NitromelonDB</Text>
-        <Text style={styles.subtitle}>
-          {db.sqliteEngine} · schema v{db.schemaVersion} · {notes.length} note
-          {notes.length === 1 ? '' : 's'}
+        <Text style={styles.subtitle} testID="subtitle">
+          {db.sqliteEngine} · schema v{db.schemaVersion} · {totalCount} note
+          {totalCount === 1 ? '' : 's'}
         </Text>
       </View>
 
@@ -158,16 +186,27 @@ function NotesScreen({ db }: { db: ExampleDatabase }) {
         data={notes}
         keyExtractor={(note) => note.id}
         contentContainerStyle={notes.length === 0 ? styles.emptyList : styles.listContent}
-        ListEmptyComponent={<Text style={styles.empty}>No notes yet. Add one below.</Text>}
+        testID="notes-list"
+        ListEmptyComponent={<Text style={styles.empty} testID="empty-notes">No notes yet. Add one below.</Text>}
+        ListFooterComponent={() => (
+          <Pressable
+            style={[styles.loadMoreButton, !hasMore && styles.loadMoreButtonDisabled]}
+            onPress={loadMore}
+            disabled={!hasMore}
+            testID="load-more-button"
+          >
+            <Text style={styles.loadMoreButtonLabel}>Load more</Text>
+          </Pressable>
+        )}
         renderItem={({ item }) => (
-          <View style={[styles.card, item.pinned && styles.cardPinned]}>
+          <View style={[styles.card, item.pinned && styles.cardPinned]} testID={`note-card-${item.id}`}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>{item.title}</Text>
               <View style={styles.cardActions}>
-                <Pressable onPress={() => void item.togglePinned()} hitSlop={8}>
+                <Pressable onPress={() => void item.togglePinned()} hitSlop={8} testID={`pin-button-${item.id}`}>
                   <Text style={styles.action}>{item.pinned ? 'Unpin' : 'Pin'}</Text>
                 </Pressable>
-                <Pressable onPress={() => void item.deleteForever()} hitSlop={8}>
+                <Pressable onPress={() => void item.deleteForever()} hitSlop={8} testID={`delete-button-${item.id}`}>
                   <Text style={[styles.action, styles.delete]}>Delete</Text>
                 </Pressable>
               </View>
@@ -178,7 +217,7 @@ function NotesScreen({ db }: { db: ExampleDatabase }) {
         )}
       />
 
-      <View style={styles.composer}>
+      <View style={styles.composer} testID="composer">
         <TextInput
           style={styles.input}
           placeholder="Note title"
@@ -186,6 +225,7 @@ function NotesScreen({ db }: { db: ExampleDatabase }) {
           onChangeText={setTitle}
           onSubmitEditing={() => void addNote()}
           returnKeyType="done"
+          testID="title-input"
         />
         <TextInput
           style={[styles.input, styles.bodyInput]}
@@ -193,11 +233,13 @@ function NotesScreen({ db }: { db: ExampleDatabase }) {
           value={body}
           onChangeText={setBody}
           multiline
+          testID="body-input"
         />
         <Pressable
           style={[styles.addButton, (!title.trim() || busy) && styles.addButtonDisabled]}
           onPress={() => void addNote()}
           disabled={!title.trim() || busy}
+          testID="add-note-button"
         >
           <Text style={styles.addButtonLabel}>{busy ? 'Saving…' : 'Add note'}</Text>
         </Pressable>
@@ -342,6 +384,21 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   addButtonLabel: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  loadMoreButton: {
+    backgroundColor: '#c2410c',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  loadMoreButtonDisabled: {
+    opacity: 0.45,
+  },
+  loadMoreButtonLabel: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',

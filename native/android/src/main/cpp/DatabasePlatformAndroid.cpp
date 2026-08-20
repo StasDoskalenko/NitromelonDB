@@ -4,6 +4,8 @@
 #include <string>
 #include <sqlite3.h>
 #include <cassert>
+#include <unistd.h>
+#include <sys/stat.h>
 
 #include "DatabasePlatform.h"
 #include "DatabasePlatformAndroid.h"
@@ -127,8 +129,25 @@ std::string resolveDatabasePath(std::string path) {
     return resolvedPath;
 }
 
+static void deleteFileIfExists(std::string filePath) {
+    struct stat st;
+    if (stat(filePath.c_str(), &st) == 0) {
+        if (unlink(filePath.c_str()) != 0) {
+            consoleError(("Failed to delete file: " + filePath).c_str());
+        }
+    } else if (warnIfDoesNotExist) {
+        consoleError(("File does not exist, nothing to delete: " + filePath).c_str());
+    }
+}
+
 void deleteDatabaseFile(std::string path, bool warnIfDoesNotExist) {
-    // TODO: Unimplemented
+    deleteFileIfExists(path);
+
+    // Delete WAL and SHM sidecars if they exist
+    std::string walPath = path + "-wal";
+    std::string shmPath = path + "-shm";
+    deleteFileIfExists(walPath);
+    deleteFileIfExists(shmPath);
 }
 
 void onMemoryAlert(std::function<void(void)> callback) {

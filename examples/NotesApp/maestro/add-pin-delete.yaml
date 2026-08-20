@@ -1,0 +1,39 @@
+# Add, pin, and delete against the live database.
+# Run from examples/NotesApp: maestro test maestro/add-pin-delete.yaml
+
+appId: com.nitromelondb.example
+---
+- launchApp:
+    clearState: true
+
+- assertVisible:
+    text: "100 notes"
+
+- tapOn:
+    id: "title-input"
+
+- inputText: "Test Note"
+
+- tapOn:
+    id: "add-note-button"
+
+- assertVisible:
+    text: "Test Note"
+
+- assertVisible:
+    text: "101 notes"
+
+- tapOn:
+    text: "Pin"
+
+- assertVisible:
+    text: "Unpin"
+
+- tapOn:
+    text: "Delete"
+
+- assertNotVisible:
+    text: "Test Note"
+
+- assertVisible:
+    text: "100 notes"

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "node .claude/hooks/inject-roots.js cursor-session"
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "node .claude/hooks/inject-roots.js cursor-shell"
+      }
+    ]
+  }
+}

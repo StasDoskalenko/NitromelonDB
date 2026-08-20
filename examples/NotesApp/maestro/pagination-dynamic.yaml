@@ -1,0 +1,72 @@
+# Adding notes updates the count; Load more still only widens Q.take.
+# Run from examples/NotesApp: maestro test maestro/pagination-dynamic.yaml
+
+appId: com.nitromelondb.example
+---
+- launchApp:
+    clearState: true
+
+- assertVisible:
+    text: "100 notes"
+
+- tapOn:
+    id: "title-input"
+- inputText: "Dynamic Note 1"
+- tapOn:
+    id: "add-note-button"
+
+- tapOn:
+    id: "title-input"
+- inputText: "Dynamic Note 2"
+- tapOn:
+    id: "add-note-button"
+
+- tapOn:
+    id: "title-input"
+- inputText: "Dynamic Note 3"
+- tapOn:
+    id: "add-note-button"
+
+- tapOn:
+    id: "title-input"
+- inputText: "Dynamic Note 4"
+- tapOn:
+    id: "add-note-button"
+
+- tapOn:
+    id: "title-input"
+- inputText: "Dynamic Note 5"
+- tapOn:
+    id: "add-note-button"
+
+- assertVisible:
+    text: "105 notes"
+
+- assertVisible:
+    text: "Dynamic Note 5"
+
+- assertNotVisible:
+    text: "Note #80"
+
+- scrollUntilVisible:
+    element:
+      id: "load-more-button"
+    direction: DOWN
+    timeout: 10000
+
+- tapOn:
+    id: "load-more-button"
+
+- waitForAnimationToEnd
+
+- assertVisible:
+    text: "105 notes"
+
+- scrollUntilVisible:
+    element:
+      text: "Note #80"
+    direction: DOWN
+    timeout: 10000
+
+- assertVisible:
+    text: "Note #80"
