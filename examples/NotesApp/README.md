@@ -8,16 +8,27 @@ Windows lives in a sibling app, [`../NotesApp_windows`](../NotesApp_windows), be
 
 ![NitromelonDB notes screen on iOS, showing two notes, Nitro SQLite, and schema v2](assets/screenshot.png)
 
+Before `expo run:*` or `yarn start`, check if Metro is already running on port **8081** (open terminals, `lsof -i :8081`, or `curl -s http://localhost:8081/status`). Reuse it — do not start a second dev server.
+
 ```sh
 cd examples/NotesApp
 yarn
 npx expo prebuild
-npx expo run:ios
+yarn expo run:ios
 # or
-npx expo run:android
+yarn expo run:android
 ```
 
-If you already have a native build and only JS changed, reload Metro. After pulling native SQLite/Nitro changes, rebuild (`npx expo run:ios` / `run:android`).
+Maestro e2e (simulator already booted, Maestro CLI installed):
+
+```sh
+cd examples/NotesApp
+maestro test maestro/
+# or one flow:
+maestro test maestro/cold-start.yaml
+```
+
+If you already have a native build and only JS changed, reload Metro. After pulling native SQLite/Nitro changes, rebuild (`yarn expo run:ios` / `yarn expo run:android`). The Expo dev menu is disabled on launch (needed for Maestro); that flag is native, so it also needs a rebuild.
 
 The app links the library via `link:../..`. Metro watches `src/` plus WatermelonDB's JS dependencies (`rxjs`, `sql-escape-string`, …) so those imports resolve outside the example's tree.
 
