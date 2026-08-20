@@ -486,25 +486,26 @@ already takes an array of spec functions, so splitting into "core" (per-PR) and 
 
 ---
 
-## 8. Decisions needed
+## 8. Decisions (resolved)
 
-- **D1.** Timeout strategy for the native suite: one generous global timeout, or per-case
-  `waitTime` for the slow cases? Related: do we shard into core/extended now or wait until
-  it hurts?
-- **D2.** Drop `bail: true` from `jest.config.js` so a large suite reports all failures in
-  one run?
-- **D3.** How do sidecar assertions work on device? Add a tiny native file-exists hook, or
-  infer WAL behavior indirectly (e.g. via `pragma journal_mode` and `wal_checkpoint`)?
-  Indirect is cheaper and needs no native API; a hook is more honest about what's on disk.
-- **D4.** How do we get a schema-v1 `NotesApp` build for the upgrade test — a build-time env
-  flag that selects v1 schema + no migrations, a checked-in second app variant, or a
-  pre-built artifact? The reference app is already on schema v3 (`pinned` + `sort_order`).
-  Remaining work is only the old-build artifact for M11.
-- **D5.** L3 driver: **Maestro chosen** (YAML in-repo). Detox not used. Remaining: run locally
-  and add CI.
-- **D6.** Do the concurrency cases need a deterministic scheduler/barrier helper (something
-  like `src/__tests__/utils/makeScheduler.js`) to be reliable on device, or is
-  `Promise.all` + invariant assertions enough? Current C1–C7 use `Promise.all` only.
+- **D1.** Timeout strategy: **one global timeout** (already in place: 600s iOS XCTest, 5m Android, 30s Cavy `waitTime`, 180s Windows `waitUntil`). The native suite runs as a single Cavy test list, so a per-case timeout wouldn't help — if one case hangs, the global timeout kills it. The only per-case guard needed is for the slowest individual cases (10k batch, 20× teardown), which can use a short `setTimeout` + `abort` flag to skip cleanup. If a device job hits 600s, the fix is to reduce batch sizes (Phase 0 measurements guide this), not to shard the suite.
+
+- **D2.** **Drop `bail: true`.** With a 100+ case suite, hiding failures behind the first one makes debugging impossible. The native suite already uses a custom reporter (`BridgeTestReporter`) that collects all results; keeping `bail: true` just means the reporter gets a partial report. Drop it in `jest.config.js` (node) and the Cavy harness (device).
+
+- **D3.** **Pragma-based sidecar assertions, not a native file-exists hook.** Two pragmas do what a hook would do:
+  - `PRAGMA journal_mode;` — returns `WAL` for file-backed databases (already the case, set in `native/shared/Database.cpp:31`).
+  - `PRAGMA wal_checkpoint(TRUNCATE);` — returns checkpoint status and lets you verify the database is consistent after a write.
+  - To assert sidecars exist: check whether `PRAGMA journal_mode = WAL` was set (it is, by the adapter), then do a write and check that `-wal`/`-shm` files appear. This is indirect but sufficient for the cleanup tests. A native file-exists hook adds surface area and platform-specific code for no extra correctness.
+
+- **D4.** **Build-time flag to select schema version.** NotesApp schema is currently v3 (v1→v2: `pinned`, v2→v3: `sort_order`). To get a v1 build for the M11 upgrade test:
+  1. Add a build-time env flag (e.g. `EXPO_PUBLIC_SCHEMA_VERSION=1`) that, when set, produces a schema v1 with no migrations.
+  2. The flag is only used for the M11 artifact build, not for normal development.
+  3. Workflow: build v1 artifact → install on simulator → seed notes → build current (v3) → install over it → verify `pinned` + `sort_order` exist and notes survived.
+  4. This avoids maintaining a second app variant or checked-in binary.
+
+- **D5.** **Maestro chosen.** (Already settled.) YAML flows in-repo. Detox not used. Remaining work: run locally and add CI workflow.
+
+- **D6.** **No deterministic scheduler needed.** Native Nitro calls are synchronous on the JS thread — two JS callers cannot be inside the adapter at the same time. True parallelism requires two connections to the same file (two `SQLiteAdapter` instances), which the current C1–C7 cases already use. The concurrency tests assert invariants (no corruption, no lost rows) rather than specific interleavings, which is the right level of abstraction. If a deterministic scheduler is ever needed (e.g. for the `Database._workQueue` tests in Phase 3), it can be added then.
 
 ---
 
