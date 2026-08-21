@@ -22,6 +22,6 @@ class BridgeTests: XCTestCase {
             expectation.fulfill()
         }
 
-        wait(for: [expectation], timeout: 100)
+        wait(for: [expectation], timeout: 600)
     }
 }

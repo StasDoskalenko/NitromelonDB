@@ -6,7 +6,22 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "plugins": ["expo-dev-client", "nitromelondb"],
+    "plugins": [
+      [
+        "expo-dev-client",
+        {
+          "launchMode": "most-recent",
+          "defaultLaunchURL": "http://localhost:8081",
+          "android": {
+            "defaultLaunchURL": "http://10.0.0.2:8081"
+          },
+          "toolsButton": false,
+          "skipOnboarding": true,
+          "showMenuAtLaunch": false
+        }
+      ],
+      "nitromelondb"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nitromelondb.example"

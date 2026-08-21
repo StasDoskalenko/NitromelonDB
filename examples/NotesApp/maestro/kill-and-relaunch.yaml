@@ -1,0 +1,50 @@
+# Data must survive process death (Documents-directory SQLite).
+# Run from examples/NotesApp: maestro test maestro/kill-and-relaunch.yaml
+
+appId: com.nitromelondb.example
+---
+- launchApp:
+    clearState: true
+
+# Seed is async — wait for subtitle (only visible after seeding).
+- extendedWaitUntil:
+    visible:
+      id: "subtitle"
+    timeout: 60000
+
+- assertVisible:
+    text: ".*100 notes.*"
+
+- tapOn:
+    id: "title-input"
+
+- inputText: "Persistent Note"
+
+- tapOn:
+    id: "add-note-button"
+
+# hideKeyboard is flaky on iOS; tap the title to dismiss.
+- tapOn: "NitromelonDB"
+- waitForAnimationToEnd
+
+- assertVisible:
+    text: "Persistent Note"
+
+- assertVisible:
+    text: ".*101 notes.*"
+
+- killApp
+
+- launchApp: {}
+
+- assertVisible:
+    id: "subtitle"
+
+- assertVisible:
+    text: "Persistent Note"
+
+- assertVisible:
+    text: ".*101 notes.*"
+
+- assertVisible:
+    id: "notes-list"

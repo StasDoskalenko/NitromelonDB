@@ -28,7 +28,7 @@ This command generates static content into the `build` directory and can be serv
 
 Docs are published to GitHub Pages at https://stasdoskalenko.github.io/NitromelonDB/.
 
-Merges to `master` run `.github/workflows/docs.yml`, which builds Docusaurus and deploys with `actions/deploy-pages`. Enable **Settings → Pages → Source: GitHub Actions** in the repository if the site is not live yet.
+Merges to `master` that touch `docs-website/` (or README / CHANGELOG / CONTRIBUTING) run `.github/workflows/docs.yml`, which builds Docusaurus and deploys with `actions/deploy-pages`. Pull requests with the same path changes only build. Enable **Settings → Pages → Source: GitHub Actions** in the repository if the site is not live yet.
 
 Local build (same command CI uses):
 

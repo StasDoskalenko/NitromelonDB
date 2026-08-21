@@ -63,8 +63,6 @@ jobs:
       - run: node scripts/prepare-changelog.mjs --self-test
       - name: Gradle Wrapper Validation
         uses: gradle/actions/wrapper-validation@v4
-      - name: Check docs build
-        run: cd docs-website && yarn install --immutable && cd .. && yarn docs:build
   ios:
     runs-on: macos-26
     name: iOS tests
