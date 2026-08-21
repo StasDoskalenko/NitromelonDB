@@ -1,0 +1,24 @@
+---
+description: NotesApp is the example, not the library. Run Expo and Maestro from this folder.
+globs: examples/NotesApp/**
+alwaysApply: false
+---
+
+# NotesApp example
+
+This folder is the iOS/Android demo app. The library is `../..` (`src/`, `native/`).
+
+```bash
+cd examples/NotesApp
+yarn expo run:ios
+yarn start:e2e
+maestro test maestro/
+```
+
+Before `expo run:*` or Metro start, check port **8081** (terminals, `lsof -i :8081`, or `curl -s http://localhost:8081/status`). Reuse it — do not start a second server.
+
+For Maestro: `yarn start:e2e` (`expo start --dev-client --no-dev`). Not plain `yarn start`.
+
+App id: `com.nitromelondb.example`. Not Expo Go. Rebuild after native changes.
+
+Seed: one count subscription + async seed; list is FlashList with sticky pager (`Q.skip` + `Q.take(20)` in `src/hooks/useNotes.ts`). Observers re-fire after writes — no refs for a “seed race”. Assert final `100 notes`.

@@ -13,6 +13,12 @@
 ### Changes
 
 ### Internal
+- Simplified `AGENTS.md` / added Claude Code rules and cwd hooks so agents stop mixing up the library root with `examples/NotesApp`.
+- NotesApp: disable the Expo dev menu / FAB / onboarding overlay on launch so Maestro e2e can tap the UI.
+- NotesApp: sticky FlashList pager (`Q.skip` + `Q.take(20)`), UI moved under `src/`, Maestro flows for cold start, CRUD, kill-and-relaunch, interaction burst, and pagination.
+- Docs: document NotesApp Maestro e2e and call out device e2e as a fork advantage (README + CONTRIBUTING).
+- NotesApp Maestro: pagination uses `Q.take` (not `Q.limit`), Load more no longer inserts rows, subscriptions unsubscribe, `sort_order` is used for list order.
+- **e2e test coverage (Phase 0)**: Raised iOS XCTest timeout from 100s to 600s, increased Cavy `waitTime` from 4s to 30s, and created `src/adapters/__tests__/sqliteTests/` with `helpers.js`, `index.js`, `migrations.js`, `batches.js`, `concurrency.js`, `cleanup.js`, and `databaseLevel.js`. Wired the new suite into `src/adapters/sqlite/test.js` and `integrationTest.js` so all 5 native consumers (Jest/node, Jest/better-sqlite3, LokiJS, iOS native, Android native, Windows native) run the new file-backed tests.
 
 - Docs Pages workflow builds with Yarn 4 inside `docs-website` (root `yarn docs:build` needs a root install) and only runs when docs-related paths change.
 - Migrate the repo and example apps from Yarn Classic to Yarn 4.18 (`node-modules` linker, pinned via `packageManager` / `.yarn/releases`).

@@ -1,0 +1,87 @@
+# Adding notes updates the count and page count; pager still windows with skip/take.
+# After 5 inserts (105 notes → 6 pages): page 1 is Dynamic Note 5…1 + Note #100…#86.
+# Page 2 is Note #85…#66 (includes #80).
+# Run from examples/NotesApp: maestro test maestro/pagination-dynamic.yaml
+
+appId: com.nitromelondb.example
+---
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible:
+      id: "subtitle"
+    timeout: 60000
+
+- assertVisible:
+    text: ".*100 notes.*"
+- assertVisible:
+    text: "Page 1 of 5"
+
+- tapOn:
+    id: "title-input"
+- inputText: "Dynamic Note 1"
+- tapOn:
+    id: "add-note-button"
+
+- tapOn:
+    id: "title-input"
+- inputText: "Dynamic Note 2"
+- tapOn:
+    id: "add-note-button"
+
+- tapOn:
+    id: "title-input"
+- inputText: "Dynamic Note 3"
+- tapOn:
+    id: "add-note-button"
+
+- tapOn:
+    id: "title-input"
+- inputText: "Dynamic Note 4"
+- tapOn:
+    id: "add-note-button"
+
+- tapOn:
+    id: "title-input"
+- inputText: "Dynamic Note 5"
+- tapOn:
+    id: "add-note-button"
+
+- tapOn: "NitromelonDB"
+- waitForAnimationToEnd
+
+- assertVisible:
+    text: ".*105 notes.*"
+- assertVisible:
+    text: "Page 1 of 6"
+- assertVisible:
+    text: "Dynamic Note 5"
+- assertVisible:
+    text: "Note #100"
+- assertNotVisible:
+    text: "Note #80"
+
+- tapOn:
+    id: "next-page-button"
+- waitForAnimationToEnd
+
+- assertVisible:
+    text: "Page 2 of 6"
+- assertVisible:
+    text: ".*105 notes.*"
+- assertNotVisible:
+    text: "Dynamic Note 5"
+- assertNotVisible:
+    text: "Note #100"
+- assertVisible:
+    text: "Note #85"
+
+- tapOn:
+    id: "prev-page-button"
+- waitForAnimationToEnd
+
+- assertVisible:
+    text: "Page 1 of 6"
+- assertVisible:
+    text: "Dynamic Note 5"

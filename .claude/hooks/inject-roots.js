@@ -45,7 +45,7 @@ function reminder(cwd) {
     here,
     'Library: yarn test, yarn build. Never expo/maestro here.',
     'App: cd examples/NotesApp && yarn expo run:ios',
-    'Metro: before expo run/start, check port 8081 (lsof -i :8081). Reuse existing dev server.',
+    'Metro: before start, check port 8081. For e2e use yarn start:e2e (--dev-client --no-dev).',
     'E2E: cd examples/NotesApp && maestro test maestro/',
   ].join('\n')
 }
@@ -85,10 +85,12 @@ async function main() {
     }
 
     if (isMetroStartCommand(command)) {
+      const usesNoDev = /--no-dev\b|start:e2e\b/.test(command)
       print({
         permission: 'allow',
-        agent_message:
-          'Before starting Metro or expo run:*, check if the React Native dev server is already running on port 8081 (open terminals, lsof -i :8081, or curl -s http://localhost:8081/status). Reuse it — do not start a second dev server.',
+        agent_message: usesNoDev
+          ? 'Before starting Metro, check port 8081 (lsof -i :8081 / curl -s http://localhost:8081/status). Reuse an existing server — do not start a second one.'
+          : 'Before starting Metro, check port 8081. For Maestro/e2e prefer: cd examples/NotesApp && yarn start:e2e  (expo start --dev-client --no-dev). Reuse an existing server — do not start a second one.',
       })
       return
     }

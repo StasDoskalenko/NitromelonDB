@@ -41,6 +41,13 @@ yarn expo run:ios          # or: yarn expo run:android
 
 Before starting Metro or `expo run:*`, check if the React Native dev server is already running (port **8081**). Check open terminals, or run `lsof -i :8081` / `curl -s http://localhost:8081/status`. If it is running, reuse it — do not start a second Metro.
 
+For Maestro e2e, prefer Metro **without** JS dev mode:
+
+```bash
+cd examples/NotesApp
+yarn start:e2e   # expo start --dev-client --no-dev
+```
+
 Needs a development build (not Expo Go). After native/Nitro changes, rebuild. JS-only changes: reload Metro.
 
 App id: `com.nitromelondb.example`
@@ -51,6 +58,7 @@ Install Maestro CLI, boot a simulator, then:
 
 ```bash
 cd examples/NotesApp
+yarn start:e2e
 maestro test maestro/
 maestro test maestro/cold-start.yaml
 ```

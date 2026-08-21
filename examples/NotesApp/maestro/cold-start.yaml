@@ -1,0 +1,37 @@
+# Cold start: fresh install seeds 100 notes and shows the list.
+# Run from examples/NotesApp: maestro test maestro/cold-start.yaml
+
+appId: com.nitromelondb.example
+---
+- launchApp:
+    clearState: true
+
+# Seed is async — wait for subtitle (only visible after seeding).
+- extendedWaitUntil:
+    visible:
+      id: "subtitle"
+    timeout: 60000
+
+- assertVisible:
+    id: "subtitle"
+
+- assertVisible:
+    text: "NitromelonDB"
+
+- assertVisible:
+    id: "notes-list"
+
+- assertVisible:
+    id: "composer"
+
+- assertVisible:
+    id: "title-input"
+
+- assertVisible:
+    id: "add-note-button"
+
+- assertVisible:
+    text: ".*100 notes.*"
+
+- assertVisible:
+    text: "Note #100"

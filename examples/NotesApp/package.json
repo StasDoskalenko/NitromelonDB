@@ -5,13 +5,16 @@
   "private": true,
   "scripts": {
     "start": "expo start --dev-client",
+    "start:e2e": "expo start --dev-client --no-dev",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "e2e": "maestro test maestro/",
     "prebuild": "expo prebuild",
     "web": "expo start --web",
     "postinstall": "patch-package"
   },
   "dependencies": {
+    "@shopify/flash-list": "^2.3.2",
     "expo": "~57.0.12",
     "expo-dev-client": "~57.0.11",
     "expo-status-bar": "~57.0.1",
