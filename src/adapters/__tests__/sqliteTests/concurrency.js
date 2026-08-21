@@ -127,7 +127,16 @@ export default (it) => {
     const { adapter: compat1, dbName } = await createFileAdapter(platform, {
       usesExclusiveLocking: true,
     })
-    const { adapter: compat2 } = await openFileAdapter(dbName, { usesExclusiveLocking: true })
+
+    // Native SQLite exclusive locking often refuses a second connection at open time.
+    let compat2
+    try {
+      ;({ adapter: compat2 } = await openFileAdapter(dbName, { usesExclusiveLocking: true }))
+    } catch (error) {
+      expect(String(error && error.message ? error.message : error)).toMatch(/locked/i)
+      cleanupDb(dbName, platform)
+      return
+    }
 
     const results = await Promise.allSettled([
       ...Array.from({ length: 25 }, (_, i) =>

@@ -62,19 +62,28 @@ export async function reopen(adapter, options = {}) {
 }
 
 /**
+ * Node `fs` without a static `require('fs')` so Metro/RN bundles do not try to resolve it.
+ */
+function nodeFs() {
+  // eslint-disable-next-line no-eval
+  return eval('require')('fs')
+}
+
+/**
  * Clean up a file-backed test database and its sidecars.
  * On node: removes .tmp/<name>.db
- * On device: callers should prefer deleteDatabaseFile / reset (no FS API).
+ * On device: no-op (no FS API in the RN bundle).
  */
 export function cleanupDb(dbName, platform) {
-  if (platform === 'node') {
-    const fs = require('fs')
-    for (const path of [dbName, `${dbName}-wal`, `${dbName}-shm`]) {
-      try {
-        fs.unlinkSync(path)
-      } catch (_) {
-        // Ignore ENOENT
-      }
+  if (platform !== 'node') {
+    return
+  }
+  const fs = nodeFs()
+  for (const path of [dbName, `${dbName}-wal`, `${dbName}-shm`]) {
+    try {
+      fs.unlinkSync(path)
+    } catch (_) {
+      // Ignore ENOENT
     }
   }
 }
@@ -83,11 +92,12 @@ export function cleanupDb(dbName, platform) {
  * Assert that a database file exists on disk (node only).
  */
 export function assertDbExists(dbName, platform) {
-  if (platform === 'node') {
-    const fs = require('fs')
-    if (!fs.existsSync(dbName)) {
-      throw new Error(`Expected database file ${dbName} to exist on disk`)
-    }
+  if (platform !== 'node') {
+    return
+  }
+  const fs = nodeFs()
+  if (!fs.existsSync(dbName)) {
+    throw new Error(`Expected database file ${dbName} to exist on disk`)
   }
 }
 
@@ -95,16 +105,17 @@ export function assertDbExists(dbName, platform) {
  * Assert that WAL and SHM sidecar files exist (or don't). Node only.
  */
 export function assertSidecars(dbName, platform, { expectWal, expectShm }) {
-  if (platform === 'node') {
-    const fs = require('fs')
-    const walPath = `${dbName}-wal`
-    const shmPath = `${dbName}-shm`
-    if (expectWal && !fs.existsSync(walPath)) {
-      throw new Error(`Expected WAL file ${walPath} to exist`)
-    }
-    if (expectShm && !fs.existsSync(shmPath)) {
-      throw new Error(`Expected SHM file ${shmPath} to exist`)
-    }
+  if (platform !== 'node') {
+    return
+  }
+  const fs = nodeFs()
+  const walPath = `${dbName}-wal`
+  const shmPath = `${dbName}-shm`
+  if (expectWal && !fs.existsSync(walPath)) {
+    throw new Error(`Expected WAL file ${walPath} to exist`)
+  }
+  if (expectShm && !fs.existsSync(shmPath)) {
+    throw new Error(`Expected SHM file ${shmPath} to exist`)
   }
 }
 
