@@ -1,0 +1,10 @@
+---
+description: Stop thrashing the same fix; ship simplest correct version
+alwaysApply: true
+---
+
+# Anti-loop
+
+If you rewrite the **same approach** twice without new evidence, **stop**. Ship the simplest correct version, or run the app / Maestro once. Do not invent refs or races in a loop.
+
+Observers fire again after writes. A brief empty list before seed finishes is normal. Assert final state (`100 notes`), not first paint.

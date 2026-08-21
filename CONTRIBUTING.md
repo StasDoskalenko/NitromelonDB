@@ -102,6 +102,20 @@ yarn test:ios
 yarn test:android
 ```
 
+### Maestro e2e (NotesApp)
+
+The Expo example app under `examples/NotesApp` includes [Maestro](https://docs.maestro.dev) UI flows that exercise Nitro SQLite on a simulator (cold start / seed, create-pin-delete, kill-and-relaunch, interaction burst, sticky `Q.skip` + `Q.take` pagination).
+
+Do not run these from the library root. Install the Maestro CLI, boot a simulator, install a development build, then:
+
+```bash
+cd examples/NotesApp
+yarn start:e2e   # expo start --dev-client --no-dev
+maestro test maestro/
+```
+
+Reuse Metro on port **8081** if it is already running. Prefer `yarn start:e2e` over plain `yarn start` for e2e (dev mode off). Details: [`examples/NotesApp/README.md`](./examples/NotesApp/README.md).
+
 ### Running tests manualy
 
 - For iOS open the `native/iosTest/WatermelonTester.xcworkspace` project and hit Cmd+U.

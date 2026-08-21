@@ -9,6 +9,7 @@ Always run from `examples/NotesApp`:
 
 ```bash
 cd examples/NotesApp
+yarn start:e2e   # Metro: expo start --dev-client --no-dev
 maestro test maestro/
 maestro test maestro/cold-start.yaml
 ```
@@ -23,3 +24,4 @@ MCP (preferred if connected):
 4. `run` with `{ files }` or `{ yaml }`
 
 Do not run Maestro from the library root. Do not use Maestro Cloud unless asked.
+For e2e Metro, use `yarn start:e2e` / `--no-dev`, not plain `yarn start`.

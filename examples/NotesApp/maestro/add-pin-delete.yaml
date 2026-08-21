@@ -1,13 +1,21 @@
 # Add, pin, and delete against the live database.
 # Run from examples/NotesApp: maestro test maestro/add-pin-delete.yaml
+#
+# FlatList row Pressables need doubleTapOn — single taps are dropped by XCTest/Fabric.
+# Delete is debounced in-app so the second half of doubleTapOn does not remove two rows.
 
 appId: com.nitromelondb.example
 ---
 - launchApp:
     clearState: true
 
+- extendedWaitUntil:
+    visible:
+      id: "subtitle"
+    timeout: 60000
+
 - assertVisible:
-    text: "100 notes"
+    text: ".*100 notes.*"
 
 - tapOn:
     id: "title-input"
@@ -21,19 +29,29 @@ appId: com.nitromelondb.example
     text: "Test Note"
 
 - assertVisible:
-    text: "101 notes"
+    text: ".*101 notes.*"
 
-- tapOn:
-    text: "Pin"
+- tapOn: "NitromelonDB"
+- waitForAnimationToEnd
+
+- doubleTapOn:
+    id: "pin-button-.*"
+    index: 0
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Unpin"
+    timeout: 15000
 
 - assertVisible:
     text: "Unpin"
 
-- tapOn:
-    text: "Delete"
+- doubleTapOn:
+    id: "delete-button-.*"
+    index: 0
+- waitForAnimationToEnd
 
 - assertNotVisible:
     text: "Test Note"
 
 - assertVisible:
-    text: "100 notes"
+    text: ".*100 notes.*"

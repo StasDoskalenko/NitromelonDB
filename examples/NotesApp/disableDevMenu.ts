@@ -1,12 +1,15 @@
 import { requireOptionalNativeModule } from 'expo'
 
-// Hide the Expo dev client overlay before UI mounts. Maestro cannot tap through it.
+// Disable Expo Dev Menu by default (Maestro cannot tap through overlays / FAB).
 try {
   const DevMenuPreferences = requireOptionalNativeModule('DevMenuPreferences')
   void DevMenuPreferences?.setPreferencesAsync({
     showsAtLaunch: false,
     showFloatingActionButton: false,
     isOnboardingFinished: true,
+    motionGestureEnabled: false,
+    touchGestureEnabled: false,
+    keyCommandsEnabled: false,
   })
 } catch {
   // Native module missing in some environments (web / tests).

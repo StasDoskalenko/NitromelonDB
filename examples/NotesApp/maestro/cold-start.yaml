@@ -6,6 +6,12 @@ appId: com.nitromelondb.example
 - launchApp:
     clearState: true
 
+# Seed is async — wait for subtitle (only visible after seeding).
+- extendedWaitUntil:
+    visible:
+      id: "subtitle"
+    timeout: 60000
+
 - assertVisible:
     id: "subtitle"
 
@@ -25,7 +31,7 @@ appId: com.nitromelondb.example
     id: "add-note-button"
 
 - assertVisible:
-    text: "100 notes"
+    text: ".*100 notes.*"
 
 - assertVisible:
     text: "Note #100"

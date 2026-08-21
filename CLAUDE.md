@@ -19,10 +19,21 @@ yarn expo run:ios
 
 Android: `yarn expo run:android` (same folder).
 
+For Maestro / e2e, start Metro **without** the JS dev bundle:
+
+```bash
+cd examples/NotesApp
+yarn start:e2e
+# same as: yarn expo start --dev-client --no-dev
+```
+
+Do not use plain `yarn start` for e2e (that is `--dev-client` with dev mode on).
+
 ## Maestro e2e
 
 ```bash
 cd examples/NotesApp
+yarn start:e2e
 maestro test maestro/
 ```
 

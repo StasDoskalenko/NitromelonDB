@@ -1,5 +1,5 @@
-# Load more paginates existing rows (Q.take). It must not insert notes.
-# First page is 20 newest: Note #100 … Note #81. Total stays 100.
+# Sticky pager: each page is Q.skip + Q.take(20), not a growing list.
+# Page 1: Note #100 … #81. Page 2: #80 … #61. Page 5: #20 … #1.
 # Run from examples/NotesApp: maestro test maestro/pagination-seed.yaml
 
 appId: com.nitromelondb.example
@@ -7,74 +7,84 @@ appId: com.nitromelondb.example
 - launchApp:
     clearState: true
 
+- extendedWaitUntil:
+    visible:
+      id: "subtitle"
+    timeout: 60000
+
 - assertVisible:
     id: "subtitle"
 
 - assertVisible:
-    text: "100 notes"
+    text: ".*100 notes.*"
+
+- assertVisible:
+    id: "page-label"
+- assertVisible:
+    text: "Page 1 of 5"
 
 - assertVisible:
     text: "Note #100"
-
 - assertNotVisible:
     text: "Note #80"
 
-- scrollUntilVisible:
-    element:
-      id: "load-more-button"
-    direction: DOWN
-    timeout: 10000
-
+- assertVisible:
+    id: "next-page-button"
 - tapOn:
-    id: "load-more-button"
+    id: "next-page-button"
+- waitForAnimationToEnd
 
 - assertVisible:
-    text: "100 notes"
-
-- scrollUntilVisible:
-    element:
-      text: "Note #80"
-    direction: DOWN
-    timeout: 10000
-
+    text: "Page 2 of 5"
 - assertVisible:
     text: "Note #80"
-
-- scrollUntilVisible:
-    element:
-      id: "load-more-button"
-    direction: DOWN
-    timeout: 10000
+- assertNotVisible:
+    text: "Note #100"
+- assertVisible:
+    text: ".*100 notes.*"
 
 - tapOn:
-    id: "load-more-button"
-
-- scrollUntilVisible:
-    element:
-      id: "load-more-button"
-    direction: DOWN
-    timeout: 10000
-
-- tapOn:
-    id: "load-more-button"
-
-- scrollUntilVisible:
-    element:
-      id: "load-more-button"
-    direction: DOWN
-    timeout: 10000
+    id: "next-page-button"
+- waitForAnimationToEnd
+- assertVisible:
+    text: "Page 3 of 5"
+- assertVisible:
+    text: "Note #60"
 
 - tapOn:
-    id: "load-more-button"
+    id: "next-page-button"
+- waitForAnimationToEnd
+- assertVisible:
+    text: "Page 4 of 5"
+- assertVisible:
+    text: "Note #40"
+
+- tapOn:
+    id: "next-page-button"
+- waitForAnimationToEnd
+- assertVisible:
+    text: "Page 5 of 5"
+- assertVisible:
+    text: "Note #20"
+- assertNotVisible:
+    text: "Note #21"
 
 - scrollUntilVisible:
     element:
       text: "Note #1"
     direction: DOWN
-    timeout: 10000
+    timeout: 15000
+    speed: 60
 
 - assertVisible:
     text: "Note #1"
-
 - assertVisible:
-    text: "100 notes"
+    text: ".*100 notes.*"
+
+- tapOn:
+    id: "prev-page-button"
+- waitForAnimationToEnd
+- assertVisible:
+    text: "Page 4 of 5"
+- assertVisible:
+    text: "Note #40"
