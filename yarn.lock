@@ -10054,6 +10054,9 @@ __metadata:
   peerDependencies:
     react-native-nitro-modules: ">=0.35.2"
     rxjs: ^7.8.0
+  dependenciesMeta:
+    better-sqlite3:
+      built: false
   peerDependenciesMeta:
     react-native-nitro-modules:
       optional: true
