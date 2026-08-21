@@ -47,7 +47,6 @@ function reminder(cwd) {
     'App: cd examples/NotesApp && yarn expo run:ios',
     'Metro: before start, check port 8081. For e2e use yarn start:e2e (--dev-client --no-dev).',
     'E2E: cd examples/NotesApp && maestro test maestro/',
-    'Anti-loop: same approach twice with no new evidence → stop. NotesApp seed/subscribe needs no refs; observers re-fire after writes.',
   ].join('\n')
 }
 
