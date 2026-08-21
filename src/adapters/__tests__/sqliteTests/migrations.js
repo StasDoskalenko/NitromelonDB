@@ -1,6 +1,6 @@
 /* eslint-disable jest/no-standalone-expect */
 import { appSchema, tableSchema, schemaMigrations, createTable, addColumns } from '../../../Schema'
-import { MockTask } from '../helpers'
+import { taskQuery, projectQuery } from '../helpers'
 import { createFileAdapter } from './helpers'
 
 /**
@@ -28,7 +28,7 @@ export default (it) => {
       ['create', 'tasks', { id: 't1', num1: 42 }],
       ['create', 'tasks', { id: 't2', num1: 99 }],
     ])
-    expect(await fileAdapterCompat.count((require('../../Query').default)({ modelClass: MockTask }, []).serialize())).toBe(2)
+    expect(await fileAdapterCompat.count(taskQuery())).toBe(2)
 
     // Migrate to v5
     const taskColumnsV5 = [
@@ -51,7 +51,7 @@ export default (it) => {
     })
 
     // Data preserved
-    expect(await migratedAdapter.count((require('../../Query').default)({ modelClass: MockTask }, []).serialize())).toBe(2)
+    expect(await migratedAdapter.count(taskQuery())).toBe(2)
 
     // New columns have defaults
     const t1 = await migratedAdapter.find('tasks', 't1')
@@ -60,7 +60,7 @@ export default (it) => {
 
     // Reopen: migration not re-applied (user_version is at new value)
     const reopenedAdapter = await migratedAdapter.testClone()
-    expect(await reopenedAdapter.count((require('../../Query').default)({ modelClass: MockTask }, []).serialize())).toBe(2)
+    expect(await reopenedAdapter.count(taskQuery())).toBe(2)
     const t1Reopened = await reopenedAdapter.find('tasks', 't1')
     expect(t1Reopened.test_string).toBe('')
   })
@@ -103,7 +103,7 @@ export default (it) => {
 
     // Check the SQL took effect
     const results = await migratedAdapter.unsafeQueryRaw(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )
     expect(results).toContainEqual(expect.objectContaining({ num1: 10 }))
     expect(results).toContainEqual(expect.objectContaining({ num1: 2 }))
@@ -147,7 +147,7 @@ export default (it) => {
 
     // Check rows exist
     const rows = await migratedAdapter.unsafeQueryRaw(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )
     expect(rows).toHaveLength(2)
   })
@@ -190,14 +190,14 @@ export default (it) => {
 
     // Query it
     const projects = await migratedAdapter.query(
-      (require('../../Query').default)({ modelClass: require('../helpers').MockProject }, []).serialize(),
+      projectQuery(),
     )
     expect(projects).toEqual(['p1'])
 
     // Reopen and query again
     const reopenedAdapter = await migratedAdapter.testClone()
     const projectsReopened = await reopenedAdapter.query(
-      (require('../../Query').default)({ modelClass: require('../helpers').MockProject }, []).serialize(),
+      projectQuery(),
     )
     expect(projectsReopened).toEqual(['p1'])
   })
@@ -318,7 +318,7 @@ export default (it) => {
 
     await fileAdapterCompat.batch(batch)
     expect(await fileAdapterCompat.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )).toBe(10000)
 
     // Migrate to v2 (add a column)
@@ -342,7 +342,7 @@ export default (it) => {
 
     // All rows preserved
     const count = await migratedAdapter.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )
     expect(count).toBe(10000)
 

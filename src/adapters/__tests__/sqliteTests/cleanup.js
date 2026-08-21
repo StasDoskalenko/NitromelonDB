@@ -1,5 +1,5 @@
 /* eslint-disable jest/no-standalone-expect */
-import { MockTask } from '../helpers'
+import { taskQuery } from '../helpers'
 
 /**
  * Cleanup tests that require a file-backed database.
@@ -21,20 +21,20 @@ export default (it) => {
       ['create', 'tasks', { id: 't2', text1: 'world' }],
     ])
     expect(await fileAdapterCompat.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )).toBe(2)
 
     // Reset
     await fileAdapterCompat.unsafeResetDatabase()
     expect(await fileAdapterCompat.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )).toBe(0)
 
     // Reopen and verify still writable
     const reopenedAdapter = await fileAdapterCompat.testClone()
     await reopenedAdapter.batch([['create', 'tasks', { id: 't3', text1: 'after reset' }]])
     expect(await reopenedAdapter.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )).toBe(1)
   })
 
@@ -58,7 +58,7 @@ export default (it) => {
     const reopenedAdapter = await fileAdapterCompat.testClone()
     await reopenedAdapter.batch([['create', 'tasks', { id: 't2', text1: 'after reset' }]])
     expect(await reopenedAdapter.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )).toBe(1)
   })
 
@@ -80,7 +80,7 @@ export default (it) => {
 
     // Should be empty and writable
     expect(await fileAdapterCompat.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )).toBe(0)
   })
 
@@ -97,11 +97,11 @@ export default (it) => {
     for (let i = 0; i < 20; i++) {
       await fileAdapterCompat.batch([['create', 'tasks', { id: `t${i}`, text1: `cycle ${i}` }]])
       expect(await fileAdapterCompat.count(
-        (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+        taskQuery(),
       )).toBe(1)
       await fileAdapterCompat.unsafeResetDatabase()
       expect(await fileAdapterCompat.count(
-        (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+        taskQuery(),
       )).toBe(0)
     }
   })
@@ -130,7 +130,7 @@ export default (it) => {
     // Reopen should create a fresh database
     const reopenedAdapter = await fileAdapterCompat.testClone()
     expect(await reopenedAdapter.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )).toBe(0)
 
     // Clean up

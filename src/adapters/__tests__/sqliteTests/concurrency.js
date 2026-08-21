@@ -1,5 +1,5 @@
 /* eslint-disable jest/no-standalone-expect */
-import { MockTask } from '../helpers'
+import { taskQuery } from '../helpers'
 
 /**
  * Concurrency tests that require a file-backed database.
@@ -24,7 +24,7 @@ export default (it) => {
     await Promise.all(writes)
 
     const count = await fileAdapterCompat.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )
     expect(count).toBe(N)
   })
@@ -66,12 +66,12 @@ export default (it) => {
     fileAdapterCompat.batch([['create', 'tasks', { id: 't1', text1: 'first' }]])
     const find1 = fileAdapterCompat.find('tasks', 't1')
     const query1 = fileAdapterCompat.query(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )
     fileAdapterCompat.batch([['create', 'tasks', { id: 't2', text1: 'second' }]])
     const find2 = fileAdapterCompat.find('tasks', 't2')
     const query2 = fileAdapterCompat.query(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )
 
     const [f1, q1, f2, q2] = await Promise.all([find1, query1, find2, query2])
@@ -86,7 +86,7 @@ export default (it) => {
   it('two adapters on one file, both writing: no corruption', async (adapter, AdapterClass, extraAdapterOptions, platform) => {
     if (AdapterClass.name === 'LokiJSAdapter') return
 
-    const { createFileAdapter, reopen, cleanupDb } = require('./helpers')
+    const { createFileAdapter, cleanupDb } = require('./helpers')
     const { adapter: adapter1, dbName } = await createFileAdapter(platform)
 
     // Create a second adapter on the same file
@@ -112,10 +112,10 @@ export default (it) => {
 
     // Verify: all 100 records present, no lost writes
     expect(await compat1.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )).toBe(100)
     expect(await compat2.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )).toBe(100)
 
     // Spot-check: each adapter can find its own records
@@ -153,7 +153,7 @@ export default (it) => {
 
     // Adapter 2 tries to read concurrently
     const readPromise = compat2.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )
 
     // Both should complete (read may block until write finishes, or fail cleanly)
@@ -171,7 +171,7 @@ export default (it) => {
 
     // After both complete, verify no corruption
     expect(await compat1.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )).toBe(1000)
 
     cleanupDb(dbName, platform)
@@ -214,7 +214,7 @@ export default (it) => {
 
     // After all writes, verify no corruption on the database
     const finalCount = await compat1.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )
     expect(finalCount).toBeGreaterThanOrEqual(0) // database is still usable
 

@@ -114,7 +114,7 @@ yarn start:e2e   # expo start --dev-client --no-dev
 maestro test maestro/
 ```
 
-Reuse Metro on port **8081** if it is already running. Prefer `yarn start:e2e` over plain `yarn start` for e2e (dev mode off). Details: [`examples/NotesApp/README.md`](./examples/NotesApp/README.md).
+Reuse Metro on port **8081** if it is already running. Prefer `yarn start:e2e` over plain `yarn start` for e2e (dev mode off). Details: [`examples/NotesApp/README.md`](https://github.com/StasDoskalenko/NitromelonDB/blob/master/examples/NotesApp/README.md).
 
 ### Running tests manualy
 

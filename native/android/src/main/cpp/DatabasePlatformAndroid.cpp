@@ -129,7 +129,7 @@ std::string resolveDatabasePath(std::string path) {
     return resolvedPath;
 }
 
-static void deleteFileIfExists(std::string filePath) {
+static void deleteFileIfExists(std::string filePath, bool warnIfDoesNotExist) {
     struct stat st;
     if (stat(filePath.c_str(), &st) == 0) {
         if (unlink(filePath.c_str()) != 0) {
@@ -141,13 +141,13 @@ static void deleteFileIfExists(std::string filePath) {
 }
 
 void deleteDatabaseFile(std::string path, bool warnIfDoesNotExist) {
-    deleteFileIfExists(path);
+    deleteFileIfExists(path, warnIfDoesNotExist);
 
-    // Delete WAL and SHM sidecars if they exist
+    // Delete WAL and SHM sidecars if they exist (missing sidecars are fine)
     std::string walPath = path + "-wal";
     std::string shmPath = path + "-shm";
-    deleteFileIfExists(walPath);
-    deleteFileIfExists(shmPath);
+    deleteFileIfExists(walPath, false);
+    deleteFileIfExists(shmPath, false);
 }
 
 void onMemoryAlert(std::function<void(void)> callback) {

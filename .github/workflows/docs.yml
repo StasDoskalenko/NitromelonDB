@@ -13,20 +13,10 @@ on:
       - 'scripts/rewrite-readme-docs-links.mjs'
       - 'scripts/replace-docs-path.mjs'
       - '.github/workflows/docs.yml'
-  pull_request:
-    paths:
-      - 'docs-website/**'
-      - 'README.md'
-      - 'CONTRIBUTING.md'
-      - 'CHANGELOG.md'
-      - 'scripts/update-docusaurus'
-      - 'scripts/rewrite-readme-docs-links.mjs'
-      - 'scripts/replace-docs-path.mjs'
-      - '.github/workflows/docs.yml'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:

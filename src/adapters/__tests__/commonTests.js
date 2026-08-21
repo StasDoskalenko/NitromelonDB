@@ -21,7 +21,6 @@ import {
   MockTask,
   MockSyncTestRecord,
   mockProjectRaw,
-  MockProject,
   mockTagAssignmentRaw,
   projectQuery,
   modelQuery,

@@ -1,5 +1,5 @@
 /* eslint-disable jest/no-standalone-expect */
-import { MockTask } from '../helpers'
+import { taskQuery } from '../helpers'
 
 /**
  * Large batch tests that require a file-backed database.
@@ -25,7 +25,7 @@ export default (it) => {
 
     await fileAdapterCompat.batch(batch)
     const count = await fileAdapterCompat.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )
     expect(count).toBe(10000)
 
@@ -62,7 +62,7 @@ export default (it) => {
     await fileAdapterCompat.batch(destroyBatch)
 
     expect(await fileAdapterCompat.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )).toBe(0)
   })
 
@@ -93,7 +93,7 @@ export default (it) => {
 
     // Verify indices still exist and queries work
     const count = await fileAdapterCompat.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )
     expect(count).toBe(0) // all marked as deleted
 
@@ -103,7 +103,7 @@ export default (it) => {
       ['create', 'tasks', { id: 'new2', text1: 'new task 2' }],
     ])
     expect(await fileAdapterCompat.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )).toBe(2)
 
     // Verify find still works
@@ -132,7 +132,7 @@ export default (it) => {
     }
 
     const count = await fileAdapterCompat.count(
-      (require('../../Query').default)({ modelClass: MockTask }, []).serialize(),
+      taskQuery(),
     )
     expect(count).toBe(10000)
   })
