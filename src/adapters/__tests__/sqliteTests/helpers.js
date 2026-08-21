@@ -1,5 +1,6 @@
 import { testSchema } from '../helpers'
 import SQLiteAdapter from '../../sqlite/index'
+import DatabaseAdapterCompat from '../../compat'
 
 /**
  * Generate a unique database name for file-backed tests.
@@ -15,46 +16,71 @@ export function fileDbName(platform) {
 }
 
 /**
- * Create a file-backed adapter for testing.
- * Returns an adapter that uses a real file, not in-memory.
+ * Create a file-backed adapter wrapped in DatabaseAdapterCompat.
  */
-export async function createFileAdapter(platform) {
-  const dbName = fileDbName(platform)
-  const adapter = new SQLiteAdapter({
+export async function createFileAdapter(platform, options = {}) {
+  const { schema = testSchema, migrations, dbName: explicitDbName, ...rest } = options
+  const dbName = explicitDbName || fileDbName(platform)
+  const underlying = new SQLiteAdapter({
     dbName,
-    schema: testSchema,
+    schema,
+    ...(migrations ? { migrations } : {}),
+    ...rest,
   })
-  await adapter.initializingPromise
-  return { adapter, dbName }
+  await underlying.initializingPromise
+  return {
+    adapter: new DatabaseAdapterCompat(underlying),
+    underlying,
+    dbName,
+  }
+}
+
+/**
+ * Open a second adapter on an existing file (also Compat-wrapped).
+ */
+export async function openFileAdapter(dbName, options = {}) {
+  const { schema = testSchema, migrations, ...rest } = options
+  const underlying = new SQLiteAdapter({
+    dbName,
+    schema,
+    ...(migrations ? { migrations } : {}),
+    ...rest,
+  })
+  await underlying.initializingPromise
+  return {
+    adapter: new DatabaseAdapterCompat(underlying),
+    underlying,
+    dbName,
+  }
 }
 
 /**
  * Reopen an adapter on the same file (for testing migration across restarts).
- * Uses SQLiteAdapter.testClone which re-runs initialize() on the same file.
  */
-export async function reopen(adapter) {
-  return adapter.testClone()
+export async function reopen(adapter, options = {}) {
+  return adapter.testClone(options)
 }
 
 /**
  * Clean up a file-backed test database and its sidecars.
  * On node: removes .tmp/<name>.db
- * On device: calls deleteDatabaseFile (which also handles -wal/-shm).
+ * On device: callers should prefer deleteDatabaseFile / reset (no FS API).
  */
 export function cleanupDb(dbName, platform) {
   if (platform === 'node') {
     const fs = require('fs')
-    try {
-      fs.unlinkSync(dbName)
-    } catch (e) {
-      // Ignore ENOENT
+    for (const path of [dbName, `${dbName}-wal`, `${dbName}-shm`]) {
+      try {
+        fs.unlinkSync(path)
+      } catch (_) {
+        // Ignore ENOENT
+      }
     }
   }
-  // On device, deleteDatabaseFile handles this (Phase 4)
 }
 
 /**
- * Assert that a database file exists on disk.
+ * Assert that a database file exists on disk (node only).
  */
 export function assertDbExists(dbName, platform) {
   if (platform === 'node') {
@@ -63,11 +89,10 @@ export function assertDbExists(dbName, platform) {
       throw new Error(`Expected database file ${dbName} to exist on disk`)
     }
   }
-  // On device, this is handled by deleteDatabaseFile existence check
 }
 
 /**
- * Assert that WAL and SHM sidecar files exist (or don't).
+ * Assert that WAL and SHM sidecar files exist (or don't). Node only.
  */
 export function assertSidecars(dbName, platform, { expectWal, expectShm }) {
   if (platform === 'node') {
@@ -81,7 +106,6 @@ export function assertSidecars(dbName, platform, { expectWal, expectShm }) {
       throw new Error(`Expected SHM file ${shmPath} to exist`)
     }
   }
-  // On device, WAL/SHM presence is inferred from journal_mode pragma
 }
 
 export { testSchema }
