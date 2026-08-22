@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { colors } from '../theme'
 
 type NotesComposerProps = {
@@ -19,9 +19,15 @@ export function NotesComposer({
   onSubmit,
 }: NotesComposerProps) {
   const canSubmit = Boolean(title.trim()) && !busy
+  const isWindows = Platform.OS === 'windows'
 
   return (
-    <View style={styles.composer} testID="composer">
+    <View style={styles.composer} testID={isWindows ? undefined : 'composer'}>
+      {isWindows ? (
+        <Text testID="composer" accessible style={styles.composerAnchor}>
+          composer
+        </Text>
+      ) : null}
       <TextInput
         style={styles.input}
         placeholder="Note title"
@@ -59,6 +65,12 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     gap: 8,
+  },
+  composerAnchor: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    opacity: 0,
   },
   input: {
     borderWidth: 1,

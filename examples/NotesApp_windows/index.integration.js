@@ -1,5 +1,7 @@
 /**
- * Windows CI entry: run Cavy SQLite integration tests in the NotesApp host.
+ * Optional local Cavy host. CI Windows e2e drives the NotesApp UI instead
+ * (Maestro-equivalent WinAppDriver flows). Library SQLite Cavy still runs in
+ * native/iosTest and native/androidTest.
  *
  * @format
  */

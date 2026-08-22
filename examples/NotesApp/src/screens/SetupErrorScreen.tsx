@@ -1,5 +1,4 @@
-import { StatusBar } from 'expo-status-bar'
-import { StyleSheet, Text, View } from 'react-native'
+import { Platform, StyleSheet, Text, View } from 'react-native'
 import { colors } from '../theme'
 
 type SetupErrorScreenProps = {
@@ -7,14 +6,16 @@ type SetupErrorScreenProps = {
 }
 
 export function SetupErrorScreen({ message }: SetupErrorScreenProps) {
+  const hint =
+    Platform.OS === 'windows'
+      ? 'Rebuild the native app after SQLite or Nitro changes (`yarn windows`).'
+      : 'Rebuild the native app after Nitro SQLite changes (`npx expo run:ios`).'
+
   return (
     <View style={styles.centered}>
       <Text style={styles.title}>NitromelonDB</Text>
       <Text style={styles.error}>{message}</Text>
-      <Text style={styles.hint}>
-        Rebuild the native app after Nitro SQLite changes (`npx expo run:ios`).
-      </Text>
-      <StatusBar style="auto" />
+      <Text style={styles.hint}>{hint}</Text>
     </View>
   )
 }

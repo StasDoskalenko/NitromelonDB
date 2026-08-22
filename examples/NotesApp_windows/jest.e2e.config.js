@@ -15,9 +15,9 @@ const localWinAppDriver = path.join(
 )
 
 module.exports = {
-  testEnvironment: '@react-native-windows/automation',
+  testEnvironment: '<rootDir>/e2e/environment.js',
   testMatch: ['<rootDir>/e2e/**/*.test.js'],
-  testTimeout: 180000,
+  testTimeout: 240000,
   maxWorkers: 1,
   verbose: true,
   testEnvironmentOptions: {

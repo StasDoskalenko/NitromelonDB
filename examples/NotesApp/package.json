@@ -6,6 +6,7 @@
   "scripts": {
     "start": "expo start --dev-client",
     "start:e2e": "expo start --dev-client --no-dev",
+    "metro:kill": "node ../NotesApp_windows/scripts/kill-metro.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "e2e": "maestro test maestro/",

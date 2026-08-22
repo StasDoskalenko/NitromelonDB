@@ -63,9 +63,10 @@ jobs:
       - run: node scripts/prepare-changelog.mjs --self-test
       - name: Gradle Wrapper Validation
         uses: gradle/actions/wrapper-validation@v4
-  ios:
+  ios-build:
     runs-on: macos-26
-    name: iOS tests
+    name: iOS build
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - name: Set Node.js version
@@ -94,17 +95,66 @@ jobs:
       - name: 'pod install'
         if: true # steps.pods-cache.outputs.cache-hit != 'true'
         run: yarn cocoapods
-      - run: yarn test:ios
-  android:
-    runs-on: ubuntu-24.04
-    name: Android tests
+      - name: Build for testing
+        env:
+          IOS_XCODEBUILD_ACTION: build-for-testing
+          IOS_DERIVED_DATA_PATH: native/iosTest/DerivedData
+        run: yarn test:ios
+      - name: Upload iOS test products
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-products
+          path: native/iosTest/DerivedData
+          include-hidden-files: true
+          compression-level: 1
+          retention-days: 7
+  ios-test:
+    needs: ios-build
+    runs-on: macos-26
+    name: iOS tests
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - name: Set Xcode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: 'node_modules'
+          key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
+      - run: yarn install --immutable
+      - name: cache Pods
+        uses: actions/cache@v4
+        id: pods-cache
+        with:
+          path: native/iosTest/Pods
+          key: ${{ runner.os }}-pods-cache-${{ hashFiles('**/Podfile.lock') }}
+      - run: bundle install
+      - name: 'pod install'
+        if: true # steps.pods-cache.outputs.cache-hit != 'true'
+        run: yarn cocoapods
+      - name: Download iOS test products
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-test-products
+          path: native/iosTest/DerivedData
+      - name: Run tests without building
+        env:
+          IOS_XCODEBUILD_ACTION: test-without-building
+          IOS_DERIVED_DATA_PATH: native/iosTest/DerivedData
+        run: yarn test:ios
+  android-build:
+    runs-on: ubuntu-24.04
+    name: Android build
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: 'adopt'
@@ -119,20 +169,170 @@ jobs:
           key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
       - run: yarn install --immutable
       - run: yarn dev:native &
+      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v3
+      - name: Assemble app and androidTest APKs
+        working-directory: ./native/androidTest
+        run: ./gradlew assembleDebug assembleDebugAndroidTest
+      - run: yarn ktlint
+      - name: Upload Android APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-apks
+          path: native/androidTest/app/build/outputs/apk
+          include-hidden-files: true
+          compression-level: 1
+          retention-days: 7
+          if-no-files-found: error
+  android-test:
+    needs: android-build
+    runs-on: ubuntu-24.04
+    name: Android tests
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Download Android APKs
+        uses: actions/download-artifact@v4
+        with:
+          name: android-test-apks
+          path: native/androidTest/app/build/outputs/apk
       # See: https://github.com/android/compose-samples/actions/runs/27015993/workflow for ideas for caching
-      - name: run tests
+      - name: Run instrumented tests
         uses: reactivecircus/android-emulator-runner@v2.33.0
         with:
           api-level: 29
           working-directory: ./native/androidTest
-          script: ./gradlew connectedAndroidTest
-      - run: yarn ktlint
-  windows:
+          script: |
+            set -euo pipefail
+            APP_APK=app/build/outputs/apk/debug/app-debug.apk
+            TEST_APK=app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            if [ ! -f "$APP_APK" ] || [ ! -f "$TEST_APK" ]; then
+              echo "Missing APKs:"
+              find app/build/outputs/apk -type f -print || true
+              exit 1
+            fi
+            adb install -r "$APP_APK"
+            adb install -r "$TEST_APK"
+            adb shell am instrument -w -r com.nozbe.watermelondb.test/androidx.test.runner.AndroidJUnitRunner 2>&1 | tee instrument.log
+            if ! grep -qE 'OK \([0-9]+ tests?\)' instrument.log; then
+              echo "Instrumented tests did not report OK"
+              exit 1
+            fi
+  notesapp-android-build:
+    runs-on: ubuntu-24.04
+    name: NotesApp Android (build)
+    timeout-minutes: 90
+    env:
+      CI: true
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - uses: actions/cache@v4
+        with:
+          path: 'node_modules'
+          key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
+      - run: yarn install --immutable
+      - name: Install NotesApp
+        working-directory: examples/NotesApp
+        run: yarn install --immutable
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v3
+      - name: Expo prebuild Android
+        working-directory: examples/NotesApp
+        run: yarn expo prebuild --platform android --non-interactive --no-install
+      - name: Assemble NotesApp debug APK
+        working-directory: examples/NotesApp/android
+        run: ./gradlew assembleDebug
+      - name: Upload NotesApp APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: notesapp-android-debug
+          path: examples/NotesApp/android/app/build/outputs/apk/debug/*.apk
+          compression-level: 1
+          retention-days: 7
+          if-no-files-found: error
+  notesapp-android-maestro:
+    needs: notesapp-android-build
+    runs-on: ubuntu-24.04
+    name: NotesApp Android (Maestro)
+    timeout-minutes: 60
+    env:
+      CI: true
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - uses: actions/cache@v4
+        with:
+          path: 'node_modules'
+          key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
+      - run: yarn install --immutable
+      - name: Install NotesApp
+        working-directory: examples/NotesApp
+        run: yarn install --immutable
+      - name: Download NotesApp APK
+        uses: actions/download-artifact@v4
+        with:
+          name: notesapp-android-debug
+          path: examples/NotesApp/apk
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run Maestro e2e
+        uses: reactivecircus/android-emulator-runner@v2.33.0
+        with:
+          api-level: 29
+          script: |
+            set -euo pipefail
+            yarn --cwd examples/NotesApp start:e2e &
+            for i in $(seq 1 90); do
+              if curl -sf http://localhost:8081/status; then
+                break
+              fi
+              sleep 2
+            done
+            curl -sf http://localhost:8081/status
+            APK=$(find examples/NotesApp/apk -name '*.apk' -print -quit)
+            if [ -z "$APK" ]; then
+              echo "NotesApp APK not found"
+              find examples/NotesApp/apk -type f -print || true
+              exit 1
+            fi
+            adb install -r "$APK"
+            adb reverse tcp:8081 tcp:8081
+            curl -s "http://localhost:8081/index.bundle?platform=android&dev=false&minify=false" -o /tmp/notesapp.bundle || true
+            maestro test examples/NotesApp/maestro/
+
     # windows-2025 currently ships VS 2026 (v180 / MSVC v145), SDK 10.0.26100,
     # Node 24.19.0, NuGet, and WinAppDriver. Inherit MSVC from the image.
     runs-on: windows-2025
-    name: Windows NotesApp
+    name: Windows NotesApp (build)
     timeout-minutes: 90
     defaults:
       run:
@@ -155,12 +355,70 @@ jobs:
           key: nuget-notesapp-windows-${{ hashFiles('examples/NotesApp_windows/windows/**/*.vcxproj', 'native/windows/**/*.vcxproj') }}
       - name: Install NotesApp Windows
         run: yarn install --immutable
-      - name: Build and deploy NotesApp (x64 Release, integration bundle)
-        # UseDevBundle=true embeds a dev JS bundle (Metro keeps `__DEV__`/`process.env.NODE_ENV`
-        # intact) so the integration suite runs the same DEV assertions as iOS/Android, which
-        # test against a Metro dev server. The native module is still built Release.
+      - name: Build NotesApp (x64 Release)
+        run: yarn windows -- --arch x64 --release --logging --no-packager --no-launch
+      - name: Stage Windows build outputs
         run: |
-          Copy-Item -Force index.integration.js index.js
-          yarn windows -- --arch x64 --release --logging --no-packager --no-launch --msbuildprops "UseDevBundle=true"
-      - name: Run SQLite integration e2e
+          $ErrorActionPreference = 'Stop'
+          $stage = Join-Path $PWD 'ci-artifact'
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          $exe = Get-ChildItem -Path 'windows' -Recurse -Filter 'NitromelonWindows.exe' -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\x64\\Release\\' } |
+            Select-Object -First 1
+          if (-not $exe) {
+            Write-Host 'Release exe not found. windows/ layout:'
+            Get-ChildItem -Path 'windows' -Recurse -Depth 5 | Select-Object -ExpandProperty FullName
+            throw 'NitromelonWindows.exe (x64 Release) was not produced'
+          }
+          Write-Host "Found $($exe.FullName)"
+          foreach ($name in @('NitromelonWindows', 'NitromelonWindows.Package', 'AppPackages')) {
+            $src = Join-Path 'windows' $name
+            if (Test-Path $src) {
+              Copy-Item -Force -Recurse $src (Join-Path $stage $name)
+            }
+          }
+          Get-ChildItem -Path $stage -Recurse -Filter 'NitromelonWindows.exe' | Select-Object -ExpandProperty FullName
+      - name: Upload Windows build outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: notesapp-windows-x64-release
+          path: examples/NotesApp_windows/ci-artifact
+          include-hidden-files: true
+          compression-level: 1
+          retention-days: 7
+          if-no-files-found: error
+  windows-test:
+    needs: windows-build
+    runs-on: windows-2025
+    name: Windows NotesApp (e2e)
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: examples/NotesApp_windows
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+          cache: yarn
+          cache-dependency-path: examples/NotesApp_windows/yarn.lock
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            ${{ github.workspace }}/examples/NotesApp_windows/windows/packages
+          key: nuget-notesapp-windows-${{ hashFiles('examples/NotesApp_windows/windows/**/*.vcxproj', 'native/windows/**/*.vcxproj') }}
+      - name: Install NotesApp Windows
+        run: yarn install --immutable
+      - name: Download Windows build outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: notesapp-windows-x64-release
+          path: examples/NotesApp_windows/windows
+      - name: Deploy NotesApp (no rebuild)
+        run: yarn windows -- --arch x64 --release --logging --no-packager --no-launch --no-build
+      - name: Run NotesApp UI e2e
         run: yarn test:windows:e2e

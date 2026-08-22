@@ -4,7 +4,7 @@ React Native Windows **0.84** NotesApp using the New Architecture (`cpp-app` / F
 
 iOS and Android live in the sibling Expo app, [`../NotesApp`](../NotesApp). They cannot share one `package.json` yet: RNW 0.84 tracks React Native **0.84.1**, while the Expo app is on **0.86.2**.
 
-The screen is the same notes list: schema v2, a v1→v2 `pinned` migration, plus create / pin / delete.
+The Windows host (`src/App.tsx`) renders the **same UI** from [`../NotesApp/src`](../NotesApp/src) (screen, components, model, hooks). Metro watches that folder. List virtualization is `NotesList.windows.tsx` (`FlatList`); iOS/Android use FlashList. Edit files under `examples/NotesApp/src`, not a copy in this app.
 
 ![NitromelonDB notes screen on Windows, showing two notes, Nitro SQLite, and schema v2](assets/screenshot.png)
 
@@ -33,14 +33,30 @@ How Nitro is injected (TurboModule `install()` inside the NitromelonDB DLL, head
 ```sh
 cd examples/NotesApp_windows
 yarn
-yarn windows
 ```
 
 Library `postinstall` only generates the Nitro `<NitroModules/…>` header map (`scripts/windows-nitro-shims.mjs`). MSBuild runs the same generator before compile, so a skipped install script is still safe.
 
-`yarn windows` builds the WinAppSDK app and starts Metro. After JS-only changes, reload Metro. After native SQLite/Nitro changes, rebuild.
+| Script | What it does |
+| --- | --- |
+| `yarn metro` / `yarn start` | Start Metro (JS bundler) |
+| `yarn metro:kill` | Kill whatever is bound to port 8081 (and matching Metro node processes) |
+| `yarn build:debug` | Rebuild x64 Debug, do not launch |
+| `yarn build:release` | Rebuild x64 Release, do not launch |
+| `yarn build:all` | Rebuild Debug then Release |
+| `yarn start:debug` | Deploy + launch the last Debug build (no rebuild, no Metro) |
+| `yarn start:release` | Deploy + launch the last Release build (no rebuild, no Metro) |
+| `yarn windows` | Build Debug, start Metro, and launch (full first-run) |
 
-CI runs the library SQLite integration suite inside this app (`index.integration.js` + `yarn test:windows:e2e`). That uses WinAppDriver, which is already on `windows-2025` runners.
+Debug loads JS from Metro — run `yarn metro` in one terminal, then `yarn start:debug` in another. After JS-only changes, restart the app process (Ctrl+R is not bound on this Win32 host). After native SQLite/Nitro changes, `yarn build:debug` (or `yarn build:release`) then launch. Debug and Release share one AppX identity, so deploying one replaces the other.
+
+```sh
+yarn test:windows:e2e
+```
+
+That drives the same flows as `examples/NotesApp/maestro/` (cold start, add-pin-delete, kill-and-relaunch, interaction burst, pagination-seed, pagination-dynamic) through WinAppDriver.
+
+CI builds the app and runs WinAppDriver UI e2e that matches the NotesApp Maestro flows (cold start, CRUD, kill-and-relaunch, interaction burst, sticky pagination). Library SQLite Cavy still runs in `native/iosTest` / `native/androidTest`. Maestro itself does not drive this WinAppSDK app.
 
 The app links the library via `link:../..` (a symlink, not a copy — Yarn's `file:` protocol would copy the whole repo, including gigabytes of MSBuild output). Metro watches `src/` plus WatermelonDB JS / integration-test dependencies (`rxjs`, `sql-escape-string`, `rambdax`, `big-list-of-naughty-strings`, …) so those imports resolve outside the example tree.
 

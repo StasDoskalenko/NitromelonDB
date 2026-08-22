@@ -11,8 +11,13 @@
 ### Performance
 
 ### Changes
+- NotesApp Windows renders the Expo NotesApp `src/` UI (shared screen/components/model). List on Windows is `NotesList.windows.tsx`.
+- NotesApp Windows: `yarn metro`, `yarn metro:kill`, `yarn build:debug` / `build:release` / `build:all`, `yarn start:debug` / `start:release`.
 
 ### Internal
+- CI: split iOS, Android, and Windows native jobs into a build phase (upload artifacts) and a tests phase, so compile failures stay distinct from e2e/emulator failures.
+- CI: run NotesApp Maestro e2e on Android (prebuild/assemble, then emulator + Metro + `maestro test maestro/`).
+- NotesApp Windows: schema v3, 100-note seed, sticky `Q.skip`/`Q.take(20)` pager, and WinAppDriver UI e2e that mirrors the Maestro flows (replacing the Cavy integration host in CI).
 - Simplified `AGENTS.md` / added Claude Code rules and cwd hooks so agents stop mixing up the library root with `examples/NotesApp`.
 - NotesApp: disable the Expo dev menu / FAB / onboarding overlay on launch so Maestro e2e can tap the UI.
 - NotesApp: sticky FlashList pager (`Q.skip` + `Q.take(20)`), UI moved under `src/`, Maestro flows for cold start, CRUD, kill-and-relaunch, interaction burst, and pagination.

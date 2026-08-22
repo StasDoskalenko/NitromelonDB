@@ -6,6 +6,7 @@
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
     "skipLibCheck": true,
+    "moduleSuffixes": [".windows", ""],
     "paths": {
       "nitromelondb": ["../../src/index.ts"],
       "nitromelondb/*": ["../../src/*"]

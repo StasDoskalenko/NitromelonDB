@@ -12,13 +12,15 @@ export function NoteCard({ note, onDelete }: NoteCardProps) {
   return (
     <View style={[styles.card, note.pinned && styles.cardPinned]} testID={`note-card-${note.id}`}>
       <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>{note.title}</Text>
+        <Text style={styles.cardTitle} testID={note.title} accessible>
+          {note.title}
+        </Text>
         <View style={styles.cardActions}>
           <Pressable
             onPress={() => void note.togglePinned()}
             hitSlop={12}
             style={styles.actionHit}
-            testID={`pin-button-${note.id}`}
+            testID={`pin-button-${note.title}`}
             accessibilityRole="button"
             accessibilityLabel={note.pinned ? 'Unpin' : 'Pin'}
           >
@@ -30,7 +32,7 @@ export function NoteCard({ note, onDelete }: NoteCardProps) {
             onPress={() => onDelete(note)}
             hitSlop={12}
             style={styles.actionHit}
-            testID={`delete-button-${note.id}`}
+            testID={`delete-button-${note.title}`}
             accessibilityRole="button"
             accessibilityLabel="Delete"
           >

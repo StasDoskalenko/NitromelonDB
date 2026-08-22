@@ -1,4 +1,5 @@
 import { Database, type Collection } from 'nitromelondb'
+import { Platform } from 'react-native'
 import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
 import Note from './model/Note'
 import { migrations } from './model/migrations'
@@ -15,7 +16,7 @@ export function createExampleDatabase(): ExampleDatabase {
   const adapter = new SQLiteAdapter({
     schema,
     migrations,
-    dbName: 'nitromelon-example',
+    dbName: Platform.OS === 'windows' ? 'nitromelon-windows' : 'nitromelon-example',
     onSetUpError: (error) => {
       console.error('[NitromelonDB] Failed to set up SQLite', error)
     },

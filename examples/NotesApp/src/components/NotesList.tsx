@@ -1,19 +1,30 @@
+import { useImperativeHandle, useRef, type Ref } from 'react'
 import { StyleSheet, Text } from 'react-native'
 import { FlashList, type FlashListRef } from '@shopify/flash-list'
-import type { Ref } from 'react'
 import { NoteCard } from './NoteCard'
 import type Note from '../model/Note'
 import { colors } from '../theme'
+import type { NotesListHandle } from './NotesListHandle'
+
+export type { NotesListHandle } from './NotesListHandle'
 
 type NotesListProps = {
   notes: Note[]
-  listRef: Ref<FlashListRef<Note>>
   onDelete: (note: Note) => void
+  ref?: Ref<NotesListHandle>
 }
 
-export function NotesList({ notes, listRef, onDelete }: NotesListProps) {
+export function NotesList({ notes, onDelete, ref }: NotesListProps) {
+  const listRef = useRef<FlashListRef<Note>>(null)
+
+  useImperativeHandle(ref, () => ({
+    scrollToTop: () => {
+      listRef.current?.scrollToTop({ animated: false })
+    },
+  }))
+
   return (
-    <FlashList
+    <FlashList<Note>
       ref={listRef}
       style={styles.list}
       data={notes}

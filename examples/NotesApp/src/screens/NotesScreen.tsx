@@ -1,10 +1,8 @@
-import { StatusBar } from 'expo-status-bar'
 import { useEffect, useRef, useState } from 'react'
-import { KeyboardAvoidingView, Platform, StyleSheet, Text } from 'react-native'
-import type { FlashListRef } from '@shopify/flash-list'
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native'
 import { NotesComposer } from '../components/NotesComposer'
 import { NotesHeader } from '../components/NotesHeader'
-import { NotesList } from '../components/NotesList'
+import { NotesList, type NotesListHandle } from '../components/NotesList'
 import { NotesPager } from '../components/NotesPager'
 import { PAGE_SIZE } from '../constants'
 import type { ExampleDatabase } from '../database'
@@ -23,9 +21,8 @@ export function NotesScreen({ db }: NotesScreenProps) {
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  const listRef = useRef<FlashListRef<Note>>(null)
-  // Maestro doubleTapOn is required for list-row presses; ignore a rapid second delete
-  // (the second tap often lands on the next row after the list reorders).
+  const listRef = useRef<NotesListHandle>(null)
+  // Maestro/WinAppDriver list-row presses can land twice; ignore a rapid second delete.
   const lastDeleteAt = useRef(0)
 
   const error = actionError ?? loadError
@@ -38,13 +35,12 @@ export function NotesScreen({ db }: NotesScreenProps) {
     }
   }, [page, pageCount])
 
-  // Keep the window top-aligned when the page changes or new rows appear at the top.
   useEffect(() => {
-    listRef.current?.scrollToTop({ animated: false })
+    listRef.current?.scrollToTop()
   }, [page, firstNoteId])
 
-  const goToPage = (nextPage: number) => {
-    setPage(Math.min(pageCount, Math.max(1, nextPage)))
+  const goToPage = (delta: number) => {
+    setPage((current) => Math.min(pageCount, Math.max(1, current + delta)))
   }
 
   const addNote = async () => {
@@ -83,11 +79,12 @@ export function NotesScreen({ db }: NotesScreenProps) {
     void note.deleteForever()
   }
 
+  const rootProps =
+    Platform.OS === 'ios' ? { behavior: 'padding' as const } : {}
+  const ScreenRoot = Platform.OS === 'windows' ? View : KeyboardAvoidingView
+
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <ScreenRoot style={styles.screen} {...rootProps}>
       <NotesHeader
         sqliteEngine={db.sqliteEngine}
         schemaVersion={db.schemaVersion}
@@ -99,11 +96,11 @@ export function NotesScreen({ db }: NotesScreenProps) {
       <NotesPager
         page={page}
         pageCount={pageCount}
-        onPrev={() => goToPage(page - 1)}
-        onNext={() => goToPage(page + 1)}
+        onPrev={() => goToPage(-1)}
+        onNext={() => goToPage(1)}
       />
 
-      <NotesList notes={notes} listRef={listRef} onDelete={deleteNote} />
+      <NotesList ref={listRef} notes={notes} onDelete={deleteNote} />
 
       <NotesComposer
         title={title}
@@ -113,14 +110,14 @@ export function NotesScreen({ db }: NotesScreenProps) {
         onChangeBody={setBody}
         onSubmit={() => void addNote()}
       />
-      <StatusBar style="auto" />
-    </KeyboardAvoidingView>
+    </ScreenRoot>
   )
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+    minHeight: 0,
     backgroundColor: colors.background,
   },
   error: {

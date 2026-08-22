@@ -8,7 +8,7 @@ This repo is a **library** plus **separate example apps**. Do not mix them up.
 | --- | --- | --- |
 | Library | git root (`src/`, `native/`) | `yarn` · `yarn test` · `yarn build` |
 | iOS/Android example | `examples/NotesApp` | `cd examples/NotesApp && yarn expo run:ios` |
-| Windows example | `examples/NotesApp_windows` | `cd examples/NotesApp_windows && yarn windows` |
+| Windows example | `examples/NotesApp_windows` | `cd examples/NotesApp_windows` then `yarn metro` · `yarn build:debug` / `yarn build:release` · `yarn start:debug` / `yarn start:release` · `yarn test:windows:e2e`. UI is `examples/NotesApp/src` |
 
 Never run Expo, Metro, or Maestro from the library root. NotesApp is not the published package.
 
@@ -63,7 +63,7 @@ maestro test maestro/
 maestro test maestro/cold-start.yaml
 ```
 
-Flows live in `examples/NotesApp/maestro/`.
+Flows live in `examples/NotesApp/maestro/`. CI runs them on Android. Windows uses the same scenarios via WinAppDriver (`examples/NotesApp_windows`, `yarn test:windows:e2e`).
 
 ### Maestro MCP
 

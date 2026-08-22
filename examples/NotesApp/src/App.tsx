@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { StatusBar } from 'expo-status-bar'
 import { createExampleDatabase } from './database'
 import { NotesScreen } from './screens/NotesScreen'
 import { SetupErrorScreen } from './screens/SetupErrorScreen'
@@ -16,8 +17,18 @@ export default function App() {
   })
 
   if (!session.ok) {
-    return <SetupErrorScreen message={session.message} />
+    return (
+      <>
+        <SetupErrorScreen message={session.message} />
+        <StatusBar style="auto" />
+      </>
+    )
   }
 
-  return <NotesScreen db={session.db} />
+  return (
+    <>
+      <NotesScreen db={session.db} />
+      <StatusBar style="auto" />
+    </>
+  )
 }
