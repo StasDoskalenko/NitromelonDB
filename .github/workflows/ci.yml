@@ -171,9 +171,9 @@ jobs:
       - name: Expo prebuild Android
         working-directory: examples/NotesApp
         run: yarn expo prebuild --platform android --non-interactive --no-install
-      - name: Assemble NotesApp debug APK
+      - name: Assemble NotesApp release APK
         working-directory: examples/NotesApp/android
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=x86
       - name: Install Maestro
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | bash

@@ -35,7 +35,7 @@ export function NotesList({ notes, onDelete, ref }: NotesListProps) {
   }, [])
 
   return (
-    <View style={styles.wrap}>
+    <View style={styles.wrap} testID="notes-list">
       <FlatList
         ref={listRef}
         style={styles.list}
@@ -53,7 +53,6 @@ export function NotesList({ notes, onDelete, ref }: NotesListProps) {
         showsVerticalScrollIndicator
         persistentScrollbar
         accessible={false}
-        testID="notes-list"
       />
     </View>
   )
