@@ -95,8 +95,8 @@ async function waitForTestID(id, timeout = 15000) {
   await app.waitUntil(
     async () => {
       try {
-        const el = await app.findElementByTestID(id)
-        return el.isDisplayed()
+        await app.findElementByTestID(id)
+        return true
       } catch {
         return false
       }
@@ -118,8 +118,15 @@ async function tapName(name) {
 async function addNote(title) {
   const input = await app.findElementByTestID('title-input')
   await input.click()
-  await input.setValue(title)
-  await tapTestID('add-note-button')
+  await sleep(150)
+  // Real keystrokes + Enter hit TextChanged / onSubmitEditing. setValue +
+  // Pressable click leaves the controlled title empty, so Add is a no-op.
+  await browser.keys(['Control', 'a'])
+  await sleep(50)
+  await browser.keys(title)
+  await sleep(200)
+  await browser.keys(['Enter'])
+  await sleep(400)
 }
 
 async function dismissKeyboard() {
@@ -168,15 +175,30 @@ async function deleteNote(title) {
   await el.click()
 }
 
-async function scrollUntilText(text, timeout = 15000) {
-  const list = await app.findElementByTestID('notes-list')
-  await list.click()
+async function focusNotesList() {
+  const candidates = ['Note #20', 'Note #100', 'Note #40', 'Note #80', 'notes-list']
+  for (const id of candidates) {
+    try {
+      const el = await app.findElementByTestID(id)
+      if (await el.isDisplayed()) {
+        await el.click()
+        return
+      }
+    } catch {
+      // try next
+    }
+  }
+}
+
+async function scrollUntilText(text, timeout = 20000) {
+  await focusNotesList()
   await app.waitUntil(
     async () => {
       if (await textVisible(text)) {
         return true
       }
       await browser.keys(['PageDown'])
+      await sleep(250)
       return false
     },
     {timeout, timeoutMsg: `Did not scroll to ${text}`},

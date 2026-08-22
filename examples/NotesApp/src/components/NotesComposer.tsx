@@ -7,7 +7,7 @@ type NotesComposerProps = {
   busy: boolean
   onChangeTitle: (value: string) => void
   onChangeBody: (value: string) => void
-  onSubmit: () => void
+  onSubmit: (nativeTitle?: string) => void
 }
 
 export function NotesComposer({
@@ -33,7 +33,8 @@ export function NotesComposer({
         placeholder="Note title"
         value={title}
         onChangeText={onChangeTitle}
-        onSubmitEditing={onSubmit}
+        onEndEditing={(event) => onChangeTitle(event.nativeEvent.text)}
+        onSubmitEditing={(event) => onSubmit(event.nativeEvent.text)}
         returnKeyType="done"
         testID="title-input"
       />
@@ -47,9 +48,11 @@ export function NotesComposer({
       />
       <Pressable
         style={[styles.addButton, !canSubmit && styles.addButtonDisabled]}
-        onPress={onSubmit}
+        onPress={() => onSubmit()}
         disabled={!canSubmit}
         testID="add-note-button"
+        accessibilityRole="button"
+        accessibilityLabel="Add note"
       >
         <Text style={styles.addButtonLabel}>{busy ? 'Saving…' : 'Add note'}</Text>
       </Pressable>
@@ -70,7 +73,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 1,
     height: 1,
-    opacity: 0,
+    opacity: 0.01,
   },
   input: {
     borderWidth: 1,

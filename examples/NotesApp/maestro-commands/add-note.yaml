@@ -1,0 +1,12 @@
+# Shared by Maestro flows. Not picked up by `maestro test maestro/`.
+# Dismiss the IME before tapping Add — on API 29 the keyboard covers the composer.
+appId: com.nitromelondb.example
+---
+- tapOn:
+    id: "title-input"
+- inputText: ${TITLE}
+- tapOn:
+    id: "app-title"
+- hideKeyboard
+- tapOn:
+    id: "add-note-button"

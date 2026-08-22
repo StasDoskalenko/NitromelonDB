@@ -17,13 +17,10 @@ appId: com.nitromelondb.example
 - assertVisible:
     text: ".*100 notes.*"
 
-- tapOn:
-    id: "title-input"
-
-- inputText: "Test Note"
-
-- tapOn:
-    id: "add-note-button"
+- runFlow:
+    file: ../maestro-commands/add-note.yaml
+    env:
+      TITLE: "Test Note"
 
 - assertVisible:
     text: "Test Note"

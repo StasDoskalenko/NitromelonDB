@@ -18,35 +18,26 @@ appId: com.nitromelondb.example
 - assertVisible:
     text: "Page 1 of 5"
 
-- tapOn:
-    id: "title-input"
-- inputText: "Dynamic Note 1"
-- tapOn:
-    id: "add-note-button"
-
-- tapOn:
-    id: "title-input"
-- inputText: "Dynamic Note 2"
-- tapOn:
-    id: "add-note-button"
-
-- tapOn:
-    id: "title-input"
-- inputText: "Dynamic Note 3"
-- tapOn:
-    id: "add-note-button"
-
-- tapOn:
-    id: "title-input"
-- inputText: "Dynamic Note 4"
-- tapOn:
-    id: "add-note-button"
-
-- tapOn:
-    id: "title-input"
-- inputText: "Dynamic Note 5"
-- tapOn:
-    id: "add-note-button"
+- runFlow:
+    file: ../maestro-commands/add-note.yaml
+    env:
+      TITLE: "Dynamic Note 1"
+- runFlow:
+    file: ../maestro-commands/add-note.yaml
+    env:
+      TITLE: "Dynamic Note 2"
+- runFlow:
+    file: ../maestro-commands/add-note.yaml
+    env:
+      TITLE: "Dynamic Note 3"
+- runFlow:
+    file: ../maestro-commands/add-note.yaml
+    env:
+      TITLE: "Dynamic Note 4"
+- runFlow:
+    file: ../maestro-commands/add-note.yaml
+    env:
+      TITLE: "Dynamic Note 5"
 
 - tapOn: "NitromelonDB"
 - waitForAnimationToEnd

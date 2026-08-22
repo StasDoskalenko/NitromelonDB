@@ -35,7 +35,10 @@ export function NotesList({ notes, onDelete, ref }: NotesListProps) {
   }, [])
 
   return (
-    <View style={styles.wrap} testID="notes-list">
+    <View style={styles.wrap}>
+      <Text testID="notes-list" accessible style={styles.listAnchor}>
+        notes-list
+      </Text>
       <FlatList
         ref={listRef}
         style={styles.list}
@@ -63,13 +66,19 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
+  listAnchor: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    opacity: 0.01,
+  },
   list: {
     flex: 1,
   },
   listContent: {
     paddingHorizontal: 16,
     paddingTop: LIST_PADDING_TOP,
-    paddingBottom: 12,
+    paddingBottom: 24,
   },
   emptyList: {
     flexGrow: 1,

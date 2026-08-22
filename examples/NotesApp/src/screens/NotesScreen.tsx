@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native'
+import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native'
 import { NotesComposer } from '../components/NotesComposer'
 import { NotesHeader } from '../components/NotesHeader'
 import { NotesList, type NotesListHandle } from '../components/NotesList'
@@ -43,11 +43,12 @@ export function NotesScreen({ db }: NotesScreenProps) {
     setPage((current) => Math.min(pageCount, Math.max(1, current + delta)))
   }
 
-  const addNote = async () => {
-    const nextTitle = title.trim()
+  const addNote = async (nativeTitle?: string) => {
+    const nextTitle = nativeTitle?.trim() || title.trim()
     if (!nextTitle || busy) {
       return
     }
+    Keyboard.dismiss()
     setBusy(true)
     setActionError(null)
     try {
@@ -79,9 +80,10 @@ export function NotesScreen({ db }: NotesScreenProps) {
     void note.deleteForever()
   }
 
-  const rootProps =
-    Platform.OS === 'ios' ? { behavior: 'padding' as const } : {}
-  const ScreenRoot = Platform.OS === 'windows' ? View : KeyboardAvoidingView
+  const rootProps = Platform.OS === 'ios' ? { behavior: 'padding' as const } : {}
+  // Android uses windowSoftInputMode=adjustResize (app.json). KeyboardAvoidingView
+  // without behavior is a no-op and can eat Maestro swipes on the list.
+  const ScreenRoot = Platform.OS === 'ios' ? KeyboardAvoidingView : View
 
   return (
     <ScreenRoot style={styles.screen} {...rootProps}>
@@ -108,7 +110,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
         busy={busy}
         onChangeTitle={setTitle}
         onChangeBody={setBody}
-        onSubmit={() => void addNote()}
+        onSubmit={(nativeTitle) => void addNote(nativeTitle)}
       />
     </ScreenRoot>
   )

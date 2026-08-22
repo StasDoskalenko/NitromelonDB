@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: 12,
+    paddingBottom: 24,
   },
   emptyList: {
     flexGrow: 1,

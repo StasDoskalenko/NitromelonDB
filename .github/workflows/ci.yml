@@ -184,6 +184,8 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2.33.0
         with:
           api-level: 29
+          profile: pixel
+          disable-animations: true
           script: bash scripts/ci-notesapp-android-maestro.sh
   windows:
     needs: [eslint, typescript, ci-check]
