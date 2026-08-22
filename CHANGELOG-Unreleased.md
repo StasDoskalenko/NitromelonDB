@@ -20,8 +20,8 @@
 - CI: lint GitHub Actions workflows with actionlint and action-validator (`yarn lint:workflows`) in a separate workflow so a broken `ci.yml` still fails checks.
 - CI: native/NotesApp jobs wait for ESLint, TypeScript, and JavaScript tests. `concurrency` cancels superseded PR/master runs (including when a PR is closed).
 - CI: run NotesApp Maestro e2e on Android from a Release APK (embedded JS, no Metro). Build and test stay on the same job for now.
-- NotesApp Maestro: dismiss the IME before tapping Add (API 29 keyboard covers the composer). `softwareKeyboardLayoutMode: resize`.
-- NotesApp Windows e2e: expose `notes-list` like `composer` (accessible text, not a layout View). Add note via keystrokes + Enter so WinAppDriver updates the title.
+- NotesApp Maestro: dismiss the IME before tapping Add (API 29 keyboard covers the composer). `softwareKeyboardLayoutMode: resize`. Consecutive adds wait for the new title; pin/delete use single taps on Android.
+- NotesApp Windows e2e: `ScrollView` of page-sized cards so new rows stay in the UIA tree. Add note waits for the subtitle count.
 - NotesApp Windows: schema v3, 100-note seed, sticky `Q.skip`/`Q.take(20)` pager, and WinAppDriver UI e2e that mirrors the Maestro flows (replacing the Cavy integration host in CI).
 - CodeQL: build Java/Kotlin from `native/androidTest` and Swift from `WatermelonTester` so default-setup autobuild is not required.
 - Simplified `AGENTS.md` / added Claude Code rules and cwd hooks so agents stop mixing up the library root with `examples/NotesApp`.

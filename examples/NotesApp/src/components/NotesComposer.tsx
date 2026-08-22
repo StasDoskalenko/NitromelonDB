@@ -48,8 +48,7 @@ export function NotesComposer({
       />
       <Pressable
         style={[styles.addButton, !canSubmit && styles.addButtonDisabled]}
-        onPress={() => onSubmit()}
-        disabled={!canSubmit}
+        onPress={() => onSubmit(title)}
         testID="add-note-button"
         accessibilityRole="button"
         accessibilityLabel="Add note"

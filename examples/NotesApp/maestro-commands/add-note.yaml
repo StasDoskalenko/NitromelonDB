@@ -1,12 +1,18 @@
 # Shared by Maestro flows. Not picked up by `maestro test maestro/`.
 # Dismiss the IME before tapping Add — on API 29 the keyboard covers the composer.
+# eraseText so inputText does not append to a leftover title.
 appId: com.nitromelondb.example
 ---
 - tapOn:
     id: "title-input"
+- eraseText: 80
 - inputText: ${TITLE}
 - tapOn:
     id: "app-title"
 - hideKeyboard
 - tapOn:
     id: "add-note-button"
+- extendedWaitUntil:
+    visible:
+      text: ${TITLE}
+    timeout: 15000

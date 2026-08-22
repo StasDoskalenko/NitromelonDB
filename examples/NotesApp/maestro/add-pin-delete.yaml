@@ -31,9 +31,18 @@ appId: com.nitromelondb.example
 - tapOn: "NitromelonDB"
 - waitForAnimationToEnd
 
-- doubleTapOn:
-    id: "pin-button-.*"
-    index: 0
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - doubleTapOn:
+          id: "pin-button-Test Note"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: "pin-button-Test Note"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible: "Unpin"
@@ -42,10 +51,23 @@ appId: com.nitromelondb.example
 - assertVisible:
     text: "Unpin"
 
-- doubleTapOn:
-    id: "delete-button-.*"
-    index: 0
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - doubleTapOn:
+          id: "delete-button-Test Note"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: "delete-button-Test Note"
 - waitForAnimationToEnd
+
+- extendedWaitUntil:
+    notVisible: "Test Note"
+    timeout: 15000
 
 - assertNotVisible:
     text: "Test Note"

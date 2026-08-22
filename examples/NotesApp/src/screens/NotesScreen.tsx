@@ -24,6 +24,9 @@ export function NotesScreen({ db }: NotesScreenProps) {
   const listRef = useRef<NotesListHandle>(null)
   // Maestro/WinAppDriver list-row presses can land twice; ignore a rapid second delete.
   const lastDeleteAt = useRef(0)
+  const writeChain = useRef(Promise.resolve())
+  const pendingAdds = useRef(0)
+  const sortOrderRef = useRef(Date.now())
 
   const error = actionError ?? loadError
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
@@ -43,32 +46,44 @@ export function NotesScreen({ db }: NotesScreenProps) {
     setPage((current) => Math.min(pageCount, Math.max(1, current + delta)))
   }
 
-  const addNote = async (nativeTitle?: string) => {
+  const addNote = (nativeTitle?: string) => {
     const nextTitle = nativeTitle?.trim() || title.trim()
-    if (!nextTitle || busy) {
+    const nextBody = body.trim()
+    if (!nextTitle) {
       return
     }
     Keyboard.dismiss()
-    setBusy(true)
+    setTitle('')
+    setBody('')
     setActionError(null)
-    try {
-      await db.database.write(async () => {
-        await db.notes.create((note) => {
-          note.title = nextTitle
-          note.body = body.trim()
-          note.createdAt = new Date()
-          note.sortOrder = Date.now()
-          note.pinned = false
-        })
+    pendingAdds.current += 1
+    setBusy(true)
+    const sortOrder = Math.max(Date.now(), sortOrderRef.current + 1)
+    sortOrderRef.current = sortOrder
+    writeChain.current = writeChain.current
+      .then(() =>
+        db.database.write(async () => {
+          await db.notes.create((note) => {
+            note.title = nextTitle
+            note.body = nextBody
+            note.createdAt = new Date()
+            note.sortOrder = sortOrder
+            note.pinned = false
+          })
+        }),
+      )
+      .then(() => {
+        setPage(1)
       })
-      setTitle('')
-      setBody('')
-      setPage(1)
-    } catch (writeError) {
-      setActionError(writeError instanceof Error ? writeError.message : String(writeError))
-    } finally {
-      setBusy(false)
-    }
+      .catch((writeError) => {
+        setActionError(writeError instanceof Error ? writeError.message : String(writeError))
+      })
+      .finally(() => {
+        pendingAdds.current -= 1
+        if (pendingAdds.current === 0) {
+          setBusy(false)
+        }
+      })
   }
 
   const deleteNote = (note: Note) => {

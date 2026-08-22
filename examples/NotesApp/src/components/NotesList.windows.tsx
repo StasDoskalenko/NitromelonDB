@@ -1,5 +1,5 @@
-import { useCallback, useImperativeHandle, useRef, type Ref } from 'react'
-import { FlatList, StyleSheet, Text, View } from 'react-native'
+import { useImperativeHandle, useRef, type Ref } from 'react'
+import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { NoteCard } from './NoteCard'
 import type Note from '../model/Note'
 import { colors } from '../theme'
@@ -13,50 +13,36 @@ type NotesListProps = {
   ref?: Ref<NotesListHandle>
 }
 
-const LIST_PADDING_TOP = 12
-// One-line title + body + meta, plus card padding/border/marginBottom.
-const NOTE_ROW_HEIGHT = 134
-
 export function NotesList({ notes, onDelete, ref }: NotesListProps) {
-  const listRef = useRef<FlatList<Note>>(null)
+  const listRef = useRef<ScrollView>(null)
 
   useImperativeHandle(ref, () => ({
     scrollToTop: () => {
-      listRef.current?.scrollToOffset({ offset: 0, animated: false })
+      listRef.current?.scrollTo({ y: 0, animated: false })
     },
   }))
-
-  const getItemLayout = useCallback((_data: ArrayLike<Note> | null | undefined, index: number) => {
-    return {
-      length: NOTE_ROW_HEIGHT,
-      offset: LIST_PADDING_TOP + NOTE_ROW_HEIGHT * index,
-      index,
-    }
-  }, [])
 
   return (
     <View style={styles.wrap}>
       <Text testID="notes-list" accessible style={styles.listAnchor}>
         notes-list
       </Text>
-      <FlatList
+      <ScrollView
         ref={listRef}
         style={styles.list}
-        data={notes}
-        keyExtractor={(note) => note.id}
-        renderItem={({ item }) => <NoteCard note={item} onDelete={onDelete} />}
-        getItemLayout={getItemLayout}
-        ListEmptyComponent={
+        contentContainerStyle={notes.length === 0 ? styles.emptyList : styles.listContent}
+        accessible={false}
+        showsVerticalScrollIndicator
+        persistentScrollbar
+      >
+        {notes.length === 0 ? (
           <Text style={styles.empty} testID="empty-notes">
             No notes yet. Add one below.
           </Text>
-        }
-        contentContainerStyle={notes.length === 0 ? styles.emptyList : styles.listContent}
-        removeClippedSubviews={false}
-        showsVerticalScrollIndicator
-        persistentScrollbar
-        accessible={false}
-      />
+        ) : (
+          notes.map((note) => <NoteCard key={note.id} note={note} onDelete={onDelete} />)
+        )}
+      </ScrollView>
     </View>
   )
 }
@@ -77,7 +63,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingTop: LIST_PADDING_TOP,
+    paddingTop: 12,
     paddingBottom: 24,
   },
   emptyList: {

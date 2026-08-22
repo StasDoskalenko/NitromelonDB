@@ -44,26 +44,34 @@ appId: com.nitromelondb.example
 - tapOn: "NitromelonDB"
 - waitForAnimationToEnd
 
-- doubleTapOn:
-    id: "pin-button-.*"
-    index: 0
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - doubleTapOn:
+          id: "pin-button-Burst Note 3"
+      - doubleTapOn:
+          id: "pin-button-Burst Note 2"
+      - doubleTapOn:
+          id: "pin-button-Burst Note 1"
+      - doubleTapOn:
+          id: "delete-button-Burst Note 3"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: "pin-button-Burst Note 3"
+      - tapOn:
+          id: "pin-button-Burst Note 2"
+      - tapOn:
+          id: "pin-button-Burst Note 1"
+      - tapOn:
+          id: "delete-button-Burst Note 3"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible: "Unpin"
     timeout: 15000
-- doubleTapOn:
-    id: "pin-button-.*"
-    index: 1
-- waitForAnimationToEnd
-- doubleTapOn:
-    id: "pin-button-.*"
-    index: 2
-- waitForAnimationToEnd
-
-- doubleTapOn:
-    id: "delete-button-.*"
-    index: 0
-- waitForAnimationToEnd
 
 - assertNotVisible:
     text: "Burst Note 3"

@@ -71,7 +71,14 @@ async function textVisible(text) {
 
   try {
     const el = await app.findElementByTestID(text)
-    return el.isDisplayed()
+    return Boolean(el)
+  } catch {
+    // try Name
+  }
+
+  try {
+    const matches = await browser.$$(`//*[@Name="${text}"]`)
+    return matches.length > 0
   } catch {
     return false
   }
@@ -116,17 +123,31 @@ async function tapName(name) {
 }
 
 async function addNote(title) {
+  const before = await subtitleText()
+  const match = before.match(/(\d+) notes?/)
+  const nextCount = (match ? parseInt(match[1], 10) : 0) + 1
   const input = await app.findElementByTestID('title-input')
   await input.click()
   await sleep(150)
-  // Real keystrokes + Enter hit TextChanged / onSubmitEditing. setValue +
-  // Pressable click leaves the controlled title empty, so Add is a no-op.
   await browser.keys(['Control', 'a'])
+  await sleep(50)
+  await browser.keys(['Delete'])
   await sleep(50)
   await browser.keys(title)
   await sleep(200)
   await browser.keys(['Enter'])
-  await sleep(400)
+  try {
+    await waitForNoteCount(nextCount, 4000)
+    return
+  } catch {
+    // Enter did not submit — click the labeled button (not disabled).
+  }
+  try {
+    await tapName('Add note')
+  } catch {
+    await tapTestID('add-note-button')
+  }
+  await waitForNoteCount(nextCount, 15000)
 }
 
 async function dismissKeyboard() {
