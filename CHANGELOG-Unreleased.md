@@ -13,6 +13,7 @@
 ### Changes
 
 ### Internal
+- CodeQL: build Java/Kotlin from `native/androidTest` and Swift from `WatermelonTester` so default-setup autobuild is not required.
 - Simplified `AGENTS.md` / added Claude Code rules and cwd hooks so agents stop mixing up the library root with `examples/NotesApp`.
 - NotesApp: disable the Expo dev menu / FAB / onboarding overlay on launch so Maestro e2e can tap the UI.
 - NotesApp: sticky FlashList pager (`Q.skip` + `Q.take(20)`), UI moved under `src/`, Maestro flows for cold start, CRUD, kill-and-relaunch, interaction burst, and pagination.

@@ -2,7 +2,8 @@ name: NitromelonDB CodeQL
 
 # Skip vendored, generated, and build output. First-party native code in
 # native/shared, native/nitro, native/android, native/ios, and native/windows
-# is still analyzed (C/C++ uses build-mode: none, which honors these paths).
+# is still analyzed. C/C++ uses build-mode: none. Java/Kotlin and Swift use
+# manual builds in .github/workflows/codeql.yml.
 paths-ignore:
   - '**/node_modules/**'
   - '**/.yarn/**'
