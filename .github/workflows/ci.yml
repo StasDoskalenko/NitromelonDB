@@ -150,9 +150,14 @@ jobs:
       EXPO_NO_TELEMETRY: 1
     steps:
       - uses: actions/checkout@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
       - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: 'adopt'
           java-version: '21'
       - name: Set Node.js version
         uses: actions/setup-node@v4
@@ -161,29 +166,21 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: 'node_modules'
-          key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
+          key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
       - run: yarn install --immutable
       - name: Install NotesApp
         working-directory: examples/NotesApp
         run: yarn install --immutable
-      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v3
       - name: Expo prebuild Android
         working-directory: examples/NotesApp
         run: yarn expo prebuild --platform android --non-interactive --no-install
-      - name: Assemble NotesApp release APK
-        working-directory: examples/NotesApp/android
-        run: ./gradlew assembleRelease -PreactNativeArchitectures=x86
       - name: Install Maestro
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - name: Run Maestro e2e
+      # android-emulator-runner runs each YAML line via `sh -c`, so keep this a single command.
+      - name: run tests
         uses: reactivecircus/android-emulator-runner@v2.33.0
         with:
           api-level: 29
