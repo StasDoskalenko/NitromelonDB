@@ -2,14 +2,20 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, closed]
   push:
     branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
   eslint:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-24.04
     name: ESLint
     steps:
@@ -25,6 +31,7 @@ jobs:
       - run: yarn install --immutable
       - run: yarn eslint
   typescript:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-24.04
     name: TypeScript
     steps:
@@ -43,6 +50,7 @@ jobs:
       - name: Typecheck examples
         run: yarn test:typescript
   ci-check:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-24.04
     name: JavaScript tests
     steps:
@@ -64,6 +72,7 @@ jobs:
       - name: Gradle Wrapper Validation
         uses: gradle/actions/wrapper-validation@v4
   ios-build:
+    needs: [eslint, typescript, ci-check]
     runs-on: macos-26
     name: iOS build
     timeout-minutes: 90
@@ -148,6 +157,7 @@ jobs:
           IOS_DERIVED_DATA_PATH: native/iosTest/DerivedData
         run: yarn test:ios
   android-build:
+    needs: [eslint, typescript, ci-check]
     runs-on: ubuntu-24.04
     name: Android build
     timeout-minutes: 60
@@ -206,7 +216,7 @@ jobs:
           api-level: 29
           working-directory: ./native/androidTest
           script: |
-            set -euo pipefail
+            set -eu
             APP_APK=app/build/outputs/apk/debug/app-debug.apk
             TEST_APK=app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             if [ ! -f "$APP_APK" ] || [ ! -f "$TEST_APK" ]; then
@@ -222,6 +232,7 @@ jobs:
               exit 1
             fi
   notesapp-android-build:
+    needs: [eslint, typescript, ci-check]
     runs-on: ubuntu-24.04
     name: NotesApp Android (build)
     timeout-minutes: 90
@@ -307,7 +318,7 @@ jobs:
         with:
           api-level: 29
           script: |
-            set -euo pipefail
+            set -eu
             yarn --cwd examples/NotesApp start:e2e &
             for i in $(seq 1 90); do
               if curl -sf http://localhost:8081/status; then
@@ -328,6 +339,7 @@ jobs:
             maestro test examples/NotesApp/maestro/
 
   windows-build:
+    needs: [eslint, typescript, ci-check]
     # windows-2025 currently ships VS 2026 (v180 / MSVC v145), SDK 10.0.26100,
     # Node 24.19.0, NuGet, and WinAppDriver. Inherit MSVC from the image.
     runs-on: windows-2025
@@ -417,7 +429,27 @@ jobs:
         with:
           name: notesapp-windows-x64-release
           path: examples/NotesApp_windows/windows
-      - name: Deploy NotesApp (no rebuild)
-        run: yarn windows -- --arch x64 --release --logging --no-packager --no-launch --no-build
+      - name: Install NotesApp from artifact
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packages = @(Get-ChildItem -Path 'windows/AppPackages' -Recurse -Include *.msix, *.appx, *.msixbundle, *.appxbundle -ErrorAction SilentlyContinue)
+          if ($packages.Count -eq 0) {
+            Write-Host 'No AppX in artifact. windows/ layout:'
+            Get-ChildItem -Path 'windows' -Recurse -Depth 6 | Select-Object -ExpandProperty FullName
+            throw 'Expected an .msix/.appx under windows/AppPackages'
+          }
+          $pkg = $packages | Select-Object -First 1
+          Write-Host "Installing $($pkg.FullName)"
+          $deps = Join-Path $pkg.DirectoryName 'Dependencies'
+          if (Test-Path $deps) {
+            Get-ChildItem -Path $deps -Recurse -Include *.appx, *.msix |
+              ForEach-Object {
+                Write-Host "Dependency $($_.FullName)"
+                Add-AppxPackage -Path $_.FullName -ErrorAction SilentlyContinue
+              }
+          }
+          Get-AppxPackage -Name NitromelonWindows -ErrorAction SilentlyContinue |
+            Remove-AppxPackage -ErrorAction SilentlyContinue
+          Add-AppxPackage -Path $pkg.FullName -ForceApplicationShutdown
       - name: Run NotesApp UI e2e
         run: yarn test:windows:e2e

@@ -16,6 +16,7 @@
 
 ### Internal
 - CI: lint GitHub Actions workflows with actionlint and action-validator (`yarn lint:workflows`) in a separate workflow so a broken `ci.yml` still fails checks.
+- CI: native/NotesApp builds wait for ESLint, TypeScript, and JavaScript tests. `concurrency` cancels superseded PR/master runs (including when a PR is closed).
 - CI: split iOS, Android, and Windows native jobs into a build phase (upload artifacts) and a tests phase, so compile failures stay distinct from e2e/emulator failures.
 - CI: run NotesApp Maestro e2e on Android (prebuild/assemble, then emulator + Metro + `maestro test maestro/`).
 - NotesApp Windows: schema v3, 100-note seed, sticky `Q.skip`/`Q.take(20)` pager, and WinAppDriver UI e2e that mirrors the Maestro flows (replacing the Cavy integration host in CI).

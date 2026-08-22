@@ -4,14 +4,20 @@ name: Workflow lint
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, closed]
   push:
     branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
   lint:
+    if: github.event.action != 'closed'
     name: actionlint + action-validator
     runs-on: ubuntu-24.04
     steps:
