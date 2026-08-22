@@ -25,6 +25,7 @@ Never run Expo, Metro, or Maestro from the library root. NotesApp is not the pub
 yarn              # install
 yarn test         # Jest
 yarn eslint && yarn typecheck
+yarn lint:workflows  # GitHub Actions YAML (actionlint + action-validator)
 yarn build        # src/ → dist/
 yarn specs        # regenerate Nitro codegen
 ```

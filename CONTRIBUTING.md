@@ -79,9 +79,12 @@ yarn test
 yarn eslint
 yarn typecheck
 yarn test:typescript
+yarn lint:workflows
 ```
 
-Pull requests must pass the **ESLint** and **TypeScript** CI jobs.
+`yarn lint:workflows` runs [actionlint](https://github.com/rhysd/actionlint) and [action-validator](https://github.com/mpalmer/action-validator) (schema check; skipped on Windows because that tool has no Windows binary). It lives in a separate GitHub Actions workflow so a broken `ci.yml` still gets reported.
+
+Pull requests must pass the **ESLint**, **TypeScript**, and **Workflow lint** CI jobs.
 
 ### Editing files
 

@@ -1,0 +1,24 @@
+# Separate from ci.yml so a broken CI workflow still gets linted
+# (GitHub skips invalid workflow files, which is how PR #82 lost CI checks).
+name: Workflow lint
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: actionlint + action-validator
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - name: Lint GitHub workflows
+        run: node scripts/lint-workflows.mjs
