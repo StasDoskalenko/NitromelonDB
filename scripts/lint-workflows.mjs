@@ -10,6 +10,8 @@
  * schema check. It has no Windows binary, so Windows runs actionlint only.
  *
  * Binaries are downloaded into `.cache/workflow-lint/` (gitignored).
+ * ShellCheck style-only findings (SC2129, etc.) are ignored; Ubuntu runners
+ * ship shellcheck and Windows often does not.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -162,9 +164,32 @@ function workflowFiles(dir = WORKFLOWS_DIR) {
     .sort()
 }
 
+function actionlintArgs(files) {
+  return [
+    '-color',
+    // Ubuntu images ship shellcheck; local Windows often does not. Style-only
+    // codes (SC2129 grouped redirects) are not workflow-validity bugs.
+    '-ignore',
+    'shellcheck reported issue in this script: SC[0-9]+:style:',
+    ...files,
+  ]
+}
+
+function actionlintEnv() {
+  const env = { ...process.env }
+  const extra = '--severity=warning'
+  env.SHELLCHECK_OPTS = env.SHELLCHECK_OPTS ? `${env.SHELLCHECK_OPTS} ${extra}` : extra
+  return env
+}
+
 function runCaptured(binary, args, cwd) {
   try {
-    execFileSync(binary, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8' })
+    execFileSync(binary, args, {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      encoding: 'utf8',
+      env: actionlintEnv(),
+    })
     return { ok: true, output: '' }
   } catch (error) {
     const output = `${error.stdout || ''}${error.stderr || ''}`
@@ -174,7 +199,7 @@ function runCaptured(binary, args, cwd) {
 
 function runActionlint(binary, files, cwd = ROOT) {
   console.log('actionlint')
-  execFileSync(binary, ['-color', ...files], { cwd, stdio: 'inherit' })
+  execFileSync(binary, actionlintArgs(files), { cwd, stdio: 'inherit', env: actionlintEnv() })
 }
 
 function runActionValidator(binary, files, cwd = ROOT) {
@@ -210,7 +235,7 @@ jobs:
       - run: echo hi
 `,
   )
-  const result = runCaptured(actionlintBinary, [broken], dir)
+  const result = runCaptured(actionlintBinary, actionlintArgs([broken]), dir)
   if (result.ok) {
     throw new Error('self-test: actionlint accepted a workflow with needs: windows-build missing')
   }
