@@ -329,6 +329,7 @@ jobs:
             curl -s "http://localhost:8081/index.bundle?platform=android&dev=false&minify=false" -o /tmp/notesapp.bundle || true
             maestro test examples/NotesApp/maestro/
 
+  windows-build:
     # windows-2025 currently ships VS 2026 (v180 / MSVC v145), SDK 10.0.26100,
     # Node 24.19.0, NuGet, and WinAppDriver. Inherit MSVC from the image.
     runs-on: windows-2025
