@@ -171,6 +171,19 @@ async function addNote(title) {
       await browser.keys(title.split(''))
       await sleep(300)
     }
+    // The control's own text reads back correctly (confirmed in CI logs) even
+    // when Add still no-ops: NotesComposer tracks the title via onChangeText
+    // into a ref (titleRef) for Windows, and driver-injected input may not
+    // fire that bridge event even though it lands in the native control.
+    // Submit via Enter first — onSubmitEditing reads event.nativeEvent.text,
+    // the native control's own current text, sidestepping titleRef entirely.
+    await browser.keys(['Enter'])
+    try {
+      await waitForNoteCount(nextCount, 6000)
+      return
+    } catch {
+      // fall through to the Add button as a second attempt this round
+    }
     try {
       await tapName('Add note')
     } catch {
