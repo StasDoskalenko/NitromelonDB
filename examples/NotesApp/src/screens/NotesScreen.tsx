@@ -117,7 +117,15 @@ export function NotesScreen({ db }: NotesScreenProps) {
       return
     }
     lastDeleteAt.current = now
-    void note.deleteForever()
+    void note.deleteForever().then(() => {
+      // See the addNote() page-bounce above — the same reload staleness can
+      // hit a delete on some platforms even though it isn't reproducible for
+      // delete on Android (confirmed live there without this).
+      setTimeout(() => {
+        setPage((current) => current + 1)
+        setTimeout(() => setPage((current) => Math.max(1, current - 1)), 0)
+      }, 0)
+    })
   }
 
   const rootProps = Platform.OS === 'ios' ? { behavior: 'padding' as const } : {}

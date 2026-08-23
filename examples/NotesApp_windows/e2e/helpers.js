@@ -153,7 +153,7 @@ async function addNote(title) {
     const input = await app.findElementByTestID('title-input')
     await input.click()
     await sleep(200)
-    await browser.keys(Array(80).fill('Backspace'))
+    await browser.keys(Array(40).fill('Backspace'))
     await browser.keys(title.split(''))
     await sleep(300)
     // browser.keys() reaches the driver session (confirmed in CI logs), but
@@ -167,7 +167,7 @@ async function addNote(title) {
         break
       }
       await input.click()
-      await browser.keys(Array(80).fill('Backspace'))
+      await browser.keys(Array(40).fill('Backspace'))
       await browser.keys(title.split(''))
       await sleep(300)
     }
@@ -177,9 +177,11 @@ async function addNote(title) {
     // fire that bridge event even though it lands in the native control.
     // Submit via Enter first — onSubmitEditing reads event.nativeEvent.text,
     // the native control's own current text, sidestepping titleRef entirely.
+    // Once submitted, the write + list-refresh page bounce (NotesScreen) can
+    // take a beat under CI load — give it real headroom before falling back.
     await browser.keys(['Enter'])
     try {
-      await waitForNoteCount(nextCount, 6000)
+      await waitForNoteCount(nextCount, 12000)
       return
     } catch {
       // fall through to the Add button as a second attempt this round
@@ -190,7 +192,7 @@ async function addNote(title) {
       await tapTestID('add-note-button')
     }
     try {
-      await waitForNoteCount(nextCount, 6000)
+      await waitForNoteCount(nextCount, 12000)
       return
     } catch (error) {
       lastError = error
