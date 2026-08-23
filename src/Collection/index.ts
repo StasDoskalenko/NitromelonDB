@@ -26,13 +26,6 @@ export type ModelClass<Record extends Model = Model> = {
   associations: Associations
   _wmelonTag: string
   name: string
-  // Untyped by Record: it's assigned recursively inside ModelClass<Record>
-  // itself, which trips strict property-type variance checking (unlike the
-  // bivariantly-checked methods below) the moment any two different Record
-  // types need to compare — e.g. Database's `modelClasses: ModelClass<Model>[]`
-  // against a specific `ModelClass<Note>`.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  associatedCollectionClass?: new (database: Database, modelClass: any) => Collection<any>
   _prepareCreate(collection: Collection<Record>, recordBuilder: (record: Record) => void): Record
   _prepareCreateFromDirtyRaw(collection: Collection<Record>, dirtyRaw: DirtyRaw): Record
   _disposableFromDirtyRaw(collection: Collection<Record>, dirtyRaw: DirtyRaw): Record

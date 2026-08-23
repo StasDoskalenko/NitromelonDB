@@ -1,12 +1,13 @@
+import type { Collection } from 'nitromelondb'
 import { Database } from 'nitromelondb'
 import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
-import Note, { type NotesCollection } from './model/Note'
+import Note from './model/Note'
 import { migrations } from './model/migrations'
 import { NOTES_TABLE, schema } from './model/schema'
 
 export type ExampleDatabase = {
   database: Database
-  notes: NotesCollection
+  notes: Collection<Note>
   schemaVersion: number
   sqliteEngine: string
 }
@@ -28,10 +29,7 @@ export function createExampleDatabase(): ExampleDatabase {
 
   return {
     database,
-    // CollectionMap instantiates NotesCollection at runtime for this table
-    // (Note.associatedCollectionClass); database.get()'s return type doesn't
-    // know that, since it isn't parameterized per-table.
-    notes: database.get<Note>(NOTES_TABLE) as NotesCollection,
+    notes: database.get<Note>(NOTES_TABLE),
     schemaVersion: schema.version,
     sqliteEngine: adapter._dispatcherType === 'nitro' ? 'Nitro SQLite' : adapter._dispatcherType,
   }

@@ -1,15 +1,14 @@
-import { Collection, Model } from 'nitromelondb'
+import type { Collection } from 'nitromelondb'
+import { Model } from 'nitromelondb'
 import { date, field, readonly, text, writer } from 'nitromelondb/decorators'
 import { NOTES_TABLE } from './schema'
 
-// Note's own Collection: `create()` has no existing record to be a Model
-// instance method on, so this is where @writer creation helpers live. Kept
-// in this file, not a separate one — it's still just "everything about
-// notes."
-export class NotesCollection extends Collection<Note> {
-  @writer
-  async addNote(title: string, body: string): Promise<Note> {
-    return this.create((note) => {
+// Collection.create() has no existing Note instance to be a method on, so
+// this stays a plain function (not a Model method) — but it's still kept
+// here, next to the model it creates, instead of inline in the screen.
+export async function addNote(notes: Collection<Note>, title: string, body: string): Promise<Note> {
+  return notes.database.write(() =>
+    notes.create((note) => {
       note.title = title
       note.body = body
       // createdAt is set automatically by the framework (see @date below);
@@ -17,13 +16,12 @@ export class NotesCollection extends Collection<Note> {
       // shared counter needed, since real adds are never sub-millisecond.
       note.sortOrder = Date.now()
       note.pinned = false
-    })
-  }
+    }),
+  )
 }
 
 export default class Note extends Model {
   static table = NOTES_TABLE
-  static associatedCollectionClass = NotesCollection
 
   @text('title')
   title!: string

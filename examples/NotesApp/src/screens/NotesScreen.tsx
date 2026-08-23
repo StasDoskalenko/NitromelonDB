@@ -10,6 +10,7 @@ import { PAGE_SIZE } from '../constants'
 import type { ExampleDatabase } from '../database'
 import { useNotes } from '../hooks/useNotes'
 import type Note from '../model/Note'
+import { addNote } from '../model/Note'
 import { colors } from '../theme'
 
 type NotesScreenProps = {
@@ -49,7 +50,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
     setPage(Math.min(pageCount, Math.max(1, nextPage)))
   }
 
-  const addNote = async () => {
+  const submitNote = async () => {
     const nextTitle = title.trim()
     if (!nextTitle || addInFlight.current) {
       return
@@ -58,7 +59,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
     setBusy(true)
     setActionError(null)
     try {
-      await db.notes.addNote(nextTitle, body.trim())
+      await addNote(db.notes, nextTitle, body.trim())
       setTitle('')
       setBody('')
       setPage(1)
@@ -120,7 +121,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
         busy={busy}
         onChangeTitle={setTitle}
         onChangeBody={setBody}
-        onSubmit={() => void addNote()}
+        onSubmit={() => void submitNote()}
       />
       <StatusBar style="auto" />
     </KeyboardAvoidingView>

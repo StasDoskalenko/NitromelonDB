@@ -59,16 +59,6 @@ export default class Model {
   // Used by withObservables to differentiate between object types
   static _wmelonTag: string = 'model'
 
-  /**
-   * Optionally set in Model subclasses to a `Collection` subclass to use for
-   * this table instead of the generic `Collection`. Useful for domain-specific
-   * `@writer`/`@reader` methods (e.g. a creation helper) that need a Collection
-   * — which a Model instance method can't provide, since create() has no
-   * existing record to be a method on.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  static associatedCollectionClass?: new (database: Database, modelClass: any) => Collection<any>
-
   _raw: RawRecord
 
   _isEditing: boolean = false
