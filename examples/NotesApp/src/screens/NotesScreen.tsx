@@ -16,23 +16,27 @@ type NotesScreenProps = {
 
 export function NotesScreen({ db }: NotesScreenProps) {
   const [page, setPage] = useState(1)
-  const [listRevision, setListRevision] = useState(0)
-  const { notes, totalCount, error: loadError } = useNotes(db, page, PAGE_SIZE, listRevision)
+  const { notes, totalCount, error: loadError } = useNotes(db, page, PAGE_SIZE)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  // NotesComposer's Windows title field is uncontrolled (defaultValue) because
+  // driver-injected/IME input there doesn't reliably fire onChangeText; bumping
+  // this after a successful add remounts it to actually clear the text.
+  const [composerKey, setComposerKey] = useState(0)
   const listRef = useRef<NotesListHandle>(null)
-  // Maestro/WinAppDriver list-row presses can land twice; ignore a rapid second delete.
-  const lastDeleteAt = useRef(0)
+  // A ref check (not React state) so a second submit landing in the same tick
+  // as the first — e.g. Enter and a fallback button click on Windows — is
+  // rejected even before `busy` has re-rendered the disabled Add button.
   const lastAddAt = useRef(0)
-  const writeChain = useRef(Promise.resolve())
-  const pendingAdds = useRef(0)
-  const sortOrderRef = useRef(Date.now())
+  const lastDeleteAt = useRef(0)
+  // Date.now() alone can repeat within the same millisecond for back-to-back
+  // adds; keep sort order strictly increasing so insertion order is stable.
+  const sortOrderRef = useRef(0)
 
   const error = actionError ?? loadError
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
-  const firstNoteId = notes[0]?.id
 
   useEffect(() => {
     if (page > pageCount) {
@@ -42,7 +46,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
 
   useEffect(() => {
     listRef.current?.scrollToTop()
-  }, [page, firstNoteId])
+  }, [page])
 
   const goToPage = (delta: number) => {
     setPage((current) => Math.min(pageCount, Math.max(1, current + delta)))
@@ -50,7 +54,6 @@ export function NotesScreen({ db }: NotesScreenProps) {
 
   const addNote = (nativeTitle?: string) => {
     const nextTitle = nativeTitle?.trim() || title.trim()
-    const nextBody = body.trim()
     if (!nextTitle) {
       return
     }
@@ -59,56 +62,33 @@ export function NotesScreen({ db }: NotesScreenProps) {
       return
     }
     lastAddAt.current = now
+    const nextBody = body.trim()
+    const sortOrder = Math.max(now, sortOrderRef.current + 1)
+    sortOrderRef.current = sortOrder
     Keyboard.dismiss()
     setTitle('')
     setBody('')
     setActionError(null)
-    pendingAdds.current += 1
     setBusy(true)
-    const sortOrder = Math.max(Date.now(), sortOrderRef.current + 1)
-    sortOrderRef.current = sortOrder
-    writeChain.current = writeChain.current
-      .then(() =>
-        db.database.write(async () => {
-          await db.notes.create((note) => {
-            note.title = nextTitle
-            note.body = nextBody
-            note.createdAt = new Date()
-            note.sortOrder = sortOrder
-            note.pinned = false
-          })
-        }),
-      )
+    db.database
+      .write(async () => {
+        await db.notes.create((note) => {
+          note.title = nextTitle
+          note.body = nextBody
+          note.createdAt = new Date()
+          note.sortOrder = sortOrder
+          note.pinned = false
+        })
+      })
       .then(() => {
         setPage(1)
-        setListRevision((current) => current + 1)
-        // Android: a query re-run with the same skip/take/sort as one already
-        // served can come back stale immediately after an insert (observed:
-        // pin/delete refresh live via the column-diff path and always see the
-        // write; a same-page reload after create does not, even after 90s+).
-        // Bouncing the page forces a query with different parameters, which
-        // reliably picks up the new row; bumping listRevision alone (same
-        // params) does not. Deferred to its own tick (setTimeout, not
-        // requestAnimationFrame — RNW doesn't reliably run the rAF/render
-        // loop for a window that isn't actively compositing, e.g. backgrounded
-        // or off-screen in CI, which silently dropped this step there) so it
-        // can't land in the same commit as the listRevision-driven composer
-        // remount above — doing both together left the composer's title
-        // uncleared.
-        setTimeout(() => {
-          setPage((current) => current + 1)
-          setTimeout(() => setPage(1), 0)
-        }, 0)
+        listRef.current?.scrollToTop()
+        setComposerKey((current) => current + 1)
       })
       .catch((writeError) => {
         setActionError(writeError instanceof Error ? writeError.message : String(writeError))
       })
-      .finally(() => {
-        pendingAdds.current -= 1
-        if (pendingAdds.current === 0) {
-          setBusy(false)
-        }
-      })
+      .finally(() => setBusy(false))
   }
 
   const deleteNote = (note: Note) => {
@@ -117,15 +97,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
       return
     }
     lastDeleteAt.current = now
-    void note.deleteForever().then(() => {
-      // See the addNote() page-bounce above — the same reload staleness can
-      // hit a delete on some platforms even though it isn't reproducible for
-      // delete on Android (confirmed live there without this).
-      setTimeout(() => {
-        setPage((current) => current + 1)
-        setTimeout(() => setPage((current) => Math.max(1, current - 1)), 0)
-      }, 0)
-    })
+    void note.deleteForever()
   }
 
   const rootProps = Platform.OS === 'ios' ? { behavior: 'padding' as const } : {}
@@ -153,7 +125,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
       <NotesList ref={listRef} notes={notes} onDelete={deleteNote} />
 
       <NotesComposer
-        key={listRevision}
+        key={composerKey}
         title={title}
         body={body}
         busy={busy}
