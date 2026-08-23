@@ -9,8 +9,7 @@ import { NotesPager } from '../components/NotesPager'
 import { PAGE_SIZE } from '../constants'
 import type { ExampleDatabase } from '../database'
 import { useNotes } from '../hooks/useNotes'
-import type Note from '../model/Note'
-import { addNote } from '../model/Note'
+import Note from '../model/Note'
 import { colors } from '../theme'
 
 type NotesScreenProps = {
@@ -59,7 +58,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
     setBusy(true)
     setActionError(null)
     try {
-      await addNote(db.notes, nextTitle, body.trim())
+      await Note.addNote(db.notes, nextTitle, body.trim())
       setTitle('')
       setBody('')
       setPage(1)
