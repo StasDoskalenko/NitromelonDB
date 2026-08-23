@@ -1,29 +1,32 @@
-import { Collection, Model } from 'nitromelondb'
+import type { Collection } from 'nitromelondb'
+import { Model, Q } from 'nitromelondb'
 import { date, field, readonly, text, writer } from 'nitromelondb/decorators'
 import { NOTES_TABLE } from './schema'
 
-// Note's own Collection: `create()` has no existing record to be a Model
-// instance method on, so this is where @writer creation helpers live. Kept
-// in this file, not a separate one — it's still just "everything about
-// notes."
-export class NotesCollection extends Collection<Note> {
-  @writer
-  async addNote(title: string, body: string): Promise<Note> {
-    return this.create((note) => {
-      note.title = title
-      note.body = body
-      // createdAt is set automatically by the framework (see @date below);
-      // sortOrder has no such mechanism, so it's set directly here — no
-      // shared counter needed, since real adds are never sub-millisecond.
-      note.sortOrder = Date.now()
-      note.pinned = false
-    })
-  }
-}
-
 export default class Note extends Model {
   static table = NOTES_TABLE
-  static associatedCollectionClass = NotesCollection
+
+  // Collection.create() has no existing Note instance to be a method on, so
+  // this takes the collection as an argument — but it still lives here, next
+  // to the model it creates, instead of inline in the screen.
+  //
+  // rank is a dense 1..N position, 1 = top: adding a note shifts every
+  // existing rank up by one and inserts the new note at rank 1, all batched
+  // into a single write.
+  static async addNote(notes: Collection<Note>, title: string, body: string): Promise<Note> {
+    return notes.database.write(async () => {
+      const existing = await notes.query().fetch()
+      const shifted = existing.map((note) => note.prepareUpdate((n) => (n.rank += 1)))
+      const created = notes.prepareCreate((note) => {
+        note.title = title
+        note.body = body
+        note.rank = 1
+        note.pinned = false
+      })
+      await notes.database.batch(...shifted, created)
+      return created
+    })
+  }
 
   @text('title')
   title!: string
@@ -41,8 +44,10 @@ export default class Note extends Model {
   updatedAt!: Date
   @field('pinned')
   pinned!: boolean
-  @field('sort_order')
-  sortOrder!: number
+  // Dense 1..N position, 1 = top. Not the library's SortOrder ('asc' | 'desc',
+  // a query-direction type) — this is a per-row rank. See addNote/deleteForever.
+  @field('rank')
+  rank!: number
 
   @writer
   async togglePinned() {
@@ -53,6 +58,9 @@ export default class Note extends Model {
 
   @writer
   async deleteForever() {
-    await this.destroyPermanently()
+    const notes = this.collections.get<Note>(NOTES_TABLE)
+    const following = await notes.query(Q.where('rank', Q.gt(this.rank))).fetch()
+    const shifted = following.map((note) => note.prepareUpdate((n) => (n.rank -= 1)))
+    await this.database.batch(...shifted, this.prepareDestroyPermanently())
   }
 }

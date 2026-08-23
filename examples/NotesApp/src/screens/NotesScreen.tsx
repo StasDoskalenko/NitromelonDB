@@ -7,7 +7,7 @@ import { NotesPager } from '../components/NotesPager'
 import { PAGE_SIZE } from '../constants'
 import type { ExampleDatabase } from '../database'
 import { useNotes } from '../hooks/useNotes'
-import type Note from '../model/Note'
+import Note from '../model/Note'
 import { colors } from '../theme'
 
 type NotesScreenProps = {
@@ -62,7 +62,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
     setActionError(null)
     setBusy(true)
     try {
-      await db.notes.addNote(nextTitle, nextBody)
+      await Note.addNote(db.notes, nextTitle, nextBody)
       setPage(1)
       listRef.current?.scrollToTop()
       setComposerKey((current) => current + 1)
