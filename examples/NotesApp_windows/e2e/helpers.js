@@ -8,7 +8,6 @@
  */
 /* global browser, remote */
 
-const {execFileSync} = require('child_process')
 const {app} = require('@react-native-windows/automation')
 const {killApp, launchApp} = require('./app-process')
 
@@ -138,50 +137,24 @@ function actionTestID(action, title) {
   return `${action}-button-${String(title).replace(/\s+/g, '-')}`
 }
 
-function activateAppWindow() {
-  execFileSync(
-    'powershell.exe',
-    [
-      '-NoProfile',
-      '-Command',
-      [
-        '$p = Get-Process -Name NitromelonWindows -ErrorAction Stop | Select-Object -First 1',
-        'Add-Type -Name Native -Namespace Win -MemberDefinition \'[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);\' -ErrorAction SilentlyContinue',
-        '[void][Win.Native]::ShowWindow($p.MainWindowHandle, 9)',
-        '[void][Win.Native]::SetForegroundWindow($p.MainWindowHandle)',
-      ].join('; '),
-    ],
-    {windowsHide: true},
-  )
-}
-
-function typeIntoForeground(text) {
-  const escaped = String(text).replace(/[+^%~(){}[\]]/g, match => `{${match}}`)
-  execFileSync(
-    'powershell.exe',
-    [
-      '-NoProfile',
-      '-STA',
-      '-Command',
-      `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait(${JSON.stringify(
-        escaped,
-      )})`,
-    ],
-    {windowsHide: true},
-  )
-}
-
+// PowerShell SendKeys + SetForegroundWindow used to type here, but it silently
+// no-ops in CI: SetForegroundWindow is refused when the calling process didn't
+// originate the input focus (Windows' foreground-lock), so keystrokes land
+// nowhere and the title field stays empty. browser.keys() goes through the
+// same WinAppDriver session as every other command (already proven to reach
+// the app in CI via scrollUntilText's PageDown) and needs no OS-level focus
+// dance. Backspace first in case a prior attempt left a partial title.
 async function addNote(title) {
   const before = await subtitleText()
   const match = before.match(/(\d+) notes?/)
   const nextCount = (match ? parseInt(match[1], 10) : 0) + 1
   let lastError
   for (let attempt = 0; attempt < 3; attempt++) {
-    activateAppWindow()
     const input = await app.findElementByTestID('title-input')
     await input.click()
     await sleep(200)
-    typeIntoForeground(title)
+    await browser.keys(Array(80).fill('Backspace'))
+    await browser.keys(title.split(''))
     await sleep(300)
     try {
       await tapName('Add note')

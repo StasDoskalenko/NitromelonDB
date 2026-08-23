@@ -82,6 +82,19 @@ export function NotesScreen({ db }: NotesScreenProps) {
       .then(() => {
         setPage(1)
         setListRevision((current) => current + 1)
+        // Android: a query re-run with the same skip/take/sort as one already
+        // served can come back stale immediately after an insert (observed:
+        // pin/delete refresh live via the column-diff path and always see the
+        // write; a same-page reload after create does not, even after 90s+).
+        // Bouncing the page forces a query with different parameters, which
+        // reliably picks up the new row; bumping listRevision alone (same
+        // params) does not. Deferred to its own frame so it can't land in the
+        // same commit as the listRevision-driven composer remount above —
+        // doing both together left the composer's title uncleared.
+        requestAnimationFrame(() => {
+          setPage((current) => current + 1)
+          requestAnimationFrame(() => setPage(1))
+        })
       })
       .catch((writeError) => {
         setActionError(writeError instanceof Error ? writeError.message : String(writeError))
