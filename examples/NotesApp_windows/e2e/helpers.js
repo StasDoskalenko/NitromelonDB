@@ -175,18 +175,27 @@ async function addNote(title) {
   const before = await subtitleText()
   const match = before.match(/(\d+) notes?/)
   const nextCount = (match ? parseInt(match[1], 10) : 0) + 1
-  activateAppWindow()
-  const input = await app.findElementByTestID('title-input')
-  await input.click()
-  await sleep(150)
-  typeIntoForeground(title)
-  await sleep(250)
-  try {
-    await tapName('Add note')
-  } catch {
-    await tapTestID('add-note-button')
+  let lastError
+  for (let attempt = 0; attempt < 3; attempt++) {
+    activateAppWindow()
+    const input = await app.findElementByTestID('title-input')
+    await input.click()
+    await sleep(200)
+    typeIntoForeground(title)
+    await sleep(300)
+    try {
+      await tapName('Add note')
+    } catch {
+      await tapTestID('add-note-button')
+    }
+    try {
+      await waitForNoteCount(nextCount, 6000)
+      return
+    } catch (error) {
+      lastError = error
+    }
   }
-  await waitForNoteCount(nextCount, 15000)
+  throw lastError
 }
 
 async function dismissKeyboard() {

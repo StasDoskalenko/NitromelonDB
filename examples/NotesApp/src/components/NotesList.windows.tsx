@@ -1,10 +1,9 @@
 import { useImperativeHandle, useRef, type Ref } from 'react'
-import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native'
+import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { NoteCard } from './NoteCard'
 import type Note from '../model/Note'
 import { colors } from '../theme'
 import type { NotesListHandle } from './NotesListHandle'
-import { noteDeleteTestID, notePinTestID } from '../utils/noteTestIds'
 
 export type { NotesListHandle } from './NotesListHandle'
 
@@ -29,27 +28,6 @@ export function NotesList({ notes, onDelete, ref }: NotesListProps) {
         <Text testID="notes-list" accessible>
           {notes.map((note) => note.title).join('\n') || 'notes-list'}
         </Text>
-        {notes.map((note) => (
-          <View key={note.id} collapsable={false}>
-            <Text testID={note.title} accessible>
-              {note.title}
-            </Text>
-            <Pressable
-              testID={notePinTestID(note.title)}
-              nativeID={notePinTestID(note.title)}
-              onPress={() => void note.togglePinned()}
-              accessibilityRole="button"
-              accessibilityLabel={note.pinned ? 'Unpin' : 'Pin'}
-            />
-            <Pressable
-              testID={noteDeleteTestID(note.title)}
-              nativeID={noteDeleteTestID(note.title)}
-              onPress={() => onDelete(note)}
-              accessibilityRole="button"
-              accessibilityLabel="Delete"
-            />
-          </View>
-        ))}
       </View>
       <ScrollView
         key={notes[0]?.id ?? 'empty'}
