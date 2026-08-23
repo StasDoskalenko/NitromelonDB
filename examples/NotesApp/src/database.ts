@@ -1,8 +1,7 @@
 import { Database } from 'nitromelondb'
 import { Platform } from 'react-native'
 import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
-import Note from './model/Note'
-import type NotesCollection from './model/NotesCollection'
+import Note, { type NotesCollection } from './model/Note'
 import { migrations } from './model/migrations'
 import { NOTES_TABLE, schema } from './model/schema'
 
