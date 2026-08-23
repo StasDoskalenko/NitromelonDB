@@ -187,6 +187,45 @@ jobs:
           profile: pixel
           disable-animations: true
           script: bash scripts/ci-notesapp-android-maestro.sh
+  notesapp-ios:
+    needs: [eslint, typescript, ci-check]
+    runs-on: macos-26
+    name: NotesApp iOS (Maestro)
+    timeout-minutes: 90
+    env:
+      CI: true
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - name: Set Xcode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1
+      - uses: actions/cache@v4
+        with:
+          path: 'node_modules'
+          key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
+      - run: yarn install --immutable
+      - name: Install NotesApp
+        working-directory: examples/NotesApp
+        run: yarn install --immutable
+      - name: Expo prebuild iOS
+        working-directory: examples/NotesApp
+        # No --no-install: unlike Android, `pod install` (not a JS install)
+        # needs to run here, and prebuild is what runs it for iOS.
+        run: yarn expo prebuild --platform ios --non-interactive
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: run tests
+        run: bash scripts/ci-notesapp-ios-maestro.sh
   windows:
     needs: [eslint, typescript, ci-check]
     # windows-2025 currently ships VS 2026 (v180 / MSVC v145), SDK 10.0.26100,
