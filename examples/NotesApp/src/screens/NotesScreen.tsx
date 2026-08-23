@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native'
+import { Keyboard, StyleSheet, Text, View } from 'react-native'
+import { ComposerDock } from '../components/ComposerDock'
 import { NotesComposer } from '../components/NotesComposer'
 import { NotesHeader } from '../components/NotesHeader'
 import { NotesList, type NotesListHandle } from '../components/NotesList'
@@ -92,13 +93,12 @@ export function NotesScreen({ db }: NotesScreenProps) {
     }
   }
 
-  const rootProps = Platform.OS === 'ios' ? { behavior: 'padding' as const } : {}
-  // Android uses windowSoftInputMode=adjustResize (app.json). KeyboardAvoidingView
-  // without behavior is a no-op and can eat Maestro swipes on the list.
-  const ScreenRoot = Platform.OS === 'ios' ? KeyboardAvoidingView : View
-
   return (
-    <ScreenRoot style={styles.screen} {...rootProps}>
+    // Keyboard-avoidance is scoped to the composer (ComposerDock), not the
+    // whole screen: an earlier root-level KeyboardAvoidingView ate Maestro's
+    // swipe gestures on the list, and plain RN KeyboardAvoidingView doesn't
+    // react at all under this Expo SDK's mandatory Android edge-to-edge.
+    <View style={styles.screen}>
       <NotesHeader
         sqliteEngine={db.sqliteEngine}
         schemaVersion={db.schemaVersion}
@@ -121,16 +121,18 @@ export function NotesScreen({ db }: NotesScreenProps) {
         onDelete={(note) => void deleteNote(note)}
       />
 
-      <NotesComposer
-        key={composerKey}
-        title={title}
-        body={body}
-        busy={busy}
-        onChangeTitle={setTitle}
-        onChangeBody={setBody}
-        onSubmit={(nativeTitle) => void addNote(nativeTitle)}
-      />
-    </ScreenRoot>
+      <ComposerDock>
+        <NotesComposer
+          key={composerKey}
+          title={title}
+          body={body}
+          busy={busy}
+          onChangeTitle={setTitle}
+          onChangeBody={setBody}
+          onSubmit={(nativeTitle) => void addNote(nativeTitle)}
+        />
+      </ComposerDock>
+    </View>
   )
 }
 
