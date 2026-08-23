@@ -3,7 +3,7 @@ import { appSchema, tableSchema } from 'nitromelondb'
 export const NOTES_TABLE = 'notes'
 
 export const schema = appSchema({
-  version: 3,
+  version: 4,
   tables: [
     tableSchema({
       name: NOTES_TABLE,
@@ -13,6 +13,7 @@ export const schema = appSchema({
         { name: 'created_at', type: 'number' },
         { name: 'pinned', type: 'boolean' },
         { name: 'sort_order', type: 'number' },
+        { name: 'updated_at', type: 'number' },
       ],
     }),
   ],

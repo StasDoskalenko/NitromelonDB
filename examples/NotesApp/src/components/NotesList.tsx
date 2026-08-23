@@ -8,15 +8,21 @@ import { colors } from '../theme'
 type NotesListProps = {
   notes: Note[]
   listRef: Ref<FlashListRef<Note>>
+  deletingIds: ReadonlySet<string>
   onDelete: (note: Note) => void
 }
 
-export function NotesList({ notes, listRef, onDelete }: NotesListProps) {
+export function NotesList({ notes, listRef, deletingIds, onDelete }: NotesListProps) {
   return (
     <FlashList
       ref={listRef}
       style={styles.list}
       data={notes}
+      // FlashList v2 keeps existing content anchored in view by default when
+      // rows are added above it — the opposite of what we want here, since a
+      // new note always sorts to the top. autoscrollToTopThreshold opts back
+      // into scrolling to reveal it.
+      maintainVisibleContentPosition={{ autoscrollToTopThreshold: 10000 }}
       keyExtractor={(note) => note.id}
       contentContainerStyle={notes.length === 0 ? styles.emptyList : styles.listContent}
       testID="notes-list"
@@ -25,7 +31,9 @@ export function NotesList({ notes, listRef, onDelete }: NotesListProps) {
           No notes yet. Add one below.
         </Text>
       }
-      renderItem={({ item }) => <NoteCard note={item} onDelete={onDelete} />}
+      renderItem={({ item }) => (
+        <NoteCard note={item} isDeleting={deletingIds.has(item.id)} onDelete={onDelete} />
+      )}
     />
   )
 }

@@ -23,10 +23,12 @@ export function NotesScreen({ db }: NotesScreenProps) {
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(new Set())
   const listRef = useRef<FlashListRef<Note>>(null)
-  // Maestro doubleTapOn is required for list-row presses; ignore a rapid second delete
-  // (the second tap often lands on the next row after the list reorders).
-  const lastDeleteAt = useRef(0)
+  // The title input's onSubmitEditing and the Add button's onPress can both
+  // fire for the same tap before React re-renders `busy`; this ref closes
+  // that same-tick window that state alone can't.
+  const addInFlight = useRef(false)
 
   const error = actionError ?? loadError
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
@@ -49,38 +51,40 @@ export function NotesScreen({ db }: NotesScreenProps) {
 
   const addNote = async () => {
     const nextTitle = title.trim()
-    if (!nextTitle || busy) {
+    if (!nextTitle || addInFlight.current) {
       return
     }
+    addInFlight.current = true
     setBusy(true)
     setActionError(null)
     try {
-      await db.database.write(async () => {
-        await db.notes.create((note) => {
-          note.title = nextTitle
-          note.body = body.trim()
-          note.createdAt = new Date()
-          note.sortOrder = Date.now()
-          note.pinned = false
-        })
-      })
+      await db.notes.addNote(nextTitle, body.trim())
       setTitle('')
       setBody('')
       setPage(1)
     } catch (writeError) {
       setActionError(writeError instanceof Error ? writeError.message : String(writeError))
     } finally {
+      addInFlight.current = false
       setBusy(false)
     }
   }
 
-  const deleteNote = (note: Note) => {
-    const now = Date.now()
-    if (now - lastDeleteAt.current < 600) {
+  const deleteNote = async (note: Note) => {
+    if (deletingIds.has(note.id)) {
       return
     }
-    lastDeleteAt.current = now
-    void note.deleteForever()
+    setDeletingIds((prev) => new Set(prev).add(note.id))
+    try {
+      await note.deleteForever()
+    } catch (writeError) {
+      setActionError(writeError instanceof Error ? writeError.message : String(writeError))
+      setDeletingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(note.id)
+        return next
+      })
+    }
   }
 
   return (
@@ -103,7 +107,12 @@ export function NotesScreen({ db }: NotesScreenProps) {
         onNext={() => goToPage(page + 1)}
       />
 
-      <NotesList notes={notes} listRef={listRef} onDelete={deleteNote} />
+      <NotesList
+        notes={notes}
+        listRef={listRef}
+        deletingIds={deletingIds}
+        onDelete={(note) => void deleteNote(note)}
+      />
 
       <NotesComposer
         title={title}
