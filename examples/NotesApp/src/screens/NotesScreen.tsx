@@ -88,13 +88,17 @@ export function NotesScreen({ db }: NotesScreenProps) {
         // write; a same-page reload after create does not, even after 90s+).
         // Bouncing the page forces a query with different parameters, which
         // reliably picks up the new row; bumping listRevision alone (same
-        // params) does not. Deferred to its own frame so it can't land in the
-        // same commit as the listRevision-driven composer remount above —
-        // doing both together left the composer's title uncleared.
-        requestAnimationFrame(() => {
+        // params) does not. Deferred to its own tick (setTimeout, not
+        // requestAnimationFrame — RNW doesn't reliably run the rAF/render
+        // loop for a window that isn't actively compositing, e.g. backgrounded
+        // or off-screen in CI, which silently dropped this step there) so it
+        // can't land in the same commit as the listRevision-driven composer
+        // remount above — doing both together left the composer's title
+        // uncleared.
+        setTimeout(() => {
           setPage((current) => current + 1)
-          requestAnimationFrame(() => setPage(1))
-        })
+          setTimeout(() => setPage(1), 0)
+        }, 0)
       })
       .catch((writeError) => {
         setActionError(writeError instanceof Error ? writeError.message : String(writeError))
