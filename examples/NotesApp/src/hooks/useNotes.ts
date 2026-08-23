@@ -8,6 +8,7 @@ export function useNotes(
   session: ExampleDatabase,
   page: number,
   pageSize: number,
+  listRevision: number = 0,
 ): { notes: Note[]; totalCount: number; error: string | null } {
   const [notes, setNotes] = useState<Note[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -76,7 +77,7 @@ export function useNotes(
       cancelled = true
       unsubscribe()
     }
-  }, [session, page, pageSize])
+  }, [session, page, pageSize, listRevision])
 
   return { notes, totalCount, error }
 }

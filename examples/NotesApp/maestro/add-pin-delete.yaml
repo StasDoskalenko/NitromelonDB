@@ -36,13 +36,13 @@ appId: com.nitromelondb.example
       platform: iOS
     commands:
       - doubleTapOn:
-          id: "pin-button-Test Note"
+          id: "pin-button-Test-Note"
 - runFlow:
     when:
       platform: Android
     commands:
       - tapOn:
-          id: "pin-button-Test Note"
+          id: "pin-button-Test-Note"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible: "Unpin"
@@ -56,13 +56,13 @@ appId: com.nitromelondb.example
       platform: iOS
     commands:
       - doubleTapOn:
-          id: "delete-button-Test Note"
+          id: "delete-button-Test-Note"
 - runFlow:
     when:
       platform: Android
     commands:
       - tapOn:
-          id: "delete-button-Test Note"
+          id: "delete-button-Test-Note"
 - waitForAnimationToEnd
 
 - extendedWaitUntil:

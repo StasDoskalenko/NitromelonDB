@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import type Note from '../model/Note'
 import { colors } from '../theme'
 import { formatTime } from '../utils/formatTime'
+import { noteDeleteTestID, notePinTestID } from '../utils/noteTestIds'
 
 type NoteCardProps = {
   note: Note
@@ -20,7 +21,8 @@ export function NoteCard({ note, onDelete }: NoteCardProps) {
             onPress={() => void note.togglePinned()}
             hitSlop={12}
             style={styles.actionHit}
-            testID={`pin-button-${note.title}`}
+            testID={notePinTestID(note.title)}
+            nativeID={notePinTestID(note.title)}
             accessibilityRole="button"
             accessibilityLabel={note.pinned ? 'Unpin' : 'Pin'}
           >
@@ -32,7 +34,8 @@ export function NoteCard({ note, onDelete }: NoteCardProps) {
             onPress={() => onDelete(note)}
             hitSlop={12}
             style={styles.actionHit}
-            testID={`delete-button-${note.title}`}
+            testID={noteDeleteTestID(note.title)}
+            nativeID={noteDeleteTestID(note.title)}
             accessibilityRole="button"
             accessibilityLabel="Delete"
           >

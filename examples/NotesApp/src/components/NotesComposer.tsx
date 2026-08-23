@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { colors } from '../theme'
 
@@ -20,6 +21,10 @@ export function NotesComposer({
 }: NotesComposerProps) {
   const canSubmit = Boolean(title.trim()) && !busy
   const isWindows = Platform.OS === 'windows'
+  const titleRef = useRef(title)
+  if (!isWindows) {
+    titleRef.current = title
+  }
 
   return (
     <View style={styles.composer} testID={isWindows ? undefined : 'composer'}>
@@ -31,9 +36,19 @@ export function NotesComposer({
       <TextInput
         style={styles.input}
         placeholder="Note title"
-        value={title}
-        onChangeText={onChangeTitle}
-        onEndEditing={(event) => onChangeTitle(event.nativeEvent.text)}
+        {...(isWindows
+          ? {defaultValue: ''}
+          : {
+              value: title,
+            })}
+        onChangeText={(value) => {
+          titleRef.current = value
+          onChangeTitle(value)
+        }}
+        onEndEditing={(event) => {
+          titleRef.current = event.nativeEvent.text
+          onChangeTitle(event.nativeEvent.text)
+        }}
         onSubmitEditing={(event) => onSubmit(event.nativeEvent.text)}
         returnKeyType="done"
         testID="title-input"
@@ -48,7 +63,13 @@ export function NotesComposer({
       />
       <Pressable
         style={[styles.addButton, !canSubmit && styles.addButtonDisabled]}
-        onPress={() => onSubmit(title)}
+        onPress={() => {
+          if (isWindows) {
+            setTimeout(() => onSubmit(titleRef.current || title), 50)
+            return
+          }
+          onSubmit(titleRef.current || title)
+        }}
         testID="add-note-button"
         accessibilityRole="button"
         accessibilityLabel="Add note"

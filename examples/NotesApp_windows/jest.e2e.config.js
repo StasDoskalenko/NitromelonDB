@@ -30,7 +30,7 @@ module.exports = {
       : {}),
     webdriverOptions: {
       logLevel: 'info',
-      waitforTimeout: 120000,
+      waitforTimeout: 5000,
       connectionRetryTimeout: 30000,
       connectionRetryCount: 10,
     },

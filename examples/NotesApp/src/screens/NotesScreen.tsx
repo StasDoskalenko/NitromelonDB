@@ -16,7 +16,8 @@ type NotesScreenProps = {
 
 export function NotesScreen({ db }: NotesScreenProps) {
   const [page, setPage] = useState(1)
-  const { notes, totalCount, error: loadError } = useNotes(db, page, PAGE_SIZE)
+  const [listRevision, setListRevision] = useState(0)
+  const { notes, totalCount, error: loadError } = useNotes(db, page, PAGE_SIZE, listRevision)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
@@ -24,6 +25,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
   const listRef = useRef<NotesListHandle>(null)
   // Maestro/WinAppDriver list-row presses can land twice; ignore a rapid second delete.
   const lastDeleteAt = useRef(0)
+  const lastAddAt = useRef(0)
   const writeChain = useRef(Promise.resolve())
   const pendingAdds = useRef(0)
   const sortOrderRef = useRef(Date.now())
@@ -52,6 +54,11 @@ export function NotesScreen({ db }: NotesScreenProps) {
     if (!nextTitle) {
       return
     }
+    const now = Date.now()
+    if (now - lastAddAt.current < 400) {
+      return
+    }
+    lastAddAt.current = now
     Keyboard.dismiss()
     setTitle('')
     setBody('')
@@ -74,6 +81,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
       )
       .then(() => {
         setPage(1)
+        setListRevision((current) => current + 1)
       })
       .catch((writeError) => {
         setActionError(writeError instanceof Error ? writeError.message : String(writeError))
@@ -120,6 +128,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
       <NotesList ref={listRef} notes={notes} onDelete={deleteNote} />
 
       <NotesComposer
+        key={listRevision}
         title={title}
         body={body}
         busy={busy}

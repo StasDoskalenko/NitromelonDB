@@ -8,6 +8,7 @@
  */
 /* global browser, remote */
 
+const {execFileSync} = require('child_process')
 const {app} = require('@react-native-windows/automation')
 const {killApp, launchApp} = require('./app-process')
 
@@ -35,9 +36,11 @@ async function subtitleText() {
 }
 
 async function waitForNoteCount(count, timeout = 60000) {
-  const re = new RegExp(`${count} notes?`)
   await app.waitUntil(
-    async () => re.test(await subtitleText()),
+    async () => {
+      const match = (await subtitleText()).match(/(\d+) notes?/)
+      return match ? parseInt(match[1], 10) === count : false
+    },
     {timeout, timeoutMsg: `Did not reach ${count} notes`},
   )
 }
@@ -70,15 +73,24 @@ async function textVisible(text) {
   }
 
   try {
-    const el = await app.findElementByTestID(text)
-    return Boolean(el)
+    const el = await app.findElementByTestID('notes-list')
+    const titles = (await elementText(el))
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean)
+    if (titles.includes(text)) {
+      return true
+    }
   } catch {
-    // try Name
+    // list anchor not mounted yet
   }
 
   try {
-    const matches = await browser.$$(`//*[@Name="${text}"]`)
-    return matches.length > 0
+    const el = await app.findElementByTestID(text)
+    if (!el || typeof el.isDisplayed !== 'function') {
+      return false
+    }
+    return el.isDisplayed()
   } catch {
     return false
   }
@@ -122,26 +134,53 @@ async function tapName(name) {
   await el.click()
 }
 
+function actionTestID(action, title) {
+  return `${action}-button-${String(title).replace(/\s+/g, '-')}`
+}
+
+function activateAppWindow() {
+  execFileSync(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-Command',
+      [
+        '$p = Get-Process -Name NitromelonWindows -ErrorAction Stop | Select-Object -First 1',
+        'Add-Type -Name Native -Namespace Win -MemberDefinition \'[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);\' -ErrorAction SilentlyContinue',
+        '[void][Win.Native]::ShowWindow($p.MainWindowHandle, 9)',
+        '[void][Win.Native]::SetForegroundWindow($p.MainWindowHandle)',
+      ].join('; '),
+    ],
+    {windowsHide: true},
+  )
+}
+
+function typeIntoForeground(text) {
+  const escaped = String(text).replace(/[+^%~(){}[\]]/g, match => `{${match}}`)
+  execFileSync(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-STA',
+      '-Command',
+      `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait(${JSON.stringify(
+        escaped,
+      )})`,
+    ],
+    {windowsHide: true},
+  )
+}
+
 async function addNote(title) {
   const before = await subtitleText()
   const match = before.match(/(\d+) notes?/)
   const nextCount = (match ? parseInt(match[1], 10) : 0) + 1
+  activateAppWindow()
   const input = await app.findElementByTestID('title-input')
   await input.click()
   await sleep(150)
-  await browser.keys(['Control', 'a'])
-  await sleep(50)
-  await browser.keys(['Delete'])
-  await sleep(50)
-  await browser.keys(title)
-  await sleep(200)
-  await browser.keys(['Enter'])
-  try {
-    await waitForNoteCount(nextCount, 4000)
-    return
-  } catch {
-    // Enter did not submit — click the labeled button (not disabled).
-  }
+  typeIntoForeground(title)
+  await sleep(250)
   try {
     await tapName('Add note')
   } catch {
@@ -156,7 +195,7 @@ async function dismissKeyboard() {
 
 async function isPinned(title) {
   try {
-    const el = await app.findElementByTestID(`pin-button-${title}`)
+    const el = await app.findElementByTestID(actionTestID('pin', title))
     const name = await el.getAttribute('Name')
     const t = await elementText(el)
     return name === 'Unpin' || t.includes('Unpin')
@@ -172,7 +211,7 @@ async function pinNote(title, timeout = 15000) {
         return true
       }
       try {
-        const el = await app.findElementByTestID(`pin-button-${title}`)
+        const el = await app.findElementByTestID(actionTestID('pin', title))
         await el.click()
         await sleep(400)
         return isPinned(title)
@@ -192,7 +231,7 @@ async function waitForPinned(title, timeout = 15000) {
 }
 
 async function deleteNote(title) {
-  const el = await app.findElementByTestID(`delete-button-${title}`)
+  const el = await app.findElementByTestID(actionTestID('delete', title))
   await el.click()
 }
 
@@ -259,7 +298,7 @@ async function attachToAppWindow() {
       hostname: '127.0.0.1',
       port: 4723,
       logLevel: 'info',
-      waitforTimeout: 120000,
+      waitforTimeout: 5000,
       connectionRetryTimeout: 30000,
       connectionRetryCount: 10,
       capabilities: {

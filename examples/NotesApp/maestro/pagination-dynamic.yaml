@@ -48,6 +48,13 @@ appId: com.nitromelondb.example
     text: "Page 1 of 6"
 - assertVisible:
     text: "Dynamic Note 5"
+- scrollUntilVisible:
+    element:
+      text: "Note #100"
+    direction: DOWN
+    timeout: 15000
+    speed: 40
+    visibilityPercentage: 40
 - assertVisible:
     text: "Note #100"
 - assertNotVisible:

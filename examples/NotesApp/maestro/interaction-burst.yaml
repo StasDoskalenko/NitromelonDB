@@ -49,25 +49,25 @@ appId: com.nitromelondb.example
       platform: iOS
     commands:
       - doubleTapOn:
-          id: "pin-button-Burst Note 3"
+          id: "pin-button-Burst-Note-3"
       - doubleTapOn:
-          id: "pin-button-Burst Note 2"
+          id: "pin-button-Burst-Note-2"
       - doubleTapOn:
-          id: "pin-button-Burst Note 1"
+          id: "pin-button-Burst-Note-1"
       - doubleTapOn:
-          id: "delete-button-Burst Note 3"
+          id: "delete-button-Burst-Note-3"
 - runFlow:
     when:
       platform: Android
     commands:
       - tapOn:
-          id: "pin-button-Burst Note 3"
+          id: "pin-button-Burst-Note-3"
       - tapOn:
-          id: "pin-button-Burst Note 2"
+          id: "pin-button-Burst-Note-2"
       - tapOn:
-          id: "pin-button-Burst Note 1"
+          id: "pin-button-Burst-Note-1"
       - tapOn:
-          id: "delete-button-Burst Note 3"
+          id: "delete-button-Burst-Note-3"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible: "Unpin"

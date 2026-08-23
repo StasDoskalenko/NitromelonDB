@@ -13,6 +13,11 @@ class NotesAppEnvironment extends AutomationEnvironment {
   async setup() {
     prepareFreshLaunch()
     await super.setup()
+    try {
+      await global.browser.setTimeout({implicit: 0})
+    } catch {
+      // session not ready
+    }
   }
 
   async teardown() {
