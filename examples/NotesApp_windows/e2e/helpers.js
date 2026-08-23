@@ -156,6 +156,21 @@ async function addNote(title) {
     await browser.keys(Array(80).fill('Backspace'))
     await browser.keys(title.split(''))
     await sleep(300)
+    // browser.keys() reaches the driver session (confirmed in CI logs), but
+    // RNW's onChangeText bridge event for a `defaultValue`-based (uncontrolled)
+    // TextInput may not fire for driver-injected input, leaving the app's
+    // title state empty so Add silently no-ops. Read the control back and
+    // retype through the same path if it didn't take, instead of guessing.
+    for (let readback = 0; readback < 3; readback++) {
+      const currentValue = await input.getText().catch(() => '')
+      if (currentValue === title) {
+        break
+      }
+      await input.click()
+      await browser.keys(Array(80).fill('Backspace'))
+      await browser.keys(title.split(''))
+      await sleep(300)
+    }
     try {
       await tapName('Add note')
     } catch {
