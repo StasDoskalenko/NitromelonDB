@@ -10,11 +10,12 @@ export type { NotesListHandle } from './NotesListHandle'
 
 type NotesListProps = {
   notes: Note[]
+  deletingIds: ReadonlySet<string>
   onDelete: (note: Note) => void
   ref?: Ref<NotesListHandle>
 }
 
-export function NotesList({ notes, onDelete, ref }: NotesListProps) {
+export function NotesList({ notes, deletingIds, onDelete, ref }: NotesListProps) {
   const listRef = useRef<FlashListRef<Note>>(null)
 
   useImperativeHandle(ref, () => ({
@@ -41,7 +42,9 @@ export function NotesList({ notes, onDelete, ref }: NotesListProps) {
           No notes yet. Add one below.
         </Text>
       }
-      renderItem={({ item }) => <NoteCard note={item} onDelete={onDelete} />}
+      renderItem={({ item }) => (
+        <NoteCard note={item} isDeleting={deletingIds.has(item.id)} onDelete={onDelete} />
+      )}
     />
   )
 }

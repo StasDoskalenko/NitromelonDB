@@ -1,9 +1,11 @@
 import { Model } from 'nitromelondb'
 import { date, field, text, writer } from 'nitromelondb/decorators'
 import { NOTES_TABLE } from './schema'
+import NotesCollection from './NotesCollection'
 
 export default class Note extends Model {
   static table = NOTES_TABLE
+  static associatedCollectionClass = NotesCollection
 
   @text('title')
   title!: string

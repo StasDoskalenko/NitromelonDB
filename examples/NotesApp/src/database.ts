@@ -1,13 +1,14 @@
-import { Database, type Collection } from 'nitromelondb'
+import { Database } from 'nitromelondb'
 import { Platform } from 'react-native'
 import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
 import Note from './model/Note'
+import type NotesCollection from './model/NotesCollection'
 import { migrations } from './model/migrations'
 import { NOTES_TABLE, schema } from './model/schema'
 
 export type ExampleDatabase = {
   database: Database
-  notes: Collection<Note>
+  notes: NotesCollection
   schemaVersion: number
   sqliteEngine: string
 }
@@ -29,7 +30,10 @@ export function createExampleDatabase(): ExampleDatabase {
 
   return {
     database,
-    notes: database.get<Note>(NOTES_TABLE),
+    // CollectionMap instantiates NotesCollection at runtime for this table
+    // (Note.associatedCollectionClass); database.get()'s return type doesn't
+    // know that, since it isn't parameterized per-table.
+    notes: database.get<Note>(NOTES_TABLE) as NotesCollection,
     schemaVersion: schema.version,
     sqliteEngine: adapter._dispatcherType === 'nitro' ? 'Nitro SQLite' : adapter._dispatcherType,
   }

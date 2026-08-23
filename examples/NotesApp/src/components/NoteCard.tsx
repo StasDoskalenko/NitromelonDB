@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import type Note from '../model/Note'
 import { colors } from '../theme'
 import { formatTime } from '../utils/formatTime'
@@ -6,10 +6,11 @@ import { noteDeleteTestID, notePinTestID } from '../utils/noteTestIds'
 
 type NoteCardProps = {
   note: Note
+  isDeleting: boolean
   onDelete: (note: Note) => void
 }
 
-export function NoteCard({ note, onDelete }: NoteCardProps) {
+export function NoteCard({ note, isDeleting, onDelete }: NoteCardProps) {
   return (
     <View style={[styles.card, note.pinned && styles.cardPinned]} testID={`note-card-${note.id}`}>
       <View style={styles.cardHeader}>
@@ -32,6 +33,7 @@ export function NoteCard({ note, onDelete }: NoteCardProps) {
           </Pressable>
           <Pressable
             onPress={() => onDelete(note)}
+            disabled={isDeleting}
             hitSlop={12}
             style={styles.actionHit}
             testID={noteDeleteTestID(note.title)}
@@ -39,9 +41,13 @@ export function NoteCard({ note, onDelete }: NoteCardProps) {
             accessibilityRole="button"
             accessibilityLabel="Delete"
           >
-            <Text style={[styles.action, styles.delete]} accessible={false}>
-              Delete
-            </Text>
+            {isDeleting ? (
+              <ActivityIndicator size="small" color={colors.danger} />
+            ) : (
+              <Text style={[styles.action, styles.delete]} accessible={false}>
+                Delete
+              </Text>
+            )}
           </Pressable>
         </View>
       </View>

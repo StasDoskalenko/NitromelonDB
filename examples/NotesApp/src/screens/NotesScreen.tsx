@@ -21,19 +21,16 @@ export function NotesScreen({ db }: NotesScreenProps) {
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(() => new Set())
   // NotesComposer's Windows title field is uncontrolled (defaultValue) because
   // driver-injected/IME input there doesn't reliably fire onChangeText; bumping
   // this after a successful add remounts it to actually clear the text.
   const [composerKey, setComposerKey] = useState(0)
   const listRef = useRef<NotesListHandle>(null)
-  // A ref check (not React state) so a second submit landing in the same tick
-  // as the first — e.g. Enter and a fallback button click on Windows — is
-  // rejected even before `busy` has re-rendered the disabled Add button.
-  const lastAddAt = useRef(0)
-  const lastDeleteAt = useRef(0)
-  // Date.now() alone can repeat within the same millisecond for back-to-back
-  // adds; keep sort order strictly increasing so insertion order is stable.
-  const sortOrderRef = useRef(0)
+  // A ref, not just the `busy` state: state only updates on the next render,
+  // so a second submit landing in the same tick as the first — e.g. Enter and
+  // a fallback button click on Windows — would still read `busy` as false.
+  const addInFlight = useRef(false)
 
   const error = actionError ?? loadError
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
@@ -52,52 +49,47 @@ export function NotesScreen({ db }: NotesScreenProps) {
     setPage((current) => Math.min(pageCount, Math.max(1, current + delta)))
   }
 
-  const addNote = (nativeTitle?: string) => {
+  const addNote = async (nativeTitle?: string) => {
     const nextTitle = nativeTitle?.trim() || title.trim()
-    if (!nextTitle) {
+    if (!nextTitle || addInFlight.current) {
       return
     }
-    const now = Date.now()
-    if (now - lastAddAt.current < 400) {
-      return
-    }
-    lastAddAt.current = now
+    addInFlight.current = true
     const nextBody = body.trim()
-    const sortOrder = Math.max(now, sortOrderRef.current + 1)
-    sortOrderRef.current = sortOrder
     Keyboard.dismiss()
     setTitle('')
     setBody('')
     setActionError(null)
     setBusy(true)
-    db.database
-      .write(async () => {
-        await db.notes.create((note) => {
-          note.title = nextTitle
-          note.body = nextBody
-          note.createdAt = new Date()
-          note.sortOrder = sortOrder
-          note.pinned = false
-        })
-      })
-      .then(() => {
-        setPage(1)
-        listRef.current?.scrollToTop()
-        setComposerKey((current) => current + 1)
-      })
-      .catch((writeError) => {
-        setActionError(writeError instanceof Error ? writeError.message : String(writeError))
-      })
-      .finally(() => setBusy(false))
+    try {
+      await db.notes.addNote(nextTitle, nextBody)
+      setPage(1)
+      listRef.current?.scrollToTop()
+      setComposerKey((current) => current + 1)
+    } catch (writeError) {
+      setActionError(writeError instanceof Error ? writeError.message : String(writeError))
+    } finally {
+      addInFlight.current = false
+      setBusy(false)
+    }
   }
 
-  const deleteNote = (note: Note) => {
-    const now = Date.now()
-    if (now - lastDeleteAt.current < 600) {
+  const deleteNote = async (note: Note) => {
+    if (deletingIds.has(note.id)) {
       return
     }
-    lastDeleteAt.current = now
-    void note.deleteForever()
+    setDeletingIds((current) => new Set(current).add(note.id))
+    try {
+      await note.deleteForever()
+    } catch (writeError) {
+      setActionError(writeError instanceof Error ? writeError.message : String(writeError))
+    } finally {
+      setDeletingIds((current) => {
+        const next = new Set(current)
+        next.delete(note.id)
+        return next
+      })
+    }
   }
 
   const rootProps = Platform.OS === 'ios' ? { behavior: 'padding' as const } : {}
@@ -122,7 +114,12 @@ export function NotesScreen({ db }: NotesScreenProps) {
         onNext={() => goToPage(1)}
       />
 
-      <NotesList ref={listRef} notes={notes} onDelete={deleteNote} />
+      <NotesList
+        ref={listRef}
+        notes={notes}
+        deletingIds={deletingIds}
+        onDelete={(note) => void deleteNote(note)}
+      />
 
       <NotesComposer
         key={composerKey}

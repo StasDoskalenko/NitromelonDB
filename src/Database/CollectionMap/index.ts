@@ -24,7 +24,8 @@ export default class CollectionMap {
           `Model class ${modelClass.name} has static table defined that is missing in schema known by this database`,
         )
       }
-      this.map[table] = new Collection(db, modelClass)
+      const CollectionClass = modelClass.associatedCollectionClass ?? Collection
+      this.map[table] = new CollectionClass(db, modelClass)
     })
     Object.freeze(this.map)
   }
