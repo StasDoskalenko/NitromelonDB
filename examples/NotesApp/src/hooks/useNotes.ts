@@ -32,12 +32,15 @@ export function useNotes(
         }
         await session.database.write(async () => {
           await session.notes.query().destroyAllPermanently()
+          // rank 1 = top: note #100 (created last, "most recent") gets rank
+          // 1, note #1 gets rank 100 — matches addNote's "new note is rank 1"
+          // convention.
           for (let i = 0; i < 100; i++) {
             await session.notes.create((note) => {
               note.title = `Note #${i + 1}`
               note.body = `This is note number ${i + 1}.`
               note.createdAt = new Date(Date.now() - (100 - i) * 60_000)
-              note.sortOrder = i + 1
+              note.rank = 100 - i
               note.pinned = false
             })
           }
@@ -62,11 +65,11 @@ export function useNotes(
     const unsubscribe = session.notes
       .query(
         Q.sortBy('pinned', Q.desc),
-        Q.sortBy('sort_order', Q.desc),
+        Q.sortBy('rank', Q.asc),
         Q.skip((page - 1) * pageSize),
         Q.take(pageSize),
       )
-      .experimentalSubscribeWithColumns(['title', 'body', 'pinned', 'sort_order'], (next) => {
+      .experimentalSubscribeWithColumns(['title', 'body', 'pinned', 'rank'], (next) => {
         if (!cancelled) {
           setNotes(next)
         }
