@@ -1,9 +1,9 @@
 # React Hooks
 
-`withObservables` (see [Connecting Components](./Components.md)) is a higher-order component — a good fit if your components are plain functions of their props and you're happy wrapping them. If you'd rather subscribe from inside a hooks-based component, `nitromelondb/hooks` (or `nitromelondb/react`) ships hooks that cover the same ground for reads (`useRecord`, `useQuery`, `useObservable`), plus `useWriter` for writes.
+`withObservables` (see [Connecting Components](./Components.md)) is a higher-order component — a good fit if your components are plain functions of their props and you're happy wrapping them. If you'd rather subscribe from inside a hooks-based component, `nitromelondb/hooks` (or `nitromelondb/react`) ships hooks that cover the same ground for reads (`useRecord`, `useQuery`, `useObservable`), plus `useWriter`/`useAtomicWriter` for writes.
 
 ```js
-import { useRecord, useQuery, useObservable, useWriter } from 'nitromelondb/hooks'
+import { useRecord, useQuery, useObservable, useWriter, useAtomicWriter } from 'nitromelondb/hooks'
 ```
 
 ## useQuery — a list of records, and useRecord — a single record
@@ -50,12 +50,15 @@ Calling `useQuery(query, columnNames)` from several components with the same que
 import Comment from '../models/Comment'
 
 function useAddComment(post) {
-  return useWriter(post, async (post, body) => {
+  // useWriter gives back exactly this pair -- a callback to trigger the
+  // write, and its live status -- we're just handing it straight through.
+  const [addComment, status] = useWriter(post, async (post, body) => {
     await post.database.get(Comment).create((comment) => {
       comment.post.set(post)
       comment.body = body
     })
   })
+  return [addComment, status]
 }
 ```
 
@@ -101,6 +104,64 @@ A few mistakes this sidesteps on purpose:
 
 For a write with no natural "anchor" record (nothing in particular it's scoped to), call `database.write()` directly instead — `useWriter` is a convenience for the common "this write is about one record" case, not a replacement for `database.write()` itself.
 
+## useAtomicWriter — updating or creating one record, nothing else
+
+`useWriter`'s `writer` can contain any logic at all — which also means nothing stops you from accidentally putting something slow or unrelated inside it, stalling every other write in the app for as long as it takes to finish (Writers run one at a time, app-wide). `useAtomicWriter` is the narrower, safer version for the single most common case: setting some fields on one record. There's no callback body, just a plain field-setting `builder` — the same kind `.create()`/`.update()` already take directly:
+
+```js
+useAtomicWriter(collection, record, builder)
+```
+
+One rule decides what it does: **pass a `record`, and it updates it; leave it out (`undefined`, or `null`) and it creates a new one in `collection` instead.**
+
+```jsx
+import Task from '../models/Task'
+
+// UPDATE -- a record is passed in, so this always updates that one record
+function useToggleDone(task) {
+  return useAtomicWriter(task.database.get(Task), task, (task) => {
+    task.isDone = !task.isDone
+  })
+}
+
+function TaskRow({ task }) {
+  const liveTask = useRecord(task)
+  const [toggleDone, { isPending }] = useToggleDone(task)
+  return (
+    <TouchableOpacity disabled={isPending} onPress={toggleDone}>
+      <Text>{liveTask.isDone ? '✅' : '⬜️'} {liveTask.title}</Text>
+    </TouchableOpacity>
+  )
+}
+```
+
+```jsx
+// CREATE -- no record is passed in (undefined), so this always creates a new one
+function useAddTask(database) {
+  return useAtomicWriter(database.get(Task), undefined, (task) => {
+    task.isDone = false
+  })
+}
+```
+
+```jsx
+// BOTH -- one form, reused for "new task" and "edit task": task is
+// undefined on the new-task screen, and a real record on the edit-task screen
+function useSaveTask(database, task) {
+  const [title, setTitle] = useState(task?.title ?? '')
+  const [save, status] = useAtomicWriter(database.get(Task), task, (task) => {
+    task.title = title
+  })
+  return { title, setTitle, save, ...status }
+}
+```
+
+`collection` is always required (get it with `database.get(Task)`, same as anywhere else — see the note on `useWriter` above for why the class form is preferred over `database.get('tasks')`) — it's where a new record gets created when `record` is left out.
+
+`builder` runs inside `.update()`/`.create()` exactly as if you'd called those yourself, including their existing rule that it must be synchronous — `async`/`await` inside it throws, rather than silently letting unrelated async work sneak into the Writer. That's what makes this "atomic": there's nothing in `builder` *but* field assignments, so there's no way to accidentally put something slow in there.
+
+Otherwise it behaves exactly like `useWriter` — `[run, { isPending, error }]`, `builder` doesn't need to be memoized, and it's unmount-safe the same way. `run()` resolves to the affected record: the same `record` you passed in (updated in place), or the newly created one.
+
 ## useObservable — the escape hatch
 
 For anything that isn't a plain record or query — your own RxJS observables, or ones built from `.observe()` with `switchMap`/`combineLatest`/etc.:
@@ -125,6 +186,7 @@ Unlike `useRecord`/`useQuery`, an arbitrary Observable genuinely can take a whil
 - Observing one record → `useRecord`
 - Observing a list (a `Query`, `Relation`, or `Collection`) → `useQuery`
 - Everything else — a raw `Observable`, or a composition of several → `useObservable`
-- Writing, scoped to one record → `useWriter`
+- Writing, scoped to one record, no more than field assignments → `useAtomicWriter`
+- Writing, scoped to one record, with other logic/records/tables involved → `useWriter`
 - Writing with no natural record to anchor it to → `database.write()` directly
 - Prefer subscribing from outside your render tree, or component classes → [`withObservables`](./Components.md)
