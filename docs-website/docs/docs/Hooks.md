@@ -6,10 +6,17 @@
 import { useModel, useQuery, useObservable } from 'nitromelondb/hooks'
 ```
 
-## useModel — a single record
+## useQuery — a list of records, and useModel — a single record
+
+These two are usually used together: fetch the list once, then let each row track its own record.
 
 ```jsx
 import { Text } from 'react-native'
+
+function PostComments({ post }) {
+  const comments = useQuery(post.comments)
+  return comments.map((comment) => <Comment key={comment.id} comment={comment} />)
+}
 
 function Comment({ comment }) {
   const liveComment = useModel(comment)
@@ -17,26 +24,21 @@ function Comment({ comment }) {
 }
 ```
 
-Pass in a record; you get the same record back, and the component re-renders every time it changes (or is deleted). `comment` may be `null`/`undefined` (e.g. an optional relation that hasn't loaded) — it's passed straight through, no subscription is set up.
+`PostComments` passes a `Query` (or a `Relation`/`Collection` — anything with `.experimentalSubscribe()`) to `useQuery`, and gets back an array of matching records, re-rendering whenever the *set* changes (a comment is added, removed, or no longer matches). It does **not** re-render when an existing comment's fields change — that's `useModel`'s job.
 
-## useQuery — a list of records
+Each `Comment` passes its one record to `useModel`; you get the same record back, and *that* component re-renders every time it changes (or is deleted). This is the point of splitting the two: if only `PostComments` observed the data, editing one comment's `body` would do nothing at all (a plain query doesn't watch fields). Passing `columnNames` to `useQuery` instead (see below) would fix that, but re-renders the *entire list* for a one-record edit. Tracking each record individually with `useModel` re-renders exactly the one `<Comment>` that changed.
 
-```jsx
-function PostComments({ post }) {
-  const comments = useQuery(post.comments)
-  return comments.map((comment) => <Comment key={comment.id} comment={comment} />)
-}
-```
+`comment`/`query` may be `null`/`undefined` in either hook (e.g. an optional relation that hasn't loaded, or a query gated on something not ready yet) — it's passed straight through, no subscription is set up.
 
-Pass in a `Query` (or a `Relation`/`Collection` — anything with `.experimentalSubscribe()`); you get back an array of matching records, re-rendering whenever the *set* changes (a record is created, deleted, or no longer matches). Like `Query#observe()`, field-level changes to records already in the list are **not** observed by default — pass `columnNames` for that:
+### useQuery and field-level changes
+
+If you'd rather have the whole list re-render together on a field change — e.g. because the list itself is sorted by that field — pass `columnNames` to `useQuery` instead of using per-record `useModel`:
 
 ```js
 const comments = useQuery(post.comments, ['body'])
 ```
 
-This mirrors `query.observeWithColumns(['body'])` — now the component also re-renders if an existing comment's `body` changes, not just when comments are added or removed.
-
-`query` may be `null`/`undefined`; an empty array is returned and no subscription is set up.
+This mirrors `query.observeWithColumns(['body'])` — now `PostComments` also re-renders if an existing comment's `body` changes, not just when comments are added or removed.
 
 Calling `useQuery(query, columnNames)` from several components with the same query and columns (in any order) shares one underlying subscription rather than each component running its own — see [`Query#observeWithColumns`](./Query.md#advanced-observing).
 
