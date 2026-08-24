@@ -147,4 +147,40 @@ describe('useWriter', () => {
 
     await expect(run()).rejects.toThrow('cannot write, model is null/undefined')
   })
+
+  it('does not touch isPending/error after unmount, but still lets the write complete', async () => {
+    const task = await database.write(() => tasks.create((t) => (t.name = 'A')))
+    let resolveWriter
+    const writer = jest.fn(
+      (record, newName) =>
+        new Promise((resolve) => {
+          // already inside the Writer useWriter opened -- update directly,
+          // no nested database.write() needed (or safe, without callWriter)
+          resolveWriter = () =>
+            record.update((t) => (t.name = newName)).then(resolve)
+        }),
+    )
+
+    const { result, unmount } = renderHook(() => useWriter(task, writer))
+    const [run] = result.current
+
+    let runPromise
+    act(() => {
+      runPromise = run('B').catch(() => {})
+    })
+    expect(result.current[1].isPending).toBe(true)
+
+    unmount()
+
+    // resolving (and the underlying write completing) after unmount must not
+    // throw/warn about setting state on an unmounted component
+    await act(async () => {
+      resolveWriter()
+      await runPromise
+    })
+
+    // the actual database write still went through -- only the React state
+    // tracking was skipped, not the write itself
+    expect(task.name).toBe('B')
+  })
 })

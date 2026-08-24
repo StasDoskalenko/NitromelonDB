@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import invariant from '../utils/common/invariant'
 import type Model from '../Model'
 
@@ -53,8 +53,16 @@ export type UseWriterStatus = {
  * `model` itself.
  *
  * `model` may be `null`/`undefined` (e.g. a relation that hasn't loaded
- * yet, matching useModel/useQuery) — the returned callback rejects if
+ * yet, matching useRecord/useQuery) — the returned callback rejects if
  * called while it's still nullish, so guard with e.g. `disabled={!post}`.
+ *
+ * The write itself is never cancelled by unmounting — a real database
+ * mutation shouldn't be abandoned mid-flight just because the component
+ * asking for it went away. What *is* guarded against is touching
+ * `isPending`/`error` state after that point: if the component unmounts
+ * while a write is still in flight, its eventual result is only recorded
+ * if this hook is still mounted, so it can't try to schedule a render for
+ * something that no longer exists.
  */
 export default function useWriter<T extends Model, Args extends unknown[] = []>(
   model: T | null | undefined,
@@ -68,18 +76,26 @@ export default function useWriter<T extends Model, Args extends unknown[] = []>(
   const writerRef = useRef(writer)
   writerRef.current = writer
 
+  const isMountedRef = useRef(true)
+  useEffect(
+    () => () => {
+      isMountedRef.current = false
+    },
+    [],
+  )
+
   const run = useCallback(
     async (...args: Args): Promise<void> => {
       invariant(model, 'useWriter: cannot write, model is null/undefined')
-      setIsPending(true)
-      setError(undefined)
+      isMountedRef.current && setIsPending(true)
+      isMountedRef.current && setError(undefined)
       try {
         await model.database.write(() => Promise.resolve(writerRef.current(model, ...args)))
       } catch (thrownError) {
-        setError(thrownError)
+        isMountedRef.current && setError(thrownError)
         throw thrownError
       } finally {
-        setIsPending(false)
+        isMountedRef.current && setIsPending(false)
       }
     },
     [model],

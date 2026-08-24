@@ -3,10 +3,10 @@
  */
 
 import { act, renderHook } from '@testing-library/react'
-import useModel from './useModel'
+import useRecord from './useRecord'
 import { mockDatabase } from '../__tests__/testModels'
 
-describe('useModel', () => {
+describe('useRecord', () => {
   let database
   let tasks
   beforeEach(() => {
@@ -16,7 +16,7 @@ describe('useModel', () => {
   it('re-renders on change and returns the same record (no cloning)', async () => {
     const task = await database.write(() => tasks.create((t) => (t.name = 'Buy milk')))
 
-    const { result, rerender } = renderHook(({ record }) => useModel(record), {
+    const { result, rerender } = renderHook(({ record }) => useRecord(record), {
       initialProps: { record: task },
     })
 
@@ -27,7 +27,7 @@ describe('useModel', () => {
       await database.write(() => task.update((t) => (t.name = 'Buy oat milk')))
     })
 
-    // Same instance — useModel never clones — but the field read now reflects
+    // Same instance — useRecord never clones — but the field read now reflects
     // the update, and the hook re-rendered to make sure we saw it.
     expect(result.current).toBe(task)
     expect(result.current.name).toBe('Buy oat milk')
@@ -38,7 +38,7 @@ describe('useModel', () => {
 
   it('re-renders on deletion, keeping the last known record', async () => {
     const task = await database.write(() => tasks.create((t) => (t.name = 'Buy milk')))
-    const { result } = renderHook(() => useModel(task))
+    const { result } = renderHook(() => useRecord(task))
 
     await act(async () => {
       await database.write(() => task.destroyPermanently())
@@ -48,7 +48,7 @@ describe('useModel', () => {
   })
 
   it('passes through null/undefined without subscribing', () => {
-    const { result } = renderHook(({ record }) => useModel(record), {
+    const { result } = renderHook(({ record }) => useRecord(record), {
       initialProps: { record: null },
     })
     expect(result.current).toBe(null)
@@ -62,7 +62,7 @@ describe('useModel', () => {
       ]),
     )
 
-    const { result, rerender } = renderHook(({ record }) => useModel(record), {
+    const { result, rerender } = renderHook(({ record }) => useRecord(record), {
       initialProps: { record: taskA },
     })
     expect(result.current).toBe(taskA)

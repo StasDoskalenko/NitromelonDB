@@ -1,7 +1,7 @@
 import { useCallback, useRef, useSyncExternalStore } from 'react'
 
 /**
- * Shared low-level primitive behind useModel/useQuery/useObservable.
+ * Shared low-level primitive behind useRecord/useQuery/useObservable.
  *
  * Records (and this library's other observable sources) notify subscribers
  * on change, but don't necessarily hand you a new value each time — a

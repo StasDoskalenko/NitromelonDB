@@ -26,7 +26,7 @@ export type UseObservableStatus = {
  * )
  * ```
  *
- * For plain records or queries, prefer useModel/useQuery — they're built on
+ * For plain records or queries, prefer useRecord/useQuery — they're built on
  * this library's Rx-free `experimentalSubscribe*` methods (no RxJS
  * dependency pulled into your bundle just to observe one record or list),
  * and useQuery gives you column-level observation as a plain parameter

@@ -22,9 +22,9 @@ import useTick from './useTick'
  * default, like `query.observe()`, only additions/removals from the
  * matching set are observed, not field-level changes within it.
  *
- * Unlike a record (see useModel), each emission here is a genuinely new
+ * Unlike a record (see useRecord), each emission here is a genuinely new
  * array, so there's no reference-equality pitfall to work around — this
- * still goes through the same useTick mechanism as useModel/useObservable
+ * still goes through the same useTick mechanism as useRecord/useObservable
  * for consistency, not because it's required here.
  *
  * `query` may be `null`/`undefined` (e.g. while its inputs are still
