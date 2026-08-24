@@ -42,6 +42,8 @@ This mirrors `query.observeWithColumns(['body'])` — now the component also re-
 
 `query` may be `null`/`undefined`; an empty array is returned and no subscription is set up.
 
+Calling `useQuery(query, columnNames)` from several components with the same query and columns (in any order) shares one underlying subscription rather than each component running its own — see [`Query#observeWithColumns`](./Query.md#advanced-observing).
+
 ## useObservable — the escape hatch
 
 For anything that isn't a plain record or query — your own RxJS observables, or ones built from `.observe()` with `switchMap`/`combineLatest`/etc.:

@@ -10,6 +10,7 @@
 ### Fixes
 
 ### Performance
+- `Query#experimentalSubscribeWithColumns`/`observeWithColumns`: multiple subscribers observing the same query with the same `columnNames` (in any order) now share one underlying subscription (and one re-fetch on change) instead of each running its own, via a new `KeyedSharedSubscribable` utility — the same `shareReplay`-style sharing `Query#observe`/`experimentalSubscribe` already got from `SharedSubscribable`.
 
 ### Changes
 

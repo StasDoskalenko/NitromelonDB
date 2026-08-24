@@ -271,7 +271,7 @@ describe('Query', () => {
       // easy counting
       database.adapter.getLocal('nothing')
 
-    const testQueryObservation = async (makeSubscribe, withColumns) => {
+    const testQueryObservation = async (makeSubscribe) => {
       const { database, tasks } = mockDatabase()
       const adapterSpy = jest.spyOn(database.adapter.underlyingAdapter, 'query')
       const query = new Query(tasks, [])
@@ -288,15 +288,14 @@ describe('Query', () => {
       expect(observer).toHaveBeenCalledTimes(2)
       expect(observer).toHaveBeenLastCalledWith([t1])
 
-      // check if cached
+      // check if cached: a second subscriber is replayed the last emission
+      // synchronously and does NOT trigger another adapter query — see
+      // SharedSubscribable / KeyedSharedSubscribable
       const observer2 = jest.fn()
       const unsubscribe2 = makeSubscribe(query, observer2)
-      if (withColumns) {
-        await waitFor(database)
-      }
       expect(observer2).toHaveBeenCalledTimes(1)
       expect(observer2).toHaveBeenLastCalledWith([t1])
-      expect(adapterSpy).toHaveBeenCalledTimes(withColumns ? 2 : 1)
+      expect(adapterSpy).toHaveBeenCalledTimes(1)
 
       unsubscribe()
       unsubscribe2()
@@ -315,13 +314,53 @@ describe('Query', () => {
       await testQueryObservation((query, subscriber) => {
         const subscription = query.observeWithColumns(['name']).subscribe(subscriber)
         return () => subscription.unsubscribe()
-      }, true)
+      })
     })
     it('can subscribe to query with columns', async () => {
-      await testQueryObservation(
-        (query, subscriber) => query.experimentalSubscribeWithColumns(['name'], subscriber),
-        true,
+      await testQueryObservation((query, subscriber) =>
+        query.experimentalSubscribeWithColumns(['name'], subscriber),
       )
+    })
+    it('shares one subscription between subscribers observing the same columns in a different order', async () => {
+      const { database, tasks } = mockDatabase()
+      const adapterSpy = jest.spyOn(database.adapter.underlyingAdapter, 'query')
+      const query = new Query(tasks, [])
+
+      const observer1 = jest.fn()
+      const observer2 = jest.fn()
+      const unsubscribe1 = query.experimentalSubscribeWithColumns(['name', 'position'], observer1)
+      await waitFor(database)
+      const unsubscribe2 = query.experimentalSubscribeWithColumns(['position', 'name'], observer2)
+
+      expect(adapterSpy).toHaveBeenCalledTimes(1)
+      expect(observer2).toHaveBeenCalledTimes(1)
+      expect(observer2).toHaveBeenLastCalledWith([])
+
+      const t1 = await database.write(() => tasks.create())
+      await waitFor(database)
+      // still just the one initial adapter query -- collection changes are
+      // matched in-memory (see subscribeToSimpleQuery), not re-fetched
+      expect(adapterSpy).toHaveBeenCalledTimes(1)
+      expect(observer1).toHaveBeenLastCalledWith([t1])
+      expect(observer2).toHaveBeenLastCalledWith([t1])
+
+      unsubscribe1()
+      unsubscribe2()
+    })
+    it('does not share a subscription between subscribers observing different columns', async () => {
+      const { database, tasks } = mockDatabase()
+      const adapterSpy = jest.spyOn(database.adapter.underlyingAdapter, 'query')
+      const query = new Query(tasks, [])
+
+      const unsubscribe1 = query.experimentalSubscribeWithColumns(['name'], jest.fn())
+      await waitFor(database)
+      const unsubscribe2 = query.experimentalSubscribeWithColumns(['position'], jest.fn())
+      await waitFor(database)
+
+      expect(adapterSpy).toHaveBeenCalledTimes(2)
+
+      unsubscribe1()
+      unsubscribe2()
     })
 
     const testCountObservation = async (makeSubscribe, isThrottled) => {
