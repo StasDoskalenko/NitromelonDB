@@ -352,4 +352,37 @@ describe('SharedSubscribable', () => {
       expect(onDeactivate).toHaveBeenCalledTimes(0)
     })
   })
+  it('notifies all subscribers even when one unsubscribes itself during notification', () => {
+    // Regression test for https://github.com/Nozbe/WatermelonDB/issues/1973
+    // _notify() used to iterate over the live _subscribers array; a subscriber
+    // unsubscribing itself mid-iteration would shift the next entry into the
+    // current index and cause it to be skipped.
+    let emitValue = null
+    const source = jest.fn((subscriber) => {
+      emitValue = subscriber
+      return () => {}
+    })
+
+    const shared = new SharedSubscribable(source)
+
+    const firstSubscriber = jest.fn()
+    let unsubscribeFirst
+    unsubscribeFirst = shared.subscribe(() => {
+      firstSubscriber()
+      unsubscribeFirst()
+    })
+
+    const secondSubscriber = jest.fn()
+    shared.subscribe(secondSubscriber)
+
+    emitValue('value')
+
+    expect(firstSubscriber).toHaveBeenCalledTimes(1)
+    expect(secondSubscriber).toHaveBeenCalledTimes(1)
+
+    // and confirm the unsubscribed subscriber really is gone
+    emitValue('next-value')
+    expect(firstSubscriber).toHaveBeenCalledTimes(1)
+    expect(secondSubscriber).toHaveBeenCalledTimes(2)
+  })
 })
