@@ -5,4 +5,21 @@ set -e
 
 # GitHub macos-26 runners ship Xcode 26.x with iPhone 17 / iOS 26 simulators.
 # OS=latest tracks the newest runtime installed for that device.
-xcodebuild -workspace native/iosTest/WatermelonTester.xcworkspace -scheme 'WatermelonTester' -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' test
+#
+# Optional split (not used in CI yet):
+#   IOS_XCODEBUILD_ACTION=build-for-testing|test-without-building|test (default)
+#   IOS_DERIVED_DATA_PATH=native/iosTest/DerivedData
+ACTION="${IOS_XCODEBUILD_ACTION:-test}"
+DESTINATION='platform=iOS Simulator,name=iPhone 17,OS=latest'
+
+args=(
+  -workspace native/iosTest/WatermelonTester.xcworkspace
+  -scheme 'WatermelonTester'
+  -destination "$DESTINATION"
+)
+
+if [ -n "${IOS_DERIVED_DATA_PATH:-}" ]; then
+  args+=(-derivedDataPath "$IOS_DERIVED_DATA_PATH")
+fi
+
+xcodebuild "${args[@]}" "$ACTION"

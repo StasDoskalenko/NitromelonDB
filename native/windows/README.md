@@ -21,7 +21,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\node_modules\react-native-windows\scripts\rnw-dependencies.ps1
 ```
 
-Playground: [`examples/NotesApp_windows`](../../examples/NotesApp_windows). CI uses GitHub `windows-2025` (VS 2026, SDK 26100, WinAppDriver).
+Playground: [`examples/NotesApp_windows`](../../examples/NotesApp_windows). CI uses GitHub `windows-2025` (VS 2026, SDK 26100, WinAppDriver) and runs Maestro-equivalent NotesApp UI flows on the same job as the Release build.
 
 ## How Nitro is injected on Windows
 

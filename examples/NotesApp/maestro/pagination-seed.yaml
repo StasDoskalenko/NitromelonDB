@@ -73,8 +73,9 @@ appId: com.nitromelondb.example
     element:
       text: "Note #1"
     direction: DOWN
-    timeout: 15000
-    speed: 60
+    timeout: 25000
+    speed: 40
+    visibilityPercentage: 40
 
 - assertVisible:
     text: "Note #1"

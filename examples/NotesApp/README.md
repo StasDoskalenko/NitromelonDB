@@ -4,7 +4,7 @@ Expo SDK 57 development-build app that opens SQLite through `SQLiteAdapter` → 
 
 The screen is a notes list: schema v3, v1→v2 `pinned`, v2→v3 `sort_order`, create / pin / delete, and sticky FlashList pagination (`Q.skip` + `Q.take(20)`) against the live database.
 
-Windows lives in a sibling app, [`../NotesApp_windows`](../NotesApp_windows), because React Native Windows 0.84 tracks RN 0.84.1 while this Expo app uses RN 0.86.2.
+Windows lives in a sibling app, [`../NotesApp_windows`](../NotesApp_windows), because React Native Windows 0.84 tracks RN 0.84.1 while this Expo app uses RN 0.86.2. That host imports this app’s `src/` UI (with `NotesList.windows.tsx` for `FlatList`).
 
 ![NitromelonDB notes screen on iOS, showing two notes, Nitro SQLite, and schema v2](assets/screenshot.png)
 
@@ -30,6 +30,8 @@ maestro test maestro/
 # or one flow:
 maestro test maestro/cold-start.yaml
 ```
+
+CI runs these flows on an Android emulator (`NotesApp Android (build)` then `NotesApp Android (Maestro)`). iOS Maestro stays a local command for now. Windows uses the same scenarios via WinAppDriver in `examples/NotesApp_windows`.
 
 | Flow | What it covers |
 | --- | --- |

@@ -5,8 +5,15 @@
   "scripts": {
     "lint": "eslint .",
     "start": "react-native start",
+    "metro": "react-native start",
+    "metro:kill": "node scripts/kill-metro.js",
     "test": "jest",
     "windows": "react-native run-windows",
+    "build:debug": "react-native run-windows --arch x64 --no-packager --no-launch",
+    "build:release": "react-native run-windows --arch x64 --release --no-packager --no-launch",
+    "build:all": "yarn build:debug && yarn build:release",
+    "start:debug": "react-native run-windows --arch x64 --no-build --no-packager",
+    "start:release": "react-native run-windows --arch x64 --release --no-build --no-packager",
     "test:windows": "jest --config jest.config.windows.js",
     "test:windows:e2e": "jest --config jest.e2e.config.js --forceExit"
   },

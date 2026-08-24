@@ -15,17 +15,12 @@ appId: com.nitromelondb.example
 - assertVisible:
     text: ".*100 notes.*"
 
-- tapOn:
-    id: "title-input"
+- runFlow:
+    file: ../maestro-commands/add-note.yaml
+    env:
+      TITLE: "Persistent Note"
 
-- inputText: "Persistent Note"
-
-- tapOn:
-    id: "add-note-button"
-
-# hideKeyboard is flaky on iOS; tap the title to dismiss.
-- tapOn: "NitromelonDB"
-- waitForAnimationToEnd
+# No hideKeyboard needed — see add-note.yaml.
 
 - assertVisible:
     text: "Persistent Note"

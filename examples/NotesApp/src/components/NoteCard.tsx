@@ -2,6 +2,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import type Note from '../model/Note'
 import { colors } from '../theme'
 import { formatTime } from '../utils/formatTime'
+import { noteDeleteTestID, notePinTestID } from '../utils/noteTestIds'
 
 type NoteCardProps = {
   note: Note
@@ -13,13 +14,16 @@ export function NoteCard({ note, isDeleting, onDelete }: NoteCardProps) {
   return (
     <View style={[styles.card, note.pinned && styles.cardPinned]} testID={`note-card-${note.id}`}>
       <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>{note.title}</Text>
+        <Text style={styles.cardTitle} testID={note.title} accessible>
+          {note.title}
+        </Text>
         <View style={styles.cardActions}>
           <Pressable
             onPress={() => void note.togglePinned()}
             hitSlop={12}
             style={styles.actionHit}
-            testID={`pin-button-${note.id}`}
+            testID={notePinTestID(note.title)}
+            nativeID={notePinTestID(note.title)}
             accessibilityRole="button"
             accessibilityLabel={note.pinned ? 'Unpin' : 'Pin'}
           >
@@ -32,7 +36,8 @@ export function NoteCard({ note, isDeleting, onDelete }: NoteCardProps) {
             disabled={isDeleting}
             hitSlop={12}
             style={styles.actionHit}
-            testID={`delete-button-${note.id}`}
+            testID={noteDeleteTestID(note.title)}
+            nativeID={noteDeleteTestID(note.title)}
             accessibilityRole="button"
             accessibilityLabel="Delete"
           >

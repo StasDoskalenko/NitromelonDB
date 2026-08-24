@@ -20,7 +20,7 @@
 - **One TypeScript codebase.** Implementation lives in TypeScript under `strict` checking. That removes Flow and the standalone `.d.ts` layer, so types and runtime cannot drift.
 - **Simpler native install.** SQLite and simdjson are vendored in-tree. No FMDB, no `@nozbe/sqlite` / `@nozbe/simdjson`, no separate `android-jsi` package. Autolinking is enough.
 - **Current platforms.** Tested on React Native 0.83+ (NotesApp is Expo SDK 57 / RN 0.86) and React 19. Android builds with 16kB page alignment. Electron can run SQLite in the main process via `RemoteAdapter`.
-- **Device e2e.** The Expo [NotesApp](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp) ships [Maestro](https://docs.maestro.dev) flows that hit real Nitro SQLite on a simulator — cold start, create/pin/delete, kill-and-relaunch persistence, and sticky `Q.skip` / `Q.take` pagination.
+- **Extensively tested — a safer bet.** Every push runs the full stack in CI, not just JS unit tests: the shared correctness suite (CRUD, queries, migrations, concurrent writers, batches) executes against the real native SQLite bridge on real iOS and Android devices, and the Expo [NotesApp](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp) ships [Maestro](https://docs.maestro.dev) end-to-end flows — cold start, create/pin/delete, kill-and-relaunch persistence, sticky `Q.skip` / `Q.take` pagination — run on iOS, Android, **and** Windows.
 - **Observability.** Nested writers, stuck readers, and incorrect `callWriter`/`callReader` usage should fail loudly so engineers can see *where* — not hang in production. See [Observability](https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Observability).
 - **Performance.** We want to keep improving SQLite, native, and JS performance. The TypeScript rewrite is one step on that path (including future runtimes such as Static Hermes), alongside further native optimizations.
 - **Same product, new package name.** Install `nitromelondb` and import from `nitromelondb` (not `@nozbe/watermelondb`). Existing SQLite files, schema, and models keep working. Step-by-step: **[Migrating from WatermelonDB](https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating)**.
@@ -76,7 +76,7 @@ Full credit to [@Nozbe](https://github.com/Nozbe) and [Radek Pietruszewski](http
 | 😎 | **Lazy loaded**. Only load data when you need it |
 | 🔄 | **Offline-first.** [Sync](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs-website/docs/docs/Sync/Intro.md) with your own backend |
 | 📱 | **Multiplatform**. iOS, Android, Windows, web, Node.js, and **Expo** (EAS Build and EAS Update) |
-| 🧪 | **Device e2e.** [Maestro](https://docs.maestro.dev) flows on the Expo NotesApp (cold start, CRUD, persistence, sticky pagination) |
+| 🧪 | **Extensively tested.** Native bridge tests + [Maestro](https://docs.maestro.dev) e2e run on real iOS, Android, and Windows every push |
 | ⚛️ | **Optimized for React.** Easily plug data into components |
 | 🧰 | **Framework-agnostic.** Use JS API to plug into other UI frameworks |
 | ⏱ | **Fast.** And getting faster with every release! |

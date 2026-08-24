@@ -82,9 +82,12 @@ yarn test
 yarn eslint
 yarn typecheck
 yarn test:typescript
+yarn lint:workflows
 ```
 
-Pull requests must pass the **ESLint** and **TypeScript** CI jobs.
+`yarn lint:workflows` runs [actionlint](https://github.com/rhysd/actionlint) and [action-validator](https://github.com/mpalmer/action-validator) (schema check; skipped on Windows because that tool has no Windows binary). It lives in a separate GitHub Actions workflow so a broken `ci.yml` still gets reported.
+
+Pull requests must pass the **ESLint**, **TypeScript**, and **Workflow lint** CI jobs.
 
 ### Editing files
 
@@ -107,7 +110,7 @@ yarn test:android
 
 ### Maestro e2e (NotesApp)
 
-The Expo example app under `examples/NotesApp` includes [Maestro](https://docs.maestro.dev) UI flows that exercise Nitro SQLite on a simulator (cold start / seed, create-pin-delete, kill-and-relaunch, interaction burst, sticky `Q.skip` + `Q.take` pagination).
+The Expo example app under `examples/NotesApp` includes [Maestro](https://docs.maestro.dev) UI flows that exercise Nitro SQLite on a simulator (cold start / seed, create-pin-delete, kill-and-relaunch, interaction burst, sticky `Q.skip` + `Q.take` pagination). CI runs those flows on Android. Maestro does not drive Windows desktop / WinAppSDK apps; `examples/NotesApp_windows` runs the same scenarios through WinAppDriver (`yarn test:windows:e2e`).
 
 Do not run these from the library root. Install the Maestro CLI, boot a simulator, install a development build, then:
 

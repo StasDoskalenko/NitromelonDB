@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { StatusBar } from 'expo-status-bar'
+import { KeyboardProvider } from 'react-native-keyboard-controller'
 import { createExampleDatabase } from './database'
 import { NotesScreen } from './screens/NotesScreen'
 import { SetupErrorScreen } from './screens/SetupErrorScreen'
@@ -16,8 +18,18 @@ export default function App() {
   })
 
   if (!session.ok) {
-    return <SetupErrorScreen message={session.message} />
+    return (
+      <KeyboardProvider>
+        <SetupErrorScreen message={session.message} />
+        <StatusBar style="auto" />
+      </KeyboardProvider>
+    )
   }
 
-  return <NotesScreen db={session.db} />
+  return (
+    <KeyboardProvider>
+      <NotesScreen db={session.db} />
+      <StatusBar style="auto" />
+    </KeyboardProvider>
+  )
 }

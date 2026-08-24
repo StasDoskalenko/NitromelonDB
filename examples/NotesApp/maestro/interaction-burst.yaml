@@ -1,8 +1,7 @@
 # Rapid add / pin / delete (C8). Seeded list is already 100 notes.
 # Run from examples/NotesApp: maestro test maestro/interaction-burst.yaml
 #
-# FlatList row Pressables need doubleTapOn — single taps are dropped by XCTest/Fabric.
-# Delete is debounced in-app so the second half of doubleTapOn does not remove two rows.
+# Single tapOn on both platforms — see add-pin-delete.yaml.
 
 appId: com.nitromelondb.example
 ---
@@ -17,23 +16,20 @@ appId: com.nitromelondb.example
 - assertVisible:
     text: ".*100 notes.*"
 
-- tapOn:
-    id: "title-input"
-- inputText: "Burst Note 1"
-- tapOn:
-    id: "add-note-button"
+- runFlow:
+    file: ../maestro-commands/add-note.yaml
+    env:
+      TITLE: "Burst Note 1"
 
-- tapOn:
-    id: "title-input"
-- inputText: "Burst Note 2"
-- tapOn:
-    id: "add-note-button"
+- runFlow:
+    file: ../maestro-commands/add-note.yaml
+    env:
+      TITLE: "Burst Note 2"
 
-- tapOn:
-    id: "title-input"
-- inputText: "Burst Note 3"
-- tapOn:
-    id: "add-note-button"
+- runFlow:
+    file: ../maestro-commands/add-note.yaml
+    env:
+      TITLE: "Burst Note 3"
 
 - assertVisible:
     text: "Burst Note 1"
@@ -47,26 +43,18 @@ appId: com.nitromelondb.example
 - tapOn: "NitromelonDB"
 - waitForAnimationToEnd
 
-- doubleTapOn:
-    id: "pin-button-.*"
-    index: 0
+- tapOn:
+    id: "pin-button-Burst-Note-3"
+- tapOn:
+    id: "pin-button-Burst-Note-2"
+- tapOn:
+    id: "pin-button-Burst-Note-1"
+- tapOn:
+    id: "delete-button-Burst-Note-3"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible: "Unpin"
     timeout: 15000
-- doubleTapOn:
-    id: "pin-button-.*"
-    index: 1
-- waitForAnimationToEnd
-- doubleTapOn:
-    id: "pin-button-.*"
-    index: 2
-- waitForAnimationToEnd
-
-- doubleTapOn:
-    id: "delete-button-.*"
-    index: 0
-- waitForAnimationToEnd
 
 - assertNotVisible:
     text: "Burst Note 3"

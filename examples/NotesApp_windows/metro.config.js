@@ -63,6 +63,7 @@ function resolveLibrarySource(moduleName) {
 const config = {
   watchFolders: [
     path.join(workspaceRoot, 'src'),
+    path.resolve(projectRoot, '../NotesApp/src'),
     ...libraryDeps.map(resolveDep).filter(dir => fs.existsSync(dir)),
   ],
   resolver: {

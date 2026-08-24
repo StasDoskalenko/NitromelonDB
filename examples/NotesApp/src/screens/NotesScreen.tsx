@@ -1,10 +1,9 @@
-import { StatusBar } from 'expo-status-bar'
 import { useEffect, useRef, useState } from 'react'
-import { KeyboardAvoidingView, Platform, StyleSheet, Text } from 'react-native'
-import type { FlashListRef } from '@shopify/flash-list'
+import { Keyboard, StyleSheet, Text, View } from 'react-native'
+import { ComposerDock } from '../components/ComposerDock'
 import { NotesComposer } from '../components/NotesComposer'
 import { NotesHeader } from '../components/NotesHeader'
-import { NotesList } from '../components/NotesList'
+import { NotesList, type NotesListHandle } from '../components/NotesList'
 import { NotesPager } from '../components/NotesPager'
 import { PAGE_SIZE } from '../constants'
 import type { ExampleDatabase } from '../database'
@@ -23,16 +22,19 @@ export function NotesScreen({ db }: NotesScreenProps) {
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(new Set())
-  const listRef = useRef<FlashListRef<Note>>(null)
-  // The title input's onSubmitEditing and the Add button's onPress can both
-  // fire for the same tap before React re-renders `busy`; this ref closes
-  // that same-tick window that state alone can't.
+  const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(() => new Set())
+  // NotesComposer's Windows title field is uncontrolled (defaultValue) because
+  // driver-injected/IME input there doesn't reliably fire onChangeText; bumping
+  // this after a successful add remounts it to actually clear the text.
+  const [composerKey, setComposerKey] = useState(0)
+  const listRef = useRef<NotesListHandle>(null)
+  // A ref, not just the `busy` state: state only updates on the next render,
+  // so a second submit landing in the same tick as the first — e.g. Enter and
+  // a fallback button click on Windows — would still read `busy` as false.
   const addInFlight = useRef(false)
 
   const error = actionError ?? loadError
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
-  const firstNoteId = notes[0]?.id
 
   useEffect(() => {
     if (page > pageCount) {
@@ -40,28 +42,31 @@ export function NotesScreen({ db }: NotesScreenProps) {
     }
   }, [page, pageCount])
 
-  // Keep the window top-aligned when the page changes or new rows appear at the top.
   useEffect(() => {
-    listRef.current?.scrollToTop({ animated: false })
-  }, [page, firstNoteId])
+    listRef.current?.scrollToTop()
+  }, [page])
 
-  const goToPage = (nextPage: number) => {
-    setPage(Math.min(pageCount, Math.max(1, nextPage)))
+  const goToPage = (delta: number) => {
+    setPage((current) => Math.min(pageCount, Math.max(1, current + delta)))
   }
 
-  const submitNote = async () => {
-    const nextTitle = title.trim()
+  const addNote = async (nativeTitle?: string) => {
+    const nextTitle = nativeTitle?.trim() || title.trim()
     if (!nextTitle || addInFlight.current) {
       return
     }
     addInFlight.current = true
-    setBusy(true)
+    const nextBody = body.trim()
+    Keyboard.dismiss()
+    setTitle('')
+    setBody('')
     setActionError(null)
+    setBusy(true)
     try {
-      await Note.addNote(db.notes, nextTitle, body.trim())
-      setTitle('')
-      setBody('')
+      await Note.addNote(db.notes, nextTitle, nextBody)
       setPage(1)
+      listRef.current?.scrollToTop()
+      setComposerKey((current) => current + 1)
     } catch (writeError) {
       setActionError(writeError instanceof Error ? writeError.message : String(writeError))
     } finally {
@@ -74,13 +79,14 @@ export function NotesScreen({ db }: NotesScreenProps) {
     if (deletingIds.has(note.id)) {
       return
     }
-    setDeletingIds((prev) => new Set(prev).add(note.id))
+    setDeletingIds((current) => new Set(current).add(note.id))
     try {
       await note.deleteForever()
     } catch (writeError) {
       setActionError(writeError instanceof Error ? writeError.message : String(writeError))
-      setDeletingIds((prev) => {
-        const next = new Set(prev)
+    } finally {
+      setDeletingIds((current) => {
+        const next = new Set(current)
         next.delete(note.id)
         return next
       })
@@ -88,10 +94,11 @@ export function NotesScreen({ db }: NotesScreenProps) {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    // Keyboard-avoidance is scoped to the composer (ComposerDock), not the
+    // whole screen: an earlier root-level KeyboardAvoidingView ate Maestro's
+    // swipe gestures on the list, and plain RN KeyboardAvoidingView doesn't
+    // react at all under this Expo SDK's mandatory Android edge-to-edge.
+    <View style={styles.screen}>
       <NotesHeader
         sqliteEngine={db.sqliteEngine}
         schemaVersion={db.schemaVersion}
@@ -103,33 +110,36 @@ export function NotesScreen({ db }: NotesScreenProps) {
       <NotesPager
         page={page}
         pageCount={pageCount}
-        onPrev={() => goToPage(page - 1)}
-        onNext={() => goToPage(page + 1)}
+        onPrev={() => goToPage(-1)}
+        onNext={() => goToPage(1)}
       />
 
       <NotesList
+        ref={listRef}
         notes={notes}
-        listRef={listRef}
         deletingIds={deletingIds}
         onDelete={(note) => void deleteNote(note)}
       />
 
-      <NotesComposer
-        title={title}
-        body={body}
-        busy={busy}
-        onChangeTitle={setTitle}
-        onChangeBody={setBody}
-        onSubmit={() => void submitNote()}
-      />
-      <StatusBar style="auto" />
-    </KeyboardAvoidingView>
+      <ComposerDock>
+        <NotesComposer
+          key={composerKey}
+          title={title}
+          body={body}
+          busy={busy}
+          onChangeTitle={setTitle}
+          onChangeBody={setBody}
+          onSubmit={(nativeTitle) => void addNote(nativeTitle)}
+        />
+      </ComposerDock>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+    minHeight: 0,
     backgroundColor: colors.background,
   },
   error: {

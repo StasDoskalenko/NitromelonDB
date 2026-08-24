@@ -26,7 +26,7 @@ export function NotesPager({ page, pageCount, onPrev, onNext }: NotesPagerProps)
           Previous
         </Text>
       </Pressable>
-      <Text style={styles.pagerLabel} testID="page-label">
+      <Text style={styles.pagerLabel} testID="page-label" accessible>
         Page {page} of {pageCount}
       </Text>
       <Pressable

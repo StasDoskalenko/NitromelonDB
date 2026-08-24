@@ -2,14 +2,20 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, closed]
   push:
-    branches: master
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
   eslint:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-24.04
     name: ESLint
     steps:
@@ -25,6 +31,7 @@ jobs:
       - run: yarn install --immutable
       - run: yarn eslint
   typescript:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-24.04
     name: TypeScript
     steps:
@@ -43,6 +50,7 @@ jobs:
       - name: Typecheck examples
         run: yarn test:typescript
   ci-check:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-24.04
     name: JavaScript tests
     steps:
@@ -64,8 +72,10 @@ jobs:
       - name: Gradle Wrapper Validation
         uses: gradle/actions/wrapper-validation@v4
   ios:
+    needs: [eslint, typescript, ci-check]
     runs-on: macos-26
     name: iOS tests
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - name: Set Node.js version
@@ -92,12 +102,13 @@ jobs:
           key: ${{ runner.os }}-pods-cache-${{ hashFiles('**/Podfile.lock') }}
       - run: bundle install
       - name: 'pod install'
-        if: true # steps.pods-cache.outputs.cache-hit != 'true'
         run: yarn cocoapods
       - run: yarn test:ios
   android:
+    needs: [eslint, typescript, ci-check]
     runs-on: ubuntu-24.04
     name: Android tests
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Enable KVM
@@ -121,6 +132,7 @@ jobs:
       - run: yarn dev:native &
       - uses: gradle/actions/setup-gradle@v3
       # See: https://github.com/android/compose-samples/actions/runs/27015993/workflow for ideas for caching
+      # android-emulator-runner runs each YAML line via `sh -c`, so keep this a single command.
       - name: run tests
         uses: reactivecircus/android-emulator-runner@v2.33.0
         with:
@@ -128,7 +140,108 @@ jobs:
           working-directory: ./native/androidTest
           script: ./gradlew connectedAndroidTest
       - run: yarn ktlint
+  notesapp-android:
+    needs: [eslint, typescript, ci-check]
+    runs-on: ubuntu-24.04
+    name: NotesApp Android (Maestro)
+    timeout-minutes: 90
+    env:
+      CI: true
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'adopt'
+          java-version: '21'
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - uses: actions/cache@v4
+        with:
+          path: 'node_modules'
+          key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
+      - run: yarn install --immutable
+      - name: Install NotesApp
+        working-directory: examples/NotesApp
+        run: yarn install --immutable
+      - uses: gradle/actions/setup-gradle@v3
+      - name: Expo prebuild Android
+        working-directory: examples/NotesApp
+        run: yarn expo prebuild --platform android --non-interactive --no-install
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      # android-emulator-runner runs each YAML line via `sh -c`, so keep this a single command.
+      - name: run tests
+        uses: reactivecircus/android-emulator-runner@v2.33.0
+        with:
+          api-level: 29
+          profile: pixel
+          disable-animations: true
+          script: bash scripts/ci-notesapp-android-maestro.sh
+  notesapp-ios:
+    needs: [eslint, typescript, ci-check]
+    runs-on: macos-26
+    name: NotesApp iOS (Maestro)
+    timeout-minutes: 90
+    env:
+      CI: true
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - name: Set Xcode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1
+      - uses: actions/cache@v4
+        with:
+          path: 'node_modules'
+          key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
+      - run: yarn install --immutable
+      - name: Install NotesApp
+        working-directory: examples/NotesApp
+        run: yarn install --immutable
+      - name: Expo prebuild iOS
+        working-directory: examples/NotesApp
+        # --no-install here only skips the JS install (already done above);
+        # pod install is skipped separately below so the Pods cache can be
+        # restored first — ios/ is gitignored and regenerated every run, so
+        # there's no committed Podfile.lock to key a cache off before this.
+        run: yarn expo prebuild --platform ios --non-interactive --no-install
+      - name: cache Pods
+        uses: actions/cache@v4
+        with:
+          path: |
+            examples/NotesApp/ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: ${{ runner.os }}-notesapp-pods-${{ hashFiles('examples/NotesApp/ios/Podfile') }}
+      - name: pod install
+        working-directory: examples/NotesApp/ios
+        run: pod install
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Install xcbeautify
+        run: brew install xcbeautify
+      - name: run tests
+        run: bash scripts/ci-notesapp-ios-maestro.sh
   windows:
+    needs: [eslint, typescript, ci-check]
     # windows-2025 currently ships VS 2026 (v180 / MSVC v145), SDK 10.0.26100,
     # Node 24.19.0, NuGet, and WinAppDriver. Inherit MSVC from the image.
     runs-on: windows-2025
@@ -155,12 +268,7 @@ jobs:
           key: nuget-notesapp-windows-${{ hashFiles('examples/NotesApp_windows/windows/**/*.vcxproj', 'native/windows/**/*.vcxproj') }}
       - name: Install NotesApp Windows
         run: yarn install --immutable
-      - name: Build and deploy NotesApp (x64 Release, integration bundle)
-        # UseDevBundle=true embeds a dev JS bundle (Metro keeps `__DEV__`/`process.env.NODE_ENV`
-        # intact) so the integration suite runs the same DEV assertions as iOS/Android, which
-        # test against a Metro dev server. The native module is still built Release.
-        run: |
-          Copy-Item -Force index.integration.js index.js
-          yarn windows -- --arch x64 --release --logging --no-packager --no-launch --msbuildprops "UseDevBundle=true"
-      - name: Run SQLite integration e2e
+      - name: Build and deploy NotesApp (x64 Release)
+        run: yarn windows -- --arch x64 --release --logging --no-packager --no-launch
+      - name: Run NotesApp UI e2e
         run: yarn test:windows:e2e
