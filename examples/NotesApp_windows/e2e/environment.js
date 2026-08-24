@@ -9,7 +9,7 @@ const fs = require('fs')
 const path = require('path')
 const Automation = require('@react-native-windows/automation')
 const AutomationEnvironment = Automation.default || Automation
-const {prepareFreshLaunch, killApp, killWinAppDriver} = require('./app-process')
+const {prepareFreshLaunch, killApp, killWinAppDriver, screenWorkArea} = require('./app-process')
 
 const DIAGNOSTICS_DIR = path.join(__dirname, '..', '.tmp', 'diagnostics')
 
@@ -25,6 +25,21 @@ class NotesAppEnvironment extends AutomationEnvironment {
       await global.browser.setTimeout({implicit: 0})
     } catch {
       // session not ready
+    }
+    // UI Automation reports elements by the window's logical layout, not by
+    // what's actually been painted. On a CI session whose real screen is
+    // smaller than the app's default window size, elements past the screen
+    // edge are still "found" and "clicked" by WinAppDriver, but the click
+    // lands on real pixels that were never rendered and hits nothing —
+    // confirmed by pixel-sampling a failure screenshot (solid black past a
+    // hard edge, matching an element WinAppDriver had just clicked with no
+    // effect). Fit the window inside the real screen so every element is
+    // genuinely paintable, not just logically present in the tree.
+    try {
+      const {width, height} = screenWorkArea()
+      await global.browser.setWindowRect(0, 0, width, height)
+    } catch {
+      // best-effort; if this fails, tests will surface real timeouts instead
     }
   }
 
