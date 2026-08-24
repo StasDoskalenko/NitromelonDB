@@ -29,6 +29,14 @@ export type DatabaseProps = {
   experimentalDetectNestedWriters?: boolean | undefined
 }
 
+// Deliberately not ModelClass<T>: that type's own static methods reference Collection<Record>,
+// which makes it impossible for TS to *infer* T from a concrete class passed at a call site
+// (e.g. `database.get(Note)`) — the inference only resolves down to `T = Model`, even though
+// an explicit `database.get<Note>(Note)` type-checks fine. This minimal shape (a constructor
+// returning T, plus the one field get() actually reads) is exactly what inference needs and
+// nothing more.
+type ModelClassRef<T extends Model> = { new (...args: never[]): T; table: TableName<T> }
+
 type TableChange = [TableName, CollectionChangeSet<Model>]
 
 let experimentalAllowsFatalError = false
@@ -92,8 +100,8 @@ export default class Database {
    * arbitrary string), so prefer this form where you can.
    */
   get<T extends Model>(tableName: TableName<T>): Collection<T>
-  get<T extends Model>(modelClass: ModelClass<T>): Collection<T>
-  get<T extends Model>(tableNameOrModelClass: TableName<T> | ModelClass<T>): Collection<T> {
+  get<T extends Model>(modelClass: ModelClassRef<T>): Collection<T>
+  get<T extends Model>(tableNameOrModelClass: TableName<T> | ModelClassRef<T>): Collection<T> {
     const tableName =
       typeof tableNameOrModelClass === 'string'
         ? tableNameOrModelClass

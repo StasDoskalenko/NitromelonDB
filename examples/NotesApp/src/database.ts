@@ -4,7 +4,7 @@ import { Platform } from 'react-native'
 import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
 import Note from './model/Note'
 import { migrations } from './model/migrations'
-import { NOTES_TABLE, schema } from './model/schema'
+import { schema } from './model/schema'
 
 export type ExampleDatabase = {
   database: Database
@@ -30,7 +30,7 @@ export function createExampleDatabase(): ExampleDatabase {
 
   return {
     database,
-    notes: database.get<Note>(NOTES_TABLE),
+    notes: database.get(Note),
     schemaVersion: schema.version,
     sqliteEngine: adapter.dispatcherType === 'nitro' ? 'Nitro SQLite' : adapter.dispatcherType,
   }
