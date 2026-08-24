@@ -1,9 +1,9 @@
 # React Hooks
 
-`withObservables` (see [Connecting Components](./Components.md)) is a higher-order component — a good fit if your components are plain functions of their props and you're happy wrapping them. If you'd rather subscribe from inside a hooks-based component, `nitromelondb/hooks` (or `nitromelondb/react`) ships three hooks that cover the same ground: `useModel`, `useQuery`, and `useObservable`.
+`withObservables` (see [Connecting Components](./Components.md)) is a higher-order component — a good fit if your components are plain functions of their props and you're happy wrapping them. If you'd rather subscribe from inside a hooks-based component, `nitromelondb/hooks` (or `nitromelondb/react`) ships hooks that cover the same ground for reads (`useModel`, `useQuery`, `useObservable`), plus `useWriter` for writes.
 
 ```js
-import { useModel, useQuery, useObservable } from 'nitromelondb/hooks'
+import { useModel, useQuery, useObservable, useWriter } from 'nitromelondb/hooks'
 ```
 
 ## useQuery — a list of records, and useModel — a single record
@@ -42,39 +42,44 @@ This mirrors `query.observeWithColumns(['body'])` — now `PostComments` also re
 
 Calling `useQuery(query, columnNames)` from several components with the same query and columns (in any order) shares one underlying subscription rather than each component running its own — see [`Query#observeWithColumns`](./Query.md#advanced-observing).
 
-## Writing
+## useWriter — writing, anchored to a record
 
-These hooks only cover reads. For writes, call `database.write()` (or a [`@writer`](./Writers.md) method) directly from an event handler, the same as you would outside a component — there's no dedicated write hook (yet). Memoize the handler with `useCallback` so it isn't recreated every render:
+`useModel`/`useQuery`/`useObservable` only cover reads. For writes, `useWriter(model, writer)` gives you back a stable callback that runs `writer` inside `model.database.write()` — the hook-friendly equivalent of a `@writer` method:
 
 ```jsx
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { TextInput, Button } from 'react-native'
 
-function AddComment({ post, database }) {
+function AddComment({ post }) {
   const [body, setBody] = useState('')
-
-  const addComment = useCallback(
-    () =>
-      database.write(async () => {
-        await database.get('comments').create((comment) => {
-          comment.post.set(post)
-          comment.body = body
-        })
-        setBody('')
-      }),
-    [database, post, body],
-  )
+  const [addComment, { isPending, error }] = useWriter(post, async (post, body) => {
+    await post.database.get('comments').create((comment) => {
+      comment.post.set(post)
+      comment.body = body
+    })
+  })
 
   return (
     <>
       <TextInput value={body} onChangeText={setBody} />
-      <Button title="Add comment" onPress={addComment} />
+      <Button
+        title="Add comment"
+        disabled={isPending}
+        onPress={() => addComment(body).then(() => setBody(''))}
+      />
+      {error ? <Text>Couldn't add comment</Text> : null}
     </>
   )
 }
 ```
 
-`PostComments` above is already watching `post.comments` with `useQuery`, so it picks up the new comment as soon as the write commits — nothing needs to be wired between the two components.
+`writer`'s first argument is `post`, typed as whatever concrete `Model` subclass you passed in (not a generic `Model`) — and it isn't limited to writing `post` itself; it runs inside one Writer, so it can freely touch other records/tables too, as above. `PostComments` from the read example is already watching `post.comments` with `useQuery`, so it picks up the new comment as soon as the write commits — nothing needs to be wired between the two.
+
+A few mistakes this sidesteps on purpose: you can't forget to wrap the mutation in `database.write()` (it's built in); `writer` doesn't need to be memoized and has no dependency array to get wrong (the latest one you passed is always the one that runs); `isPending` is tracked for you, so it's there to disable the button instead of risking a double-submit; and errors are caught, exposed as `error`, and still re-thrown if you want to `catch` them locally too.
+
+`model` may be `null`/`undefined` (e.g. a relation that hasn't loaded yet) — the returned callback rejects if called while it's still nullish, so guard with something like `disabled={!post || isPending}`.
+
+For a write with no natural "anchor" record (nothing in particular it's scoped to), call `database.write()` directly instead — `useWriter` is a convenience for the common "this write is about one record" case, not a replacement for `database.write()` itself.
 
 ## useObservable — the escape hatch
 
@@ -100,4 +105,6 @@ Unlike `useModel`/`useQuery`, an arbitrary Observable genuinely can take a while
 - Observing one record → `useModel`
 - Observing a list (a `Query`, `Relation`, or `Collection`) → `useQuery`
 - Everything else — a raw `Observable`, or a composition of several → `useObservable`
+- Writing, scoped to one record → `useWriter`
+- Writing with no natural record to anchor it to → `database.write()` directly
 - Prefer subscribing from outside your render tree, or component classes → [`withObservables`](./Components.md)
