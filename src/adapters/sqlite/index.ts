@@ -117,6 +117,13 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     return this._initPromise
   }
 
+  // Which SQLite dispatcher is actually backing this adapter (`_dispatcherType` is an
+  // internal implementation detail; this is the public, stable way to read it — e.g. for a
+  // diagnostics/about screen).
+  get dispatcherType(): DispatcherType {
+    return this._dispatcherType
+  }
+
   async testClone(options: Partial<SQLiteAdapterOptions> = {}): Promise<SQLiteAdapter> {
     const clone = new SQLiteAdapter({
       dbName: this.dbName,
