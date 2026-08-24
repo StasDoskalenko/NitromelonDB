@@ -26,29 +26,6 @@ type BetterSqlite3Constructor = new (
 
 const SQliteDatabase = require('better-sqlite3') as BetterSqlite3Constructor
 
-function sleepSync(ms: number): void {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
-}
-
-// On Windows, close() can return before the OS has actually released the file
-// handle, so an unlink right after can transiently fail with EBUSY/EPERM (seen
-// even with no other process involved — the OS just hasn't caught up yet).
-// POSIX unlinks an open file immediately, so this only ever retries on Windows.
-function unlinkWithRetry(path: string, attempts: number = 5): void {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    try {
-      fs.unlinkSync(path)
-      return
-    } catch (error) {
-      const code = (error as { code?: string }).code
-      if (attempt === attempts - 1 || (code !== 'EBUSY' && code !== 'EPERM')) {
-        throw error
-      }
-      sleepSync(20 * (attempt + 1))
-    }
-  }
-}
-
 class Database {
   instance: SqliteDatabase = undefined as unknown as SqliteDatabase
 
@@ -156,13 +133,13 @@ class Database {
       }
 
       if (fs.existsSync(this.path)) {
-        unlinkWithRetry(this.path)
+        fs.unlinkSync(this.path)
       }
       if (fs.existsSync(`${this.path}-wal`)) {
-        unlinkWithRetry(`${this.path}-wal`)
+        fs.unlinkSync(`${this.path}-wal`)
       }
       if (fs.existsSync(`${this.path}-shm`)) {
-        unlinkWithRetry(`${this.path}-shm`)
+        fs.unlinkSync(`${this.path}-shm`)
       }
 
       this.open()

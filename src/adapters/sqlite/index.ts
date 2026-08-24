@@ -343,6 +343,13 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     )
   }
 
+  // Node/Electron only — releases the native file handle so the database file
+  // can be deleted or reopened elsewhere. Native (iOS/Android/Windows Nitro)
+  // has no equivalent: the app process owns the connection for its lifetime.
+  unsafeCloseConnection(callback: ResultCallback<void>): void {
+    this._dispatcher.call<void>('unsafeCloseConnection', [], callback)
+  }
+
   unsafeExecute(operations: UnsafeExecuteOperations, callback: ResultCallback<void>): void {
     if (process.env.NODE_ENV !== 'production') {
       const ops = operations as { sqls?: unknown; sqlString?: unknown }

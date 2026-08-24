@@ -8,7 +8,10 @@
 
 ### Fixes
 
-- SQLite Node adapter (Windows): `getPath()` only recognized Unix (`/…`) and `file:` absolute paths, so a Windows drive-letter path (`D:\…`) got `process.cwd()` prepended a second time, producing an unreachable directory. Also fixed a real file-handle leak in `DatabaseBridge.setUpWithSchema`/`setUpWithMigrations`: the driver `initialize()` leaves waiting after a schema/migration error was discarded for a new one without closing its still-open handle — invisible on POSIX (unlink doesn't care), but on Windows the orphaned handle blocked deleting/reopening the same file. Both surfaced as every file-backed SQLite Node test failing on Windows.
+- SQLite Node adapter (Windows): `getPath()` only recognized Unix (`/…`) and `file:` absolute paths, so a Windows drive-letter path (`D:\…`) got `process.cwd()` prepended a second time, producing an unreachable directory.
+- SQLite Node adapter: fixed a real file-handle leak in `DatabaseBridge.setUpWithSchema`/`setUpWithMigrations` — the driver `initialize()` leaves waiting after a schema/migration error was discarded for a new one without closing its still-open handle. Same root cause as upstream [Nozbe/WatermelonDB#1705](https://github.com/Nozbe/WatermelonDB/issues/1705); fixed here via the existing shared-memory-aware `DatabaseDriver.close()` rather than an unconditional `instance.close()`, so it doesn't also close a `cache=shared` in-memory connection another tag still depends on.
+- SQLite Node adapter: added `unsafeCloseConnection()` — there was no way for a Node/Electron consumer to release a database's native handle at all (only `unsafeResetDatabase()`, which closes and immediately reopens). Node/Electron only; native (iOS/Android/Windows Nitro) has no such lifecycle to expose.
+- Both leaks were invisible on POSIX (unlinking an open file is a no-op there) but on Windows the orphaned handle permanently blocked deleting/reopening the same file — surfaced as every file-backed SQLite Node test failing on Windows.
 
 ### Performance
 
