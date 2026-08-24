@@ -1,5 +1,5 @@
 import { expectToRejectWithMessage } from '../__tests__/utils'
-import { mockDatabase } from '../__tests__/testModels'
+import { mockDatabase, MockTask } from '../__tests__/testModels'
 import { noop } from '../utils/fp'
 import { logger } from '../utils/common'
 import * as Q from '../QueryDescription'
@@ -10,6 +10,12 @@ describe('Database', () => {
     expect(database.get('mock_tasks').table).toBe('mock_tasks')
     expect(database.get('mock_tasks')).toBe(database.collections.get('mock_tasks'))
     expect(database.get('mock_comments')).toBe(database.collections.get('mock_comments'))
+  })
+
+  it(`implements get() with a Model class`, () => {
+    const { database } = mockDatabase()
+    expect(database.get(MockTask)).toBe(database.get('mock_tasks'))
+    expect(database.get(MockTask).modelClass).toBe(MockTask)
   })
 
   it(`implements localStorage`, async () => {
@@ -116,6 +122,62 @@ describe('Database', () => {
       await database.write(() => tasks.create())
       expect(subscriber2).toHaveBeenCalledTimes(0)
     })
+    it('invalidates cached Query subscriptions that (against guidance) survived a reset, so they self-heal with fresh data instead of serving stale/pre-reset data forever', async () => {
+      const { database, tasks } = mockDatabase()
+      const query = tasks.query()
+
+      const t1 = await database.write(() => tasks.create())
+
+      const observer = jest.fn()
+      // NOTE: intentionally never unsubscribed -- this is the documented-
+      // against but realistic case of a component/hook staying mounted
+      // across a logout/login that resets the database
+      query.experimentalSubscribe(observer)
+      expect(observer).toHaveBeenLastCalledWith([t1])
+
+      await database.write(() => database.unsafeResetDatabase())
+
+      // instead of staying frozen on [t1] (pre-reset data) forever, the
+      // still-active subscription is invalidated and immediately refetches
+      // against the now-empty, post-reset database
+      expect(observer).toHaveBeenLastCalledWith([])
+
+      // having recovered, it keeps tracking new data normally
+      const t2 = await database.write(() => tasks.create())
+      expect(observer).toHaveBeenLastCalledWith([t2])
+    })
+    it('invalidates cached Query.experimentalSubscribeWithColumns() subscriptions that survived a reset the same way', async () => {
+      const { database, tasks } = mockDatabase()
+      const query = tasks.query()
+
+      const t1 = await database.write(() => tasks.create((task) => (task.name = 'before')))
+
+      const observer = jest.fn()
+      query.experimentalSubscribeWithColumns(['name'], observer)
+      expect(observer).toHaveBeenLastCalledWith([t1])
+
+      await database.write(() => database.unsafeResetDatabase())
+      expect(observer).toHaveBeenLastCalledWith([])
+
+      const t2 = await database.write(() => tasks.create((task) => (task.name = 'after')))
+      expect(observer).toHaveBeenLastCalledWith([t2])
+    })
+    it('does not touch cached Query subscriptions that were correctly unsubscribed before the reset', async () => {
+      const { database, tasks } = mockDatabase()
+      const query = tasks.query()
+
+      const t1 = await database.write(() => tasks.create())
+
+      const observer = jest.fn()
+      const unsubscribe = query.experimentalSubscribe(observer)
+      expect(observer).toHaveBeenLastCalledWith([t1])
+      unsubscribe()
+
+      await database.write(() => database.unsafeResetDatabase())
+
+      // no further calls -- correctly unsubscribed, so nothing to invalidate
+      expect(observer).toHaveBeenCalledTimes(1)
+    })
     it.skip('Cancels withChangesForTables observation during reset', async () => {})
     it.skip('Cancels Collection change observation during reset', async () => {})
     it.skip('Cancels Collection experimental subscribers during reset', async () => {})
@@ -148,6 +210,41 @@ describe('Database', () => {
     it.skip('Makes old Query objects unsable after reset', async () => {})
     it.skip('Makes old Relation objects unsable after reset', async () => {})
     // TODO: Write a regression test for https://github.com/Nozbe/WatermelonDB/commit/237e041d0d8aa4b3529fbf522f8d29c776fd4c0e
+  })
+
+  describe('resetObservablesCache', () => {
+    it('lets Query observers recover from data changed outside the Watermelon write path (e.g. a raw/unsafe write)', async () => {
+      const { database, tasks } = mockDatabase()
+      const query = tasks.query()
+
+      const t1 = await database.write(() => tasks.create())
+
+      const observer = jest.fn()
+      query.experimentalSubscribe(observer)
+      expect(observer).toHaveBeenLastCalledWith([t1])
+
+      // simulate a manual/unsafe wipe that bypasses Watermelon's write path
+      // entirely -- no Collection._notify happens, so the subscription
+      // above has no way of knowing anything changed on its own
+      await database.write(() =>
+        database.adapter.unsafeExecute({
+          loki: (loki) => {
+            loki.getCollection('mock_tasks').findAndRemove({})
+          },
+        }),
+      )
+      // without resetObservablesCache(), the subscriber is still stuck on [t1]
+      expect(observer).toHaveBeenLastCalledWith([t1])
+
+      await database.write(async () => database.resetObservablesCache())
+      expect(observer).toHaveBeenLastCalledWith([])
+    })
+    it('throws if called from outside a writer', async () => {
+      const { database } = mockDatabase()
+      expect(() => database.resetObservablesCache()).toThrow(
+        'can only be called from inside of a Writer',
+      )
+    })
   })
 
   describe('Database.batch()', () => {

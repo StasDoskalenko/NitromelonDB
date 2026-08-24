@@ -59,6 +59,16 @@ export default class Collection<Record extends Model> {
 
   _cache: RecordCache<Record>
 
+  // Queries on this Collection that currently have at least one active
+  // subscriber somewhere (via .observe()/.experimentalSubscribe*() and
+  // friends) on one of their cached subscribables. Bounded to *active*
+  // subscriptions only (a Query removes itself once its subscriber count
+  // returns to zero — see Query#_subscribableActivationOptions), the same
+  // way Collection's/Database's own `_subscribers` lists are. Used by
+  // Database#unsafeResetDatabase() to invalidate stale cached emissions --
+  // see Query#_invalidateCachedSubscribables.
+  _cachedQueries: Set<Query<Record>> = new Set()
+
   constructor(database: Database, ModelClass: ModelClass<Record>) {
     this.database = database
     this.modelClass = ModelClass
@@ -324,5 +334,23 @@ export default class Collection<Record extends Model> {
       const idx = this._subscribers.indexOf(entry)
       idx !== -1 && this._subscribers.splice(idx, 1)
     }
+  }
+
+  _registerCachedQuery(query: Query<Record>): void {
+    this._cachedQueries.add(query)
+  }
+
+  _unregisterCachedQuery(query: Query<Record>): void {
+    this._cachedQueries.delete(query)
+  }
+
+  /**
+   * Forces every actively-subscribed `Query` observer on this Collection to
+   * drop its cached last emission and immediately re-fetch — see
+   * {@link Database#resetObservablesCache} for when you'd call this
+   * yourself (e.g. after a raw/unsafe write to just this table).
+   */
+  resetObservablesCache(): void {
+    this._cachedQueries.forEach((query) => query._invalidateCachedSubscribables())
   }
 }

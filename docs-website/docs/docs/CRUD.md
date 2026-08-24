@@ -12,7 +12,13 @@ The `Collection` object is how you find, query, and create new records of a give
 const postsCollection = database.get('posts')
 ```
 
-Pass the [table name](./Schema.md) as the argument.
+Pass the [table name](./Schema.md) as the argument — or, for real typing (a table name is just a `string` underneath, so passing one infers nothing, and a typo'd name only fails at runtime, as `null`), pass the Model class instead:
+
+```js
+const postsCollection = database.get(Post)
+```
+
+Both do the same thing; `database.get(Post)` just gives you back a properly-typed `Collection<Post>` instead of `Collection<Model>`.
 
 #### Find a record (by ID)
 
@@ -122,11 +128,20 @@ await somePost.destroyPermanently() // permanent
     ```
     `post._raw.id = serverId` and `collection.prepareCreateFromDirtyRaw({ id: serverId, ... })` still work.
 
+### Logging out / switching users
+
+Most apps use a single, long-lived `Database` instance and, on logout, either call `database.unsafeResetDatabase()` or drop down to raw SQL/adapter calls to wipe every table. Either way, **the safe pattern is to make sure nothing is still observing the database when you do this**:
+
+- `unsafeResetDatabase()` clears each `Collection`'s internal record cache, but it does not — and cannot — reach into every `Query`/`Model` observer your app may still be holding onto. Its own doc comment says so explicitly: you must not hold onto records, collections, or other Watermelon objects, and all observers/subscribers should be disposed of first.
+- If a subscription genuinely stays alive across the reset (a persistent top-level component, a memoized `Query` held in module scope, a `useQuery`/`useRecord`/`withObservables`-connected component that didn't unmount), NitromelonDB now detects and self-heals it: any `Query` cache (`.observe()`, `.observeWithColumns()`, `.observeCount()`, and their Rx-free `experimentalSubscribe*()` equivalents) that's still actively subscribed when `unsafeResetDatabase()` runs is invalidated and immediately refetched, so the subscriber gets fresh (post-reset) data instead of being frozen on the previous user's data forever. This is a safety net for a real app bug, not a substitute for tearing subscriptions down properly — until that invalidation runs, the still-mounted component *will* briefly render the old user's data.
+- **If you wipe tables yourself instead of calling `unsafeResetDatabase()`** (raw SQL, `unsafeExecute`, or anything else that bypasses `database.write()`/`collection.create()`/etc.), that automatic invalidation doesn't run — nothing told NitromelonDB the data changed. Call `database.resetObservablesCache()` (or the narrower `collection.resetObservablesCache()`, for just one table) yourself right after, inside the same writer. Any singleton/long-lived observer watching that data — including ones that are correctly still subscribed across your logout/login — picks up the new (or new user's) data instead of breaking or going stale.
+- The cleanest option, if your app's shape allows it, is to give each logged-in session its own `Database` instance (e.g. a fresh SQLite file per user, or just `new Database(...)`) instead of resetting a shared one — there's no cache to invalidate if nothing outlives the session in the first place.
+
 ### Advanced: Unsafe raw execute
 
 ⚠️ Do not use this if you don't know what you're doing...
 
-There is an escape hatch to drop down from WatermelonDB to underlying database level to execute arbitrary commands. Use as a last resort tool:
+There is an escape hatch to drop down from WatermelonDB to underlying database level to execute arbitrary commands. Use as a last resort tool. **Watermelon's Query/Model observers don't see these changes on their own** — follow up with `database.resetObservablesCache()` (see [logging out / switching users](#logging-out--switching-users)) if anything might be observing the tables you touched:
 
 ```js
 await database.write(() => {

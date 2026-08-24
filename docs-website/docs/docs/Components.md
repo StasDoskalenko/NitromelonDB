@@ -2,7 +2,7 @@
 
 After you [define some Models](./Model.md), it's time to connect Watermelon to your app's interface. We're using React in this guide, however WatermelonDB can be used with any UI framework.
 
-**Note:** If you're not familiar with higher-order components, read [React documentation](https://reactjs.org/docs/higher-order-components.html), check out [`recompose`](https://github.com/acdlite/recompose)… or just read the examples below to see it in practice!
+**Note:** If you're not familiar with higher-order components, read [React documentation](https://reactjs.org/docs/higher-order-components.html), check out [`recompose`](https://github.com/acdlite/recompose)… or just read the examples below to see it in practice! Prefer hooks over HOCs? See [React Hooks](./Hooks.md) for `useRecord`/`useQuery`/`useObservable` instead.
 
 ## Reactive components
 
@@ -124,11 +124,9 @@ This is very similar to normal `<Post>`. We take the `Query` for post's comments
 
 ## Hey, what about React Hooks?
 
-We get it — HOCs are so 2017, and Hooks are the future! And we agree.
+We get it — HOCs are so 2017, and Hooks are the future! And we agree — NitromelonDB now ships official hooks: `useRecord`, `useQuery`, and `useObservable`. See **[React Hooks](./Hooks.md)**.
 
-However, Hooks are not compatible with WatermelonDB's asynchronous API. You _could_ use alternative open-source Hooks for Rx Observables, however we don't recommend that. They won't work correctly in all cases and won't be as optimized for performance with WatermelonDB as `withObservables`. In the future, once Concurrent React is fully developed and published, WatermelonDB will have official hooks.
-
-**[See discussion about official `useObservables` Hook](https://github.com/Nozbe/withObservables/issues/16)**
+(Upstream WatermelonDB doesn't have these — this was an [open discussion](https://github.com/Nozbe/withObservables/issues/16) there for years, and the community's own attempts at a `useObservable` hook ran into a real gotcha: records are mutated in place, so naively holding one in React state stops re-rendering after the first change, since the reference never differs. `useRecord`/`useQuery` are built directly on this library's Rx-free `experimentalSubscribe*` methods and avoid it properly — no cloning workarounds needed. See [React Hooks](./Hooks.md) for why.)
 
 ## Understanding `withObservables`
 

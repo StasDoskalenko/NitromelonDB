@@ -272,6 +272,10 @@ tasksCollection.query(
 
 Call `query.observeWithColumns(['foo', 'bar'])` to create an Observable that emits a value not only when the list of matching records changes (new records/deleted records), but also when any of the matched records changes its `foo` or `bar` column. [Use this for observing sorted lists](./Components.md)
 
+Multiple observers of the same query with the same columns (in any order) share one underlying subscription, so observing `query.observeWithColumns(['foo', 'bar'])` from several components doesn't re-run the query or re-track changes once per component — the same sharing `query.observe()` already gets. This also applies to the Rx-free `query.experimentalSubscribeWithColumns(columnNames, subscriber)`.
+
+Because that sharing keeps a cached last value around per Query, see [logging out / switching users](./CRUD.md#logging-out--switching-users) for what happens to it across a `Database.unsafeResetDatabase()`.
+
 #### Count throttling
 
 By default, calling `query.observeCount()` returns an Observable that is throttled to emit at most once every 250ms. You can disable throttling using `query.observeCount(false)`.

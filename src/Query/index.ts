@@ -3,7 +3,7 @@ import invariant from '../utils/common/invariant'
 import { Observable, type Observer } from '../utils/rx'
 import { toPromise } from '../utils/fp/Result'
 import { fromArrayOrSpread } from '../utils/fp'
-import { type Unsubscribe, SharedSubscribable } from '../utils/subscriptions'
+import { type Unsubscribe, SharedSubscribable, KeyedSharedSubscribable } from '../utils/subscriptions'
 
 // import from decorarators break the app on web production WTF ¯\_(ツ)_/¯
 import lazy from '../decorators/lazy'
@@ -55,25 +55,96 @@ export default class Query<Record extends Model> {
   _rawDescription: QueryDescription
 
   @lazy
-  _cachedSubscribable: SharedSubscribable<Record[]> = new SharedSubscribable((subscriber) =>
-    subscribeToQuery(this, subscriber),
+  _cachedSubscribable: SharedSubscribable<Record[]> = new SharedSubscribable(
+    (subscriber) => subscribeToQuery(this, subscriber),
+    this._subscribableActivationOptions(),
   )
 
   @lazy
-  _cachedCountSubscribable: SharedSubscribable<number> = new SharedSubscribable((subscriber) =>
-    subscribeToCount(this, false, subscriber),
+  _cachedCountSubscribable: SharedSubscribable<number> = new SharedSubscribable(
+    (subscriber) => subscribeToCount(this, false, subscriber),
+    this._subscribableActivationOptions(),
   )
 
   @lazy
   _cachedCountThrottledSubscribable: SharedSubscribable<number> = new SharedSubscribable(
     (subscriber) => subscribeToCount(this, true, subscriber),
+    this._subscribableActivationOptions(),
   )
+
+  // Unlike _cachedSubscribable above, subscribeToQueryWithColumns is
+  // parameterized by columnNames, so a single SharedSubscribable isn't
+  // enough — different callers observing the same columns (in any order)
+  // should still share one subscription (and, importantly, one re-fetch of
+  // the query on every relevant change instead of one per caller), while
+  // callers observing different columns get their own. See
+  // KeyedSharedSubscribable for the general mechanism.
+  @lazy
+  _cachedColumnsSubscribables: KeyedSharedSubscribable<ColumnName[], Record[]> =
+    new KeyedSharedSubscribable<ColumnName[], Record[]>(
+      (columnNames) => columnNames.slice().sort().join(','),
+      (columnNames) => (subscriber) => subscribeToQueryWithColumns(this, columnNames, subscriber),
+      this._subscribableActivationOptions(),
+    )
 
   // Note: Don't use this directly, use Collection.query(...)
   constructor(collection: Collection<Record>, clauses: Clause[]) {
     this.collection = collection
     this._rawDescription = Q.buildQueryDescription(clauses)
     this.description = Q.queryWithoutDeleted(this._rawDescription)
+  }
+
+  // Number of active subscribers, summed across all of this Query's cached
+  // subscribables above (_cachedSubscribable, ..., and every key inside
+  // _cachedColumnsSubscribables) — i.e. whether *anything* on this Query is
+  // currently being observed. While it's above zero, the Query registers
+  // itself with its Collection (see Collection#_registerCachedQuery), so that
+  // Database#unsafeResetDatabase() can find and invalidate it even if an app
+  // (against the documented contract) left a subscription open across the
+  // reset. See SharedSubscribable#invalidate for why this matters.
+  _activeSubscriptionCount: number = 0
+
+  _subscribableActivationOptions(): {
+    onActivate: () => void
+    onDeactivate: () => void
+  } {
+    return {
+      onActivate: () => {
+        this._activeSubscriptionCount += 1
+        if (this._activeSubscriptionCount === 1) {
+          this.collection._registerCachedQuery(this)
+        }
+      },
+      onDeactivate: () => {
+        this._activeSubscriptionCount -= 1
+        if (this._activeSubscriptionCount === 0) {
+          this.collection._unregisterCachedQuery(this)
+        }
+      },
+    }
+  }
+
+  /**
+   * Invalidates every cached subscribable on this Query that's actually been
+   * created so far (doesn't force any into existence) — see
+   * {@link SharedSubscribable#invalidate}. Called by
+   * {@link Collection#resetObservablesCache}, in turn called by
+   * `Database#resetObservablesCache()`/`unsafeResetDatabase()`.
+   */
+  _invalidateCachedSubscribables(): void {
+    const own = (key: string): boolean => Object.prototype.hasOwnProperty.call(this, key)
+    if (own('_cachedSubscribable')) {
+      this._cachedSubscribable.invalidate()
+    }
+    if (own('_cachedCountSubscribable')) {
+      this._cachedCountSubscribable.invalidate()
+    }
+    if (own('_cachedCountThrottledSubscribable')) {
+      this._cachedCountThrottledSubscribable.invalidate()
+    }
+    if (own('_cachedColumnsSubscribables')) {
+      this._cachedColumnsSubscribables.invalidate()
+    }
   }
 
   /**
@@ -148,6 +219,11 @@ export default class Query<Record extends Model> {
   /**
    * Same as {@link Query#observe}, but also emits when any of the records on the list
    * has one of its `columnNames` changed.
+   *
+   * Multiple observers of the same columns share one underlying subscription
+   * (see {@link Query#experimentalSubscribeWithColumns}), so observing the
+   * same query + columns from several components doesn't re-run the query
+   * once per component.
    */
   observeWithColumns(columnNames: ColumnName[]): Observable<Record[]> {
     return Observable.create((observer: Observer<Record[]>) =>
@@ -231,12 +307,16 @@ export default class Query<Record extends Model> {
 
   /**
    * Rx-free equivalent of `.observeWithColumns()`
+   *
+   * Multiple subscribers observing the same columns (regardless of the
+   * order columnNames is given in) share one underlying subscription — see
+   * {@link Query#_cachedColumnsSubscribables}.
    */
   experimentalSubscribeWithColumns(
     columnNames: ColumnName[],
     subscriber: (records: Record[]) => void,
   ): Unsubscribe {
-    return subscribeToQueryWithColumns(this, columnNames, subscriber)
+    return this._cachedColumnsSubscribables.subscribe(columnNames, subscriber)
   }
 
   /**

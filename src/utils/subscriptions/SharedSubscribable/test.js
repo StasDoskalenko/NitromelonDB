@@ -259,4 +259,97 @@ describe('SharedSubscribable', () => {
     expect(subscriber2).toHaveBeenCalledTimes(0)
     unsubscribe2()
   })
+  it('calls onActivate/onDeactivate once per 0<->non-zero transition, not per subscriber', () => {
+    const source = jest.fn(() => () => {})
+    const onActivate = jest.fn()
+    const onDeactivate = jest.fn()
+
+    const shared = new SharedSubscribable(source, { onActivate, onDeactivate })
+    expect(onActivate).toHaveBeenCalledTimes(0)
+
+    const unsubscribe1 = shared.subscribe(() => {})
+    expect(onActivate).toHaveBeenCalledTimes(1)
+    expect(onDeactivate).toHaveBeenCalledTimes(0)
+
+    // a second, third subscriber shouldn't trigger onActivate again
+    const unsubscribe2 = shared.subscribe(() => {})
+    const unsubscribe3 = shared.subscribe(() => {})
+    expect(onActivate).toHaveBeenCalledTimes(1)
+
+    unsubscribe1()
+    unsubscribe2()
+    expect(onDeactivate).toHaveBeenCalledTimes(0)
+
+    // last subscriber leaving triggers onDeactivate
+    unsubscribe3()
+    expect(onDeactivate).toHaveBeenCalledTimes(1)
+
+    // resubscribing triggers onActivate again
+    shared.subscribe(() => {})
+    expect(onActivate).toHaveBeenCalledTimes(2)
+  })
+  describe('invalidate()', () => {
+    it('is a no-op when there are no subscribers', () => {
+      const source = jest.fn(() => () => {})
+      const shared = new SharedSubscribable(source)
+      expect(() => shared.invalidate()).not.toThrow()
+      expect(source).toHaveBeenCalledTimes(0)
+    })
+    it('forgets the last emission and does not replay it to subsequent subscribers if there are no active subscribers', () => {
+      let emit = null
+      const source = jest.fn((subscriber) => {
+        emit = subscriber
+        return () => {}
+      })
+      const shared = new SharedSubscribable(source)
+
+      const unsubscribe = shared.subscribe(() => {})
+      emit('stale')
+      unsubscribe()
+
+      shared.invalidate()
+
+      const subscriber = jest.fn()
+      shared.subscribe(subscriber)
+      expect(subscriber).toHaveBeenCalledTimes(0)
+      // subscribing after invalidate() with no active subscribers re-runs the source, same as normal
+      expect(source).toHaveBeenCalledTimes(2)
+    })
+    it('re-subscribes to the source and notifies active subscribers with a fresh value, discarding the stale one', () => {
+      let emit = null
+      const sourceUnsubscribe = jest.fn()
+      const source = jest.fn((subscriber) => {
+        emit = subscriber
+        return sourceUnsubscribe
+      })
+      const shared = new SharedSubscribable(source)
+
+      const subscriber = jest.fn()
+      shared.subscribe(subscriber)
+      emit('stale')
+      expect(subscriber).toHaveBeenLastCalledWith('stale')
+
+      shared.invalidate()
+      expect(sourceUnsubscribe).toHaveBeenCalledTimes(1)
+      expect(source).toHaveBeenCalledTimes(2)
+      // no fresh value yet -- source hasn't emitted since being re-subscribed
+      expect(subscriber).toHaveBeenCalledTimes(1)
+
+      emit('fresh')
+      expect(subscriber).toHaveBeenLastCalledWith('fresh')
+    })
+    it('does not call onActivate/onDeactivate (subscriber list is unaffected)', () => {
+      const source = jest.fn(() => () => {})
+      const onActivate = jest.fn()
+      const onDeactivate = jest.fn()
+      const shared = new SharedSubscribable(source, { onActivate, onDeactivate })
+
+      shared.subscribe(() => {})
+      expect(onActivate).toHaveBeenCalledTimes(1)
+
+      shared.invalidate()
+      expect(onActivate).toHaveBeenCalledTimes(1)
+      expect(onDeactivate).toHaveBeenCalledTimes(0)
+    })
+  })
 })

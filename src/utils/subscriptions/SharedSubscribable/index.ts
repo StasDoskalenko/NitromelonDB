@@ -14,14 +14,31 @@ import invariant from '../../common/invariant'
 type Subscriber<T> = (value: T) => void
 type SubscriberEntry<T> = [Subscriber<T>, unknown]
 
+export type SharedSubscribableOptions = {
+  // Called once when the number of subscribers goes from 0 to 1 (not on every
+  // individual subscribe) -- e.g. so an owner can track which of its
+  // SharedSubscribables currently have someone listening.
+  onActivate?: () => void
+  // Called once when the number of subscribers goes from 1 to 0. Not called
+  // by invalidate() below, since that doesn't change who's subscribed.
+  onDeactivate?: () => void
+}
+
 export default class SharedSubscribable<T> {
   _source: (subscriber: Subscriber<T>) => Unsubscribe
   _unsubscribeSource: Unsubscribe | null | undefined = null
   _subscribers: SubscriberEntry<T>[] = []
   _lastEmission: { value: T } | null = null
+  _onActivate: (() => void) | undefined
+  _onDeactivate: (() => void) | undefined
 
-  constructor(source: (subscriber: Subscriber<T>) => Unsubscribe) {
+  constructor(
+    source: (subscriber: Subscriber<T>) => Unsubscribe,
+    { onActivate, onDeactivate }: SharedSubscribableOptions = {},
+  ) {
     this._source = source
+    this._onActivate = onActivate
+    this._onDeactivate = onDeactivate
   }
 
   subscribe(subscriber: Subscriber<T>, debugInfo?: unknown): Unsubscribe {
@@ -33,11 +50,16 @@ export default class SharedSubscribable<T> {
     }
 
     if (this._subscribers.length === 1) {
-      // TODO: What if this throws?
-      this._unsubscribeSource = this._source((value) => this._notify(value))
+      this._subscribeToSource()
+      this._onActivate?.()
     }
 
     return () => this._unsubscribe(entry)
+  }
+
+  _subscribeToSource(): void {
+    // TODO: What if this throws?
+    this._unsubscribeSource = this._source((value) => this._notify(value))
   }
 
   _notify(value: T): void {
@@ -60,6 +82,31 @@ export default class SharedSubscribable<T> {
       this._unsubscribeSource = null
       this._lastEmission = null
       unsubscribe && unsubscribe()
+      this._onDeactivate?.()
+    }
+  }
+
+  /**
+   * Forgets the last emitted value and, if there are currently active
+   * subscribers, immediately re-subscribes to the source so they get a fresh
+   * value instead of being stuck with a stale one.
+   *
+   * Intended for recovering from `Database#unsafeResetDatabase()`: per its
+   * contract, no subscription should still be active when it's called, but
+   * if one is (an app bug), its emissions would otherwise reflect
+   * pre-reset/other-user data forever, since nothing else would tell it the
+   * underlying data changed. Does not affect the subscriber list itself, so
+   * `onActivate`/`onDeactivate` are not called.
+   */
+  invalidate(): void {
+    if (this._unsubscribeSource) {
+      this._unsubscribeSource()
+      this._unsubscribeSource = null
+    }
+    this._lastEmission = null
+
+    if (this._subscribers.length) {
+      this._subscribeToSource()
     }
   }
 }
