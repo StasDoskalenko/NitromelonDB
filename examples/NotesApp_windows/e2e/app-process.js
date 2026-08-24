@@ -20,25 +20,6 @@ function taskkill(image) {
   }
 }
 
-function screenWorkArea() {
-  const out = execFileSync(
-    'powershell.exe',
-    [
-      '-NoProfile',
-      '-Command',
-      'Add-Type -AssemblyName System.Windows.Forms; ' +
-        '$a = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea; ' +
-        '"$($a.Width),$($a.Height)"',
-    ],
-    {encoding: 'utf8'},
-  ).trim()
-  const [width, height] = out.split(',').map(Number)
-  if (!width || !height) {
-    throw new Error(`Could not determine screen work area from: "${out}"`)
-  }
-  return {width, height}
-}
-
 function packageFamilyName() {
   const out = execFileSync(
     'powershell.exe',
@@ -133,5 +114,4 @@ module.exports = {
   launchApp,
   packageFamilyName,
   prepareFreshLaunch,
-  screenWorkArea,
 }

@@ -268,6 +268,15 @@ jobs:
           key: nuget-notesapp-windows-${{ hashFiles('examples/NotesApp_windows/windows/**/*.vcxproj', 'native/windows/**/*.vcxproj') }}
       - name: Install NotesApp Windows
         run: yarn install --immutable
+      - name: Set display resolution
+        # GitHub-hosted Windows runners default to a 1024x768 virtual
+        # display (actions/runner-images#2935) — smaller than the app's own
+        # 1000x1000 default window, so WinAppDriver could still find and
+        # click elements past the screen edge, but the click landed on
+        # pixels that were never actually painted. Set-DisplayResolution is
+        # a built-in Server Core cmdlet (not a third-party module) and
+        # 1920x1080 is GitHub's own confirmed-working, max-supported value.
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
       - name: Build and deploy NotesApp (x64 Release)
         run: yarn windows -- --arch x64 --release --logging --no-packager --no-launch
       - name: Run NotesApp UI e2e
