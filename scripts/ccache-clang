@@ -28,15 +28,22 @@ done
 
 xcode_toolchain_dir="${xcode_toolchain_dir:?CCACHE_HACK_TOOLCHAIN_DIR not found. See ccache-clang for more details}"
 
+# Invoked as ccache-clang++ (symlink) for C++/Obj-C++ pods (e.g. Reanimated,
+# Worklets) — same toolchain-resolution dance, just the other compiler.
+compiler_name="clang"
+case "$(basename "$0")" in
+*++) compiler_name="clang++" ;;
+esac
+
 # Xcode 26 can pass Metal.xctoolchain as TOOLCHAIN_DIR. That bundle has no clang,
 # which breaks CI with: execute_noreturn of .../Metal.xctoolchain/usr/bin/clang
-clang_bin="${xcode_toolchain_dir}/usr/bin/clang"
+clang_bin="${xcode_toolchain_dir}/usr/bin/${compiler_name}"
 if [ ! -x "$clang_bin" ]; then
   default_toolchain="$(xcode-select -p 2>/dev/null)/Toolchains/XcodeDefault.xctoolchain"
-  if [ -x "${default_toolchain}/usr/bin/clang" ]; then
-    clang_bin="${default_toolchain}/usr/bin/clang"
+  if [ -x "${default_toolchain}/usr/bin/${compiler_name}" ]; then
+    clang_bin="${default_toolchain}/usr/bin/${compiler_name}"
   else
-    clang_bin="$(xcrun --find clang 2>/dev/null || command -v clang)"
+    clang_bin="$(xcrun --find "$compiler_name" 2>/dev/null || command -v "$compiler_name")"
   fi
 fi
 
