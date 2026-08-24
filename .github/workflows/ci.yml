@@ -217,13 +217,27 @@ jobs:
         run: yarn install --immutable
       - name: Expo prebuild iOS
         working-directory: examples/NotesApp
-        # No --no-install: unlike Android, `pod install` (not a JS install)
-        # needs to run here, and prebuild is what runs it for iOS.
-        run: yarn expo prebuild --platform ios --non-interactive
+        # --no-install here only skips the JS install (already done above);
+        # pod install is skipped separately below so the Pods cache can be
+        # restored first — ios/ is gitignored and regenerated every run, so
+        # there's no committed Podfile.lock to key a cache off before this.
+        run: yarn expo prebuild --platform ios --non-interactive --no-install
+      - name: cache Pods
+        uses: actions/cache@v4
+        with:
+          path: |
+            examples/NotesApp/ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: ${{ runner.os }}-notesapp-pods-${{ hashFiles('examples/NotesApp/ios/Podfile') }}
+      - name: pod install
+        working-directory: examples/NotesApp/ios
+        run: pod install
       - name: Install Maestro
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Install xcbeautify
+        run: brew install xcbeautify
       - name: run tests
         run: bash scripts/ci-notesapp-ios-maestro.sh
   windows:

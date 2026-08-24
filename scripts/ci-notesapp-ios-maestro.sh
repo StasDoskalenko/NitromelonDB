@@ -25,13 +25,15 @@ fi
 xcrun simctl boot "$SIM_UDID" || true
 xcrun simctl bootstatus "$SIM_UDID" -b
 
+# set -o pipefail (part of -euo pipefail above) makes this fail on a real
+# xcodebuild error, not just on xcbeautify's own exit code.
 xcodebuild \
   -workspace ios/NotesApp.xcworkspace \
   -scheme NotesApp \
   -configuration Release \
   -destination "id=$SIM_UDID" \
   -derivedDataPath ios/build \
-  build
+  build | xcbeautify --renderer github-actions
 
 APP_PATH=$(find ios/build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)
 if [ -z "$APP_PATH" ]; then
