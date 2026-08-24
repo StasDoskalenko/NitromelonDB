@@ -345,12 +345,12 @@ export default class Collection<Record extends Model> {
   }
 
   /**
-   * Invalidates the cached subscribables of every Query on this Collection
-   * that's currently actively subscribed — see
-   * {@link Query#_invalidateCachedSubscribables}. Called by
-   * `Database#unsafeResetDatabase()`.
+   * Forces every actively-subscribed `Query` observer on this Collection to
+   * drop its cached last emission and immediately re-fetch — see
+   * {@link Database#resetObservablesCache} for when you'd call this
+   * yourself (e.g. after a raw/unsafe write to just this table).
    */
-  _invalidateCachedQueries(): void {
+  resetObservablesCache(): void {
     this._cachedQueries.forEach((query) => query._invalidateCachedSubscribables())
   }
 }

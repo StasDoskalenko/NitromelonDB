@@ -206,6 +206,41 @@ describe('Database', () => {
     // TODO: Write a regression test for https://github.com/Nozbe/WatermelonDB/commit/237e041d0d8aa4b3529fbf522f8d29c776fd4c0e
   })
 
+  describe('resetObservablesCache', () => {
+    it('lets Query observers recover from data changed outside the Watermelon write path (e.g. a raw/unsafe write)', async () => {
+      const { database, tasks } = mockDatabase()
+      const query = tasks.query()
+
+      const t1 = await database.write(() => tasks.create())
+
+      const observer = jest.fn()
+      query.experimentalSubscribe(observer)
+      expect(observer).toHaveBeenLastCalledWith([t1])
+
+      // simulate a manual/unsafe wipe that bypasses Watermelon's write path
+      // entirely -- no Collection._notify happens, so the subscription
+      // above has no way of knowing anything changed on its own
+      await database.write(() =>
+        database.adapter.unsafeExecute({
+          loki: (loki) => {
+            loki.getCollection('mock_tasks').findAndRemove({})
+          },
+        }),
+      )
+      // without resetObservablesCache(), the subscriber is still stuck on [t1]
+      expect(observer).toHaveBeenLastCalledWith([t1])
+
+      await database.write(async () => database.resetObservablesCache())
+      expect(observer).toHaveBeenLastCalledWith([])
+    })
+    it('throws if called from outside a writer', async () => {
+      const { database } = mockDatabase()
+      expect(() => database.resetObservablesCache()).toThrow(
+        'can only be called from inside of a Writer',
+      )
+    })
+  })
+
   describe('Database.batch()', () => {
     it('can batch records', async () => {
       let {

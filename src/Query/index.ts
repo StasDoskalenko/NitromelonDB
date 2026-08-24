@@ -128,8 +128,8 @@ export default class Query<Record extends Model> {
    * Invalidates every cached subscribable on this Query that's actually been
    * created so far (doesn't force any into existence) — see
    * {@link SharedSubscribable#invalidate}. Called by
-   * {@link Collection#_invalidateCachedQueries}, in turn called by
-   * `Database#unsafeResetDatabase()`.
+   * {@link Collection#resetObservablesCache}, in turn called by
+   * `Database#resetObservablesCache()`/`unsafeResetDatabase()`.
    */
   _invalidateCachedSubscribables(): void {
     const own = (key: string): boolean => Object.prototype.hasOwnProperty.call(this, key)

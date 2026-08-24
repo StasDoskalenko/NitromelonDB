@@ -6,9 +6,10 @@
 
 ### New features
 - `useModel`/`useQuery`/`useObservable` hooks (`nitromelondb/hooks` or `nitromelondb/react`) as a hooks-based alternative to `withObservables`. Built on the existing Rx-free `experimentalSubscribe*` methods; re-renders on record/query changes without cloning records — see [docs](https://stasdoskalenko.github.io/NitromelonDB/docs/Hooks).
+- `Database#resetObservablesCache()` / `Collection#resetObservablesCache()`: forces every actively-subscribed `Query` observer to drop its cached last emission and refetch. Call this yourself after mutating data outside Watermelon's write path (raw SQL, `unsafeExecute`, or any manual table wipe that doesn't go through `unsafeResetDatabase()`) so already-subscribed observers pick up the change instead of going stale — see [docs](https://stasdoskalenko.github.io/NitromelonDB/docs/CRUD#logging-out--switching-users).
 
 ### Fixes
-- `Database#unsafeResetDatabase()` now invalidates any `Query` observation caches (`SharedSubscribable`/`KeyedSharedSubscribable`) that are still actively subscribed when it runs, forcing them to drop their pre-reset last value and immediately refetch. Guards against stale/other-user data leaking into a still-mounted component across a logout/login when an app (against the documented contract) leaves a subscription open across a database reset — see [docs](https://stasdoskalenko.github.io/NitromelonDB/docs/CRUD#logging-out--switching-users).
+- `Database#unsafeResetDatabase()` now calls the above internally for any `Query` observation cache (`SharedSubscribable`/`KeyedSharedSubscribable`) that's still actively subscribed when it runs. Guards against stale/other-user data leaking into a still-mounted component across a logout/login when an app (against the documented contract) leaves a subscription open across a database reset.
 
 ### Performance
 - `Query#experimentalSubscribeWithColumns`/`observeWithColumns`: multiple subscribers observing the same query with the same `columnNames` (in any order) now share one underlying subscription (and one re-fetch on change) instead of each running its own, via a new `KeyedSharedSubscribable` utility — the same `shareReplay`-style sharing `Query#observe`/`experimentalSubscribe` already got from `SharedSubscribable`.

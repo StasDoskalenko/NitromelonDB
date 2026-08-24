@@ -417,13 +417,39 @@ export default class Database {
       // emission forever, since nothing else would tell them the underlying
       // data changed. Force those (and only those -- idle Query caches are
       // untouched) to drop their stale value and refetch against the
-      // now-reset database. See Query#_invalidateCachedSubscribables.
-      Object.values(this.collections.map).forEach((collection) => {
-        collection._invalidateCachedQueries()
-      })
+      // now-reset database.
+      this.resetObservablesCache()
     } finally {
       this._isBeingReset = false
     }
+  }
+
+  /**
+   * Forces every actively-subscribed `Query` observer on every `Collection`
+   * (`.observe()`, `.observeWithColumns()`, `.observeCount()`, and their
+   * Rx-free `experimentalSubscribe*()` equivalents) to drop its cached last
+   * emission and immediately re-fetch.
+   *
+   * `unsafeResetDatabase()` already calls this for you. Call it yourself
+   * after mutating the database *outside* of Watermelon's write path --
+   * most commonly raw SQL/adapter access via `database.adapter.unsafeExecute()`
+   * (see [Advanced: Unsafe raw execute](https://stasdoskalenko.github.io/NitromelonDB/docs/CRUD#advanced-unsafe-raw-execute))
+   * or a manual "delete everything from every table" logout that doesn't go
+   * through `unsafeResetDatabase()`. Without calling this afterward, any
+   * already-subscribed Query would keep serving whatever it last saw before
+   * your raw write, unaware anything changed.
+   *
+   * Safe to call even when nothing needs invalidating (idle Query caches --
+   * ones with no current subscriber -- are left untouched either way, so
+   * calling this too often just costs a few no-op checks, not correctness).
+   *
+   * Must be called from inside a Writer.
+   */
+  resetObservablesCache(): void {
+    this._ensureInWriter(`Database.resetObservablesCache()`)
+    Object.values(this.collections.map).forEach((collection) => {
+      collection.resetObservablesCache()
+    })
   }
 
   // (experimental) if true, Models will print to console diagnostic information on every
