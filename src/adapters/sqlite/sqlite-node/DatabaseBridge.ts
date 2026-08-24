@@ -69,6 +69,10 @@ class DatabaseBridge {
     resolve: (value: boolean) => void,
     _reject: () => void,
   ): void {
+    // `initialize()` stashed a driver here (in the `waiting` state) after it
+    // hit SchemaNeededError — that driver's file handle is still open and
+    // must be closed before it's replaced below.
+    this.connections[tag]?.driver.close()
     const driver = new DatabaseDriver()
     driver.setUpWithSchema(databaseName, schema, schemaVersion)
     this.connectDriverAsync(tag, driver)
@@ -85,6 +89,9 @@ class DatabaseBridge {
     reject: (code: string, message: string, error: Error) => void,
   ): void {
     try {
+      // Same as setUpWithSchema: close the driver `initialize()` left waiting
+      // after MigrationNeededError before it's replaced.
+      this.connections[tag]?.driver.close()
       const driver = new DatabaseDriver()
       driver.setUpWithMigrations(databaseName, {
         from: fromVersion,

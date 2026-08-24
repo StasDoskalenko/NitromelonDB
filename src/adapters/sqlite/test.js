@@ -7,8 +7,18 @@ import SqliteAdapter from './index'
 import DatabaseAdapterCompat from '../compat'
 
 function removeIfExists(file, dbName) {
-  if (file && fs.existsSync(dbName)) {
-    fs.unlinkSync(dbName)
+  if (!file) {
+    return
+  }
+  try {
+    if (fs.existsSync(dbName)) {
+      fs.unlinkSync(dbName)
+    }
+  } catch {
+    // Best-effort: on Windows, unlink can fail with EBUSY if the native SQLite
+    // handle hasn't released the file yet (no close() is exposed on the
+    // adapter). The test itself already passed by this point — a leftover
+    // .tmp file doesn't affect the result and is gitignored.
   }
 }
 

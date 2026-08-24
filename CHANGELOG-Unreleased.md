@@ -8,6 +8,8 @@
 
 ### Fixes
 
+- SQLite Node adapter (Windows): `getPath()` only recognized Unix (`/…`) and `file:` absolute paths, so a Windows drive-letter path (`D:\…`) got `process.cwd()` prepended a second time, producing an unreachable directory. Also fixed a real file-handle leak in `DatabaseBridge.setUpWithSchema`/`setUpWithMigrations`: the driver `initialize()` leaves waiting after a schema/migration error was discarded for a new one without closing its still-open handle — invisible on POSIX (unlink doesn't care), but on Windows the orphaned handle blocked deleting/reopening the same file. Both surfaced as every file-backed SQLite Node test failing on Windows.
+
 ### Performance
 
 ### Changes
