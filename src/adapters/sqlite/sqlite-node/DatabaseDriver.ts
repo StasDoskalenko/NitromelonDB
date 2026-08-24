@@ -35,13 +35,17 @@ class SchemaNeededError extends Error {
   }
 }
 
+// Unix absolute path (`/…`), a `file:` URI, or a Windows drive-letter path
+// (`D:\…` / `D:/…`) — anything else is relative to cwd.
+const isAbsolutePath = (dbName: string): boolean =>
+  dbName.startsWith('/') || dbName.startsWith('file:') || /^[a-zA-Z]:[/\\]/.test(dbName)
+
 export function getPath(dbName: string): string {
   if (dbName === ':memory:' || dbName === 'file::memory:') {
     return dbName
   }
 
-  let path =
-    dbName.startsWith('/') || dbName.startsWith('file:') ? dbName : `${process.cwd()}/${dbName}`
+  let path = isAbsolutePath(dbName) ? dbName : `${process.cwd()}/${dbName}`
   if (path.indexOf('.db') === -1) {
     if (path.indexOf('?') >= 0) {
       const index = path.indexOf('?')
@@ -60,6 +64,8 @@ class DatabaseDriver {
   database: Database = undefined as unknown as Database
 
   cachedRecords: { [table: string]: Set<string> } = {}
+
+  isSharedMemory: boolean = false
 
   initialize(dbName: string, schemaVersion: number): void {
     this.init(dbName)
@@ -81,12 +87,24 @@ class DatabaseDriver {
   init(dbName: string): void {
     this.database = new Database(getPath(dbName))
 
-    const isSharedMemory = dbName.indexOf('mode=memory') > 0 && dbName.indexOf('cache=shared') > 0
-    if (isSharedMemory) {
+    this.isSharedMemory = dbName.indexOf('mode=memory') > 0 && dbName.indexOf('cache=shared') > 0
+    if (this.isSharedMemory) {
       if (!DatabaseDriver.sharedMemoryConnections[dbName]) {
         DatabaseDriver.sharedMemoryConnections[dbName] = this.database
       }
       this.database = DatabaseDriver.sharedMemoryConnections[dbName]
+    }
+  }
+
+  // A driver stashed in DatabaseBridge's `waiting` state (schema/migrations
+  // needed) holds an open file handle. If it's about to be discarded for a
+  // fresh driver, that handle must be released explicitly — nothing else
+  // will close it, and on Windows an open handle blocks deleting/reopening
+  // the same file (POSIX allows unlinking an open file, so this is silent
+  // there). Shared in-memory connections are reused elsewhere, so skip those.
+  close(): void {
+    if (!this.isSharedMemory && this.database) {
+      this.database.instance.close()
     }
   }
 

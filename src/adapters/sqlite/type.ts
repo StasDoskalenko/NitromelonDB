@@ -79,6 +79,10 @@ export type SqliteDispatcherMethod =
   | 'unsafeResetDatabase'
   | 'getLocal'
   | 'unsafeExecuteMultiple'
+  // Node/Electron only (see sqlite-node/DatabaseBridge). Native (iOS/Android/
+  // Windows Nitro) has no connection lifecycle for JS to manage — the app
+  // process owns it — so this is not implemented there.
+  | 'unsafeCloseConnection'
 
 export interface SqliteDispatcher {
   call<T>(methodName: SqliteDispatcherMethod, args: unknown[], callback: ResultCallback<T>): void
