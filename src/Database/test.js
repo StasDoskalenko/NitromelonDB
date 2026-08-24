@@ -1,5 +1,5 @@
 import { expectToRejectWithMessage } from '../__tests__/utils'
-import { mockDatabase } from '../__tests__/testModels'
+import { mockDatabase, MockTask } from '../__tests__/testModels'
 import { noop } from '../utils/fp'
 import { logger } from '../utils/common'
 import * as Q from '../QueryDescription'
@@ -10,6 +10,12 @@ describe('Database', () => {
     expect(database.get('mock_tasks').table).toBe('mock_tasks')
     expect(database.get('mock_tasks')).toBe(database.collections.get('mock_tasks'))
     expect(database.get('mock_comments')).toBe(database.collections.get('mock_comments'))
+  })
+
+  it(`implements get() with a Model class`, () => {
+    const { database } = mockDatabase()
+    expect(database.get(MockTask)).toBe(database.get('mock_tasks'))
+    expect(database.get(MockTask).modelClass).toBe(MockTask)
   })
 
   it(`implements localStorage`, async () => {

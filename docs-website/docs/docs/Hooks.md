@@ -47,15 +47,19 @@ Calling `useQuery(query, columnNames)` from several components with the same que
 `useRecord`/`useQuery`/`useObservable` only cover reads. For writes, `useWriter(model, writer)` gives you back a stable callback that runs `writer` inside `model.database.write()` — the hook-friendly equivalent of a `@writer` method:
 
 ```jsx
+import Comment from '../models/Comment'
+
 function useAddComment(post) {
   return useWriter(post, async (post, body) => {
-    await post.database.get('comments').create((comment) => {
+    await post.database.get(Comment).create((comment) => {
       comment.post.set(post)
       comment.body = body
     })
   })
 }
 ```
+
+`database.get(Comment)` — passing the Model class, not a `'comments'` table-name string — is the preferred form: `TableName<T>` is just `string` underneath, so a raw string infers nothing (you'd get back an untyped `Collection<Model>`, and a typo'd table name would only surface at runtime, as `null`). The class is a real, checked value, so `database.get(Comment)` gives you `Collection<Comment>` for real, with no risk of stringly-typed drift.
 
 `writer`'s first argument is `post`, typed as whatever concrete `Model` subclass you passed in (not a generic `Model`) — and it isn't limited to writing `post` itself; it runs inside one Writer, so it can freely touch other records/tables too, as above.
 

@@ -12,7 +12,13 @@ The `Collection` object is how you find, query, and create new records of a give
 const postsCollection = database.get('posts')
 ```
 
-Pass the [table name](./Schema.md) as the argument.
+Pass the [table name](./Schema.md) as the argument — or, for real typing (a table name is just a `string` underneath, so passing one infers nothing, and a typo'd name only fails at runtime, as `null`), pass the Model class instead:
+
+```js
+const postsCollection = database.get(Post)
+```
+
+Both do the same thing; `database.get(Post)` just gives you back a properly-typed `Collection<Post>` instead of `Collection<Model>`.
 
 #### Find a record (by ID)
 
