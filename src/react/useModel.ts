@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import type Model from '../Model'
 import useTick from './useTick'
 
@@ -26,12 +27,11 @@ import useTick from './useTick'
 export default function useModel<T extends Model>(model: T): T
 export default function useModel<T extends Model | null | undefined>(model: T): T
 export default function useModel<T extends Model | null | undefined>(model: T): T {
-  useTick((notify) => {
-    if (!model) {
-      return () => {}
-    }
-    return model.experimentalSubscribe(notify)
-  }, [model])
+  const subscribe = useCallback(
+    (notify: () => void) => (model ? model.experimentalSubscribe(notify) : () => {}),
+    [model],
+  )
+  useTick(subscribe)
 
   return model
 }

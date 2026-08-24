@@ -21,28 +21,31 @@ import { useCallback, useRef, useSyncExternalStore } from 'react'
  * a ref holding the latest emitted array, ...) during the render that
  * triggers.
  *
- * `subscribe` is invoked by React to establish/re-establish the
- * subscription (whenever `deps` change, or in StrictMode's double-invoke);
- * call the `notify` callback it's given every time the source has changed.
+ * `subscribe` must already be a stable, correctly-memoized callback (a
+ * `useCallback` in the caller, with a real, lint-checked dependency array)
+ * — this hook doesn't take a `deps` array of its own to forward it with, on
+ * purpose: that would mean trusting that `deps` fully covers whatever
+ * `subscribe` closes over, with nothing (not even
+ * `react-hooks/exhaustive-deps`) left to verify it. Requiring an
+ * already-memoized function instead pushes that correctness requirement
+ * back to each caller's own `useCallback`, where the lint rule can actually
+ * check it. React re-establishes the subscription (unsubscribe + subscribe)
+ * whenever `subscribe` itself changes identity, or in StrictMode's
+ * double-invoke.
  */
-export default function useTick(
-  subscribe: (notify: () => void) => () => void,
-  deps: readonly unknown[],
-): void {
+export default function useTick(subscribe: (notify: () => void) => () => void): void {
   const tickRef = useRef(0)
 
-  /* eslint-disable react-hooks/exhaustive-deps -- `deps` is this hook's own
-   * parameter, forwarded verbatim from the caller (useModel/useQuery/
-   * useObservable), not a literal eslint can statically check here. */
-  const subscribeStore = useCallback((onStoreChange: () => void) => {
-    return subscribe(() => {
-      tickRef.current += 1
-      onStoreChange()
-    })
-  }, deps)
+  const subscribeStore = useCallback(
+    (onStoreChange: () => void) =>
+      subscribe(() => {
+        tickRef.current += 1
+        onStoreChange()
+      }),
+    [subscribe],
+  )
 
-  const getSnapshot = useCallback(() => tickRef.current, deps)
-  /* eslint-enable react-hooks/exhaustive-deps */
+  const getSnapshot = useCallback(() => tickRef.current, [])
 
   useSyncExternalStore(subscribeStore, getSnapshot)
 }

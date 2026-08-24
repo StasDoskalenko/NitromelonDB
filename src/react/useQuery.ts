@@ -1,7 +1,8 @@
-import { useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import type Model from '../Model'
 import type Query from '../Query'
 import type { ColumnName } from '../Schema'
+import useStableArray from './useStableArray'
 import useTick from './useTick'
 
 /**
@@ -28,6 +29,11 @@ import useTick from './useTick'
  *
  * `query` may be `null`/`undefined` (e.g. while its inputs are still
  * loading); an empty array is returned and no subscription is set up.
+ *
+ * `columnNames` doesn't need to be memoized by the caller (e.g.
+ * `useQuery(query, ['name'])` inline is fine) — it's compared by content,
+ * not by reference, so passing a fresh array literal on every render won't
+ * cause a resubscribe unless the columns actually changed.
  */
 export default function useQuery<T extends Model>(
   query: Query<T> | null | undefined,
@@ -38,8 +44,10 @@ export default function useQuery<T extends Model>(
     recordsRef.current = []
   }
 
-  useTick(
-    (notify) => {
+  const stableColumnNames = useStableArray(columnNames)
+
+  const subscribe = useCallback(
+    (notify: () => void) => {
       if (!query) {
         return () => {}
       }
@@ -47,13 +55,13 @@ export default function useQuery<T extends Model>(
         recordsRef.current = records
         notify()
       }
-      return columnNames
-        ? query.experimentalSubscribeWithColumns(columnNames, onRecords)
+      return stableColumnNames
+        ? query.experimentalSubscribeWithColumns(stableColumnNames, onRecords)
         : query.experimentalSubscribe(onRecords)
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [query, columnNames && columnNames.join(',')],
+    [query, stableColumnNames],
   )
+  useTick(subscribe)
 
   return recordsRef.current
 }

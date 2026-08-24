@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import type { Observable } from '../utils/rx'
 import useTick from './useTick'
 
@@ -30,8 +30,8 @@ export default function useObservable<T>(
     valueRef.current = defaultValue
   }
 
-  useTick(
-    (notify) => {
+  const subscribe = useCallback(
+    (notify: () => void) => {
       if (!observable) {
         return () => {}
       }
@@ -43,6 +43,7 @@ export default function useObservable<T>(
     },
     [observable],
   )
+  useTick(subscribe)
 
   return valueRef.current
 }
