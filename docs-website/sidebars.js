@@ -29,7 +29,14 @@ const sidebars = {
       'docs/Model',
       'docs/Advanced/Migrations',
     ],
-    Usage: ['docs/Relation', 'docs/CRUD', 'docs/Components', 'docs/Query', 'docs/Writers'],
+    Usage: [
+      'docs/Relation',
+      'docs/CRUD',
+      'docs/Components',
+      'docs/Hooks',
+      'docs/Query',
+      'docs/Writers',
+    ],
     Sync: [
       'docs/Sync/Intro',
       'docs/Sync/Frontend',

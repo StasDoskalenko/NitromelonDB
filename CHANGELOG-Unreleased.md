@@ -5,6 +5,7 @@
 ### Deprecations
 
 ### New features
+- `useModel`/`useQuery`/`useObservable` hooks (`nitromelondb/hooks` or `nitromelondb/react`) as a hooks-based alternative to `withObservables`. Built on the existing Rx-free `experimentalSubscribe*` methods; re-renders on record/query changes without cloning records — see [docs](https://stasdoskalenko.github.io/NitromelonDB/docs/Hooks).
 
 ### Fixes
 
