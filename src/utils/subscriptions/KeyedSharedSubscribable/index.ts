@@ -1,4 +1,4 @@
-import SharedSubscribable from '../SharedSubscribable'
+import SharedSubscribable, { type SharedSubscribableOptions } from '../SharedSubscribable'
 import type { Unsubscribe } from '../type'
 
 export type Subscriber<Value> = (value: Value) => void
@@ -42,9 +42,26 @@ export default class KeyedSharedSubscribable<Key, Value> {
 
   _sourceFor: (key: Key) => Source<Value>
 
-  constructor(keyOf: (key: Key) => string, sourceFor: (key: Key) => Source<Value>) {
+  _onActivate: (() => void) | undefined
+
+  _onDeactivate: (() => void) | undefined
+
+  // Number of distinct keys that currently have at least one subscriber.
+  // Drives onActivate/onDeactivate the same way SharedSubscribable's own
+  // subscriber count drives its onActivate/onDeactivate, but aggregated
+  // across the whole family, so a caller (e.g. Query) can tell whether *any*
+  // of its keys are being observed without inspecting each one.
+  _activeKeyCount: number = 0
+
+  constructor(
+    keyOf: (key: Key) => string,
+    sourceFor: (key: Key) => Source<Value>,
+    { onActivate, onDeactivate }: SharedSubscribableOptions = {},
+  ) {
     this._keyOf = keyOf
     this._sourceFor = sourceFor
+    this._onActivate = onActivate
+    this._onDeactivate = onDeactivate
   }
 
   /**
@@ -59,12 +76,35 @@ export default class KeyedSharedSubscribable<Key, Value> {
       return existing
     }
 
-    const subscribable = new SharedSubscribable(this._sourceFor(key))
+    const subscribable = new SharedSubscribable(this._sourceFor(key), {
+      onActivate: () => {
+        this._activeKeyCount += 1
+        if (this._activeKeyCount === 1) {
+          this._onActivate?.()
+        }
+      },
+      onDeactivate: () => {
+        this._activeKeyCount -= 1
+        if (this._activeKeyCount === 0) {
+          this._onDeactivate?.()
+        }
+      },
+    })
     this._subscribables.set(cacheKey, subscribable)
     return subscribable
   }
 
   subscribe(key: Key, subscriber: Subscriber<Value>): Unsubscribe {
     return this.get(key).subscribe(subscriber)
+  }
+
+  /**
+   * Invalidates every currently-cached `SharedSubscribable` in the family —
+   * see {@link SharedSubscribable#invalidate}. Used to recover from
+   * `Database#unsafeResetDatabase()` when a subscription (against its
+   * contract) survived the reset.
+   */
+  invalidate(): void {
+    this._subscribables.forEach((subscribable) => subscribable.invalidate())
   }
 }

@@ -55,18 +55,21 @@ export default class Query<Record extends Model> {
   _rawDescription: QueryDescription
 
   @lazy
-  _cachedSubscribable: SharedSubscribable<Record[]> = new SharedSubscribable((subscriber) =>
-    subscribeToQuery(this, subscriber),
+  _cachedSubscribable: SharedSubscribable<Record[]> = new SharedSubscribable(
+    (subscriber) => subscribeToQuery(this, subscriber),
+    this._subscribableActivationOptions(),
   )
 
   @lazy
-  _cachedCountSubscribable: SharedSubscribable<number> = new SharedSubscribable((subscriber) =>
-    subscribeToCount(this, false, subscriber),
+  _cachedCountSubscribable: SharedSubscribable<number> = new SharedSubscribable(
+    (subscriber) => subscribeToCount(this, false, subscriber),
+    this._subscribableActivationOptions(),
   )
 
   @lazy
   _cachedCountThrottledSubscribable: SharedSubscribable<number> = new SharedSubscribable(
     (subscriber) => subscribeToCount(this, true, subscriber),
+    this._subscribableActivationOptions(),
   )
 
   // Unlike _cachedSubscribable above, subscribeToQueryWithColumns is
@@ -81,6 +84,7 @@ export default class Query<Record extends Model> {
     new KeyedSharedSubscribable<ColumnName[], Record[]>(
       (columnNames) => columnNames.slice().sort().join(','),
       (columnNames) => (subscriber) => subscribeToQueryWithColumns(this, columnNames, subscriber),
+      this._subscribableActivationOptions(),
     )
 
   // Note: Don't use this directly, use Collection.query(...)
@@ -88,6 +92,59 @@ export default class Query<Record extends Model> {
     this.collection = collection
     this._rawDescription = Q.buildQueryDescription(clauses)
     this.description = Q.queryWithoutDeleted(this._rawDescription)
+  }
+
+  // Number of active subscribers, summed across all of this Query's cached
+  // subscribables above (_cachedSubscribable, ..., and every key inside
+  // _cachedColumnsSubscribables) — i.e. whether *anything* on this Query is
+  // currently being observed. While it's above zero, the Query registers
+  // itself with its Collection (see Collection#_registerCachedQuery), so that
+  // Database#unsafeResetDatabase() can find and invalidate it even if an app
+  // (against the documented contract) left a subscription open across the
+  // reset. See SharedSubscribable#invalidate for why this matters.
+  _activeSubscriptionCount: number = 0
+
+  _subscribableActivationOptions(): {
+    onActivate: () => void
+    onDeactivate: () => void
+  } {
+    return {
+      onActivate: () => {
+        this._activeSubscriptionCount += 1
+        if (this._activeSubscriptionCount === 1) {
+          this.collection._registerCachedQuery(this)
+        }
+      },
+      onDeactivate: () => {
+        this._activeSubscriptionCount -= 1
+        if (this._activeSubscriptionCount === 0) {
+          this.collection._unregisterCachedQuery(this)
+        }
+      },
+    }
+  }
+
+  /**
+   * Invalidates every cached subscribable on this Query that's actually been
+   * created so far (doesn't force any into existence) — see
+   * {@link SharedSubscribable#invalidate}. Called by
+   * {@link Collection#_invalidateCachedQueries}, in turn called by
+   * `Database#unsafeResetDatabase()`.
+   */
+  _invalidateCachedSubscribables(): void {
+    const own = (key: string): boolean => Object.prototype.hasOwnProperty.call(this, key)
+    if (own('_cachedSubscribable')) {
+      this._cachedSubscribable.invalidate()
+    }
+    if (own('_cachedCountSubscribable')) {
+      this._cachedCountSubscribable.invalidate()
+    }
+    if (own('_cachedCountThrottledSubscribable')) {
+      this._cachedCountThrottledSubscribable.invalidate()
+    }
+    if (own('_cachedColumnsSubscribables')) {
+      this._cachedColumnsSubscribables.invalidate()
+    }
   }
 
   /**

@@ -84,4 +84,59 @@ describe('KeyedSharedSubscribable', () => {
     const keyed = new KeyedSharedSubscribable(String, () => () => () => {})
     expect(keyed.get('q')).toBe(keyed.get('q'))
   })
+
+  it('calls onActivate once when the first key becomes active, onDeactivate once when the last one goes idle', () => {
+    const onActivate = jest.fn()
+    const onDeactivate = jest.fn()
+    const keyed = new KeyedSharedSubscribable(String, () => () => () => {}, {
+      onActivate,
+      onDeactivate,
+    })
+
+    const unsubscribeA = keyed.subscribe('a', () => {})
+    expect(onActivate).toHaveBeenCalledTimes(1)
+
+    // a second, different key becoming active shouldn't re-trigger onActivate
+    const unsubscribeB = keyed.subscribe('b', () => {})
+    expect(onActivate).toHaveBeenCalledTimes(1)
+
+    unsubscribeA()
+    expect(onDeactivate).toHaveBeenCalledTimes(0) // key 'b' is still active
+
+    unsubscribeB()
+    expect(onDeactivate).toHaveBeenCalledTimes(1)
+
+    keyed.subscribe('a', () => {})
+    expect(onActivate).toHaveBeenCalledTimes(2)
+  })
+
+  describe('invalidate()', () => {
+    it('invalidates every cached key, forcing active ones to refetch and notify subscribers with a fresh value', () => {
+      const emitters = {}
+      const sourceUnsubscribes = { a: jest.fn(), b: jest.fn() }
+      const sourceFor = jest.fn((key) => (subscriber) => {
+        emitters[key] = subscriber
+        return sourceUnsubscribes[key]
+      })
+      const keyed = new KeyedSharedSubscribable(String, sourceFor)
+
+      const subscriberA = jest.fn()
+      const subscriberB = jest.fn()
+      keyed.subscribe('a', subscriberA)
+      keyed.subscribe('b', subscriberB)
+      emitters.a('stale-a')
+      emitters.b('stale-b')
+
+      keyed.invalidate()
+
+      expect(sourceUnsubscribes.a).toHaveBeenCalledTimes(1)
+      expect(sourceUnsubscribes.b).toHaveBeenCalledTimes(1)
+      expect(sourceFor).toHaveBeenCalledTimes(2) // once per key, ever (not re-called by invalidate)
+
+      emitters.a('fresh-a')
+      emitters.b('fresh-b')
+      expect(subscriberA).toHaveBeenLastCalledWith('fresh-a')
+      expect(subscriberB).toHaveBeenLastCalledWith('fresh-b')
+    })
+  })
 })

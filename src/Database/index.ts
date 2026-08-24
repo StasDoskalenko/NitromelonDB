@@ -408,6 +408,19 @@ export default class Database {
       // Restore working Database
       this._resetCount += 1
       this.adapter = adapter
+
+      // Belt-and-suspenders: per the contract above, no subscription should
+      // still be active at this point. If one is anyway (an app bug -- e.g.
+      // a persistent top-level component that stayed mounted across a
+      // logout/login), its Query's cached SharedSubscribable(s) would
+      // otherwise keep serving their last (pre-reset / other user's)
+      // emission forever, since nothing else would tell them the underlying
+      // data changed. Force those (and only those -- idle Query caches are
+      // untouched) to drop their stale value and refetch against the
+      // now-reset database. See Query#_invalidateCachedSubscribables.
+      Object.values(this.collections.map).forEach((collection) => {
+        collection._invalidateCachedQueries()
+      })
     } finally {
       this._isBeingReset = false
     }
