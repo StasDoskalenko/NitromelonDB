@@ -42,6 +42,40 @@ This mirrors `query.observeWithColumns(['body'])` — now `PostComments` also re
 
 Calling `useQuery(query, columnNames)` from several components with the same query and columns (in any order) shares one underlying subscription rather than each component running its own — see [`Query#observeWithColumns`](./Query.md#advanced-observing).
 
+## Writing
+
+These hooks only cover reads. For writes, call `database.write()` (or a [`@writer`](./Writers.md) method) directly from an event handler, the same as you would outside a component — there's no dedicated write hook (yet). Memoize the handler with `useCallback` so it isn't recreated every render:
+
+```jsx
+import { useCallback, useState } from 'react'
+import { TextInput, Button } from 'react-native'
+
+function AddComment({ post, database }) {
+  const [body, setBody] = useState('')
+
+  const addComment = useCallback(
+    () =>
+      database.write(async () => {
+        await database.get('comments').create((comment) => {
+          comment.post.set(post)
+          comment.body = body
+        })
+        setBody('')
+      }),
+    [database, post, body],
+  )
+
+  return (
+    <>
+      <TextInput value={body} onChangeText={setBody} />
+      <Button title="Add comment" onPress={addComment} />
+    </>
+  )
+}
+```
+
+`PostComments` above is already watching `post.comments` with `useQuery`, so it picks up the new comment as soon as the write commits — nothing needs to be wired between the two components.
+
 ## useObservable — the escape hatch
 
 For anything that isn't a plain record or query — your own RxJS observables, or ones built from `.observe()` with `switchMap`/`combineLatest`/etc.:
@@ -49,15 +83,17 @@ For anything that isn't a plain record or query — your own RxJS observables, o
 ```js
 import { map } from 'rxjs/operators'
 
-const isEmpty = useObservable(
+const [isEmpty, { hasEmitted, error }] = useObservable(
   post.comments.observeCount().pipe(map((n) => n === 0)),
-  true, // default value, returned until the first emission
+  true, // default value, returned (with hasEmitted: false) until the first emission
 )
 ```
 
 `useModel`/`useQuery` are built on this library's Rx-free `experimentalSubscribe*` methods, so prefer them for plain records and queries — no RxJS pulled in just to observe one record or list, and `useQuery`'s `columnNames` is a plain parameter instead of a `.pipe()` composition. Reach for `useObservable` when you actually have (or want to compose) an `Observable`.
 
-`observable` may be `null`/`undefined`; `defaultValue` is returned and no subscription is set up.
+Unlike `useModel`/`useQuery`, an arbitrary Observable genuinely can take a while to emit (network-derived, debounced, ...) or error, which is why this one returns a `[value, status]` pair instead of a bare value: `status.hasEmitted` tells you whether `value` is real data or still the default, and `status.error` is set if the observable errored (`value` then keeps whatever was last emitted, if anything).
+
+`observable` may be `null`/`undefined`; `defaultValue` is returned (`hasEmitted: false`, `error: undefined`) and no subscription is set up.
 
 ## Which one should I use?
 
