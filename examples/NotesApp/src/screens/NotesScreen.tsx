@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native'
+import { Keyboard, StyleSheet, Text, View } from 'react-native'
+import { ComposerDock } from '../components/ComposerDock'
 import { NotesComposer } from '../components/NotesComposer'
 import { NotesHeader } from '../components/NotesHeader'
 import { NotesList, type NotesListHandle } from '../components/NotesList'
@@ -7,7 +8,7 @@ import { NotesPager } from '../components/NotesPager'
 import { PAGE_SIZE } from '../constants'
 import type { ExampleDatabase } from '../database'
 import { useNotes } from '../hooks/useNotes'
-import type Note from '../model/Note'
+import Note from '../model/Note'
 import { colors } from '../theme'
 
 type NotesScreenProps = {
@@ -16,23 +17,24 @@ type NotesScreenProps = {
 
 export function NotesScreen({ db }: NotesScreenProps) {
   const [page, setPage] = useState(1)
-  const [listRevision, setListRevision] = useState(0)
-  const { notes, totalCount, error: loadError } = useNotes(db, page, PAGE_SIZE, listRevision)
+  const { notes, totalCount, error: loadError } = useNotes(db, page, PAGE_SIZE)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(() => new Set())
+  // NotesComposer's Windows title field is uncontrolled (defaultValue) because
+  // driver-injected/IME input there doesn't reliably fire onChangeText; bumping
+  // this after a successful add remounts it to actually clear the text.
+  const [composerKey, setComposerKey] = useState(0)
   const listRef = useRef<NotesListHandle>(null)
-  // Maestro/WinAppDriver list-row presses can land twice; ignore a rapid second delete.
-  const lastDeleteAt = useRef(0)
-  const lastAddAt = useRef(0)
-  const writeChain = useRef(Promise.resolve())
-  const pendingAdds = useRef(0)
-  const sortOrderRef = useRef(Date.now())
+  // A ref, not just the `busy` state: state only updates on the next render,
+  // so a second submit landing in the same tick as the first — e.g. Enter and
+  // a fallback button click on Windows — would still read `busy` as false.
+  const addInFlight = useRef(false)
 
   const error = actionError ?? loadError
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
-  const firstNoteId = notes[0]?.id
 
   useEffect(() => {
     if (page > pageCount) {
@@ -42,74 +44,61 @@ export function NotesScreen({ db }: NotesScreenProps) {
 
   useEffect(() => {
     listRef.current?.scrollToTop()
-  }, [page, firstNoteId])
+  }, [page])
 
   const goToPage = (delta: number) => {
     setPage((current) => Math.min(pageCount, Math.max(1, current + delta)))
   }
 
-  const addNote = (nativeTitle?: string) => {
+  const addNote = async (nativeTitle?: string) => {
     const nextTitle = nativeTitle?.trim() || title.trim()
+    if (!nextTitle || addInFlight.current) {
+      return
+    }
+    addInFlight.current = true
     const nextBody = body.trim()
-    if (!nextTitle) {
-      return
-    }
-    const now = Date.now()
-    if (now - lastAddAt.current < 400) {
-      return
-    }
-    lastAddAt.current = now
     Keyboard.dismiss()
     setTitle('')
     setBody('')
     setActionError(null)
-    pendingAdds.current += 1
     setBusy(true)
-    const sortOrder = Math.max(Date.now(), sortOrderRef.current + 1)
-    sortOrderRef.current = sortOrder
-    writeChain.current = writeChain.current
-      .then(() =>
-        db.database.write(async () => {
-          await db.notes.create((note) => {
-            note.title = nextTitle
-            note.body = nextBody
-            note.createdAt = new Date()
-            note.sortOrder = sortOrder
-            note.pinned = false
-          })
-        }),
-      )
-      .then(() => {
-        setPage(1)
-        setListRevision((current) => current + 1)
-      })
-      .catch((writeError) => {
-        setActionError(writeError instanceof Error ? writeError.message : String(writeError))
-      })
-      .finally(() => {
-        pendingAdds.current -= 1
-        if (pendingAdds.current === 0) {
-          setBusy(false)
-        }
-      })
+    try {
+      await Note.addNote(db.notes, nextTitle, nextBody)
+      setPage(1)
+      listRef.current?.scrollToTop()
+      setComposerKey((current) => current + 1)
+    } catch (writeError) {
+      setActionError(writeError instanceof Error ? writeError.message : String(writeError))
+    } finally {
+      addInFlight.current = false
+      setBusy(false)
+    }
   }
 
-  const deleteNote = (note: Note) => {
-    const now = Date.now()
-    if (now - lastDeleteAt.current < 600) {
+  const deleteNote = async (note: Note) => {
+    if (deletingIds.has(note.id)) {
       return
     }
-    lastDeleteAt.current = now
-    void note.deleteForever()
+    setDeletingIds((current) => new Set(current).add(note.id))
+    try {
+      await note.deleteForever()
+    } catch (writeError) {
+      setActionError(writeError instanceof Error ? writeError.message : String(writeError))
+    } finally {
+      setDeletingIds((current) => {
+        const next = new Set(current)
+        next.delete(note.id)
+        return next
+      })
+    }
   }
 
-  const rootProps = Platform.OS === 'ios' ? { behavior: 'padding' as const } : {}
-  // Android uses windowSoftInputMode=adjustResize (app.json). KeyboardAvoidingView
-  // without behavior is a no-op and can eat Maestro swipes on the list.
-  const ScreenRoot = Platform.OS === 'ios' ? KeyboardAvoidingView : View
-
   return (
-    <ScreenRoot style={styles.screen} {...rootProps}>
+    // Keyboard-avoidance is scoped to the composer (ComposerDock), not the
+    // whole screen: an earlier root-level KeyboardAvoidingView ate Maestro's
+    // swipe gestures on the list, and plain RN KeyboardAvoidingView doesn't
+    // react at all under this Expo SDK's mandatory Android edge-to-edge.
+    <View style={styles.screen}>
       <NotesHeader
         sqliteEngine={db.sqliteEngine}
         schemaVersion={db.schemaVersion}
@@ -125,18 +114,25 @@ export function NotesScreen({ db }: NotesScreenProps) {
         onNext={() => goToPage(1)}
       />
 
-      <NotesList ref={listRef} notes={notes} onDelete={deleteNote} />
-
-      <NotesComposer
-        key={listRevision}
-        title={title}
-        body={body}
-        busy={busy}
-        onChangeTitle={setTitle}
-        onChangeBody={setBody}
-        onSubmit={(nativeTitle) => void addNote(nativeTitle)}
+      <NotesList
+        ref={listRef}
+        notes={notes}
+        deletingIds={deletingIds}
+        onDelete={(note) => void deleteNote(note)}
       />
-    </ScreenRoot>
+
+      <ComposerDock>
+        <NotesComposer
+          key={composerKey}
+          title={title}
+          body={body}
+          busy={busy}
+          onChangeTitle={setTitle}
+          onChangeBody={setBody}
+          onSubmit={(nativeTitle) => void addNote(nativeTitle)}
+        />
+      </ComposerDock>
+    </View>
   )
 }
 

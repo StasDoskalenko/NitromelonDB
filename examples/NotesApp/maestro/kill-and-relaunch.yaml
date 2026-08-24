@@ -20,7 +20,7 @@ appId: com.nitromelondb.example
     env:
       TITLE: "Persistent Note"
 
-# hideKeyboard is flaky on iOS; add-note.yaml taps the title to dismiss.
+# No hideKeyboard needed — see add-note.yaml.
 
 - assertVisible:
     text: "Persistent Note"

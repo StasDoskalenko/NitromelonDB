@@ -8,7 +8,6 @@
  */
 /* global browser, remote */
 
-const {execFileSync} = require('child_process')
 const {app} = require('@react-native-windows/automation')
 const {killApp, launchApp} = require('./app-process')
 
@@ -138,58 +137,62 @@ function actionTestID(action, title) {
   return `${action}-button-${String(title).replace(/\s+/g, '-')}`
 }
 
-function activateAppWindow() {
-  execFileSync(
-    'powershell.exe',
-    [
-      '-NoProfile',
-      '-Command',
-      [
-        '$p = Get-Process -Name NitromelonWindows -ErrorAction Stop | Select-Object -First 1',
-        'Add-Type -Name Native -Namespace Win -MemberDefinition \'[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);\' -ErrorAction SilentlyContinue',
-        '[void][Win.Native]::ShowWindow($p.MainWindowHandle, 9)',
-        '[void][Win.Native]::SetForegroundWindow($p.MainWindowHandle)',
-      ].join('; '),
-    ],
-    {windowsHide: true},
-  )
-}
-
-function typeIntoForeground(text) {
-  const escaped = String(text).replace(/[+^%~(){}[\]]/g, match => `{${match}}`)
-  execFileSync(
-    'powershell.exe',
-    [
-      '-NoProfile',
-      '-STA',
-      '-Command',
-      `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait(${JSON.stringify(
-        escaped,
-      )})`,
-    ],
-    {windowsHide: true},
-  )
-}
-
+// PowerShell SendKeys + SetForegroundWindow used to type here, but it silently
+// no-ops in CI: SetForegroundWindow is refused when the calling process didn't
+// originate the input focus (Windows' foreground-lock), so keystrokes land
+// nowhere and the title field stays empty. browser.keys() goes through the
+// same WinAppDriver session as every other command (already proven to reach
+// the app in CI via scrollUntilText's PageDown) and needs no OS-level focus
+// dance. Backspace first in case a prior attempt left a partial title.
 async function addNote(title) {
   const before = await subtitleText()
   const match = before.match(/(\d+) notes?/)
   const nextCount = (match ? parseInt(match[1], 10) : 0) + 1
   let lastError
   for (let attempt = 0; attempt < 3; attempt++) {
-    activateAppWindow()
     const input = await app.findElementByTestID('title-input')
     await input.click()
     await sleep(200)
-    typeIntoForeground(title)
+    await browser.keys(Array(40).fill('Backspace'))
+    await browser.keys(title.split(''))
     await sleep(300)
+    // browser.keys() reaches the driver session (confirmed in CI logs), but
+    // RNW's onChangeText bridge event for a `defaultValue`-based (uncontrolled)
+    // TextInput may not fire for driver-injected input, leaving the app's
+    // title state empty so Add silently no-ops. Read the control back and
+    // retype through the same path if it didn't take, instead of guessing.
+    for (let readback = 0; readback < 3; readback++) {
+      const currentValue = await input.getText().catch(() => '')
+      if (currentValue === title) {
+        break
+      }
+      await input.click()
+      await browser.keys(Array(40).fill('Backspace'))
+      await browser.keys(title.split(''))
+      await sleep(300)
+    }
+    // The control's own text reads back correctly (confirmed in CI logs) even
+    // when Add still no-ops: NotesComposer tracks the title via onChangeText
+    // into a ref (titleRef) for Windows, and driver-injected input may not
+    // fire that bridge event even though it lands in the native control.
+    // Submit via Enter first — onSubmitEditing reads event.nativeEvent.text,
+    // the native control's own current text, sidestepping titleRef entirely.
+    // Once submitted, the write + list-refresh page bounce (NotesScreen) can
+    // take a beat under CI load — give it real headroom before falling back.
+    await browser.keys(['Enter'])
+    try {
+      await waitForNoteCount(nextCount, 12000)
+      return
+    } catch {
+      // fall through to the Add button as a second attempt this round
+    }
     try {
       await tapName('Add note')
     } catch {
       await tapTestID('add-note-button')
     }
     try {
-      await waitForNoteCount(nextCount, 6000)
+      await waitForNoteCount(nextCount, 12000)
       return
     } catch (error) {
       lastError = error

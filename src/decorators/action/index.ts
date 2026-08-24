@@ -9,17 +9,22 @@ type ActionHost = {
 
 function wrapInDatabaseMethod(
   method: 'write' | 'read' | 'action',
-  target: object,
   key: string,
   descriptor: Descriptor,
 ): Descriptor {
-  const hostTarget = target as ActionHost
-  const actionName = `${hostTarget.table || hostTarget.constructor.name}.${key}`
   const original = descriptor.value as (this: unknown, ...args: unknown[]) => Promise<unknown>
 
   return {
     ...descriptor,
     value(this: ActionHost, ...args: unknown[]): Promise<unknown> {
+      // Computed here, not eagerly at decoration time: `target` above is just
+      // the bare prototype (no instance exists yet when a decorator runs), and
+      // Collection's `table` getter reads `this.modelClass`, an instance field
+      // only set by the constructor — reading it off the prototype throws.
+      // `this` here is a real, constructed instance, so `this.table` is safe
+      // for both Model (reads the static side via `this.constructor`) and
+      // Collection (reads `this.modelClass`) subclasses.
+      const actionName = `${this.table || this.constructor.name}.${key}`
       return this.database[method](() => original.apply(this, args), actionName)
     },
   }
@@ -27,14 +32,14 @@ function wrapInDatabaseMethod(
 
 // Wraps function calls in `database.write(() => { ... })`. See docs for more details
 // You can use this on Model subclass methods (or methods of any object that has a `database` property)
-export function writer(target: object, key: string, descriptor: Descriptor): Descriptor {
-  return wrapInDatabaseMethod('write', target, key, descriptor)
+export function writer(_target: object, key: string, descriptor: Descriptor): Descriptor {
+  return wrapInDatabaseMethod('write', key, descriptor)
 }
 
 // Wraps function calls in `database.read(() => { ... })`. See docs for more details
 // You can use this on Model subclass methods (or methods of any object that has a `database` property)
-export function reader(target: object, key: string, descriptor: Descriptor): Descriptor {
-  return wrapInDatabaseMethod('read', target, key, descriptor)
+export function reader(_target: object, key: string, descriptor: Descriptor): Descriptor {
+  return wrapInDatabaseMethod('read', key, descriptor)
 }
 
 /**

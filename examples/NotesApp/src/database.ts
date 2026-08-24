@@ -1,4 +1,5 @@
-import { Database, type Collection } from 'nitromelondb'
+import type { Collection } from 'nitromelondb'
+import { Database } from 'nitromelondb'
 import { Platform } from 'react-native'
 import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
 import Note from './model/Note'

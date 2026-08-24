@@ -10,11 +10,12 @@ export type { NotesListHandle } from './NotesListHandle'
 
 type NotesListProps = {
   notes: Note[]
+  deletingIds: ReadonlySet<string>
   onDelete: (note: Note) => void
   ref?: Ref<NotesListHandle>
 }
 
-export function NotesList({ notes, onDelete, ref }: NotesListProps) {
+export function NotesList({ notes, deletingIds, onDelete, ref }: NotesListProps) {
   const listRef = useRef<FlashListRef<Note>>(null)
 
   useImperativeHandle(ref, () => ({
@@ -28,6 +29,11 @@ export function NotesList({ notes, onDelete, ref }: NotesListProps) {
       ref={listRef}
       style={styles.list}
       data={notes}
+      // FlashList v2 keeps existing content anchored in view by default when
+      // rows are added above it — the opposite of what we want here, since a
+      // new note always sorts to the top. autoscrollToTopThreshold opts back
+      // into scrolling to reveal it.
+      maintainVisibleContentPosition={{ autoscrollToTopThreshold: 10000 }}
       keyExtractor={(note) => note.id}
       contentContainerStyle={notes.length === 0 ? styles.emptyList : styles.listContent}
       testID="notes-list"
@@ -36,7 +42,9 @@ export function NotesList({ notes, onDelete, ref }: NotesListProps) {
           No notes yet. Add one below.
         </Text>
       }
-      renderItem={({ item }) => <NoteCard note={item} onDelete={onDelete} />}
+      renderItem={({ item }) => (
+        <NoteCard note={item} isDeleting={deletingIds.has(item.id)} onDelete={onDelete} />
+      )}
     />
   )
 }
