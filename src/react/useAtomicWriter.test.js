@@ -2,24 +2,32 @@
  * @jest-environment jsdom
  */
 
-import { act, renderHook } from '@testing-library/react'
+import React from 'react'
+import { act, render, renderHook } from '@testing-library/react'
 import useAtomicWriter from './useAtomicWriter'
-import { mockDatabase } from '../__tests__/testModels'
+import DatabaseProvider from './DatabaseProvider'
+import { mockDatabase, MockTask } from '../__tests__/testModels'
 
 describe('useAtomicWriter', () => {
   let database
   let tasks
+  let wrapper
   beforeEach(() => {
     ;({ database, tasks } = mockDatabase())
+    wrapper = ({ children }) => (
+      <DatabaseProvider database={database}>{children}</DatabaseProvider>
+    )
   })
 
   it('updates the record when one is passed in', async () => {
     const task = await database.write(() => tasks.create((t) => (t.name = 'A')))
 
-    const { result } = renderHook(() =>
-      useAtomicWriter(tasks, task, (t) => {
-        t.name = 'B'
-      }),
+    const { result } = renderHook(
+      () =>
+        useAtomicWriter(MockTask, task, (t) => {
+          t.name = 'B'
+        }),
+      { wrapper },
     )
     const [run] = result.current
 
@@ -32,11 +40,13 @@ describe('useAtomicWriter', () => {
     expect(task.name).toBe('B')
   })
 
-  it('creates a new record in the collection when no record is passed in', async () => {
-    const { result } = renderHook(() =>
-      useAtomicWriter(tasks, undefined, (t) => {
-        t.name = 'New task'
-      }),
+  it('creates a new record of modelClass when no record is passed in', async () => {
+    const { result } = renderHook(
+      () =>
+        useAtomicWriter(MockTask, undefined, (t) => {
+          t.name = 'New task'
+        }),
+      { wrapper },
     )
     const [run] = result.current
 
@@ -50,7 +60,10 @@ describe('useAtomicWriter', () => {
   })
 
   it('also creates when record is null', async () => {
-    const { result } = renderHook(() => useAtomicWriter(tasks, null, (t) => (t.name = 'X')))
+    const { result } = renderHook(
+      () => useAtomicWriter(MockTask, null, (t) => (t.name = 'X')),
+      { wrapper },
+    )
     const [run] = result.current
 
     let created
@@ -61,13 +74,23 @@ describe('useAtomicWriter', () => {
     expect(created.name).toBe('X')
   })
 
+  it('throws if there is no DatabaseProvider up the tree', () => {
+    const Component = () => {
+      useAtomicWriter(MockTask, null, () => {})
+      return null
+    }
+    expect(() => {
+      render(<Component />)
+    }).toThrow(/wrapped in the <DatabaseProvider>/)
+  })
+
   it('tracks isPending/error the same way useWriter does', async () => {
     const task = await database.write(() => tasks.create())
     const error = new Error('boom')
 
     const { result, rerender } = renderHook(
-      ({ builder }) => useAtomicWriter(tasks, task, builder),
-      { initialProps: { builder: () => {} } },
+      ({ builder }) => useAtomicWriter(MockTask, task, builder),
+      { wrapper, initialProps: { builder: () => {} } },
     )
 
     rerender({
@@ -88,10 +111,12 @@ describe('useAtomicWriter', () => {
   it('rejects if the builder is async -- atomic means synchronous, enforced by the same rule .update()/.create() already have', async () => {
     const task = await database.write(() => tasks.create())
 
-    const { result } = renderHook(() =>
-      useAtomicWriter(tasks, task, async (t) => {
-        t.name = 'x'
-      }),
+    const { result } = renderHook(
+      () =>
+        useAtomicWriter(MockTask, task, async (t) => {
+          t.name = 'x'
+        }),
+      { wrapper },
     )
     const [run] = result.current
 
@@ -108,8 +133,8 @@ describe('useAtomicWriter', () => {
     const task = await database.write(() => tasks.create())
 
     const { result, rerender } = renderHook(
-      ({ builder }) => useAtomicWriter(tasks, task, builder),
-      { initialProps: { builder: (t) => (t.name = 'first') } },
+      ({ builder }) => useAtomicWriter(MockTask, task, builder),
+      { wrapper, initialProps: { builder: (t) => (t.name = 'first') } },
     )
 
     rerender({ builder: (t) => (t.name = 'second') })
@@ -122,14 +147,15 @@ describe('useAtomicWriter', () => {
     expect(task.name).toBe('second')
   })
 
-  it('keeps the same callback identity when collection/record are unchanged, and gets a new one when record changes', async () => {
+  it('keeps the same callback identity when modelClass/record are unchanged, and gets a new one when record changes', async () => {
     const [taskA, taskB] = await database.write(() =>
       Promise.all([tasks.create(), tasks.create()]),
     )
 
-    const { result, rerender } = renderHook(({ task }) => useAtomicWriter(tasks, task, () => {}), {
-      initialProps: { task: taskA },
-    })
+    const { result, rerender } = renderHook(
+      ({ task }) => useAtomicWriter(MockTask, task, () => {}),
+      { wrapper, initialProps: { task: taskA } },
+    )
     const [runBefore] = result.current
 
     rerender({ task: taskA })
@@ -154,10 +180,12 @@ describe('useAtomicWriter', () => {
         }),
     )
 
-    const { result, unmount } = renderHook(() =>
-      useAtomicWriter(tasks, task, (t) => {
-        t.name = 'B'
-      }),
+    const { result, unmount } = renderHook(
+      () =>
+        useAtomicWriter(MockTask, task, (t) => {
+          t.name = 'B'
+        }),
+      { wrapper },
     )
     const [run] = result.current
 

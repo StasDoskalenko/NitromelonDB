@@ -114,19 +114,17 @@ For a write with no natural "anchor" record (nothing in particular it's scoped t
 `useWriter`'s `writer` can contain any logic at all — which also means nothing stops you from accidentally putting something slow or unrelated inside it, stalling every other write in the app for as long as it takes to finish (Writers run one at a time, app-wide). `useAtomicWriter` is the narrower, safer version for the single most common case: setting some fields on one record. There's no callback body, just a plain field-setting `builder` — the same kind `.create()`/`.update()` already take directly:
 
 ```js
-useAtomicWriter(collection, record, builder)
+useAtomicWriter(modelClass, record, builder)
 ```
 
-One rule decides what it does: **pass a `record`, and it updates it; leave it out (`undefined`, or `null`) and it creates a new one in `collection` instead.**
-
-The first argument is `collection`, not the `Task` class itself, even though `Task` is all you'd *want* to have to write. The reason: creating a record needs an actual `Database` instance to create it in, and a class alone can't give you one -- `Task` is just a definition, not tied to any particular database (the same class could back more than one `Database`, e.g. in tests). `database.get(Task)` is where that `Database` comes from; a bare `Task` has no way to carry it.
+One rule decides what it does: **pass a `record`, and it updates it; leave it out (`undefined`, or `null`) and it creates a new one of `modelClass` instead.**
 
 ```jsx
 import Task from '../models/Task'
 
 // UPDATE -- a record is passed in, so this always updates that one record
 function useToggleDone(task) {
-  return useAtomicWriter(task.database.get(Task), task, (task) => {
+  return useAtomicWriter(Task, task, (task) => {
     task.isDone = !task.isDone
   })
 }
@@ -144,8 +142,8 @@ function TaskRow({ task }) {
 
 ```jsx
 // CREATE -- no record is passed in (undefined), so this always creates a new one
-function useAddTask(database) {
-  return useAtomicWriter(database.get(Task), undefined, (task) => {
+function useAddTask() {
+  return useAtomicWriter(Task, undefined, (task) => {
     task.isDone = false
   })
 }
@@ -154,16 +152,16 @@ function useAddTask(database) {
 ```jsx
 // BOTH -- one form, reused for "new task" and "edit task": task is
 // undefined on the new-task screen, and a real record on the edit-task screen
-function useSaveTask(database, task) {
+function useSaveTask(task) {
   const [title, setTitle] = useState(task?.title ?? '')
-  const [save, status] = useAtomicWriter(database.get(Task), task, (task) => {
+  const [save, status] = useAtomicWriter(Task, task, (task) => {
     task.title = title
   })
   return { title, setTitle, save, ...status }
 }
 ```
 
-(As with `useWriter`, `database.get(Task)` — the class, not `database.get('tasks')` — is the preferred form for real typing; see the note above.)
+Just the class — no `database.get(Task)` step needed here. Unlike `useWriter` (which always has a live `record` to pull `.database` off of), `useAtomicWriter` can be called with *no* record at all (the create case), so it resolves the database itself, from context, via `useDatabase()` — the same context `<DatabaseProvider>`/`useDatabase`/`withDatabase` already use elsewhere in this library. That's the one thing this hook needs that the others don't: a `<DatabaseProvider>` somewhere above it in the tree. Forgetting it fails loudly, with `useDatabase`'s own clear error, not a confusing crash somewhere else.
 
 `builder` runs inside `.update()`/`.create()` exactly as if you'd called those yourself, including their existing rule that it must be synchronous — `async`/`await` inside it throws, rather than silently letting unrelated async work sneak into the Writer. That's what makes this "atomic": there's nothing in `builder` *but* field assignments, so there's no way to accidentally put something slow in there.
 
