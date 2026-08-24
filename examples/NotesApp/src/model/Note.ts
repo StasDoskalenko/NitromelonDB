@@ -33,7 +33,7 @@ export default class Note extends Model {
   @text('body')
   body!: string
   // Set automatically on collection.create() / prepareCreate(). Not @readonly:
-  // the seed loop (useNotes.ts) deliberately backdates these to stagger 100
+  // the seed loop (database.ts) deliberately backdates these to stagger 100
   // notes for the demo, which @readonly would reject.
   @date('created_at')
   createdAt!: Date

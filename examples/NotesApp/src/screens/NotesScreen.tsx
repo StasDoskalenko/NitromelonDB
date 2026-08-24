@@ -17,7 +17,7 @@ type NotesScreenProps = {
 
 export function NotesScreen({ db }: NotesScreenProps) {
   const [page, setPage] = useState(1)
-  const { notes, totalCount, error: loadError } = useNotes(db, page, PAGE_SIZE)
+  const { notes, totalCount } = useNotes(db, page, PAGE_SIZE)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
@@ -33,7 +33,6 @@ export function NotesScreen({ db }: NotesScreenProps) {
   // a fallback button click on Windows — would still read `busy` as false.
   const addInFlight = useRef(false)
 
-  const error = actionError ?? loadError
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   useEffect(() => {
@@ -105,7 +104,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
         totalCount={totalCount}
       />
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {actionError ? <Text style={styles.error}>{actionError}</Text> : null}
 
       <NotesPager
         page={page}

@@ -27,6 +27,53 @@ export type DatabaseProps = {
    * (`find` / `query` / `batch`). Independent writers queued from the UI still wait as usual.
    */
   experimentalDetectNestedWriters?: boolean | undefined
+  /**
+   * Seeds the database with initial/demo data -- at most once per `version`, deliberately kept
+   * separate from schema migrations (see schemaMigrations()) rather than folded into them:
+   * migrations are synchronous, declarative SQL with no room for arbitrary JS/IO; `seed.run` can
+   * freely be async (`await fetch(...)`, read a file, etc).
+   *
+   * Versioned the same way schemaMigrations() is: bump `version` whenever you change what `run`
+   * does and it runs again on the next launch; leave it alone and `run` is skipped on every
+   * subsequent launch. Unlike migrations, there's no delta/step mechanism -- `run` always seeds
+   * "from scratch" for whichever version wasn't applied yet. Applied versions are tracked
+   * durably (via `database.localStorage`), not by `run` querying its own table to guess whether
+   * it already ran -- that would mean deciding based on data that might itself still be
+   * mid-write, and would require `run` to read a table it might have no other reason to touch.
+   *
+   * Runs after schema setup/migrations finish (if the adapter exposes an `initializingPromise`
+   * -- e.g. SQLiteAdapter -- that's awaited first). Every write()/read()/batch() call, and every
+   * direct Collection/Query read (find(), query().fetch(), query().fetchCount(),
+   * observe*()/experimentalSubscribe*(), etc.) issued after `new Database()` is queued until
+   * `run` resolves (or is skipped, if already applied) -- so app code never needs to guard
+   * against seeding itself the way ad-hoc "seed in a data hook" patterns had to. In development,
+   * an access that has to wait logs a warning once per Database instance, since it usually means
+   * something (a module-level singleton, a reader/writer that fires as soon as the app starts)
+   * is touching the database earlier than intended.
+   *
+   * Inside `run`, use `database.batch()` / `collection.prepareCreate()` directly, not
+   * `database.write()` -- calling write() from inside the writer that's already running (which
+   * is what `run` executes as) deadlocks, same as any nested writer without callWriter(). If
+   * `run` also needs to read via the normal query API for some reason (rare -- the "did this
+   * already happen" case is handled for you), that's safe too: reads issued from inside `run`
+   * proceed immediately rather than waiting on `run` to finish, since that's exactly what's
+   * currently executing. A completely unrelated read that happens to fire while `run` is
+   * mid-flight gets the same treatment (sees in-progress data, doesn't wait) -- an accepted
+   * tradeoff shared with any other in-progress write, not something specific to seeding.
+   *
+   * If `run` throws, `onError` is called (mirroring SQLiteAdapterOptions#onSetUpError) and the
+   * applied-version marker is NOT written, so it's retried on the next launch. The database does
+   * NOT get stuck either way: queued/gated calls are released once `run` settles, whether it
+   * succeeded or not, so a broken `run` degrades to "database usable, just not seeded" rather
+   * than every read/write hanging forever.
+   */
+  seed?:
+    | {
+        version: number
+        run: (database: Database) => Promise<void>
+        onError?: ((error: unknown) => void) | undefined
+      }
+    | undefined
 }
 
 // Deliberately not ModelClass<T>: that type's own static methods reference Collection<Record>,
@@ -38,6 +85,10 @@ export type DatabaseProps = {
 type ModelClassRef<T extends Model> = { new (...args: never[]): T; table: TableName<T> }
 
 type TableChange = [TableName, CollectionChangeSet<Model>]
+
+// Reserved localStorage key tracking the last-applied DatabaseProps#seed version. Namespaced to
+// avoid colliding with an app's own localStorage keys.
+const SEED_VERSION_KEY = '__nitromelonSeedVersion'
 
 let experimentalAllowsFatalError = false
 
@@ -72,19 +123,140 @@ export default class Database {
 
   _localStorage: LocalStorage | undefined
 
+  // True once `seed` (see DatabaseProps#seed) has been resolved -- either `run` finished, or it
+  // was skipped because its `version` was already applied -- or immediately if no `seed` was
+  // configured at all, the common case, kept branch-free so unrelated consumers pay nothing.
+  _ready: boolean = true
+
+  _readyPromise: Promise<void> = Promise.resolve()
+
+  // True for the entire duration `seed.run` is executing (including across any awaits inside
+  // it) -- lets a read `run` triggers on itself proceed immediately instead of waiting on
+  // _readyPromise, which wouldn't resolve until `run` itself returns. This is now rarely needed
+  // in practice (the common "did this already happen" check is handled by the durable version
+  // marker below, not by `run` querying its own table), but stays as a narrow safety net for
+  // `run` implementations that read via the query API for some other reason. A read that
+  // happens to come from unrelated code while `run` is still executing gets the same treatment
+  // (sees in-progress data rather than being queued) -- an accepted tradeoff shared with any
+  // other in-progress write, not something specific to seeding.
+  _seeding: boolean = false
+
+  _readyWarned: boolean = false
+
   constructor(options: DatabaseProps) {
-    const { adapter, modelClasses, experimentalDetectNestedWriters = false } = options
+    const { adapter, modelClasses, experimentalDetectNestedWriters = false, seed } = options
     if (process.env.NODE_ENV !== 'production') {
       invariant(adapter, `Missing adapter parameter for new Database()`)
       invariant(
         modelClasses && Array.isArray(modelClasses),
         `Missing modelClasses parameter for new Database()`,
       )
+      if (seed) {
+        invariant(
+          Number.isInteger(seed.version) && seed.version >= 1,
+          `Database seed.version must be a positive integer`,
+        )
+      }
     }
     this.experimentalDetectNestedWriters = experimentalDetectNestedWriters
     this.adapter = new DatabaseAdapterCompat(adapter)
     this.schema = adapter.schema
     this.collections = new CollectionMap(this, modelClasses)
+
+    if (seed) {
+      this._ready = false
+      // Runs as writer job #0 in the WorkQueue (enqueued synchronously, before this constructor
+      // returns) so every write()/read()/batch() issued afterwards is naturally queued behind it
+      // by ordinary FIFO ordering -- no separate gating needed for those. database.batch() inside
+      // seed.run works the same way it would inside any other writer, since this job IS the
+      // running writer for the whole time run() is executing.
+      this._readyPromise = this._workQueue
+        .enqueue(() => this._runSeed(adapter, seed), 'Database.seed', true)
+        .then(() => {
+          this._ready = true
+        })
+    }
+  }
+
+  // Never rejects -- a failing seed.run() is reported via seed.onError (or logged) and the
+  // database still becomes usable (just not marked as seeded, so it's retried next launch).
+  // _readyPromise gates every read/write on this resolving; if it could reject, that rejection
+  // would go unhandled at every one of those call sites, since none of them are in a position to
+  // catch it individually.
+  async _runSeed(
+    adapter: DatabaseAdapter,
+    seed: {
+      version: number
+      run: (database: Database) => Promise<void>
+      onError?: ((error: unknown) => void) | undefined
+    },
+  ): Promise<void> {
+    // Adapters that expose an initialization/migration barrier (SQLiteAdapter's
+    // initializingPromise) are awaited first, so seed always runs after migrations, never
+    // interleaved with or ahead of them. Not part of DatabaseAdapter itself (not every adapter
+    // has a concept of one), so this is a duck-typed, best-effort check.
+    const initializingPromise = (adapter as { initializingPromise?: unknown }).initializingPromise
+    if (initializingPromise instanceof Promise) {
+      await initializingPromise
+    }
+
+    let appliedVersion = 0
+    try {
+      appliedVersion = (await this.localStorage.get<number>(SEED_VERSION_KEY)) ?? 0
+    } catch (error) {
+      this._reportSeedError(seed, error)
+      return
+    }
+    if (appliedVersion >= seed.version) {
+      return
+    }
+
+    this._seeding = true
+    try {
+      await seed.run(this)
+    } catch (error) {
+      this._reportSeedError(seed, error)
+      return
+    } finally {
+      this._seeding = false
+    }
+
+    try {
+      await this.localStorage.set(SEED_VERSION_KEY, seed.version)
+    } catch (error) {
+      this._reportSeedError(seed, error)
+    }
+  }
+
+  _reportSeedError(seed: { onError?: ((error: unknown) => void) | undefined }, error: unknown): void {
+    if (seed.onError) {
+      seed.onError(error)
+    } else if (process.env.NODE_ENV !== 'production') {
+      logger.error('[Database] seed.run() failed -- database will proceed unseeded', error)
+    }
+  }
+
+  // Runs `fn` immediately if the database is ready (the common-case fast path -- no promise
+  // overhead at all), or once `seed` has been resolved (run, or skipped as already-applied)
+  // otherwise. Called by every raw Collection read (find/_fetchQuery/_fetchCount/_fetchIds/
+  // _unsafeFetchRaw) -- the only paths that bypass WorkQueue's own FIFO ordering entirely and so
+  // need an explicit gate.
+  _whenReady(fn: () => void): void {
+    if (this._ready || this._seeding) {
+      fn()
+      return
+    }
+    if (process.env.NODE_ENV !== 'production' && !this._readyWarned) {
+      this._readyWarned = true
+      logger.warn(
+        'Database was accessed before its `seed` (see `new Database({ seed })`) finished ' +
+          'determining whether to run. This call has been queued and will run automatically ' +
+          'once that resolves -- but if this is unexpected, check for code (a module-level ' +
+          "singleton, a reader/writer that fires as soon as the app starts, etc.) that's " +
+          'touching the database earlier than intended.',
+      )
+    }
+    this._readyPromise.then(fn)
   }
 
   /**

@@ -113,6 +113,7 @@ export const mockDatabase = ({
   schema = testSchema,
   migrations = undefined,
   experimentalDetectNestedWriters = false,
+  seed = undefined,
 } = {}) => {
   const adapter = new LokiJSAdapter({
     dbName: 'test',
@@ -126,6 +127,7 @@ export const mockDatabase = ({
     schema,
     modelClasses,
     experimentalDetectNestedWriters,
+    seed,
   })
   return {
     database,

@@ -71,8 +71,38 @@ const database = new Database({
   ],
   // Throws if you call a writer from another writer without callWriter() (instead of deadlocking)
   // experimentalDetectNestedWriters: true,
+  // (optional) seed initial/demo data -- see "Database initialization" below
+  // seed: {
+  //   version: 1,
+  //   run: async (database) => {
+  //     await database.batch(database.get(Post).prepareCreate(post => { post.title = 'Hello' }))
+  //   },
+  // },
 })
 ```
+
+## Database initialization
+
+`new Database(...)` returns immediately -- schema setup/migrations (and `seed`, if configured)
+finish asynchronously in the background. You don't need to wait for them: every `write()` /
+`read()` / `batch()` call, and every direct read (`collection.find()`, `query().fetch()`,
+`query().fetchCount()`, `observe*()` / `experimentalSubscribe*()`, etc.) issued on the `database`
+or any `Collection` it returns is automatically queued until the database is actually ready, then
+runs in the order it was issued. This is what makes the common "just import a `database.js` module
+and use it" pattern from older Watermelon apps safe: nothing you do with `database` before it's
+ready is lost or run out of order, it just waits its turn.
+
+In development, an access that has to wait logs a warning once per `Database` instance. That's not
+an error -- your code still works correctly -- but it usually means something (a module-level
+singleton, a reader/writer that fires as soon as the app starts) is touching the database earlier
+than intended, which is worth knowing about even when it happens to be harmless.
+
+To seed initial or demo data, use the `seed` option shown above instead of a "seed on first
+render" pattern in your UI layer. It's versioned the same way `schemaMigrations()` is: `run` fires
+at most once per `version` (bump it to reseed), with the "did this already happen" tracking
+handled for you -- `run` doesn't need to query its own table to decide whether to write. Unlike a
+migration step, `run` can freely be asynchronous (`await fetch(...)`, read a file, etc.), since
+seeding isn't compiled to a single SQL statement the way schema migrations are.
 
 ## Electron (SQLite)
 Electron requires a little extra set up since we have to use IPC between our renderer and main processes to execute queries and return the response. However, if you'd like to use LokiJS instead of SQLite you can skip this section and go to the Web section below.
