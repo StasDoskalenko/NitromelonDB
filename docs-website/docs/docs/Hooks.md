@@ -9,19 +9,15 @@ import { useModel, useQuery, useObservable } from 'nitromelondb/hooks'
 ## useModel — a single record
 
 ```jsx
+import { Text } from 'react-native'
+
 function Comment({ comment }) {
   const liveComment = useModel(comment)
-  return <p>{liveComment.body}</p>
+  return <Text>{liveComment.body}</Text>
 }
 ```
 
 Pass in a record; you get the same record back, and the component re-renders every time it changes (or is deleted). `comment` may be `null`/`undefined` (e.g. an optional relation that hasn't loaded) — it's passed straight through, no subscription is set up.
-
-### Why this doesn't need cloning
-
-Records are mutated in place: `comment.observe()` / `comment.experimentalSubscribe()` always hand you back the exact same object — that's fine for reading fields, but it means the object's *reference* never changes. If you've seen the suggestion to clone the record on every emission just so React sees a "new" value and re-renders — that works, but it's solving the wrong layer of the problem: the record was never the thing that needed to change.
-
-`useModel` doesn't try to make the record look different. It forces a re-render on every notification (the same mechanism `withObservables` already uses internally — a component that re-renders on every emission rather than diffing the record for changes), and lets you read `liveComment.body` fresh during that render. No new object, no cloning, no risk of the clone silently drifting from the real record.
 
 ## useQuery — a list of records
 
