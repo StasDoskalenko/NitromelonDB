@@ -82,4 +82,26 @@ describe('subscribeToCount', () => {
     })
     expect(observer).toHaveBeenCalledTimes(5)
   })
+
+  it('does not drop the final count after rapid writes within the throttle window (isThrottled)', async () => {
+    // Regression test for https://github.com/Nozbe/WatermelonDB/issues/1973
+    // throttleTime(250) without `trailing: true` only emits the leading value
+    // in each window, silently discarding rapid subsequent writes.
+    const { db, tasks } = mockDatabase()
+    const query = tasks.query()
+
+    const counts = []
+    const unsubscribe = subscribeToCount(query, true, (count) => counts.push(count))
+
+    // two writes fired in quick succession, well within the 250ms throttle window
+    await db.write(() => createTask(tasks, true))
+    await db.write(() => createTask(tasks, true))
+
+    // wait past the throttle window for the trailing emission to fire
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    expect(counts[counts.length - 1]).toBe(2)
+
+    unsubscribe()
+  })
 })

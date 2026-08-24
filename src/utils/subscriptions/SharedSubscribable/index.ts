@@ -68,7 +68,9 @@ export default class SharedSubscribable<T> {
       `SharedSubscribable's source emitted a value after it was unsubscribed from`,
     )
     this._lastEmission = { value }
-    this._subscribers.forEach(([subscriber]) => {
+    // Iterate over a snapshot: a subscriber may (un)subscribe during notification,
+    // which would otherwise mutate `_subscribers` mid-iteration and skip entries
+    this._subscribers.slice().forEach(([subscriber]) => {
       subscriber(value)
     })
   }
