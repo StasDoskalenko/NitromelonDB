@@ -13,11 +13,16 @@ These two are usually used together: fetch the list once, then let each row trac
 ```jsx
 import { Text } from 'react-native'
 
+// post: a Post record -- e.g. passed down from a parent that already has
+// one (its own useRecord/useQuery, a route param already fetched, ...).
+// PostComments doesn't fetch it itself; it's just given one to work with.
 function PostComments({ post }) {
   const comments = useQuery(post.comments)
   return comments.map((comment) => <Comment key={comment.id} comment={comment} />)
 }
 
+// comment: one Comment record from that list -- PostComments passes each
+// one down via the `comments.map(...)` above.
 function Comment({ comment }) {
   const liveComment = useRecord(comment)
   return <Text>{liveComment.body}</Text>
@@ -114,6 +119,8 @@ useAtomicWriter(collection, record, builder)
 
 One rule decides what it does: **pass a `record`, and it updates it; leave it out (`undefined`, or `null`) and it creates a new one in `collection` instead.**
 
+The first argument is `collection`, not the `Task` class itself, even though `Task` is all you'd *want* to have to write. The reason: creating a record needs an actual `Database` instance to create it in, and a class alone can't give you one -- `Task` is just a definition, not tied to any particular database (the same class could back more than one `Database`, e.g. in tests). `database.get(Task)` is where that `Database` comes from; a bare `Task` has no way to carry it.
+
 ```jsx
 import Task from '../models/Task'
 
@@ -156,7 +163,7 @@ function useSaveTask(database, task) {
 }
 ```
 
-`collection` is always required (get it with `database.get(Task)`, same as anywhere else — see the note on `useWriter` above for why the class form is preferred over `database.get('tasks')`) — it's where a new record gets created when `record` is left out.
+(As with `useWriter`, `database.get(Task)` — the class, not `database.get('tasks')` — is the preferred form for real typing; see the note above.)
 
 `builder` runs inside `.update()`/`.create()` exactly as if you'd called those yourself, including their existing rule that it must be synchronous — `async`/`await` inside it throws, rather than silently letting unrelated async work sneak into the Writer. That's what makes this "atomic": there's nothing in `builder` *but* field assignments, so there's no way to accidentally put something slow in there.
 
