@@ -34,14 +34,16 @@ async function subtitleText() {
   return el.getText()
 }
 
+async function noteCount() {
+  const match = (await subtitleText()).match(/(\d+) notes?/)
+  return match ? parseInt(match[1], 10) : null
+}
+
 async function waitForNoteCount(count, timeout = 60000) {
-  await app.waitUntil(
-    async () => {
-      const match = (await subtitleText()).match(/(\d+) notes?/)
-      return match ? parseInt(match[1], 10) === count : false
-    },
-    {timeout, timeoutMsg: `Did not reach ${count} notes`},
-  )
+  await app.waitUntil(async () => (await noteCount()) === count, {
+    timeout,
+    timeoutMsg: `Did not reach ${count} notes`,
+  })
 }
 
 async function waitForSeeded() {
@@ -137,68 +139,36 @@ function actionTestID(action, title) {
   return `${action}-button-${String(title).replace(/\s+/g, '-')}`
 }
 
-// PowerShell SendKeys + SetForegroundWindow used to type here, but it silently
-// no-ops in CI: SetForegroundWindow is refused when the calling process didn't
-// originate the input focus (Windows' foreground-lock), so keystrokes land
-// nowhere and the title field stays empty. browser.keys() goes through the
-// same WinAppDriver session as every other command (already proven to reach
-// the app in CI via scrollUntilText's PageDown) and needs no OS-level focus
-// dance. Backspace first in case a prior attempt left a partial title.
-async function addNote(title) {
-  const before = await subtitleText()
-  const match = before.match(/(\d+) notes?/)
-  const nextCount = (match ? parseInt(match[1], 10) : 0) + 1
-  let lastError
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const input = await app.findElementByTestID('title-input')
-    await input.click()
-    await sleep(200)
-    await browser.keys(Array(40).fill('Backspace'))
-    await browser.keys(title.split(''))
-    await sleep(300)
-    // browser.keys() reaches the driver session (confirmed in CI logs), but
-    // RNW's onChangeText bridge event for a `defaultValue`-based (uncontrolled)
-    // TextInput may not fire for driver-injected input, leaving the app's
-    // title state empty so Add silently no-ops. Read the control back and
-    // retype through the same path if it didn't take, instead of guessing.
-    for (let readback = 0; readback < 3; readback++) {
-      const currentValue = await input.getText().catch(() => '')
-      if (currentValue === title) {
-        break
+// title-input is a normal controlled TextInput (value={title}) on every
+// platform — see NotesComposer.tsx. It used to be uncontrolled on Windows
+// only, worked around with a shadow ref and a dual Enter/button submit path,
+// because the old PowerShell SendKeys mechanism dropped lowercase characters
+// (see CHANGELOG). That's a WinAppDriver SendKeys bug, not a reason to change
+// the production component; browser.keys() doesn't have it. With a real
+// controlled input, typing and submitting work the same way Maestro drives
+// this input on iOS/Android: click, type, submit, verify — retry the whole
+// cycle (same pattern as pinNote/isPinned) if it didn't land.
+async function addNote(title, timeout = 15000) {
+  const nextCount = ((await noteCount()) ?? 0) + 1
+  await app.waitUntil(
+    async () => {
+      if ((await noteCount()) === nextCount) {
+        return true
       }
-      await input.click()
-      await browser.keys(Array(40).fill('Backspace'))
-      await browser.keys(title.split(''))
-      await sleep(300)
-    }
-    // The control's own text reads back correctly (confirmed in CI logs) even
-    // when Add still no-ops: NotesComposer tracks the title via onChangeText
-    // into a ref (titleRef) for Windows, and driver-injected input may not
-    // fire that bridge event even though it lands in the native control.
-    // Submit via Enter first — onSubmitEditing reads event.nativeEvent.text,
-    // the native control's own current text, sidestepping titleRef entirely.
-    // Once submitted, the write + list-refresh page bounce (NotesScreen) can
-    // take a beat under CI load — give it real headroom before falling back.
-    await browser.keys(['Enter'])
-    try {
-      await waitForNoteCount(nextCount, 12000)
-      return
-    } catch {
-      // fall through to the Add button as a second attempt this round
-    }
-    try {
-      await tapName('Add note')
-    } catch {
-      await tapTestID('add-note-button')
-    }
-    try {
-      await waitForNoteCount(nextCount, 12000)
-      return
-    } catch (error) {
-      lastError = error
-    }
-  }
-  throw lastError
+      try {
+        const input = await app.findElementByTestID('title-input')
+        await input.click()
+        await browser.keys(Array(title.length + 10).fill('Backspace'))
+        await browser.keys(title.split(''))
+        await browser.keys(['Enter'])
+        await sleep(400)
+        return (await noteCount()) === nextCount
+      } catch {
+        return false
+      }
+    },
+    {timeout, timeoutMsg: `Did not reach ${nextCount} notes`},
+  )
 }
 
 async function dismissKeyboard() {
@@ -242,9 +212,27 @@ async function waitForPinned(title, timeout = 15000) {
   })
 }
 
-async function deleteNote(title) {
-  const el = await app.findElementByTestID(actionTestID('delete', title))
-  await el.click()
+// Unlike pinNote, this used to be a single click with no verification —
+// exactly the class of issue addNote/pinNote already had to work around
+// (WinAppDriver clicks can land without the app registering them). Retry
+// until the note is actually gone, same pattern as pinNote/isPinned.
+async function deleteNote(title, timeout = 15000) {
+  await app.waitUntil(
+    async () => {
+      if (!(await textVisible(title))) {
+        return true
+      }
+      try {
+        const el = await app.findElementByTestID(actionTestID('delete', title))
+        await el.click()
+        await sleep(400)
+        return !(await textVisible(title))
+      } catch {
+        return false
+      }
+    },
+    {timeout, timeoutMsg: `${title} was not deleted`},
+  )
 }
 
 async function focusNotesList() {

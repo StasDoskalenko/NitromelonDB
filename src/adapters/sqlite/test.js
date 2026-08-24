@@ -1,10 +1,19 @@
 import fs from 'fs'
+import { toPromise } from '../../utils/fp/Result'
 import { testSchema } from '../__tests__/helpers'
 import commonTests from '../__tests__/commonTests'
 import sqliteTests from '../__tests__/sqliteTests'
 
 import SqliteAdapter from './index'
 import DatabaseAdapterCompat from '../compat'
+
+// Node keeps the native SQLite handle open until told otherwise (no RN app
+// lifecycle to close it for us). Deleting the file first and closing after
+// left the handle orphaned on Windows, which blocked the delete — close it
+// first so the delete actually can succeed.
+async function closeAdapter(adapter) {
+  await toPromise((callback) => adapter.unsafeCloseConnection(callback))
+}
 
 function removeIfExists(file, dbName) {
   if (file && fs.existsSync(dbName)) {
@@ -48,6 +57,7 @@ describe.each([['SQLiteAdapterNode', 'Asynchronous', 'Memory']])(
           await adapter.initializingPromise
           await test(new DatabaseAdapterCompat(adapter), SqliteAdapter, extraAdapterOptions, 'node')
         } finally {
+          await closeAdapter(adapter)
           removeIfExists(file, dbName)
         }
       })
@@ -74,6 +84,7 @@ describe('SQLiteAdapterNode (file-backed sqliteTests)', () => {
         await adapter.initializingPromise
         await test(new DatabaseAdapterCompat(adapter), SqliteAdapter, { dbName }, 'node')
       } finally {
+        await closeAdapter(adapter)
         removeIfExists(true, dbName)
         removeIfExists(true, `${dbName}-wal`)
         removeIfExists(true, `${dbName}-shm`)

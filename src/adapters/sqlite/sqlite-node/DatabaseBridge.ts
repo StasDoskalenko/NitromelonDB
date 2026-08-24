@@ -69,6 +69,10 @@ class DatabaseBridge {
     resolve: (value: boolean) => void,
     _reject: () => void,
   ): void {
+    // `initialize()` stashed a driver here (in the `waiting` state) after it
+    // hit SchemaNeededError — that driver's file handle is still open and
+    // must be closed before it's replaced below.
+    this.connections[tag]?.driver.close()
     const driver = new DatabaseDriver()
     driver.setUpWithSchema(databaseName, schema, schemaVersion)
     this.connectDriverAsync(tag, driver)
@@ -85,6 +89,9 @@ class DatabaseBridge {
     reject: (code: string, message: string, error: Error) => void,
   ): void {
     try {
+      // Same as setUpWithSchema: close the driver `initialize()` left waiting
+      // after MigrationNeededError before it's replaced.
+      this.connections[tag]?.driver.close()
       const driver = new DatabaseDriver()
       driver.setUpWithMigrations(databaseName, {
         from: fromVersion,
@@ -184,6 +191,23 @@ class DatabaseBridge {
     reject: (code: string, message: string, error: Error) => void,
   ): void {
     this.withDriver(tag, resolve, reject, 'getLocal', (driver) => driver.getLocal(key))
+  }
+
+  // Releases the native file handle and forgets the connection. After this,
+  // the tag is unconnected — a caller that wants to reuse it must go through
+  // `initialize` again, same as a fresh adapter.
+  unsafeCloseConnection(
+    tag: number,
+    resolve: (value: undefined) => void,
+    reject: (code: string, message: string, error: Error) => void,
+  ): void {
+    try {
+      this.connections[tag]?.driver.close()
+      delete this.connections[tag]
+      resolve(undefined)
+    } catch (error) {
+      this.sendReject(reject, error as Error, 'unsafeCloseConnection')
+    }
   }
 
   // MARK: - Helpers
