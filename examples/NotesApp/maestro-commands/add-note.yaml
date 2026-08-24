@@ -1,5 +1,9 @@
 # Shared by Maestro flows. Not picked up by `maestro test maestro/`.
-# Dismiss the IME before tapping Add — on API 29 the keyboard covers the composer.
+# No hideKeyboard: the composer docks above the keyboard (ComposerDock /
+# react-native-keyboard-controller) instead of being covered by it, so Add
+# is already reachable with the keyboard still open — and on iOS, hideKeyboard
+# fails outright once keyboard-controller is active ("doesn't expose a
+# standard dismiss action"). Tapping app-title still blurs the title input.
 # eraseText so inputText does not append to a leftover title.
 appId: com.nitromelondb.example
 ---
@@ -9,7 +13,6 @@ appId: com.nitromelondb.example
 - inputText: ${TITLE}
 - tapOn:
     id: "app-title"
-- hideKeyboard
 - tapOn:
     id: "add-note-button"
 - extendedWaitUntil:
