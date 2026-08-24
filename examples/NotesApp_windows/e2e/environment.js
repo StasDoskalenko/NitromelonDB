@@ -12,6 +12,11 @@ const AutomationEnvironment = Automation.default || Automation
 const {prepareFreshLaunch, killApp, killWinAppDriver, screenWorkArea} = require('./app-process')
 
 const DIAGNOSTICS_DIR = path.join(__dirname, '..', '.tmp', 'diagnostics')
+// Matches appWindow.Resize({1000, 1000}) in NitromelonWindows.cpp — the
+// size the app has actually been laid out against. Only ever shrink to fit
+// a smaller CI screen; ballooning to a much larger, never-tested window
+// size (e.g. a dev machine's full monitor) introduced its own flakiness.
+const DEFAULT_WINDOW_SIZE = {width: 1000, height: 1000}
 
 function sanitize(name) {
   return String(name).replace(/[^a-z0-9]+/gi, '-').slice(0, 100)
@@ -21,8 +26,14 @@ class NotesAppEnvironment extends AutomationEnvironment {
   async setup() {
     prepareFreshLaunch()
     await super.setup()
+    // Bare `global` here is the Jest worker process's own global, not the
+    // per-test-file sandboxed one — this class runs outside that sandbox.
+    // `this.global` is the object test files actually see as `global`.
+    // (A prior version of this method used bare `global` for the call below
+    // and it silently failed every time behind an empty catch — undetected
+    // since nothing depended on the implicit-wait setting actually applying.)
     try {
-      await global.browser.setTimeout({implicit: 0})
+      await this.global.browser.setTimeout({implicit: 0})
     } catch {
       // session not ready
     }
@@ -35,11 +46,48 @@ class NotesAppEnvironment extends AutomationEnvironment {
     // hard edge, matching an element WinAppDriver had just clicked with no
     // effect). Fit the window inside the real screen so every element is
     // genuinely paintable, not just logically present in the tree.
+    //
+    // Logged unconditionally (not just on error): a prior attempt at this
+    // silently no-op'd — window size was unchanged in the next failure's
+    // diagnostics — and a swallowed try/catch gave no way to tell why (it
+    // turned out to be this same bare-`global` mistake).
     try {
-      const {width, height} = screenWorkArea()
-      await global.browser.setWindowRect(0, 0, width, height)
-    } catch {
-      // best-effort; if this fails, tests will surface real timeouts instead
+      const screen = screenWorkArea()
+      const target = {
+        width: Math.min(screen.width, DEFAULT_WINDOW_SIZE.width),
+        height: Math.min(screen.height, DEFAULT_WINDOW_SIZE.height),
+      }
+      const before = await this.global.browser.getWindowSize()
+      if (target.width !== before.width || target.height !== before.height) {
+        // setWindowRect is W3C-only; WinAppDriver predates the W3C WebDriver
+        // spec and only speaks the older JSONWP window/current/size
+        // endpoint. setWindowSize() picks the right one via browser.isW3C.
+        await this.global.browser.setWindowSize(target.width, target.height)
+        // Give the app's own layout pass a chance to settle after a resize
+        // before any test interacts with it — a previous attempt without
+        // this wait introduced new flakiness in previously-reliable tests
+        // once the resize actually started taking effect (it had silently
+        // no-op'd before that, per the this.global fix above).
+        await this.global.browser.waitUntil(
+          async () => {
+            try {
+              const el = await this.global.browser.$('~subtitle')
+              return await el.isDisplayed()
+            } catch {
+              return false
+            }
+          },
+          {timeout: 15000, timeoutMsg: 'App did not settle after window resize'},
+        )
+      }
+      const after = await this.global.browser.getWindowSize()
+      // eslint-disable-next-line no-console
+      console.log(
+        `Window resize: isW3C=${this.global.browser.isW3C} screen=${screen.width}x${screen.height} target=${target.width}x${target.height} before=${JSON.stringify(before)} after=${JSON.stringify(after)}`,
+      )
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.log(`Window resize failed: ${error}`)
     }
   }
 
@@ -74,8 +122,35 @@ class NotesAppEnvironment extends AutomationEnvironment {
     } catch (error) {
       fs.writeFileSync(`${base}.screenshot-error.txt`, String(error))
     }
+    // Rule out a sibling top-level window (notification, RDP toolbar, etc.)
+    // physically overlapping the app rather than the app failing to paint
+    // there itself — list every top-level window and its bounds.
+    try {
+      const root = await this.global.remote({
+        hostname: '127.0.0.1',
+        port: 4723,
+        logLevel: 'error',
+        capabilities: {app: 'Root', 'ms:experimental-webdriver': true},
+      })
+      try {
+        const windows = await root.$$('//Window')
+        const info = []
+        for (const w of windows) {
+          const [name, rect] = await Promise.all([
+            w.getAttribute('Name').catch(() => '?'),
+            w.getAttribute('BoundingRectangle').catch(() => '?'),
+          ])
+          info.push(`${name}: ${rect}`)
+        }
+        fs.writeFileSync(`${base}.top-level-windows.txt`, info.join('\n'))
+      } finally {
+        await root.deleteSession()
+      }
+    } catch (error) {
+      fs.writeFileSync(`${base}.top-level-windows-error.txt`, String(error))
+    }
     // eslint-disable-next-line no-console
-    console.log(`Diagnostics saved: ${base}.{xml,png}`)
+    console.log(`Diagnostics saved: ${base}.*`)
   }
 }
 
