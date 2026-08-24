@@ -32,6 +32,6 @@ export function createExampleDatabase(): ExampleDatabase {
     database,
     notes: database.get<Note>(NOTES_TABLE),
     schemaVersion: schema.version,
-    sqliteEngine: adapter._dispatcherType === 'nitro' ? 'Nitro SQLite' : adapter._dispatcherType,
+    sqliteEngine: adapter.dispatcherType === 'nitro' ? 'Nitro SQLite' : adapter.dispatcherType,
   }
 }
