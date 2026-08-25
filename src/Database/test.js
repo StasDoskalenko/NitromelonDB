@@ -1506,6 +1506,75 @@ describe('Database', () => {
 
         expect(await tasks.query().fetchCount()).toBe(0)
       })
+
+      it('does not reapply seed when reapplySeed: false is passed', async () => {
+        const runSpy = jest.fn(async (seedDb) => {
+          await seedDb.batch(seedDb.get('mock_tasks').prepareCreate())
+        })
+        const { database, tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: runSpy }] }),
+        })
+        expect(await tasks.query().fetchCount()).toBe(1)
+
+        await database.write(() => database.unsafeResetDatabase({ reapplySeed: false }))
+
+        expect(runSpy).toHaveBeenCalledTimes(1)
+        expect(await tasks.query().fetchCount()).toBe(0)
+      })
+    })
+
+    describe('retries', () => {
+      it('retries a step up to `retries` times before giving up', async () => {
+        const run = jest
+          .fn()
+          .mockRejectedValueOnce(new Error('one'))
+          .mockRejectedValueOnce(new Error('two'))
+          .mockResolvedValueOnce(undefined)
+        const { tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run, retries: 2 }] }),
+        })
+
+        await tasks.query().fetchCount() // wait for seed to settle
+        expect(run).toHaveBeenCalledTimes(3)
+      })
+
+      it('reports the last error via onError once retries are exhausted, without marking the step applied', async () => {
+        const errors = [new Error('one'), new Error('two')]
+        const run = jest.fn().mockRejectedValueOnce(errors[0]).mockRejectedValueOnce(errors[1])
+        const onError = jest.fn()
+        const { database, tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run, retries: 1 }], onError }),
+        })
+
+        expect(await tasks.query().fetchCount()).toBe(0)
+        expect(run).toHaveBeenCalledTimes(2)
+        expect(onError).toHaveBeenCalledTimes(1)
+        expect(onError).toHaveBeenCalledWith(errors[1], { schemaVersion: 1 })
+
+        // not marked applied -- retried in full (both attempts) on the next launch
+        const clonedAdapter = await database.adapter.underlyingAdapter.testClone({
+          schema: testSchema,
+        })
+        const run2 = jest.fn(async (seedDb) => {
+          await seedDb.batch(seedDb.get('mock_tasks').prepareCreate())
+        })
+        const database2 = new Database({
+          adapter: clonedAdapter,
+          modelClasses,
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: run2, retries: 1 }] }),
+        })
+        expect(await database2.get('mock_tasks').query().fetchCount()).toBe(1)
+      })
+
+      it('does not retry when retries is omitted (defaults to 0)', async () => {
+        const run = jest.fn().mockRejectedValueOnce(new Error('boom'))
+        const { tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run }], onError: () => {} }),
+        })
+
+        expect(await tasks.query().fetchCount()).toBe(0)
+        expect(run).toHaveBeenCalledTimes(1)
+      })
     })
   })
 })

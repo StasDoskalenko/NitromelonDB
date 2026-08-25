@@ -40,6 +40,22 @@ describe('databaseSeed()', () => {
     )
   })
 
+  it('throws on a negative or non-integer retries value', () => {
+    expect(() =>
+      databaseSeed({ steps: [{ schemaVersion: 1, run: async () => {}, retries: -1 }] }),
+    ).toThrow('retries must be a non-negative integer')
+    expect(() =>
+      databaseSeed({ steps: [{ schemaVersion: 1, run: async () => {}, retries: 1.5 }] }),
+    ).toThrow('retries must be a non-negative integer')
+  })
+
+  it('allows retries to be omitted or 0', () => {
+    expect(() =>
+      databaseSeed({ steps: [{ schemaVersion: 1, run: async () => {}, retries: 0 }] }),
+    ).not.toThrow()
+    expect(() => databaseSeed({ steps: [{ schemaVersion: 1, run: async () => {} }] })).not.toThrow()
+  })
+
   it('throws on duplicate schemaVersion across steps', () => {
     expect(() =>
       databaseSeed({

@@ -43,8 +43,11 @@ export type DatabaseProps = {
    * the same way sync tracks its own bookkeeping), not by `run` querying its own table to guess
    * whether it already ran (that would mean deciding based on data that might itself still be
    * mid-write, and would require `run` to read a table it might have no other reason to touch).
-   * If `run` throws, that step (and every step after it) is retried on the next launch; steps
-   * that already succeeded are not re-run.
+   * If `run` throws, it's retried immediately up to `step.retries` more times (0 by default --
+   * fail on the first error) before being treated as a real failure. If it's still failing after
+   * that, that step (and every step after it) is retried on the next launch; steps that already
+   * succeeded are not re-run. `unsafeResetDatabase()` also reapplies `seed` (unless called with
+   * `{ reapplySeed: false }`) -- see there for why.
    *
    * Runs after schema setup/migrations finish (if the adapter exposes an `initializingPromise`
    * -- e.g. SQLiteAdapter -- that's awaited first). Every write()/read()/batch() call, and every
@@ -243,14 +246,27 @@ export default class Database {
     const pendingSteps = seed.sortedSteps.filter((step) => step.schemaVersion > appliedVersion)
 
     for (const step of pendingSteps) {
+      const maxAttempts = 1 + (step.retries ?? 0)
+      let lastError: unknown
+      let succeeded = false
+
       this._seeding = true
       try {
-        await step.run(this)
-      } catch (error) {
-        this._reportSeedError(seed, error, step.schemaVersion)
-        return
+        for (let attempt = 0; attempt < maxAttempts && !succeeded; attempt += 1) {
+          try {
+            await step.run(this)
+            succeeded = true
+          } catch (error) {
+            lastError = error
+          }
+        }
       } finally {
         this._seeding = false
+      }
+
+      if (!succeeded) {
+        this._reportSeedError(seed, lastError, step.schemaVersion)
+        return
       }
 
       try {
@@ -631,9 +647,13 @@ export default class Database {
    * once the reset itself is done -- "all records, metadata, and LocalStorage" above includes the
    * durable marker tracking which steps already ran, so a reset genuinely does put the database
    * back in the same state a fresh install would be in, and this resolves once that's true again,
-   * not just once the reset itself is.
+   * not just once the reset itself is. Pass `{ reapplySeed: false }` to opt out and leave the
+   * database seedless after this particular reset -- e.g. a "wipe everything" debug/settings
+   * action where reappearing demo data would be surprising, as opposed to a logout/login where
+   * treating the reset database as "fresh" (and reseeding it) is usually what you want.
    */
-  async unsafeResetDatabase(): Promise<void> {
+  async unsafeResetDatabase(options: { reapplySeed?: boolean } = {}): Promise<void> {
+    const { reapplySeed = true } = options
     this._ensureInWriter(`Database.unsafeResetDatabase()`)
     try {
       this._isBeingReset = true
@@ -690,7 +710,7 @@ export default class Database {
       // _ready/readyPromise/isReady for this -- unlike the initial construction-time seed, this
       // is a synchronous-feeling part of an already-awaited operation (unsafeResetDatabase()),
       // not something that needs its own separate readiness signal.
-      if (this._seed) {
+      if (this._seed && reapplySeed) {
         await this._runSeed(this._seed)
       }
     } finally {

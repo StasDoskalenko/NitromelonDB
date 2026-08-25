@@ -11,6 +11,13 @@ export type SeedStep = Readonly<{
   // migration's `toVersion` does, instead of an independent, easy-to-forget-to-bump counter.
   schemaVersion: SchemaVersion
   run: (database: Database) => Promise<void>
+  // Extra attempts if `run` throws, before treating it as a real failure (reported via
+  // onError/logger.error, same as without retries) -- e.g. for a step whose `run` does something
+  // occasionally-flaky like a network fetch. 0 (default, if omitted) = no retry, fail on the
+  // first error. Retries are immediate, with no delay/backoff between attempts -- this is for
+  // smoothing over an occasional transient failure, not a resilience/backoff system; a step that
+  // needs one should implement it itself inside `run`.
+  retries?: number | undefined
 }>
 
 export type SeedStepsSpec = Readonly<{
@@ -41,6 +48,10 @@ export function databaseSeed(spec: SeedStepsSpec): DatabaseSeed {
         `Invalid seed step -- schemaVersion must be a positive integer`,
       )
       invariant(typeof step.run === 'function', `Invalid seed step -- run must be a function`)
+      invariant(
+        step.retries === undefined || (Number.isInteger(step.retries) && step.retries >= 0),
+        `Invalid seed step -- retries must be a non-negative integer if given`,
+      )
       invariant(
         !seenVersions.has(step.schemaVersion),
         `Invalid seed steps -- more than one step targets schema version ${step.schemaVersion}`,
