@@ -1642,5 +1642,86 @@ describe('Database', () => {
         ])
       })
     })
+
+    describe('onDone', () => {
+      it('is called once with stepsRun and a durationMs, after all pending steps succeed', async () => {
+        const onDone = jest.fn()
+        const { tasks } = mockDatabase({
+          seed: databaseSeed({
+            steps: [
+              { schemaVersion: 1, run: async () => {} },
+              { schemaVersion: 2, run: async () => {} },
+            ],
+            onDone,
+          }),
+          schema: schemaV2,
+        })
+
+        await tasks.query().fetchCount() // wait for seed to settle
+
+        expect(onDone).toHaveBeenCalledTimes(1)
+        expect(onDone).toHaveBeenCalledWith({
+          durationMs: expect.any(Number),
+          stepsRun: [1, 2],
+        })
+        expect(onDone.mock.calls[0][0].durationMs).toBeGreaterThanOrEqual(0)
+      })
+
+      it('is called with an empty stepsRun when nothing was pending', async () => {
+        const runSpy = jest.fn(async () => {})
+        const { database, tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: runSpy }] }),
+        })
+        await tasks.query().fetchCount()
+
+        const onDone2 = jest.fn()
+        const clonedAdapter = await database.adapter.underlyingAdapter.testClone({
+          schema: testSchema,
+        })
+        const database2 = new Database({
+          adapter: clonedAdapter,
+          modelClasses,
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: runSpy }], onDone: onDone2 }),
+        })
+        await database2.get('mock_tasks').query().fetchCount()
+
+        expect(onDone2).toHaveBeenCalledWith({ durationMs: expect.any(Number), stepsRun: [] })
+      })
+
+      it('is not called when a step fails', async () => {
+        const onDone = jest.fn()
+        const { tasks } = mockDatabase({
+          seed: databaseSeed({
+            steps: [
+              {
+                schemaVersion: 1,
+                run: async () => {
+                  throw new Error('boom')
+                },
+              },
+            ],
+            onError: () => {},
+            onDone,
+          }),
+        })
+
+        expect(await tasks.query().fetchCount()).toBe(0)
+        expect(onDone).not.toHaveBeenCalled()
+      })
+
+      it('is called again on unsafeResetDatabase() reapplication', async () => {
+        const onDone = jest.fn()
+        const { database, tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: async () => {} }], onDone }),
+        })
+        await tasks.query().fetchCount()
+        expect(onDone).toHaveBeenCalledTimes(1)
+
+        await database.write(() => database.unsafeResetDatabase())
+
+        expect(onDone).toHaveBeenCalledTimes(2)
+        expect(onDone).toHaveBeenLastCalledWith({ durationMs: expect.any(Number), stepsRun: [1] })
+      })
+    })
   })
 })

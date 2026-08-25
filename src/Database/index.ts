@@ -75,6 +75,13 @@ export type DatabaseProps = {
    * calls are released once the current step settles, whether it succeeded or not, so a broken
    * step degrades to "database usable, just not (fully) seeded" rather than every read/write
    * hanging forever.
+   *
+   * `onDone` is called once, only after every pending step for this run has succeeded (never
+   * alongside `onError` -- a failure stops the run before `onDone` would fire), with `durationMs`
+   * (just the time spent running pending steps, not migrations/marker-read overhead) and
+   * `stepsRun` (which schema versions actually executed, not ones skipped as already-applied) --
+   * for telemetry, e.g. catching a seed step that's gotten slow on some cohort of devices. Fires
+   * with `stepsRun: []` (and `durationMs` near 0) when nothing was pending, same as any other run.
    */
   seed?: DatabaseSeed | undefined
 }
@@ -252,6 +259,12 @@ export default class Database {
       )
     }
 
+    // Measures only the pending-steps loop below -- not the migrations wait or the marker read
+    // above, so onDone's durationMs reflects your `run` functions, not setup overhead you don't
+    // control.
+    const startedAt = Date.now()
+    const stepsRun: SchemaVersion[] = []
+
     for (const step of pendingSteps) {
       const maxAttempts = 1 + (step.retries ?? 0)
       let lastError: unknown
@@ -293,7 +306,10 @@ export default class Database {
       }
 
       logger.log(`[Database] Seed step for schema version ${step.schemaVersion} completed`)
+      stepsRun.push(step.schemaVersion)
     }
+
+    seed.onDone?.({ durationMs: Date.now() - startedAt, stepsRun })
   }
 
   _reportSeedError(

@@ -118,6 +118,17 @@ Called once a step's attempts (including retries) are exhausted, with the last e
 step failed. If omitted, the failure is logged via `logger.error` instead. Either way, the database
 still becomes usable — a broken step just means "not (fully) seeded," not "stuck."
 
+### `onDone({ durationMs, stepsRun })`
+
+Called once every pending step for this run has succeeded — never alongside `onError`, since a
+failure stops the run before `onDone` would fire. `durationMs` covers only the pending-steps loop
+(not the wait for migrations or the marker read), so it reflects your `run` functions, not setup
+overhead outside your control. `stepsRun` is which schema versions actually executed this run, not
+ones skipped because they were already applied — compare against your full `steps` list if you
+want "skipped" too. Fires with `stepsRun: []` (and `durationMs` near `0`) when nothing was pending,
+same as any other run — useful for telemetry (e.g. catching a step that's gotten slow on some
+cohort of devices), not just "did it finish."
+
 ### Logging
 
 Progress is logged the same way schema setup/migrations already are: a summary when steps are

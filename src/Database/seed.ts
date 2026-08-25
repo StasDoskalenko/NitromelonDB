@@ -20,21 +20,38 @@ export type SeedStep = Readonly<{
   retries?: number | undefined
 }>
 
+// Passed to onDone once every pending step for this run has completed successfully -- not called
+// at all if a step failed (that's onError's job instead) or if seed wasn't configured. Reflects
+// only *this run*: stepsRun is empty (and durationMs near 0) when every step was already applied
+// and there was nothing to do, same as a fresh install where nothing was pending gets an (empty)
+// onDone just as reliably as one where something actually ran.
+export type SeedDoneInfo = Readonly<{
+  // Wall-clock time spent actually running pending steps -- excludes waiting for the adapter's
+  // own migrations and reading the applied-version marker, so this reflects your `run` functions,
+  // not setup overhead outside your control.
+  durationMs: number
+  // schemaVersions of the steps that actually executed this run (not ones skipped because
+  // already applied) -- compare against the full steps list you defined if you want "skipped".
+  stepsRun: SchemaVersion[]
+}>
+
 export type SeedStepsSpec = Readonly<{
   steps: SeedStep[]
   onError?: ((error: unknown, context: { schemaVersion: SchemaVersion }) => void) | undefined
+  onDone?: ((info: SeedDoneInfo) => void) | undefined
 }>
 
 export type DatabaseSeed = Readonly<{
   validated: true
   sortedSteps: SeedStep[]
   onError?: ((error: unknown, context: { schemaVersion: SchemaVersion }) => void) | undefined
+  onDone?: ((info: SeedDoneInfo) => void) | undefined
 }>
 
 // Creates a specification of seed steps to run, each tied to the schema version it needs.
 // Mirrors schemaMigrations() -- see docs for more details.
 export function databaseSeed(spec: SeedStepsSpec): DatabaseSeed {
-  const { steps, onError } = spec
+  const { steps, onError, onDone } = spec
 
   if (process.env.NODE_ENV !== 'production') {
     invariant(Array.isArray(steps) && steps.length > 0, 'databaseSeed() needs at least one step')
@@ -64,5 +81,6 @@ export function databaseSeed(spec: SeedStepsSpec): DatabaseSeed {
     validated: true,
     sortedSteps: sortBy((step) => step.schemaVersion, steps),
     onError,
+    onDone,
   }
 }

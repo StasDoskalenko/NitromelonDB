@@ -20,6 +20,12 @@ describe('databaseSeed()', () => {
     expect(seed.onError).toBe(onError)
   })
 
+  it('carries onDone through', () => {
+    const onDone = () => {}
+    const seed = databaseSeed({ steps: [{ schemaVersion: 1, run: async () => {} }], onDone })
+    expect(seed.onDone).toBe(onDone)
+  })
+
   it('throws if steps is missing or empty', () => {
     expect(() => databaseSeed({ steps: [] })).toThrow('at least one step')
     expect(() => databaseSeed({})).toThrow('at least one step')

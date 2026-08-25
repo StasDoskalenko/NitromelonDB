@@ -26,6 +26,6 @@ export type {
   AppSchema,
 } from './Schema'
 export type { SchemaMigrations } from './Schema/migrations'
-export type { DatabaseSeed, SeedStep } from './Database/seed'
+export type { DatabaseSeed, SeedStep, SeedDoneInfo } from './Database/seed'
 
 export { Q }
