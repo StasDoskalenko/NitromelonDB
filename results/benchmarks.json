@@ -1,0 +1,14 @@
+[
+  {
+    "sha": "a6b92b8a011c4b0becbf1bb941cb47fce7d870b1",
+    "date": "2026-08-25T19:39:12.488Z",
+    "prNumber": null,
+    "android": {
+      "iterationCount": 5,
+      "score": 94,
+      "cpu": 29.9,
+      "ram": 196,
+      "fps": 52.6
+    }
+  }
+]
