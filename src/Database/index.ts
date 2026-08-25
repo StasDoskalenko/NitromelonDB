@@ -39,10 +39,11 @@ export type DatabaseProps = {
    * `toVersion` is -- instead of an independent counter you have to remember to bump yourself. A
    * step only runs once the database has actually reached its `schemaVersion` (immediately, for
    * a fresh install already on the latest schema; after migrating, for an existing install
-   * catching up), and only once ever per step -- applied steps are tracked durably (via
-   * `database.localStorage`), not by `run` querying its own table to guess whether it already
-   * ran (that would mean deciding based on data that might itself still be mid-write, and would
-   * require `run` to read a table it might have no other reason to touch). If `run` throws, that
+   * catching up), and only once ever per step -- applied steps are tracked durably (internally,
+   * the same way sync tracks its own bookkeeping), not by `run` querying its own table to guess
+   * whether it already ran (that would mean deciding based on data that might itself still be
+   * mid-write, and would require `run` to read a table it might have no other reason to touch).
+   * If `run` throws, that
    * step (and every step after it) is retried on the next launch; steps that already succeeded
    * are not re-run.
    *
@@ -86,9 +87,12 @@ type ModelClassRef<T extends Model> = { new (...args: never[]): T; table: TableN
 
 type TableChange = [TableName, CollectionChangeSet<Model>]
 
-// Reserved localStorage key tracking the last-applied DatabaseProps#seed version. Namespaced to
-// avoid colliding with an app's own localStorage keys.
-const SEED_VERSION_KEY = '__nitromelonSeedVersion'
+// Tracks the last-applied DatabaseProps#seed schema version, the same way sync's own
+// lastPulledSchemaVersionKey (src/sync/impl/index.ts) tracks its bookkeeping: directly via
+// adapter.getLocal/setLocal (a plain string, parsed with parseInt), not the public,
+// JSON-wrapping Database#localStorage -- that's app-facing storage, this is internal
+// (library-owned) metadata, same distinction sync's own local keys already make.
+const SEED_VERSION_KEY = '__nitromelon_seed_version'
 
 let experimentalAllowsFatalError = false
 
@@ -213,7 +217,7 @@ export default class Database {
 
     let appliedVersion = 0
     try {
-      appliedVersion = (await this.localStorage.get<number>(SEED_VERSION_KEY)) ?? 0
+      appliedVersion = parseInt((await this.adapter.getLocal(SEED_VERSION_KEY)) ?? '', 10) || 0
     } catch (error) {
       this._reportSeedError(seed, error, 0)
       return
@@ -233,7 +237,7 @@ export default class Database {
       }
 
       try {
-        await this.localStorage.set(SEED_VERSION_KEY, step.schemaVersion)
+        await this.adapter.setLocal(SEED_VERSION_KEY, `${step.schemaVersion}`)
       } catch (error) {
         this._reportSeedError(seed, error, step.schemaVersion)
         return
