@@ -165,14 +165,17 @@ HybridNitromelonDatabase::HybridNitromelonDatabase(std::string dbName, bool uses
     });
 
     // weak_from_this() returns weak_ptr<HybridObject> (the shared base --
-    // see NitroModules/HybridObject.hpp), so the locked pointer is cast back
-    // to this concrete type. A memory alert firing after this HybridObject
-    // is gone is then a safe no-op instead of a use-after-free.
+    // see NitroModules/HybridObject.hpp), so the locked pointer is recovered
+    // back to this concrete type via HybridObject::shared_cast<Derived>()
+    // (Nitro's own helper for this exact pattern, HybridObject.hpp:73-76 --
+    // a plain static_cast is ill-formed here since HybridObject is a virtual
+    // base in Nitro's hierarchy). A memory alert firing after this
+    // HybridObject is gone is then a safe no-op instead of a use-after-free.
     std::weak_ptr<HybridObject> weakSelf = weak_from_this();
     ::watermelondb::platform::onMemoryAlert([weakSelf]() {
       if (auto self = weakSelf.lock()) {
-        auto* hybridDatabase = static_cast<HybridNitromelonDatabase*>(self.get());
-        if (hybridDatabase->memoryWarningCallback_) {
+        auto hybridDatabase = self->shared_cast<HybridNitromelonDatabase>();
+        if (hybridDatabase && hybridDatabase->memoryWarningCallback_) {
           hybridDatabase->memoryWarningCallback_();
         }
       }
