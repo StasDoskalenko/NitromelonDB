@@ -24,6 +24,7 @@ namespace margelo::nitro::watermelondb { struct NitromelonInitializeResult; }
 #include <vector>
 #include <optional>
 #include <tuple>
+#include <functional>
 
 namespace margelo::nitro::watermelondb {
 
@@ -72,6 +73,7 @@ namespace margelo::nitro::watermelondb {
       virtual void unsafeExecuteMultiple(const std::string& sql) = 0;
       virtual void unsafeResetDatabase(const std::string& schema, double schemaVersion) = 0;
       virtual void unsafeClose() = 0;
+      virtual void onMemoryWarning(const std::function<void()>& callback) = 0;
 
     protected:
       // Hybrid Setup

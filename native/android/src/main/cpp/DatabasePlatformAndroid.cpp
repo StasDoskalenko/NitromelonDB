@@ -150,9 +150,21 @@ void deleteDatabaseFile(std::string path, bool warnIfDoesNotExist) {
     deleteFileIfExists(shmPath, false);
 }
 
+// Unlike destroyListeners (a one-time teardown event, cleared after firing),
+// this is never cleared -- a memory alert can fire many times over a
+// Database's life. Each registered lambda captures a weak_ptr, so this is
+// bounded by "number of Database/adapter instances ever created in the
+// process", not unbounded in practice.
+std::vector<std::function<void()>> memoryAlertListeners;
+
 void onMemoryAlert(std::function<void(void)> callback) {
-    // TODO: Unimplemented
-    // NOTE: https://developer.android.com/reference/android/app/Application#onTrimMemory(int)
+    memoryAlertListeners.push_back(callback);
+}
+
+void triggerMemoryAlert() {
+    for (auto listener : memoryAlertListeners) {
+        listener();
+    }
 }
 
 struct ProvidedSyncJson {

@@ -3,6 +3,7 @@
 #include "HybridNitromelonDatabaseSpec.hpp"
 #include "Database.h"
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -42,6 +43,7 @@ public:
   void unsafeExecuteMultiple(const std::string& sql) override;
   void unsafeResetDatabase(const std::string& schema, double schemaVersion) override;
   void unsafeClose() override;
+  void onMemoryWarning(const std::function<void()>& callback) override;
 
 private:
   ::watermelondb::Database& database();
@@ -50,6 +52,7 @@ private:
   bool usesExclusiveLocking_;
   bool initialized_ = false;
   std::shared_ptr<::watermelondb::Database> db_;
+  std::function<void()> memoryWarningCallback_;
 };
 
 } // namespace margelo::nitro::watermelondb

@@ -108,6 +108,15 @@ export default class WeakValueCache<K, V extends object> {
     })
   }
 
+  // Proactively removes entries whose value is already dead -- never a live
+  // one, so this is always safe to call, unlike clear(). Intended for a
+  // native low-memory signal: reclaims map-slot bookkeeping for values GC
+  // already collected, sooner than incidental access or (on Tier 1)
+  // FinalizationRegistry's own unspecified timing would.
+  prune(): void {
+    this.forEach(() => {})
+  }
+
   // Tier 2 only (WeakRef without FinalizationRegistry): a best-effort
   // backstop, not a correctness requirement -- get()/delete() always
   // self-check via a real deref() regardless of sweep timing, this just

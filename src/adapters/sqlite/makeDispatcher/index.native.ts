@@ -1,6 +1,7 @@
 /* eslint-disable global-require */
 
 import { logger, invariant, type ConnectionTag } from '../../../utils/common'
+import { _triggerOnLowMemory } from '../../../utils/common/memory'
 import type { ResultCallback } from '../../../utils/fp/Result'
 import type { Nitromelon, NitromelonDatabase } from '../../../nitro/Nitromelon.nitro'
 import type {
@@ -73,6 +74,7 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
     )
     this._nitro = nitro
     this._db = nitro.createAdapter(dbName, usesExclusiveLocking)
+    ;(this._db as NitromelonDatabase).onMemoryWarning(() => _triggerOnLowMemory())
   }
 
   call<T>(name: SqliteDispatcherMethod, _args: unknown[], callback: ResultCallback<T>): void {

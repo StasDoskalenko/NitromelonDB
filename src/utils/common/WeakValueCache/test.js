@@ -88,6 +88,22 @@ describe('WeakValueCache', () => {
     expect(cache._map.has('b')).toBe(false)
   })
 
+  it('prune() removes only dead entries, leaving live ones and their identity untouched', () => {
+    const cache = new WeakValueCache()
+    const liveValue = { name: 'a' }
+    cache.set('a', liveValue)
+    cache.set('b', { name: 'b' })
+
+    const ref = cache._map.get('b')
+    ref.deref = () => undefined
+
+    cache.prune()
+
+    expect(cache.size).toBe(1)
+    expect(cache.get('a')).toBe(liveValue)
+    expect(cache.get('b')).toBe(undefined)
+  })
+
   it('_finalize() is a no-op for a key that was already cleared', () => {
     const cache = new WeakValueCache()
     cache.set('k', {})

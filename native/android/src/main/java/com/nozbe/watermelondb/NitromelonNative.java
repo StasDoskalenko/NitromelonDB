@@ -10,4 +10,6 @@ public final class NitromelonNative {
     public static native void onCatalystInstanceDestroy();
 
     public static native void provideSyncJson(int id, byte[] json);
+
+    public static native void onMemoryAlert(int level);
 }

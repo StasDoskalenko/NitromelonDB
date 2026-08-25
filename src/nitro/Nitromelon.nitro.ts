@@ -29,6 +29,9 @@ export interface NitromelonDatabase extends HybridObject<{ ios: 'c++'; android: 
   unsafeExecuteMultiple(sql: string): void
   unsafeResetDatabase(schema: string, schemaVersion: number): void
   unsafeClose(): void
+  // Registers a callback invoked when the OS signals critical memory
+  // pressure, so JS-side caches can proactively trim already-dead entries.
+  onMemoryWarning(callback: () => void): void
 }
 
 export interface Nitromelon extends HybridObject<{ ios: 'c++'; android: 'c++' }> {

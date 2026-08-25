@@ -1,5 +1,8 @@
 package com.nozbe.watermelondb;
 
+import android.content.ComponentCallbacks2;
+import android.content.res.Configuration;
+
 import androidx.annotation.NonNull;
 
 import com.facebook.react.ReactPackage;
@@ -21,7 +24,35 @@ public class WatermelonDBPackage implements ReactPackage {
     @Override
     public List<NativeModule> createNativeModules(@NonNull ReactApplicationContext reactAppContext) {
         NativeDatabasePath.install(reactAppContext);
+        registerMemoryAlertCallbacks(reactAppContext);
         return Collections.singletonList(new HostModule(reactAppContext));
+    }
+
+    /**
+     * Registers globally on the process Application instance -- no cooperation needed from the
+     * consuming app (e.g. a custom Application subclass), since createNativeModules is already
+     * called automatically by RN's package-loading machinery.
+     *
+     * Only forwards "critical" levels: onTrimMemory fires routinely (e.g. on every backgrounding),
+     * not just under real memory pressure, and JS-side cache trimming is meant for the latter.
+     */
+    private static void registerMemoryAlertCallbacks(ReactApplicationContext reactAppContext) {
+        reactAppContext.getApplicationContext().registerComponentCallbacks(new ComponentCallbacks2() {
+            @Override
+            public void onTrimMemory(int level) {
+                if (level == TRIM_MEMORY_RUNNING_CRITICAL || level >= TRIM_MEMORY_COMPLETE) {
+                    NitromelonNative.onMemoryAlert(level);
+                }
+            }
+
+            @Override
+            public void onConfigurationChanged(@NonNull Configuration newConfig) {
+            }
+
+            @Override
+            public void onLowMemory() {
+            }
+        });
     }
 
     @NonNull
