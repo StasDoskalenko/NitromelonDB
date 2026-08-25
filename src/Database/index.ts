@@ -263,13 +263,22 @@ export default class Database {
     }
   }
 
+  // Cheap (no allocation) fast-path check -- callers on a hot path (Collection's raw-read
+  // methods) test this FIRST and only build the closure _whenReady() needs when it's false, so
+  // the overwhelmingly common case (already ready) never allocates one at all.
+  get _isReady(): boolean {
+    return this._ready || this._seeding
+  }
+
   // Runs `fn` immediately if the database is ready (the common-case fast path -- no promise
   // overhead at all), or once `seed` has been resolved (run, or skipped as already-applied)
   // otherwise. Called by every raw Collection read (find/_fetchQuery/_fetchCount/_fetchIds/
   // _unsafeFetchRaw) -- the only paths that bypass WorkQueue's own FIFO ordering entirely and so
-  // need an explicit gate.
+  // need an explicit gate. Callers should check _isReady first (see above) rather than relying
+  // on the equivalent check repeated here -- this one only exists to cover the (rare) case where
+  // the fast path was missed between that check and this call.
   _whenReady(fn: () => void): void {
-    if (this._ready || this._seeding) {
+    if (this._isReady) {
       fn()
       return
     }
