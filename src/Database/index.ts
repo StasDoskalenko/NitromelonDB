@@ -151,6 +151,10 @@ export default class Database {
 
   _readyWarned: boolean = false
 
+  // Kept around (not just used once in the constructor) so unsafeResetDatabase() can reapply it
+  // -- see there for why.
+  _seed: DatabaseSeed | undefined
+
   constructor(options: DatabaseProps) {
     const { adapter, modelClasses, experimentalDetectNestedWriters = false, seed } = options
     if (process.env.NODE_ENV !== 'production') {
@@ -177,6 +181,8 @@ export default class Database {
     const initializingPromise = (adapter as { initializingPromise?: unknown }).initializingPromise
     this._adapterInitPromise =
       initializingPromise instanceof Promise ? initializingPromise : this._adapterInitPromise
+
+    this._seed = seed
 
     if (seed) {
       this._ready = false
@@ -620,6 +626,12 @@ export default class Database {
    *   observers/subscribers should be disposed of before resetting
    * - You SHOULD NOT have any pending (queued) Readers or Writers. Pending work will be aborted
    *   (rejected with an error)
+   *
+   * If this `Database` was constructed with `seed` (see `DatabaseProps#seed`), it's reapplied
+   * once the reset itself is done -- "all records, metadata, and LocalStorage" above includes the
+   * durable marker tracking which steps already ran, so a reset genuinely does put the database
+   * back in the same state a fresh install would be in, and this resolves once that's true again,
+   * not just once the reset itself is.
    */
   async unsafeResetDatabase(): Promise<void> {
     this._ensureInWriter(`Database.unsafeResetDatabase()`)
@@ -669,6 +681,18 @@ export default class Database {
       // untouched) to drop their stale value and refetch against the
       // now-reset database.
       this.resetObservablesCache()
+
+      // Reapply seed, if configured -- the reset above wiped its applied-step marker along with
+      // everything else, so from _runSeed's perspective this database is now indistinguishable
+      // from a fresh install: every step is pending again. Called directly (not re-enqueued via
+      // WorkQueue) since this method's own writer turn is already running, same as how a step's
+      // own database.batch() calls work without needing callWriter(). Deliberately NOT touching
+      // _ready/readyPromise/isReady for this -- unlike the initial construction-time seed, this
+      // is a synchronous-feeling part of an already-awaited operation (unsafeResetDatabase()),
+      // not something that needs its own separate readiness signal.
+      if (this._seed) {
+        await this._runSeed(this._seed)
+      }
     } finally {
       this._isBeingReset = false
     }

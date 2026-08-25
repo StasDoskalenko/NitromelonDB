@@ -1436,5 +1436,76 @@ describe('Database', () => {
         expect(database.isReady).toBe(true)
       })
     })
+
+    describe('unsafeResetDatabase() interaction', () => {
+      it('reapplies all steps after a reset, since the applied-step marker was wiped too', async () => {
+        const runSpy = jest.fn(async (seedDb) => {
+          await seedDb.batch(seedDb.get('mock_tasks').prepareCreate())
+        })
+        const { database, tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: runSpy }] }),
+        })
+
+        expect(await tasks.query().fetchCount()).toBe(1)
+        expect(runSpy).toHaveBeenCalledTimes(1)
+
+        await database.write(() => database.unsafeResetDatabase())
+
+        expect(runSpy).toHaveBeenCalledTimes(2)
+        expect(await tasks.query().fetchCount()).toBe(1)
+      })
+
+      it('unsafeResetDatabase() resolves only once the reapplied seed is done, not just the reset', async () => {
+        const order = []
+        let callCount = 0
+        let resolveRun
+        let runStarted
+        const runStartedPromise = new Promise((resolve) => {
+          runStarted = resolve
+        })
+        // First call is the initial, construction-time seed -- resolves immediately, so it
+        // doesn't hold up "wait for the initial seed to settle" below. Second call is the reset's
+        // reapplied run(), which stays controllably pending to prove unsafeResetDatabase() is
+        // actually waiting for it.
+        const run = jest.fn(() => {
+          callCount += 1
+          if (callCount === 1) {
+            return Promise.resolve()
+          }
+          runStarted()
+          return new Promise((resolve) => {
+            resolveRun = () => {
+              order.push('run:end')
+              resolve()
+            }
+          })
+        })
+        const { database } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run }] }),
+        })
+        await database.get('mock_tasks').query().fetchCount() // wait for the initial seed to settle
+
+        const resetPromise = database.write(async () => {
+          await database.unsafeResetDatabase()
+          order.push('reset:resolved')
+        })
+
+        await runStartedPromise
+        expect(order).toEqual([])
+
+        resolveRun()
+        await resetPromise
+
+        expect(order).toEqual(['run:end', 'reset:resolved'])
+      })
+
+      it('does nothing extra on reset when no seed is configured', async () => {
+        const { database, tasks } = mockDatabase()
+
+        await database.write(() => database.unsafeResetDatabase())
+
+        expect(await tasks.query().fetchCount()).toBe(0)
+      })
+    })
   })
 })
