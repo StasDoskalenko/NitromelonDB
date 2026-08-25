@@ -89,12 +89,12 @@ function main() {
         '-X',
         'PATCH',
         `repos/${repo}/issues/comments/${existingComment.id}`,
-        '-f',
+        '-F',
         `body=@${BODY_FILE}`,
       ])
       console.log(`Updated existing perf comment ${existingComment.id}`)
     } else {
-      gh(['api', `repos/${repo}/issues/${prNumber}/comments`, '-f', `body=@${BODY_FILE}`])
+      gh(['api', `repos/${repo}/issues/${prNumber}/comments`, '-F', `body=@${BODY_FILE}`])
       console.log('Created new perf comment')
     }
   } finally {
