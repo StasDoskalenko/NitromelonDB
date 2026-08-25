@@ -1,4 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { useWriter } from 'nitromelondb/hooks'
 import type Note from '../model/Note'
 import { colors } from '../theme'
 import { formatTime } from '../utils/formatTime'
@@ -6,11 +7,19 @@ import { noteDeleteTestID, notePinTestID } from '../utils/noteTestIds'
 
 type NoteCardProps = {
   note: Note
-  isDeleting: boolean
-  onDelete: (note: Note) => void
+  onError?: (message: string) => void
 }
 
-export function NoteCard({ note, isDeleting, onDelete }: NoteCardProps) {
+export function NoteCard({ note, onError }: NoteCardProps) {
+  const [togglePinned] = useWriter(note, (target) => target.togglePinned())
+  const [deleteForever, { isPending: isDeleting }] = useWriter(note, (target) =>
+    target.deleteForever(),
+  )
+
+  const reportError = (error: unknown) => {
+    onError?.(error instanceof Error ? error.message : String(error))
+  }
+
   return (
     <View style={[styles.card, note.pinned && styles.cardPinned]} testID={`note-card-${note.id}`}>
       <View style={styles.cardHeader}>
@@ -19,7 +28,7 @@ export function NoteCard({ note, isDeleting, onDelete }: NoteCardProps) {
         </Text>
         <View style={styles.cardActions}>
           <Pressable
-            onPress={() => void note.togglePinned()}
+            onPress={() => void togglePinned().catch(reportError)}
             hitSlop={12}
             style={styles.actionHit}
             testID={notePinTestID(note.title)}
@@ -32,7 +41,7 @@ export function NoteCard({ note, isDeleting, onDelete }: NoteCardProps) {
             </Text>
           </Pressable>
           <Pressable
-            onPress={() => onDelete(note)}
+            onPress={() => void deleteForever().catch(reportError)}
             disabled={isDeleting}
             hitSlop={12}
             style={styles.actionHit}

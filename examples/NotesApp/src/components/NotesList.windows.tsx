@@ -9,12 +9,11 @@ export type { NotesListHandle } from './NotesListHandle'
 
 type NotesListProps = {
   notes: Note[]
-  deletingIds: ReadonlySet<string>
-  onDelete: (note: Note) => void
+  onError?: (message: string) => void
   ref?: Ref<NotesListHandle>
 }
 
-export function NotesList({ notes, deletingIds, onDelete, ref }: NotesListProps) {
+export function NotesList({ notes, onError, ref }: NotesListProps) {
   const listRef = useRef<ScrollView>(null)
 
   useImperativeHandle(ref, () => ({
@@ -44,14 +43,7 @@ export function NotesList({ notes, deletingIds, onDelete, ref }: NotesListProps)
             No notes yet. Add one below.
           </Text>
         ) : (
-          notes.map((note) => (
-            <NoteCard
-              key={note.id}
-              note={note}
-              isDeleting={deletingIds.has(note.id)}
-              onDelete={onDelete}
-            />
-          ))
+          notes.map((note) => <NoteCard key={note.id} note={note} onError={onError} />)
         )}
       </ScrollView>
     </View>
