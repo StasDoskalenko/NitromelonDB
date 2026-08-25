@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react'
 import { Q } from 'nitromelondb'
-import { SEEDED_KEY } from '../constants'
 import type { ExampleDatabase } from '../database'
 import type Note from '../model/Note'
 
+// Seeding (see database.ts's `seed` option) is queued ahead of every read/write issued after the
+// database is constructed, including the subscriptions below -- so there's no seed-vs-subscribe
+// race to guard against here. A brief count of 0 is still possible on first launch while seeding
+// is in flight; it settles to 100 once seeding completes.
 export function useNotes(
   session: ExampleDatabase,
   page: number,
   pageSize: number,
-): { notes: Note[]; totalCount: number; error: string | null } {
+): { notes: Note[]; totalCount: number } {
   const [notes, setNotes] = useState<Note[]>([])
   const [totalCount, setTotalCount] = useState(0)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -21,39 +23,6 @@ export function useNotes(
       }
     })
 
-    const seed = async () => {
-      try {
-        const seeded = await session.database.localStorage.get<boolean>(SEEDED_KEY)
-        if (seeded) {
-          const count = await session.notes.query().fetchCount()
-          if (count > 0) {
-            return
-          }
-        }
-        await session.database.write(async () => {
-          await session.notes.query().destroyAllPermanently()
-          // rank 1 = top: note #100 (created last, "most recent") gets rank
-          // 1, note #1 gets rank 100 — matches addNote's "new note is rank 1"
-          // convention.
-          for (let i = 0; i < 100; i++) {
-            await session.notes.create((note) => {
-              note.title = `Note #${i + 1}`
-              note.body = `This is note number ${i + 1}.`
-              note.createdAt = new Date(Date.now() - (100 - i) * 60_000)
-              note.rank = 100 - i
-              note.pinned = false
-            })
-          }
-        })
-        await session.database.localStorage.set(SEEDED_KEY, true)
-      } catch (seedError) {
-        if (!cancelled) {
-          setError(seedError instanceof Error ? seedError.message : String(seedError))
-        }
-      }
-    }
-
-    void seed()
     return () => {
       cancelled = true
       unsubscribeCount()
@@ -81,5 +50,5 @@ export function useNotes(
     }
   }, [session, page, pageSize])
 
-  return { notes, totalCount, error }
+  return { notes, totalCount }
 }

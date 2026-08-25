@@ -1,8 +1,12 @@
 import { expectToRejectWithMessage } from '../__tests__/utils'
-import { mockDatabase, MockTask } from '../__tests__/testModels'
+import { mockDatabase, MockTask, modelClasses, testSchema } from '../__tests__/testModels'
 import { noop } from '../utils/fp'
 import { logger } from '../utils/common'
 import * as Q from '../QueryDescription'
+import { appSchema } from '../Schema'
+import { schemaMigrations } from '../Schema/migrations'
+import Database from '.'
+import { databaseSeed } from './seed'
 
 describe('Database', () => {
   it(`implements get()`, () => {
@@ -997,6 +1001,727 @@ describe('Database', () => {
       expect(promise3).toBe(undefined) // code will never reach this point
       expect(dangerousActionsCalled).toBe(0)
       expect(safeActionsCalled).toBe(2)
+    })
+  })
+
+  describe('seed', () => {
+    // A step's `run` own synchronous prefix (everything before its first internal await) runs as
+    // part of the `new Database()` call inside mockDatabase(), before mockDatabase() has
+    // returned -- so these tests use the `database` run() is passed as its own argument, not the
+    // outer destructured `database`/`tasks`, which aren't assigned yet at that point.
+    const seedWarnings = (spy) => spy.mock.calls.filter(([message]) => /seed/i.test(message))
+    // testSchema is version 1; a couple of tests need a step targeting a later schema version
+    // (simulating an app that migrated), which requires an actual higher-versioned schema --
+    // Database validates that a seed step can't target a schema version the schema itself hasn't
+    // reached.
+    const schemaV2 = appSchema({ version: 2, tables: Object.values(testSchema.tables) })
+
+    it('runs before any write()/read() issued after construction', async () => {
+      const order = []
+      const { database, tasks } = mockDatabase({
+        seed: databaseSeed({
+          steps: [
+            {
+              schemaVersion: 1,
+              run: async (seedDb) => {
+                order.push('run:start')
+                await Promise.resolve()
+                await seedDb.batch(seedDb.get('mock_tasks').prepareCreate())
+                order.push('run:end')
+              },
+            },
+          ],
+        }),
+      })
+
+      await database.write(async () => {
+        order.push('write')
+      })
+
+      expect(order).toEqual(['run:start', 'run:end', 'write'])
+      expect(await tasks.query().fetchCount()).toBe(1)
+    })
+
+    it('queues a raw read (query().fetchCount()) issued before seed finishes', async () => {
+      const order = []
+      const { tasks } = mockDatabase({
+        seed: databaseSeed({
+          steps: [
+            {
+              schemaVersion: 1,
+              run: async (seedDb) => {
+                order.push('run:start')
+                await Promise.resolve()
+                await seedDb.batch(seedDb.get('mock_tasks').prepareCreate())
+                order.push('run:end')
+              },
+            },
+          ],
+        }),
+      })
+
+      const count = await tasks.query().fetchCount()
+      order.push('read')
+
+      expect(order).toEqual(['run:start', 'run:end', 'read'])
+      expect(count).toBe(1)
+    })
+
+    it('skips a step on a later construction once its schema version has already been applied', async () => {
+      const runSpy = jest.fn(async (seedDb) => {
+        await seedDb.batch(seedDb.get('mock_tasks').prepareCreate())
+      })
+      const { database, tasks } = mockDatabase({
+        seed: databaseSeed({ steps: [{ schemaVersion: 1, run: runSpy }] }),
+      })
+
+      expect(await tasks.query().fetchCount()).toBe(1)
+      expect(runSpy).toHaveBeenCalledTimes(1)
+
+      // A later Database instance backed by the same underlying data (simulating a re-launch)
+      const clonedAdapter = await database.adapter.underlyingAdapter.testClone({
+        schema: testSchema,
+      })
+      const runSpy2 = jest.fn(async () => {})
+      const database2 = new Database({
+        adapter: clonedAdapter,
+        modelClasses,
+        seed: databaseSeed({ steps: [{ schemaVersion: 1, run: runSpy2 }] }),
+      })
+
+      expect(await database2.get('mock_tasks').query().fetchCount()).toBe(1)
+      expect(runSpy2).not.toHaveBeenCalled()
+    })
+
+    it('runs multiple pending steps in ascending schema-version order, regardless of declaration order', async () => {
+      const order = []
+      const { tasks } = mockDatabase({
+        schema: schemaV2,
+        seed: databaseSeed({
+          steps: [
+            {
+              schemaVersion: 2,
+              run: async (seedDb) => {
+                order.push('v2')
+                await seedDb.batch(seedDb.get('mock_tasks').prepareCreate())
+              },
+            },
+            {
+              schemaVersion: 1,
+              run: async (seedDb) => {
+                order.push('v1')
+                await seedDb.batch(seedDb.get('mock_tasks').prepareCreate())
+              },
+            },
+          ],
+        }),
+      })
+
+      expect(await tasks.query().fetchCount()).toBe(2)
+      expect(order).toEqual(['v1', 'v2'])
+    })
+
+    it('applies only newly-pending steps on a later construction at a higher schema version', async () => {
+      const { database, tasks } = mockDatabase({
+        seed: databaseSeed({
+          steps: [
+            {
+              schemaVersion: 1,
+              run: async (seedDb) => {
+                await seedDb.batch(seedDb.get('mock_tasks').prepareCreate())
+              },
+            },
+          ],
+        }),
+      })
+      expect(await tasks.query().fetchCount()).toBe(1)
+
+      // A later Database instance at a higher schema version (simulating an app update that
+      // migrated the schema and shipped a new seed step alongside it). A (no-op) migration is
+      // required so the adapter upgrades in place instead of resetting on a version mismatch --
+      // schemaV2 doesn't actually change any tables, so there's nothing for it to do.
+      const clonedAdapter = await database.adapter.underlyingAdapter.testClone({
+        schema: schemaV2,
+        migrations: schemaMigrations({ migrations: [{ toVersion: 2, steps: [] }] }),
+      })
+      const step1Spy = jest.fn(async () => {})
+      const step2Spy = jest.fn(async (seedDb) => {
+        await seedDb.batch(seedDb.get('mock_tasks').prepareCreate())
+      })
+      const database2 = new Database({
+        adapter: clonedAdapter,
+        modelClasses,
+        seed: databaseSeed({
+          steps: [
+            { schemaVersion: 1, run: step1Spy },
+            { schemaVersion: 2, run: step2Spy },
+          ],
+        }),
+      })
+
+      expect(await database2.get('mock_tasks').query().fetchCount()).toBe(2)
+      expect(step1Spy).not.toHaveBeenCalled()
+      expect(step2Spy).toHaveBeenCalledTimes(1)
+    })
+
+    it("rejects (in dev) a seed step that targets a schema version the schema hasn't reached", () => {
+      expect(() =>
+        mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 2, run: async () => {} }] }),
+        }),
+      ).toThrow(/schema version 2/)
+    })
+
+    it('lets run() read via the query API for some other reason without deadlocking', async () => {
+      const { tasks } = mockDatabase({
+        seed: databaseSeed({
+          steps: [
+            {
+              schemaVersion: 1,
+              run: async (seedDb) => {
+                const seedTasks = seedDb.get('mock_tasks')
+                const existingCount = await seedTasks.query().fetchCount()
+                await seedDb.batch(seedTasks.prepareCreate(), seedTasks.prepareCreate())
+                expect(existingCount).toBe(0)
+              },
+            },
+          ],
+        }),
+      })
+
+      expect(await tasks.query().fetchCount()).toBe(2)
+    })
+
+    it('supports database.batch() directly inside run() (not database.write(), which would deadlock)', async () => {
+      const { tasks } = mockDatabase({
+        seed: databaseSeed({
+          steps: [
+            {
+              schemaVersion: 1,
+              run: async (seedDb) => {
+                const seedTasks = seedDb.get('mock_tasks')
+                await seedDb.batch(seedTasks.prepareCreate(), seedTasks.prepareCreate())
+              },
+            },
+          ],
+        }),
+      })
+
+      expect(await tasks.query().fetchCount()).toBe(2)
+    })
+
+    it('reports a failing step via onError (with which schema version failed), and does not get stuck', async () => {
+      const seedError = new Error('boom')
+      const onError = jest.fn()
+      const { tasks } = mockDatabase({
+        seed: databaseSeed({
+          steps: [
+            {
+              schemaVersion: 1,
+              run: async () => {
+                throw seedError
+              },
+            },
+          ],
+          onError,
+        }),
+      })
+
+      // Reads still resolve -- the database becomes usable even though seeding failed
+      expect(await tasks.query().fetchCount()).toBe(0)
+      expect(onError).toHaveBeenCalledWith(seedError, { schemaVersion: 1 })
+    })
+
+    it('does not run a later step once an earlier one has failed', async () => {
+      const step2Spy = jest.fn(async () => {})
+      const { tasks } = mockDatabase({
+        schema: schemaV2,
+        seed: databaseSeed({
+          steps: [
+            {
+              schemaVersion: 1,
+              run: async () => {
+                throw new Error('boom')
+              },
+            },
+            { schemaVersion: 2, run: step2Spy },
+          ],
+          onError: () => {},
+        }),
+      })
+
+      expect(await tasks.query().fetchCount()).toBe(0)
+      expect(step2Spy).not.toHaveBeenCalled()
+    })
+
+    it('falls back to logger.error (in dev) when a step fails and no onError is given', async () => {
+      const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => {})
+      const seedError = new Error('boom')
+      const { tasks } = mockDatabase({
+        seed: databaseSeed({
+          steps: [
+            {
+              schemaVersion: 1,
+              run: async () => {
+                throw seedError
+              },
+            },
+          ],
+        }),
+      })
+
+      expect(await tasks.query().fetchCount()).toBe(0)
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('schema version 1'), seedError)
+    })
+
+    it('retries a failed step on the next launch (its version was not marked applied)', async () => {
+      const { database } = mockDatabase({
+        seed: databaseSeed({
+          steps: [
+            {
+              schemaVersion: 1,
+              run: async () => {
+                throw new Error('boom')
+              },
+            },
+          ],
+          onError: () => {},
+        }),
+      })
+      await database.get('mock_tasks').query().fetchCount() // wait for the seed attempt to settle
+
+      const clonedAdapter = await database.adapter.underlyingAdapter.testClone({
+        schema: testSchema,
+      })
+      const runSpy2 = jest.fn(async (seedDb) => {
+        await seedDb.batch(seedDb.get('mock_tasks').prepareCreate())
+      })
+      const database2 = new Database({
+        adapter: clonedAdapter,
+        modelClasses,
+        seed: databaseSeed({ steps: [{ schemaVersion: 1, run: runSpy2 }] }),
+      })
+
+      expect(await database2.get('mock_tasks').query().fetchCount()).toBe(1)
+      expect(runSpy2).toHaveBeenCalledTimes(1)
+    })
+
+    it('warns once (in dev) when the database is accessed before seed finishes', async () => {
+      const spy = jest.spyOn(logger, 'warn')
+      let resolveRun
+      // run() itself is only invoked after an async version-check (localStorage.get()) resolves,
+      // so this signals when run() has actually started, separately from resolveRun (which lets
+      // run() finish).
+      let runStarted
+      const runStartedPromise = new Promise((resolve) => {
+        runStarted = resolve
+      })
+      const { tasks } = mockDatabase({
+        seed: databaseSeed({
+          steps: [
+            {
+              schemaVersion: 1,
+              run: () => {
+                runStarted()
+                return new Promise((resolve) => {
+                  resolveRun = resolve
+                })
+              },
+            },
+          ],
+        }),
+      })
+
+      const fetch1 = tasks.query().fetchCount()
+      expect(seedWarnings(spy)).toHaveLength(1)
+
+      // A second early access is still queued correctly, but doesn't warn again
+      const fetch2 = tasks.query().fetchCount()
+      expect(seedWarnings(spy)).toHaveLength(1)
+
+      await runStartedPromise
+      resolveRun()
+      expect(await fetch1).toBe(0)
+      expect(await fetch2).toBe(0)
+    })
+
+    it('does not warn or wait on anything when no seed is configured', async () => {
+      const spy = jest.spyOn(logger, 'warn')
+      const { tasks } = mockDatabase()
+
+      expect(await tasks.query().fetchCount()).toBe(0)
+      expect(seedWarnings(spy)).toHaveLength(0)
+    })
+
+    describe('Database#readyPromise', () => {
+      it('resolves once seed settles, even when no adapter initializingPromise exists', async () => {
+        let resolveRun
+        // run() is only invoked after an async version-check (localStorage.get()) resolves, so
+        // this signals when run() has actually started, distinct from resolveRun (which lets it
+        // finish) -- see the identical pattern in the "warns once" test above.
+        let runStarted
+        const runStartedPromise = new Promise((resolve) => {
+          runStarted = resolve
+        })
+        const { database } = mockDatabase({
+          seed: databaseSeed({
+            steps: [
+              {
+                schemaVersion: 1,
+                run: () => {
+                  runStarted()
+                  return new Promise((resolve) => {
+                    resolveRun = resolve
+                  })
+                },
+              },
+            ],
+          }),
+        })
+
+        let ready = false
+        database.readyPromise.then(() => {
+          ready = true
+        })
+        await runStartedPromise
+        expect(ready).toBe(false)
+
+        resolveRun()
+        await database.readyPromise
+        expect(ready).toBe(true)
+      })
+
+      it('resolves immediately when no seed is configured', async () => {
+        const { database } = mockDatabase()
+        await expect(database.readyPromise).resolves.toBeUndefined()
+      })
+    })
+
+    describe('Database#isReady', () => {
+      it('is true immediately when no seed is configured', () => {
+        const { database } = mockDatabase()
+        expect(database.isReady).toBe(true)
+      })
+
+      it('is false while a step is pending, and while it is actively running, then true', async () => {
+        let resolveRun
+        let runStarted
+        const runStartedPromise = new Promise((resolve) => {
+          runStarted = resolve
+        })
+        const { database } = mockDatabase({
+          seed: databaseSeed({
+            steps: [
+              {
+                schemaVersion: 1,
+                run: () => {
+                  runStarted()
+                  return new Promise((resolve) => {
+                    resolveRun = resolve
+                  })
+                },
+              },
+            ],
+          }),
+        })
+
+        expect(database.isReady).toBe(false)
+        await runStartedPromise
+        // isReady stays false while the step is actively running -- unlike the internal
+        // _readsUnblocked check, it deliberately does NOT treat "seeding in progress" as ready
+        expect(database.isReady).toBe(false)
+
+        resolveRun()
+        await database.readyPromise
+        expect(database.isReady).toBe(true)
+      })
+    })
+
+    describe('unsafeResetDatabase() interaction', () => {
+      it('reapplies all steps after a reset, since the applied-step marker was wiped too', async () => {
+        const runSpy = jest.fn(async (seedDb) => {
+          await seedDb.batch(seedDb.get('mock_tasks').prepareCreate())
+        })
+        const { database, tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: runSpy }] }),
+        })
+
+        expect(await tasks.query().fetchCount()).toBe(1)
+        expect(runSpy).toHaveBeenCalledTimes(1)
+
+        await database.write(() => database.unsafeResetDatabase())
+
+        expect(runSpy).toHaveBeenCalledTimes(2)
+        expect(await tasks.query().fetchCount()).toBe(1)
+      })
+
+      it('unsafeResetDatabase() resolves only once the reapplied seed is done, not just the reset', async () => {
+        const order = []
+        let callCount = 0
+        let resolveRun
+        let runStarted
+        const runStartedPromise = new Promise((resolve) => {
+          runStarted = resolve
+        })
+        // First call is the initial, construction-time seed -- resolves immediately, so it
+        // doesn't hold up "wait for the initial seed to settle" below. Second call is the reset's
+        // reapplied run(), which stays controllably pending to prove unsafeResetDatabase() is
+        // actually waiting for it.
+        const run = jest.fn(() => {
+          callCount += 1
+          if (callCount === 1) {
+            return Promise.resolve()
+          }
+          runStarted()
+          return new Promise((resolve) => {
+            resolveRun = () => {
+              order.push('run:end')
+              resolve()
+            }
+          })
+        })
+        const { database } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run }] }),
+        })
+        await database.get('mock_tasks').query().fetchCount() // wait for the initial seed to settle
+
+        const resetPromise = database.write(async () => {
+          await database.unsafeResetDatabase()
+          order.push('reset:resolved')
+        })
+
+        await runStartedPromise
+        expect(order).toEqual([])
+
+        resolveRun()
+        await resetPromise
+
+        expect(order).toEqual(['run:end', 'reset:resolved'])
+      })
+
+      it('does nothing extra on reset when no seed is configured', async () => {
+        const { database, tasks } = mockDatabase()
+
+        await database.write(() => database.unsafeResetDatabase())
+
+        expect(await tasks.query().fetchCount()).toBe(0)
+      })
+
+      it('does not reapply seed when reapplySeed: false is passed', async () => {
+        const runSpy = jest.fn(async (seedDb) => {
+          await seedDb.batch(seedDb.get('mock_tasks').prepareCreate())
+        })
+        const { database, tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: runSpy }] }),
+        })
+        expect(await tasks.query().fetchCount()).toBe(1)
+
+        await database.write(() => database.unsafeResetDatabase({ reapplySeed: false }))
+
+        expect(runSpy).toHaveBeenCalledTimes(1)
+        expect(await tasks.query().fetchCount()).toBe(0)
+      })
+    })
+
+    describe('retries', () => {
+      it('retries a step up to `retries` times before giving up', async () => {
+        const run = jest
+          .fn()
+          .mockRejectedValueOnce(new Error('one'))
+          .mockRejectedValueOnce(new Error('two'))
+          .mockResolvedValueOnce(undefined)
+        const { tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run, retries: 2 }] }),
+        })
+
+        await tasks.query().fetchCount() // wait for seed to settle
+        expect(run).toHaveBeenCalledTimes(3)
+      })
+
+      it('reports the last error via onError once retries are exhausted, without marking the step applied', async () => {
+        const errors = [new Error('one'), new Error('two')]
+        const run = jest.fn().mockRejectedValueOnce(errors[0]).mockRejectedValueOnce(errors[1])
+        const onError = jest.fn()
+        const { database, tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run, retries: 1 }], onError }),
+        })
+
+        expect(await tasks.query().fetchCount()).toBe(0)
+        expect(run).toHaveBeenCalledTimes(2)
+        expect(onError).toHaveBeenCalledTimes(1)
+        expect(onError).toHaveBeenCalledWith(errors[1], { schemaVersion: 1 })
+
+        // not marked applied -- retried in full (both attempts) on the next launch
+        const clonedAdapter = await database.adapter.underlyingAdapter.testClone({
+          schema: testSchema,
+        })
+        const run2 = jest.fn(async (seedDb) => {
+          await seedDb.batch(seedDb.get('mock_tasks').prepareCreate())
+        })
+        const database2 = new Database({
+          adapter: clonedAdapter,
+          modelClasses,
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: run2, retries: 1 }] }),
+        })
+        expect(await database2.get('mock_tasks').query().fetchCount()).toBe(1)
+      })
+
+      it('does not retry when retries is omitted (defaults to 0)', async () => {
+        const run = jest.fn().mockRejectedValueOnce(new Error('boom'))
+        const { tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run }], onError: () => {} }),
+        })
+
+        expect(await tasks.query().fetchCount()).toBe(0)
+        expect(run).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    describe('logging', () => {
+      it('logs progress for pending steps and their completion', async () => {
+        const logSpy = jest.spyOn(logger, 'log')
+        const { tasks } = mockDatabase({
+          seed: databaseSeed({
+            steps: [{ schemaVersion: 1, run: async () => {} }],
+          }),
+        })
+
+        await tasks.query().fetchCount() // wait for seed to settle
+
+        const messages = logSpy.mock.calls.map(([message]) => message)
+        expect(messages).toContainEqual(expect.stringContaining('1 step(s) pending'))
+        expect(messages).toContainEqual(
+          expect.stringContaining('Running seed step for schema version 1'),
+        )
+        expect(messages).toContainEqual(
+          expect.stringContaining('Seed step for schema version 1 completed'),
+        )
+      })
+
+      it('does not log anything when there are no pending steps', async () => {
+        const logSpy = jest.spyOn(logger, 'log')
+        const runSpy = jest.fn(async () => {})
+        const { database, tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: runSpy }] }),
+        })
+        await tasks.query().fetchCount()
+        logSpy.mockClear()
+
+        const clonedAdapter = await database.adapter.underlyingAdapter.testClone({
+          schema: testSchema,
+        })
+        const database2 = new Database({
+          adapter: clonedAdapter,
+          modelClasses,
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: runSpy }] }),
+        })
+        await database2.get('mock_tasks').query().fetchCount()
+
+        expect(logSpy.mock.calls.filter(([message]) => /seed/i.test(message))).toHaveLength(0)
+      })
+
+      it('warns (with the error) on each retry attempt that fails, before the eventual success', async () => {
+        const warnSpy = jest.spyOn(logger, 'warn')
+        const error1 = new Error('one')
+        const error2 = new Error('two')
+        const run = jest
+          .fn()
+          .mockRejectedValueOnce(error1)
+          .mockRejectedValueOnce(error2)
+          .mockResolvedValueOnce(undefined)
+        const { tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run, retries: 2 }] }),
+        })
+
+        await tasks.query().fetchCount()
+
+        const retryWarnings = warnSpy.mock.calls.filter(([message]) => /retrying/i.test(message))
+        expect(retryWarnings).toEqual([
+          [expect.stringContaining('attempt 1/3'), error1],
+          [expect.stringContaining('attempt 2/3'), error2],
+        ])
+      })
+    })
+
+    describe('onDone', () => {
+      it('is called once with stepsRun and a durationMs, after all pending steps succeed', async () => {
+        const onDone = jest.fn()
+        const { tasks } = mockDatabase({
+          seed: databaseSeed({
+            steps: [
+              { schemaVersion: 1, run: async () => {} },
+              { schemaVersion: 2, run: async () => {} },
+            ],
+            onDone,
+          }),
+          schema: schemaV2,
+        })
+
+        await tasks.query().fetchCount() // wait for seed to settle
+
+        expect(onDone).toHaveBeenCalledTimes(1)
+        expect(onDone).toHaveBeenCalledWith({
+          durationMs: expect.any(Number),
+          stepsRun: [1, 2],
+        })
+        expect(onDone.mock.calls[0][0].durationMs).toBeGreaterThanOrEqual(0)
+      })
+
+      it('is called with an empty stepsRun when nothing was pending', async () => {
+        const runSpy = jest.fn(async () => {})
+        const { database, tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: runSpy }] }),
+        })
+        await tasks.query().fetchCount()
+
+        const onDone2 = jest.fn()
+        const clonedAdapter = await database.adapter.underlyingAdapter.testClone({
+          schema: testSchema,
+        })
+        const database2 = new Database({
+          adapter: clonedAdapter,
+          modelClasses,
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: runSpy }], onDone: onDone2 }),
+        })
+        await database2.get('mock_tasks').query().fetchCount()
+
+        expect(onDone2).toHaveBeenCalledWith({ durationMs: expect.any(Number), stepsRun: [] })
+      })
+
+      it('is not called when a step fails', async () => {
+        const onDone = jest.fn()
+        const { tasks } = mockDatabase({
+          seed: databaseSeed({
+            steps: [
+              {
+                schemaVersion: 1,
+                run: async () => {
+                  throw new Error('boom')
+                },
+              },
+            ],
+            onError: () => {},
+            onDone,
+          }),
+        })
+
+        expect(await tasks.query().fetchCount()).toBe(0)
+        expect(onDone).not.toHaveBeenCalled()
+      })
+
+      it('is called again on unsafeResetDatabase() reapplication', async () => {
+        const onDone = jest.fn()
+        const { database, tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: async () => {} }], onDone }),
+        })
+        await tasks.query().fetchCount()
+        expect(onDone).toHaveBeenCalledTimes(1)
+
+        await database.write(() => database.unsafeResetDatabase())
+
+        expect(onDone).toHaveBeenCalledTimes(2)
+        expect(onDone).toHaveBeenLastCalledWith({ durationMs: expect.any(Number), stepsRun: [1] })
+      })
     })
   })
 })

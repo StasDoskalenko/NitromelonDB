@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { StatusBar } from 'expo-status-bar'
+import { useDatabaseReady } from 'nitromelondb/hooks'
 import { KeyboardProvider } from 'react-native-keyboard-controller'
 import { createExampleDatabase } from './database'
+import { LoadingScreen } from './screens/LoadingScreen'
 import { NotesScreen } from './screens/NotesScreen'
 import { SetupErrorScreen } from './screens/SetupErrorScreen'
 
@@ -16,11 +18,25 @@ export default function App() {
       }
     }
   })
+  // NotesScreen would actually be safe to render immediately -- every read/write it issues
+  // queues correctly until the database's seed step(s) finish (see database.ts's `seed` option).
+  // This is purely a UX choice: gating on readiness avoids a flash of "0 notes" while the
+  // first-launch seed is still running, instead of relying on that queuing invisibly.
+  const ready = useDatabaseReady(session.ok ? session.db.database : null)
 
   if (!session.ok) {
     return (
       <KeyboardProvider>
         <SetupErrorScreen message={session.message} />
+        <StatusBar style="auto" />
+      </KeyboardProvider>
+    )
+  }
+
+  if (!ready) {
+    return (
+      <KeyboardProvider>
+        <LoadingScreen />
         <StatusBar style="auto" />
       </KeyboardProvider>
     )

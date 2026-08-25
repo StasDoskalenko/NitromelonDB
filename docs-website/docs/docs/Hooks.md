@@ -1,9 +1,16 @@
 # React Hooks
 
-`withObservables` (see [Connecting Components](./Components.md)) is a higher-order component — a good fit if your components are plain functions of their props and you're happy wrapping them. If you'd rather subscribe from inside a hooks-based component, `nitromelondb/hooks` (or `nitromelondb/react`) ships hooks that cover the same ground for reads (`useRecord`, `useQuery`, `useObservable`), plus `useWriter`/`useAtomicWriter` for writes.
+`withObservables` (see [Connecting Components](./Components.md)) is a higher-order component — a good fit if your components are plain functions of their props and you're happy wrapping them. If you'd rather subscribe from inside a hooks-based component, `nitromelondb/hooks` (or `nitromelondb/react`) ships hooks that cover the same ground for reads (`useRecord`, `useQuery`, `useObservable`), `useWriter`/`useAtomicWriter` for writes, and `useDatabaseReady` for gating your own UI on database readiness.
 
 ```js
-import { useRecord, useQuery, useObservable, useWriter, useAtomicWriter } from 'nitromelondb/hooks'
+import {
+  useRecord,
+  useQuery,
+  useObservable,
+  useWriter,
+  useAtomicWriter,
+  useDatabaseReady,
+} from 'nitromelondb/hooks'
 ```
 
 ## useQuery — a list of records, and useRecord — a single record
@@ -186,6 +193,29 @@ Unlike `useRecord`/`useQuery`, an arbitrary Observable genuinely can take a whil
 
 `observable` may be `null`/`undefined`; `defaultValue` is returned (`hasEmitted: false`, `error: undefined`) and no subscription is set up.
 
+## useDatabaseReady — gating your own UI on readiness
+
+Every read/write already queues correctly before the database is ready — schema setup/migrations,
+and any [`seed`](./Advanced/Seeding.md) steps, settle in the background, and nothing you do with
+`database` before then is lost or run out of order. `useDatabaseReady` is for when you'd rather
+show something different than your real UI until that's settled — a splash screen, say — instead
+of relying on that queuing invisibly:
+
+```js
+function App({ database }) {
+  const ready = useDatabaseReady(database)
+  if (!ready) {
+    return <LoadingScreen />
+  }
+  return <Main database={database} />
+}
+```
+
+Returns a plain `boolean` — no context required, unlike `useAtomicWriter`. `database` may be
+`null`/`undefined` (e.g. while it's still being constructed), in which case this returns `false`.
+See [`Database#readyPromise` / `Database#isReady`](./Setup.md#database-initialization) for the
+non-hook equivalent this wraps.
+
 ## Which one should I use?
 
 - Observing one record → `useRecord`
@@ -194,4 +224,5 @@ Unlike `useRecord`/`useQuery`, an arbitrary Observable genuinely can take a whil
 - Writing, scoped to one record, no more than field assignments → `useAtomicWriter`
 - Writing, scoped to one record, with other logic/records/tables involved → `useWriter`
 - Writing with no natural record to anchor it to → `database.write()` directly
+- Gating your UI on the database being fully set up (schema/migrations/seed) → `useDatabaseReady`
 - Prefer subscribing from outside your render tree, or component classes → [`withObservables`](./Components.md)

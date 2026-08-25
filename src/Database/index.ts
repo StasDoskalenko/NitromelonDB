@@ -8,11 +8,12 @@ import DatabaseAdapterCompat from '../adapters/compat'
 import type Model from '../Model'
 import type Collection from '../Collection'
 import type { CollectionChangeSet, ModelClass } from '../Collection'
-import type { TableName, AppSchema } from '../Schema'
+import type { TableName, AppSchema, SchemaVersion } from '../Schema'
 import type { RawRecord } from '../RawRecord'
 
 import CollectionMap from './CollectionMap'
 import type LocalStorage from './LocalStorage'
+import type { DatabaseSeed } from './seed'
 import WorkQueue, { type ReaderInterface, type WriterInterface } from './WorkQueue'
 
 export type DatabaseProps = {
@@ -27,6 +28,62 @@ export type DatabaseProps = {
    * (`find` / `query` / `batch`). Independent writers queued from the UI still wait as usual.
    */
   experimentalDetectNestedWriters?: boolean | undefined
+  /**
+   * Seeds the database with initial/demo data, built with `databaseSeed()` (see
+   * `nitromelondb/Database/seed`) -- an array of `{ schemaVersion, run }` steps, deliberately
+   * kept separate from schema migrations (see schemaMigrations()) rather than folded into them:
+   * migrations are synchronous, declarative SQL with no room for arbitrary JS/IO; a step's `run`
+   * can freely be async (`await fetch(...)`, read a file, etc).
+   *
+   * Each step is tied to the schema version it was written against -- the same way a migration's
+   * `toVersion` is -- instead of an independent counter you have to remember to bump yourself. A
+   * step only runs once the database has actually reached its `schemaVersion` (immediately, for
+   * a fresh install already on the latest schema; after migrating, for an existing install
+   * catching up), and only once ever per step -- applied steps are tracked durably (internally,
+   * the same way sync tracks its own bookkeeping), not by `run` querying its own table to guess
+   * whether it already ran (that would mean deciding based on data that might itself still be
+   * mid-write, and would require `run` to read a table it might have no other reason to touch).
+   * If `run` throws, it's retried immediately up to `step.retries` more times (0 by default --
+   * fail on the first error) before being treated as a real failure. If it's still failing after
+   * that, that step (and every step after it) is retried on the next launch; steps that already
+   * succeeded are not re-run. `unsafeResetDatabase()` also reapplies `seed` (unless called with
+   * `{ reapplySeed: false }`) -- see there for why.
+   *
+   * Runs after schema setup/migrations finish (if the adapter exposes an `initializingPromise`
+   * -- e.g. SQLiteAdapter -- that's awaited first). Every write()/read()/batch() call, and every
+   * direct Collection/Query read (find(), query().fetch(), query().fetchCount(),
+   * observe*()/experimentalSubscribe*(), etc.) issued after `new Database()` is queued until
+   * every pending step resolves (or there are none) -- so app code never needs to guard against
+   * seeding itself the way ad-hoc "seed in a data hook" patterns had to. In development, an
+   * access that has to wait logs a warning once per Database instance, since it usually means
+   * something (a module-level singleton, a reader/writer that fires as soon as the app starts)
+   * is touching the database earlier than intended. See also `Database#readyPromise`.
+   *
+   * Inside a step's `run`, use `database.batch()` / `collection.prepareCreate()` directly, not
+   * `database.write()` -- calling write() from inside the writer that's already running (which
+   * is what seeding executes as) deadlocks, same as any nested writer without callWriter(). If
+   * `run` also needs to read via the normal query API for some reason (rare -- the "did this
+   * already happen" case is handled for you), that's safe too: reads issued from inside `run`
+   * proceed immediately rather than waiting on seeding to finish, since that's exactly what's
+   * currently executing. A completely unrelated read that happens to fire while a step is
+   * mid-flight gets the same treatment (sees in-progress data, doesn't wait) -- an accepted
+   * tradeoff shared with any other in-progress write, not something specific to seeding.
+   *
+   * If a step's `run` throws, `onError` is called (mirroring SQLiteAdapterOptions#onSetUpError,
+   * with which step failed) and that step's version is NOT marked applied, so it (and any step
+   * after it) is retried next launch. The database does NOT get stuck either way: queued/gated
+   * calls are released once the current step settles, whether it succeeded or not, so a broken
+   * step degrades to "database usable, just not (fully) seeded" rather than every read/write
+   * hanging forever.
+   *
+   * `onDone` is called once, only after every pending step for this run has succeeded (never
+   * alongside `onError` -- a failure stops the run before `onDone` would fire), with `durationMs`
+   * (just the time spent running pending steps, not migrations/marker-read overhead) and
+   * `stepsRun` (which schema versions actually executed, not ones skipped as already-applied) --
+   * for telemetry, e.g. catching a seed step that's gotten slow on some cohort of devices. Fires
+   * with `stepsRun: []` (and `durationMs` near 0) when nothing was pending, same as any other run.
+   */
+  seed?: DatabaseSeed | undefined
 }
 
 // Deliberately not ModelClass<T>: that type's own static methods reference Collection<Record>,
@@ -38,6 +95,13 @@ export type DatabaseProps = {
 type ModelClassRef<T extends Model> = { new (...args: never[]): T; table: TableName<T> }
 
 type TableChange = [TableName, CollectionChangeSet<Model>]
+
+// Tracks the last-applied DatabaseProps#seed schema version, the same way sync's own
+// lastPulledSchemaVersionKey (src/sync/impl/index.ts) tracks its bookkeeping: directly via
+// adapter.getLocal/setLocal (a plain string, parsed with parseInt), not the public,
+// JSON-wrapping Database#localStorage -- that's app-facing storage, this is internal
+// (library-owned) metadata, same distinction sync's own local keys already make.
+const SEED_VERSION_KEY = '__nitromelon_seed_version'
 
 let experimentalAllowsFatalError = false
 
@@ -72,19 +136,238 @@ export default class Database {
 
   _localStorage: LocalStorage | undefined
 
+  // True once every pending `seed` step (see DatabaseProps#seed) has settled (run, skipped as
+  // already-applied, or stopped at a failing step), or immediately if no `seed` was configured
+  // at all -- the common case, kept branch-free so unrelated consumers pay nothing.
+  _ready: boolean = true
+
+  _readyPromise: Promise<void> = Promise.resolve()
+
+  // Resolves once the adapter's own init/migration barrier (if it exposes one) is done --
+  // computed once here so both _runSeed and the public readyPromise getter share it, instead of
+  // each re-deriving it from `adapter`.
+  _adapterInitPromise: Promise<void> = Promise.resolve()
+
+  // True for the entire duration a seed step's `run` is executing (including across any awaits
+  // inside it) -- lets a read `run` triggers on itself proceed immediately instead of waiting on
+  // _readyPromise, which wouldn't resolve until seeding itself finishes. This is now rarely
+  // needed in practice (the common "did this already happen" check is handled by the durable,
+  // per-step version marker below, not by `run` querying its own table), but stays as a narrow
+  // safety net for `run` implementations that read via the query API for some other reason. A
+  // read that happens to come from unrelated code while a step is still executing gets the same
+  // treatment (sees in-progress data rather than being queued) -- an accepted tradeoff shared
+  // with any other in-progress write, not something specific to seeding.
+  _seeding: boolean = false
+
+  _readyWarned: boolean = false
+
+  // Kept around (not just used once in the constructor) so unsafeResetDatabase() can reapply it
+  // -- see there for why.
+  _seed: DatabaseSeed | undefined
+
   constructor(options: DatabaseProps) {
-    const { adapter, modelClasses, experimentalDetectNestedWriters = false } = options
+    const { adapter, modelClasses, experimentalDetectNestedWriters = false, seed } = options
     if (process.env.NODE_ENV !== 'production') {
       invariant(adapter, `Missing adapter parameter for new Database()`)
       invariant(
         modelClasses && Array.isArray(modelClasses),
         `Missing modelClasses parameter for new Database()`,
       )
+      if (seed) {
+        const maxSeedVersion = seed.sortedSteps[seed.sortedSteps.length - 1]?.schemaVersion ?? 0
+        invariant(
+          maxSeedVersion <= adapter.schema.version,
+          `Seed step targets schema version ${maxSeedVersion}, but schema is only at version ` +
+            `${adapter.schema.version}. A seed step can't target a schema version the app` +
+            `'s own schema hasn't reached yet.`,
+        )
+      }
     }
     this.experimentalDetectNestedWriters = experimentalDetectNestedWriters
     this.adapter = new DatabaseAdapterCompat(adapter)
     this.schema = adapter.schema
     this.collections = new CollectionMap(this, modelClasses)
+
+    const initializingPromise = (adapter as { initializingPromise?: unknown }).initializingPromise
+    this._adapterInitPromise =
+      initializingPromise instanceof Promise ? initializingPromise : this._adapterInitPromise
+
+    this._seed = seed
+
+    if (seed) {
+      this._ready = false
+      // Runs as writer job #0 in the WorkQueue (enqueued synchronously, before this constructor
+      // returns) so every write()/read()/batch() issued afterwards is naturally queued behind it
+      // by ordinary FIFO ordering -- no separate gating needed for those. database.batch() inside
+      // a step's run() works the same way it would inside any other writer, since this job IS
+      // the running writer for the whole time any step is executing.
+      this._readyPromise = this._workQueue
+        .enqueue(() => this._runSeed(seed), 'Database.seed', true)
+        .then(() => {
+          this._ready = true
+        })
+    }
+  }
+
+  /**
+   * Resolves once schema setup/migrations (if the adapter exposes one -- e.g. SQLiteAdapter's
+   * `initializingPromise`) and every pending `seed` step (if configured) have settled. Purely
+   * observational -- every read/write already queues correctly without this (see
+   * DatabaseProps#seed) -- use it to gate your OWN bootstrap UI (e.g. a splash screen) on
+   * readiness explicitly, if you want to, instead of just letting reads/writes queue silently
+   * underneath while your UI renders as if the database were already usable.
+   */
+  get readyPromise(): Promise<void> {
+    return this._adapterInitPromise.then(() => this._readyPromise)
+  }
+
+  /**
+   * Synchronous snapshot of whether `readyPromise` has already resolved -- `false` while any
+   * pending `seed` step is still running (deliberately: this is the "should my UI still show a
+   * splash screen" question, not the narrower "is it safe for a raw read to proceed without
+   * queuing" one `_readsUnblocked` below answers -- those give different answers *during* a
+   * step's own execution, on purpose). Reading this once at mount, then `readyPromise.then(...)`
+   * for the transition, is exactly what `useDatabaseReady()` (`nitromelondb/hooks`) does.
+   */
+  get isReady(): boolean {
+    return this._ready
+  }
+
+  // Never rejects -- a failing step is reported via seed.onError (or logged) and the database
+  // still becomes usable (just not marked as seeded past that step, so it's retried next
+  // launch). _readyPromise gates every read/write on this resolving; if it could reject, that
+  // rejection would go unhandled at every one of those call sites, since none of them are in a
+  // position to catch it individually.
+  async _runSeed(seed: DatabaseSeed): Promise<void> {
+    // Seed always runs after migrations, never interleaved with or ahead of them.
+    await this._adapterInitPromise
+
+    let appliedVersion = 0
+    try {
+      appliedVersion = parseInt((await this.adapter.getLocal(SEED_VERSION_KEY)) ?? '', 10) || 0
+    } catch (error) {
+      this._reportSeedError(seed, error, 0)
+      return
+    }
+
+    const pendingSteps = seed.sortedSteps.filter((step) => step.schemaVersion > appliedVersion)
+
+    if (pendingSteps.length) {
+      logger.log(
+        `[Database] Seeding: ${pendingSteps.length} step(s) pending (schema version` +
+          `${pendingSteps.length > 1 ? 's' : ''} ${pendingSteps.map((s) => s.schemaVersion).join(', ')})`,
+      )
+    }
+
+    // Measures only the pending-steps loop below -- not the migrations wait or the marker read
+    // above, so onDone's durationMs reflects your `run` functions, not setup overhead you don't
+    // control.
+    const startedAt = Date.now()
+    const stepsRun: SchemaVersion[] = []
+
+    for (const step of pendingSteps) {
+      const maxAttempts = 1 + (step.retries ?? 0)
+      let lastError: unknown
+      let succeeded = false
+
+      logger.log(`[Database] Running seed step for schema version ${step.schemaVersion}`)
+
+      this._seeding = true
+      try {
+        for (let attempt = 0; attempt < maxAttempts && !succeeded; attempt += 1) {
+          try {
+            await step.run(this)
+            succeeded = true
+          } catch (error) {
+            lastError = error
+            if (attempt + 1 < maxAttempts) {
+              logger.warn(
+                `[Database] Seed step for schema version ${step.schemaVersion} failed ` +
+                  `(attempt ${attempt + 1}/${maxAttempts}), retrying`,
+                error,
+              )
+            }
+          }
+        }
+      } finally {
+        this._seeding = false
+      }
+
+      if (!succeeded) {
+        this._reportSeedError(seed, lastError, step.schemaVersion)
+        return
+      }
+
+      try {
+        await this.adapter.setLocal(SEED_VERSION_KEY, `${step.schemaVersion}`)
+      } catch (error) {
+        this._reportSeedError(seed, error, step.schemaVersion)
+        return
+      }
+
+      logger.log(`[Database] Seed step for schema version ${step.schemaVersion} completed`)
+      stepsRun.push(step.schemaVersion)
+    }
+
+    seed.onDone?.({ durationMs: Date.now() - startedAt, stepsRun })
+  }
+
+  _reportSeedError(
+    seed: {
+      onError?: ((error: unknown, context: { schemaVersion: SchemaVersion }) => void) | undefined
+    },
+    error: unknown,
+    schemaVersion: SchemaVersion,
+  ): void {
+    if (seed.onError) {
+      seed.onError(error, { schemaVersion })
+    } else if (process.env.NODE_ENV !== 'production') {
+      logger.error(
+        `[Database] seed step for schema version ${schemaVersion} failed -- database will ` +
+          'proceed with seeding incomplete',
+        error,
+      )
+    }
+  }
+
+  // NOT the same question `isReady` (above) answers -- deliberately also true while a seed step
+  // is actively running (_seeding), so that step's own reads (and any unrelated read that
+  // happens to fire during that window) proceed immediately instead of deadlocking on
+  // _readyPromise, which wouldn't resolve until the step itself returns. `isReady` is "should my
+  // UI treat the database as ready"; this is "can a raw read skip the queue right now" -- they
+  // agree once seeding fully settles, and disagree for the (usually brief) window while it's
+  // still running.
+  //
+  // Cheap (no allocation) fast-path check -- callers on a hot path (Collection's raw-read
+  // methods) test this FIRST and only build the closure _whenReady() needs when it's false, so
+  // the overwhelmingly common case (already unblocked) never allocates one at all.
+  get _readsUnblocked(): boolean {
+    return this._ready || this._seeding
+  }
+
+  // Runs `fn` immediately if reads are unblocked (the common-case fast path -- no promise
+  // overhead at all), or once `seed` has been resolved (run, or skipped as already-applied)
+  // otherwise. Called by every raw Collection read (find/_fetchQuery/_fetchCount/_fetchIds/
+  // _unsafeFetchRaw) -- the only paths that bypass WorkQueue's own FIFO ordering entirely and so
+  // need an explicit gate. Callers should check _readsUnblocked first (see above) rather than
+  // relying on the equivalent check repeated here -- this one only exists to cover the (rare)
+  // case where the fast path was missed between that check and this call.
+  _whenReady(fn: () => void): void {
+    if (this._readsUnblocked) {
+      fn()
+      return
+    }
+    if (process.env.NODE_ENV !== 'production' && !this._readyWarned) {
+      this._readyWarned = true
+      logger.warn(
+        'Database was accessed before its `seed` (see `new Database({ seed })`) finished ' +
+          'determining whether to run. This call has been queued and will run automatically ' +
+          'once that resolves -- but if this is unexpected, check for code (a module-level ' +
+          "singleton, a reader/writer that fires as soon as the app starts, etc.) that's " +
+          'touching the database earlier than intended.',
+      )
+    }
+    this._readyPromise.then(fn)
   }
 
   /**
@@ -393,8 +676,18 @@ export default class Database {
    *   observers/subscribers should be disposed of before resetting
    * - You SHOULD NOT have any pending (queued) Readers or Writers. Pending work will be aborted
    *   (rejected with an error)
+   *
+   * If this `Database` was constructed with `seed` (see `DatabaseProps#seed`), it's reapplied
+   * once the reset itself is done -- "all records, metadata, and LocalStorage" above includes the
+   * durable marker tracking which steps already ran, so a reset genuinely does put the database
+   * back in the same state a fresh install would be in, and this resolves once that's true again,
+   * not just once the reset itself is. Pass `{ reapplySeed: false }` to opt out and leave the
+   * database seedless after this particular reset -- e.g. a "wipe everything" debug/settings
+   * action where reappearing demo data would be surprising, as opposed to a logout/login where
+   * treating the reset database as "fresh" (and reseeding it) is usually what you want.
    */
-  async unsafeResetDatabase(): Promise<void> {
+  async unsafeResetDatabase(options: { reapplySeed?: boolean } = {}): Promise<void> {
+    const { reapplySeed = true } = options
     this._ensureInWriter(`Database.unsafeResetDatabase()`)
     try {
       this._isBeingReset = true
@@ -442,6 +735,18 @@ export default class Database {
       // untouched) to drop their stale value and refetch against the
       // now-reset database.
       this.resetObservablesCache()
+
+      // Reapply seed, if configured -- the reset above wiped its applied-step marker along with
+      // everything else, so from _runSeed's perspective this database is now indistinguishable
+      // from a fresh install: every step is pending again. Called directly (not re-enqueued via
+      // WorkQueue) since this method's own writer turn is already running, same as how a step's
+      // own database.batch() calls work without needing callWriter(). Deliberately NOT touching
+      // _ready/readyPromise/isReady for this -- unlike the initial construction-time seed, this
+      // is a synchronous-feeling part of an already-awaited operation (unsafeResetDatabase()),
+      // not something that needs its own separate readiness signal.
+      if (this._seed && reapplySeed) {
+        await this._runSeed(this._seed)
+      }
     } finally {
       this._isBeingReset = false
     }

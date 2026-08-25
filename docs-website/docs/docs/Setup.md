@@ -42,6 +42,7 @@ Now, in your `index.native.js` (React Native) or `index.js` (Node.js):
 import { Platform } from 'react-native'
 import { Database } from 'nitromelondb'
 import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
+import { databaseSeed } from 'nitromelondb/Database/seed'
 
 import schema from './model/schema'
 import migrations from './model/migrations'
@@ -71,8 +72,62 @@ const database = new Database({
   ],
   // Throws if you call a writer from another writer without callWriter() (instead of deadlocking)
   // experimentalDetectNestedWriters: true,
+  // (optional) seed initial/demo data -- see "Database initialization" below
+  // seed: databaseSeed({
+  //   steps: [
+  //     {
+  //       schemaVersion: 1,
+  //       run: async (database) => {
+  //         await database.batch(database.get(Post).prepareCreate(post => { post.title = 'Hello' }))
+  //       },
+  //     },
+  //   ],
+  // }),
 })
 ```
+
+## Database initialization
+
+`new Database(...)` returns immediately -- schema setup/migrations (and `seed`, if configured)
+finish asynchronously in the background. You don't need to wait for them: every `write()` /
+`read()` / `batch()` call, and every direct read (`collection.find()`, `query().fetch()`,
+`query().fetchCount()`, `observe*()` / `experimentalSubscribe*()`, etc.) issued on the `database`
+or any `Collection` it returns is automatically queued until the database is actually ready, then
+runs in the order it was issued. This is what makes the common "just import a `database.js` module
+and use it" pattern from older Watermelon apps safe: nothing you do with `database` before it's
+ready is lost or run out of order, it just waits its turn.
+
+In development, an access that has to wait logs a warning once per `Database` instance. That's not
+an error -- your code still works correctly -- but it usually means something (a module-level
+singleton, a reader/writer that fires as soon as the app starts) is touching the database earlier
+than intended, which is worth knowing about even when it happens to be harmless.
+
+If you'd rather gate your own UI on readiness explicitly -- e.g. show a splash screen until the
+database is usable, instead of letting reads/writes queue silently underneath a screen that
+renders as if nothing were pending -- use `database.isReady` / `database.readyPromise`, or, in a
+React component, the `useDatabaseReady(database)` hook (`nitromelondb/hooks` or
+`nitromelondb/react`):
+
+```jsx
+import { useDatabaseReady } from 'nitromelondb/hooks'
+
+function App({ database }) {
+  const ready = useDatabaseReady(database)
+  if (!ready) {
+    return <LoadingScreen />
+  }
+  return <Main database={database} />
+}
+```
+
+`readyPromise` resolves (and `isReady` becomes `true`) once schema setup/migrations and any
+pending `seed` steps have settled. This is optional: as covered above, it's always safe to render
+immediately and let queuing do its job -- these exist for when you want a different UX than that.
+
+The `seed` option shown above (built with `databaseSeed()`) populates the database as part of
+setup instead of a "seed on first render" pattern in your UI layer -- great for demos, local dev,
+and E2E test fixtures, with some real caveats for production use on a database that might already
+have data. See [Database seeding](./Advanced/Seeding.md) for the full picture.
 
 ## Electron (SQLite)
 Electron requires a little extra set up since we have to use IPC between our renderer and main processes to execute queries and return the response. However, if you'd like to use LokiJS instead of SQLite you can skip this section and go to the Web section below.

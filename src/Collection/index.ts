@@ -236,22 +236,53 @@ export default class Collection<Record extends Model> {
   // *** Implementation details ***
 
   // See: Query.fetch
+  //
+  // Checks database._readsUnblocked before building the _whenReady() closure, not just inside it --
+  // these run on every query/subscription re-fetch, so on the (overwhelmingly common, once
+  // seeding settles) fast path this allocates nothing extra at all, instead of a closure per call
+  // that _whenReady would immediately invoke and discard anyway.
   _fetchQuery(query: Query<Record>, callback: ResultCallback<Record[]>): void {
-    this.database.adapter.underlyingAdapter.query(query.serialize(), (result) =>
-      callback(mapValue((rawRecords) => this._cache.recordsFromQueryResult(rawRecords), result)),
-    )
+    if (this.database._readsUnblocked) {
+      this.database.adapter.underlyingAdapter.query(query.serialize(), (result) =>
+        callback(mapValue((rawRecords) => this._cache.recordsFromQueryResult(rawRecords), result)),
+      )
+      return
+    }
+    this.database._whenReady(() => {
+      this.database.adapter.underlyingAdapter.query(query.serialize(), (result) =>
+        callback(mapValue((rawRecords) => this._cache.recordsFromQueryResult(rawRecords), result)),
+      )
+    })
   }
 
   _fetchIds(query: Query<Record>, callback: ResultCallback<RecordId[]>): void {
-    this.database.adapter.underlyingAdapter.queryIds(query.serialize(), callback)
+    if (this.database._readsUnblocked) {
+      this.database.adapter.underlyingAdapter.queryIds(query.serialize(), callback)
+      return
+    }
+    this.database._whenReady(() => {
+      this.database.adapter.underlyingAdapter.queryIds(query.serialize(), callback)
+    })
   }
 
   _fetchCount(query: Query<Record>, callback: ResultCallback<number>): void {
-    this.database.adapter.underlyingAdapter.count(query.serialize(), callback)
+    if (this.database._readsUnblocked) {
+      this.database.adapter.underlyingAdapter.count(query.serialize(), callback)
+      return
+    }
+    this.database._whenReady(() => {
+      this.database.adapter.underlyingAdapter.count(query.serialize(), callback)
+    })
   }
 
   _unsafeFetchRaw(query: Query<Record>, callback: ResultCallback<unknown[]>): void {
-    this.database.adapter.underlyingAdapter.unsafeQueryRaw(query.serialize(), callback)
+    if (this.database._readsUnblocked) {
+      this.database.adapter.underlyingAdapter.unsafeQueryRaw(query.serialize(), callback)
+      return
+    }
+    this.database._whenReady(() => {
+      this.database.adapter.underlyingAdapter.unsafeQueryRaw(query.serialize(), callback)
+    })
   }
 
   // Fetches exactly one record (See: Collection.find)
@@ -268,14 +299,27 @@ export default class Collection<Record extends Model> {
       return
     }
 
-    this.database.adapter.underlyingAdapter.find(this.table, id, (result) =>
-      callback(
-        mapValue((rawRecord) => {
-          invariant(rawRecord, `Record ${this.table}#${id} not found`)
-          return this._cache.recordFromQueryResult(rawRecord)
-        }, result),
-      ),
-    )
+    if (this.database._readsUnblocked) {
+      this.database.adapter.underlyingAdapter.find(this.table, id, (result) =>
+        callback(
+          mapValue((rawRecord) => {
+            invariant(rawRecord, `Record ${this.table}#${id} not found`)
+            return this._cache.recordFromQueryResult(rawRecord)
+          }, result),
+        ),
+      )
+      return
+    }
+    this.database._whenReady(() => {
+      this.database.adapter.underlyingAdapter.find(this.table, id, (result) =>
+        callback(
+          mapValue((rawRecord) => {
+            invariant(rawRecord, `Record ${this.table}#${id} not found`)
+            return this._cache.recordFromQueryResult(rawRecord)
+          }, result),
+        ),
+      )
+    })
   }
 
   _applyChangesToCache(operations: CollectionChangeSet<Record>): void {

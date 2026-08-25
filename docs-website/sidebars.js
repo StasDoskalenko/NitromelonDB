@@ -51,6 +51,7 @@ const sidebars = {
       'docs/Advanced/AdvancedFields',
       'docs/Advanced/Flow',
       'docs/Advanced/LocalStorage',
+      'docs/Advanced/Seeding',
       'docs/Advanced/ProTips',
       'docs/Advanced/Observability',
       'docs/Advanced/Logging',
