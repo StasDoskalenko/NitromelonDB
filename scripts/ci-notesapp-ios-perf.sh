@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Mirrors scripts/ci-notesapp-android-maestro.sh for iOS: build a Release
-# simulator build (JS embedded — do not start Metro), install it on a booted
-# simulator, then run the same Maestro flows.
+# Mirrors scripts/ci-notesapp-android-perf.sh for iOS: same Release build as
+# scripts/ci-notesapp-ios-maestro.sh, but runs only maestro/perf-run.yaml and
+# extracts its JSON summary via scripts/extract-perf-result.mjs.
 set -euo pipefail
 
 cd examples/NotesApp
@@ -25,21 +25,6 @@ fi
 xcrun simctl boot "$SIM_UDID" || true
 xcrun simctl bootstatus "$SIM_UDID" -b
 
-# set -o pipefail (part of -euo pipefail above) makes this fail on a real
-# xcodebuild error, not just on xcbeautify's own exit code.
-#
-# CC/CPLUSPLUS route compilation through ccache (see scripts/ccache-clang) —
-# ios/ is Expo-generated fresh every run, so there's no project file to bake
-# this into the way native/iosTest's .xcodeproj does; command-line overrides
-# apply it without touching the generated project.
-#
-# ONLY_ACTIVE_ARCH=YES: the generated project only sets this for Debug, so
-# Release was building both arm64 and x86_64 simulator slices — double the
-# compile work for an arch (x86_64) nothing here ever runs on.
-#
-# GCC_PREPROCESSOR_DEFINITIONS below is single-quoted on purpose: its
-# $(DT_TOOLCHAIN_DIR)/$(inherited) are xcodebuild's own macro syntax, resolved
-# by Xcode, not the shell.
 # shellcheck disable=SC2016
 xcodebuild \
   -workspace ios/NotesApp.xcworkspace \
@@ -63,5 +48,8 @@ fi
 xcrun simctl install "$SIM_UDID" "$APP_PATH"
 xcrun simctl launch "$SIM_UDID" com.nitromelondb.example
 
-# perf-run.yaml runs in its own dedicated CI job (scripts/ci-notesapp-ios-perf.sh).
-maestro test --exclude-tags perf maestro/
+rm -rf .maestro-perf-debug
+maestro test --debug-output .maestro-perf-debug --flatten-debug-output maestro/perf-run.yaml
+
+mkdir -p ../../perf-results
+node ../../scripts/extract-perf-result.mjs .maestro-perf-debug perf-run ios ../../perf-results/perf-result-ios.json

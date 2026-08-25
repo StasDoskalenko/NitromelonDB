@@ -1,0 +1,90 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  margin: 2rem 0;
+}
+
+.chartCard {
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+
+.chartCard h3 {
+  margin-bottom: 0.5rem;
+}
+
+.unit {
+  font-weight: normal;
+  color: var(--ifm-color-emphasis-600);
+  font-size: 0.85em;
+}
+
+.svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.axis {
+  stroke: var(--ifm-color-emphasis-400);
+  stroke-width: 1;
+}
+
+.axisLabel {
+  fill: var(--ifm-color-emphasis-600);
+  font-size: 11px;
+}
+
+.lineAndroid {
+  stroke: var(--perf-chart-android);
+  stroke-width: 2;
+}
+
+.lineIos {
+  stroke: var(--perf-chart-ios);
+  stroke-width: 2;
+}
+
+.dotAndroid {
+  fill: var(--perf-chart-android);
+}
+
+.dotIos {
+  fill: var(--perf-chart-ios);
+}
+
+.legend {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.85em;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.swatchAndroid {
+  background: var(--perf-chart-android);
+}
+
+.swatchIos {
+  background: var(--perf-chart-ios);
+}
+
+.empty {
+  color: var(--ifm-color-emphasis-600);
+  font-style: italic;
+}

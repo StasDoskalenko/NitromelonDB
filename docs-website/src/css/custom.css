@@ -26,6 +26,17 @@
   --ifm-color-primary-lightest: #eb8a97;
 }
 
+/* Performance page (src/components/PerformanceCharts): Android/iOS series colors. */
+:root {
+  --perf-chart-android: #1a73e8;
+  --perf-chart-ios: #e8710a;
+}
+
+[data-theme='dark'] {
+  --perf-chart-android: #5b9bf7;
+  --perf-chart-ios: #f2994a;
+}
+
 .navbar__logo img {
   border-radius: 6px;
 }
