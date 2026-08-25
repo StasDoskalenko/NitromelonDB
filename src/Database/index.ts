@@ -206,6 +206,18 @@ export default class Database {
     return this._adapterInitPromise.then(() => this._readyPromise)
   }
 
+  /**
+   * Synchronous snapshot of whether `readyPromise` has already resolved -- `false` while any
+   * pending `seed` step is still running (deliberately: this is the "should my UI still show a
+   * splash screen" question, not the narrower "is it safe for a raw read to proceed without
+   * queuing" one `_readsUnblocked` below answers -- those give different answers *during* a
+   * step's own execution, on purpose). Reading this once at mount, then `readyPromise.then(...)`
+   * for the transition, is exactly what `useDatabaseReady()` (`nitromelondb/hooks`) does.
+   */
+  get isReady(): boolean {
+    return this._ready
+  }
+
   // Never rejects -- a failing step is reported via seed.onError (or logged) and the database
   // still becomes usable (just not marked as seeded past that step, so it's retried next
   // launch). _readyPromise gates every read/write on this resolving; if it could reject, that
@@ -263,22 +275,30 @@ export default class Database {
     }
   }
 
+  // NOT the same question `isReady` (above) answers -- deliberately also true while a seed step
+  // is actively running (_seeding), so that step's own reads (and any unrelated read that
+  // happens to fire during that window) proceed immediately instead of deadlocking on
+  // _readyPromise, which wouldn't resolve until the step itself returns. `isReady` is "should my
+  // UI treat the database as ready"; this is "can a raw read skip the queue right now" -- they
+  // agree once seeding fully settles, and disagree for the (usually brief) window while it's
+  // still running.
+  //
   // Cheap (no allocation) fast-path check -- callers on a hot path (Collection's raw-read
   // methods) test this FIRST and only build the closure _whenReady() needs when it's false, so
-  // the overwhelmingly common case (already ready) never allocates one at all.
-  get _isReady(): boolean {
+  // the overwhelmingly common case (already unblocked) never allocates one at all.
+  get _readsUnblocked(): boolean {
     return this._ready || this._seeding
   }
 
-  // Runs `fn` immediately if the database is ready (the common-case fast path -- no promise
+  // Runs `fn` immediately if reads are unblocked (the common-case fast path -- no promise
   // overhead at all), or once `seed` has been resolved (run, or skipped as already-applied)
   // otherwise. Called by every raw Collection read (find/_fetchQuery/_fetchCount/_fetchIds/
   // _unsafeFetchRaw) -- the only paths that bypass WorkQueue's own FIFO ordering entirely and so
-  // need an explicit gate. Callers should check _isReady first (see above) rather than relying
-  // on the equivalent check repeated here -- this one only exists to cover the (rare) case where
-  // the fast path was missed between that check and this call.
+  // need an explicit gate. Callers should check _readsUnblocked first (see above) rather than
+  // relying on the equivalent check repeated here -- this one only exists to cover the (rare)
+  // case where the fast path was missed between that check and this call.
   _whenReady(fn: () => void): void {
-    if (this._isReady) {
+    if (this._readsUnblocked) {
       fn()
       return
     }

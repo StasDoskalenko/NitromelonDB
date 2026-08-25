@@ -1,4 +1,5 @@
 export { default as useDatabase } from '../react/useDatabase'
+export { default as useDatabaseReady } from '../react/useDatabaseReady'
 export { default as useRecord } from '../react/useRecord'
 export { default as useQuery } from '../react/useQuery'
 export { default as useObservable } from '../react/useObservable'

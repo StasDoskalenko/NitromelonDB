@@ -104,10 +104,25 @@ than intended, which is worth knowing about even when it happens to be harmless.
 
 If you'd rather gate your own UI on readiness explicitly -- e.g. show a splash screen until the
 database is usable, instead of letting reads/writes queue silently underneath a screen that
-renders as if nothing were pending -- `await database.readyPromise` (or `.then()` it in a
-`useEffect`). It resolves once schema setup/migrations and any pending `seed` steps have settled.
-This is optional: as covered above, it's always safe to render immediately and let queuing do its
-job, `readyPromise` is purely there for when you want a different UX than that.
+renders as if nothing were pending -- use `database.isReady` / `database.readyPromise`, or, in a
+React component, the `useDatabaseReady(database)` hook (`nitromelondb/hooks` or
+`nitromelondb/react`):
+
+```jsx
+import { useDatabaseReady } from 'nitromelondb/hooks'
+
+function App({ database }) {
+  const ready = useDatabaseReady(database)
+  if (!ready) {
+    return <LoadingScreen />
+  }
+  return <Main database={database} />
+}
+```
+
+`readyPromise` resolves (and `isReady` becomes `true`) once schema setup/migrations and any
+pending `seed` steps have settled. This is optional: as covered above, it's always safe to render
+immediately and let queuing do its job -- these exist for when you want a different UX than that.
 
 To seed initial or demo data, use the `seed` option shown above (built with `databaseSeed()`)
 instead of a "seed on first render" pattern in your UI layer. It's an array of `{ schemaVersion,

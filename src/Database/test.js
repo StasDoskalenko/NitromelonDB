@@ -1396,5 +1396,45 @@ describe('Database', () => {
         await expect(database.readyPromise).resolves.toBeUndefined()
       })
     })
+
+    describe('Database#isReady', () => {
+      it('is true immediately when no seed is configured', () => {
+        const { database } = mockDatabase()
+        expect(database.isReady).toBe(true)
+      })
+
+      it('is false while a step is pending, and while it is actively running, then true', async () => {
+        let resolveRun
+        let runStarted
+        const runStartedPromise = new Promise((resolve) => {
+          runStarted = resolve
+        })
+        const { database } = mockDatabase({
+          seed: databaseSeed({
+            steps: [
+              {
+                schemaVersion: 1,
+                run: () => {
+                  runStarted()
+                  return new Promise((resolve) => {
+                    resolveRun = resolve
+                  })
+                },
+              },
+            ],
+          }),
+        })
+
+        expect(database.isReady).toBe(false)
+        await runStartedPromise
+        // isReady stays false while the step is actively running -- unlike the internal
+        // _readsUnblocked check, it deliberately does NOT treat "seeding in progress" as ready
+        expect(database.isReady).toBe(false)
+
+        resolveRun()
+        await database.readyPromise
+        expect(database.isReady).toBe(true)
+      })
+    })
   })
 })
