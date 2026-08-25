@@ -43,9 +43,8 @@ export type DatabaseProps = {
    * the same way sync tracks its own bookkeeping), not by `run` querying its own table to guess
    * whether it already ran (that would mean deciding based on data that might itself still be
    * mid-write, and would require `run` to read a table it might have no other reason to touch).
-   * If `run` throws, that
-   * step (and every step after it) is retried on the next launch; steps that already succeeded
-   * are not re-run.
+   * If `run` throws, that step (and every step after it) is retried on the next launch; steps
+   * that already succeeded are not re-run.
    *
    * Runs after schema setup/migrations finish (if the adapter exposes an `initializingPromise`
    * -- e.g. SQLiteAdapter -- that's awaited first). Every write()/read()/batch() call, and every
