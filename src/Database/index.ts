@@ -245,10 +245,19 @@ export default class Database {
 
     const pendingSteps = seed.sortedSteps.filter((step) => step.schemaVersion > appliedVersion)
 
+    if (pendingSteps.length) {
+      logger.log(
+        `[Database] Seeding: ${pendingSteps.length} step(s) pending (schema version` +
+          `${pendingSteps.length > 1 ? 's' : ''} ${pendingSteps.map((s) => s.schemaVersion).join(', ')})`,
+      )
+    }
+
     for (const step of pendingSteps) {
       const maxAttempts = 1 + (step.retries ?? 0)
       let lastError: unknown
       let succeeded = false
+
+      logger.log(`[Database] Running seed step for schema version ${step.schemaVersion}`)
 
       this._seeding = true
       try {
@@ -258,6 +267,13 @@ export default class Database {
             succeeded = true
           } catch (error) {
             lastError = error
+            if (attempt + 1 < maxAttempts) {
+              logger.warn(
+                `[Database] Seed step for schema version ${step.schemaVersion} failed ` +
+                  `(attempt ${attempt + 1}/${maxAttempts}), retrying`,
+                error,
+              )
+            }
           }
         }
       } finally {
@@ -275,6 +291,8 @@ export default class Database {
         this._reportSeedError(seed, error, step.schemaVersion)
         return
       }
+
+      logger.log(`[Database] Seed step for schema version ${step.schemaVersion} completed`)
     }
   }
 

@@ -1576,5 +1576,71 @@ describe('Database', () => {
         expect(run).toHaveBeenCalledTimes(1)
       })
     })
+
+    describe('logging', () => {
+      it('logs progress for pending steps and their completion', async () => {
+        const logSpy = jest.spyOn(logger, 'log')
+        const { tasks } = mockDatabase({
+          seed: databaseSeed({
+            steps: [{ schemaVersion: 1, run: async () => {} }],
+          }),
+        })
+
+        await tasks.query().fetchCount() // wait for seed to settle
+
+        const messages = logSpy.mock.calls.map(([message]) => message)
+        expect(messages).toContainEqual(expect.stringContaining('1 step(s) pending'))
+        expect(messages).toContainEqual(
+          expect.stringContaining('Running seed step for schema version 1'),
+        )
+        expect(messages).toContainEqual(
+          expect.stringContaining('Seed step for schema version 1 completed'),
+        )
+      })
+
+      it('does not log anything when there are no pending steps', async () => {
+        const logSpy = jest.spyOn(logger, 'log')
+        const runSpy = jest.fn(async () => {})
+        const { database, tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: runSpy }] }),
+        })
+        await tasks.query().fetchCount()
+        logSpy.mockClear()
+
+        const clonedAdapter = await database.adapter.underlyingAdapter.testClone({
+          schema: testSchema,
+        })
+        const database2 = new Database({
+          adapter: clonedAdapter,
+          modelClasses,
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run: runSpy }] }),
+        })
+        await database2.get('mock_tasks').query().fetchCount()
+
+        expect(logSpy.mock.calls.filter(([message]) => /seed/i.test(message))).toHaveLength(0)
+      })
+
+      it('warns (with the error) on each retry attempt that fails, before the eventual success', async () => {
+        const warnSpy = jest.spyOn(logger, 'warn')
+        const error1 = new Error('one')
+        const error2 = new Error('two')
+        const run = jest
+          .fn()
+          .mockRejectedValueOnce(error1)
+          .mockRejectedValueOnce(error2)
+          .mockResolvedValueOnce(undefined)
+        const { tasks } = mockDatabase({
+          seed: databaseSeed({ steps: [{ schemaVersion: 1, run, retries: 2 }] }),
+        })
+
+        await tasks.query().fetchCount()
+
+        const retryWarnings = warnSpy.mock.calls.filter(([message]) => /retrying/i.test(message))
+        expect(retryWarnings).toEqual([
+          [expect.stringContaining('attempt 1/3'), error1],
+          [expect.stringContaining('attempt 2/3'), error2],
+        ])
+      })
+    })
   })
 })
