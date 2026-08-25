@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { StatusBar } from 'expo-status-bar'
 import { useDatabaseReady } from 'nitromelondb/hooks'
 import { KeyboardProvider } from 'react-native-keyboard-controller'
-import { PerfHUD } from './components/PerfHUD'
 import { createExampleDatabase } from './database'
 import { LoadingScreen } from './screens/LoadingScreen'
 import { NotesScreen } from './screens/NotesScreen'
@@ -46,7 +45,6 @@ export default function App() {
   return (
     <KeyboardProvider>
       <NotesScreen db={session.db} />
-      <PerfHUD />
       <StatusBar style="auto" />
     </KeyboardProvider>
   )

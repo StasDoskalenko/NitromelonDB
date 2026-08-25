@@ -16,5 +16,4 @@ if [ -z "$APK" ]; then
 fi
 
 adb install -r "$APK"
-# perf-run.yaml runs in its own dedicated CI job (scripts/ci-notesapp-android-perf.sh).
-maestro test --exclude-tags perf examples/NotesApp/maestro/
+maestro test examples/NotesApp/maestro/

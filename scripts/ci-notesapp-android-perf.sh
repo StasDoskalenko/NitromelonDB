@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# android-emulator-runner invokes `sh -c` per YAML line, so this must be one
+# android-emulator-runner runs each YAML line via `sh -c`, so this must be one
 # command from the workflow (`bash scripts/ci-notesapp-android-perf.sh`).
 #
-# Same build as scripts/ci-notesapp-android-maestro.sh, but runs only
-# maestro/perf-run.yaml and extracts its JSON summary via
-# scripts/extract-perf-result.mjs. See that script for why --debug-output +
-# --flatten-debug-output are required (console.log from evalScript does not
-# appear in plain `maestro test` stdout).
+# Same build as scripts/ci-notesapp-android-maestro.sh, but measures
+# performance (CPU/RAM/FPS) while running the existing
+# maestro/pagination-dynamic.yaml flow (write churn + scroll + pagination)
+# via flashlight (https://flashlight.dev). Flashlight polls the running
+# process externally over adb -- no in-app instrumentation needed.
 set -euo pipefail
 
 examples/NotesApp/android/gradlew -p examples/NotesApp/android assembleRelease -PreactNativeArchitectures=x86
@@ -20,8 +20,13 @@ fi
 
 adb install -r "$APK"
 
-rm -rf .maestro-perf-debug
-maestro test --debug-output .maestro-perf-debug --flatten-debug-output examples/NotesApp/maestro/perf-run.yaml
+curl -fsSL https://get.flashlight.dev | bash
+export PATH="$HOME/.flashlight/bin:$PATH"
 
 mkdir -p perf-results
-node scripts/extract-perf-result.mjs .maestro-perf-debug perf-run android perf-results/perf-result-android.json
+flashlight test \
+  --bundleId com.nitromelondb.example \
+  --testCommand "maestro test examples/NotesApp/maestro/pagination-dynamic.yaml" \
+  --iterationCount 5 \
+  --duration 10000 \
+  --resultsFilePath perf-results/perf-result-android.json

@@ -2,62 +2,50 @@
 /* eslint-disable no-console */
 
 /**
- * Upsert a single PR comment with the perf benchmark summary (avg CPU%,
- * avg memory, avg JS/UI FPS per platform). Uses `gh api` directly (not
- * `gh pr comment`, which always posts a fresh comment -- see
- * publish-release.yml) so the same comment is found and edited in place on
- * every push to the PR, matching this repo's existing gh-CLI-only
- * convention rather than adding an Octokit dependency.
+ * Upsert a single PR comment with the perf benchmark summary (score, avg
+ * CPU%, RAM, FPS from flashlight -- see scripts/perf-summary.mjs). Uses
+ * `gh api` directly (not `gh pr comment`, which always posts a fresh
+ * comment -- see publish-release.yml) so the same comment is found and
+ * edited in place on every push to the PR, matching this repo's existing
+ * gh-CLI-only convention rather than adding an Octokit dependency.
  *
  * Usage:
- *   node scripts/post-perf-comment.mjs <owner/repo> <prNumber> [androidResultFile] [iosResultFile]
+ *   node scripts/post-perf-comment.mjs <owner/repo> <prNumber> [androidResultFile]
  *
  * Requires GH_TOKEN in the environment (gh CLI picks it up automatically).
  */
 
 import fs from 'node:fs'
 import { execFileSync } from 'node:child_process'
+import { summarizePerfResult } from './perf-summary.mjs'
 
 const MARKER = '<!-- perf-benchmark-comment -->'
 const BODY_FILE = '.perf-comment-body.md'
 
-function readResult(file) {
-  if (!file || !fs.existsSync(file)) return null
-  return JSON.parse(fs.readFileSync(file, 'utf8'))
-}
-
-function formatRow(label, stats) {
-  if (!stats) return `| ${label} | – | – | – |`
-  return `| ${label} | ${stats.avg} | ${stats.min} | ${stats.max} |`
-}
-
-function platformSection(name, result) {
-  if (!result) {
-    return `**${name}**: no data (job did not produce a result)\n`
-  }
-  const { summary } = result
-  return [
-    `**${name}** (${summary.sampleCount} samples over ${(summary.durationMs / 1000).toFixed(1)}s)`,
-    '',
-    '| Metric | Avg | Min | Max |',
-    '| --- | --- | --- | --- |',
-    formatRow('CPU %', summary.cpu),
-    formatRow('Memory (MB)', summary.memory),
-    formatRow('JS FPS', summary.jsFps),
-    formatRow('UI FPS', summary.uiFps),
-    '',
-  ].join('\n')
-}
-
-function buildBody(androidResult, iosResult) {
-  return [
+function buildBody(androidSummary) {
+  const lines = [
     MARKER,
-    '### Performance benchmark (`maestro/perf-run.yaml`)',
+    '### Performance benchmark (Android, `maestro/pagination-dynamic.yaml` via [flashlight](https://flashlight.dev))',
     '',
-    platformSection('Android', androidResult),
-    platformSection('iOS', iosResult),
-    '_Updated automatically on each push to this PR. Not a required check._',
-  ].join('\n')
+  ]
+
+  if (!androidSummary) {
+    lines.push('No data (job did not produce a result).')
+  } else {
+    lines.push(
+      `Averaged over ${androidSummary.iterationCount} iterations.`,
+      '',
+      '| Metric | Value |',
+      '| --- | --- |',
+      `| Score | ${androidSummary.score}/100 |`,
+      `| CPU % | ${androidSummary.cpu} |`,
+      `| RAM (MB) | ${androidSummary.ram} |`,
+      `| FPS | ${androidSummary.fps} |`
+    )
+  }
+
+  lines.push('', '_Updated automatically on each push to this PR. Not a required check._')
+  return lines.join('\n')
 }
 
 function gh(args) {
@@ -65,17 +53,13 @@ function gh(args) {
 }
 
 function main() {
-  const [repo, prNumber, androidFile, iosFile] = process.argv.slice(2)
+  const [repo, prNumber, androidFile] = process.argv.slice(2)
   if (!repo || !prNumber) {
-    console.error(
-      'Usage: node scripts/post-perf-comment.mjs <owner/repo> <prNumber> [androidResultFile] [iosResultFile]'
-    )
+    console.error('Usage: node scripts/post-perf-comment.mjs <owner/repo> <prNumber> [androidResultFile]')
     process.exit(1)
   }
 
-  const androidResult = readResult(androidFile)
-  const iosResult = readResult(iosFile)
-  const body = buildBody(androidResult, iosResult)
+  const body = buildBody(summarizePerfResult(androidFile))
 
   const existing = JSON.parse(gh(['api', `repos/${repo}/issues/${prNumber}/comments`, '--paginate']))
   const existingComment = existing.find((comment) => comment.body?.includes(MARKER))

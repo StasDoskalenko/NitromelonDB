@@ -9,24 +9,20 @@
  * commit / push steps already used in prepare-release.yml.
  *
  * Usage:
- *   node scripts/publish-perf-results.mjs <resultsFile> <sha> <prNumber> <androidResultFile> <iosResultFile>
+ *   node scripts/publish-perf-results.mjs <resultsFile> <sha> <prNumber> <androidResultFile>
  *
  * prNumber may be the empty string when the push wasn't associated with a PR.
  */
 
 import fs from 'node:fs'
 import path from 'node:path'
-
-function readResult(file) {
-  if (!file || !fs.existsSync(file)) return null
-  return JSON.parse(fs.readFileSync(file, 'utf8'))
-}
+import { summarizePerfResult } from './perf-summary.mjs'
 
 function main() {
-  const [resultsFile, sha, prNumber, androidFile, iosFile] = process.argv.slice(2)
+  const [resultsFile, sha, prNumber, androidFile] = process.argv.slice(2)
   if (!resultsFile || !sha) {
     console.error(
-      'Usage: node scripts/publish-perf-results.mjs <resultsFile> <sha> <prNumber> <androidResultFile> <iosResultFile>'
+      'Usage: node scripts/publish-perf-results.mjs <resultsFile> <sha> <prNumber> <androidResultFile>'
     )
     process.exit(1)
   }
@@ -37,8 +33,7 @@ function main() {
     sha,
     date: new Date().toISOString(),
     prNumber: prNumber ? Number(prNumber) : null,
-    android: readResult(androidFile)?.summary ?? null,
-    ios: readResult(iosFile)?.summary ?? null,
+    android: summarizePerfResult(androidFile),
   }
 
   history.push(record)

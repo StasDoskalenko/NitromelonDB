@@ -43,17 +43,17 @@ export default function PerformanceCharts() {
     return (
       <p className={styles.empty}>
         No benchmark runs recorded yet. Data appears here after the first merge to <code>master</code> runs the perf
-        CI jobs (see <code>maestro/perf-run.yaml</code> in <code>examples/NotesApp</code>).
+        CI job (see <code>scripts/ci-notesapp-android-perf.sh</code>).
       </p>
     )
   }
 
   return (
     <div className={styles.grid}>
+      <MetricChart history={history} metric="score" label="Flashlight score" unit="/100" />
       <MetricChart history={history} metric="cpu" label="CPU usage" unit="%" />
-      <MetricChart history={history} metric="memory" label="Memory usage" unit="MB" />
-      <MetricChart history={history} metric="jsFps" label="JS FPS" unit="fps" />
-      <MetricChart history={history} metric="uiFps" label="UI FPS" unit="fps" />
+      <MetricChart history={history} metric="ram" label="RAM usage" unit="MB" />
+      <MetricChart history={history} metric="fps" label="FPS" unit="fps" />
     </div>
   )
 }

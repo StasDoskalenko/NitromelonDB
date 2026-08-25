@@ -63,5 +63,4 @@ fi
 xcrun simctl install "$SIM_UDID" "$APP_PATH"
 xcrun simctl launch "$SIM_UDID" com.nitromelondb.example
 
-# perf-run.yaml runs in its own dedicated CI job (scripts/ci-notesapp-ios-perf.sh).
-maestro test --exclude-tags perf maestro/
+maestro test maestro/

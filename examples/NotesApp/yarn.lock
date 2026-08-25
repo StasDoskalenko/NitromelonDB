@@ -3924,7 +3924,6 @@ __metadata:
     react-native: "npm:0.86.2"
     react-native-keyboard-controller: "npm:1.21.9"
     react-native-nitro-modules: "npm:0.36.5"
-    react-native-performance-toolkit: "npm:^0.3.1"
     react-native-reanimated: "npm:4.5.1"
     react-native-worklets: "npm:0.10.1"
     rxjs: "npm:^7.8.2"
@@ -4247,27 +4246,6 @@ __metadata:
     react: "*"
     react-native: "*"
   checksum: 10c0/c7b2133f924967b68c0f0f678b5a5dce1a784a7e22f57ebf203ef5803a5c9c745b6d4dda8c9bcedd13f7c5ca53a8707784e98572a2ca8a864fe0b905163a34b5
-  languageName: node
-  linkType: hard
-
-"react-native-performance-toolkit@npm:^0.3.1":
-  version: 0.3.1
-  resolution: "react-native-performance-toolkit@npm:0.3.1"
-  peerDependencies:
-    react: "*"
-    react-native: "*"
-    react-native-gesture-handler: "*"
-    react-native-nitro-modules: "*"
-    react-native-reanimated: "*"
-    react-native-worklets: "*"
-  peerDependenciesMeta:
-    react-native-gesture-handler:
-      optional: true
-    react-native-reanimated:
-      optional: true
-    react-native-worklets:
-      optional: true
-  checksum: 10c0/7b8b4e64d64c253f828e348a6252fc0ae15f5b105ea6e87510224a63b2eb5c9022b3e739714365f61b95d72a9569b3f697b1d84f313683817af0db00691cf5a9
   languageName: node
   linkType: hard
 

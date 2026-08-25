@@ -42,46 +42,8 @@
   stroke-width: 2;
 }
 
-.lineIos {
-  stroke: var(--perf-chart-ios);
-  stroke-width: 2;
-}
-
 .dotAndroid {
   fill: var(--perf-chart-android);
-}
-
-.dotIos {
-  fill: var(--perf-chart-ios);
-}
-
-.legend {
-  display: flex;
-  gap: 1rem;
-  margin-top: 0.5rem;
-  font-size: 0.85em;
-  color: var(--ifm-color-emphasis-700);
-}
-
-.legendItem {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  display: inline-block;
-}
-
-.swatchAndroid {
-  background: var(--perf-chart-android);
-}
-
-.swatchIos {
-  background: var(--perf-chart-ios);
 }
 
 .empty {

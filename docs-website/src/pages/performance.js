@@ -6,15 +6,18 @@ export default function Performance() {
   return (
     <Layout
       title="Performance"
-      description="NotesApp CPU, memory, and FPS benchmark history, recorded automatically on every merge to master."
+      description="NotesApp CPU, RAM, and FPS benchmark history, recorded automatically on every merge to master."
     >
       <main className="container margin-vert--lg">
         <h1>Performance</h1>
         <p>
-          CPU, memory, and FPS recorded from the <code>examples/NotesApp</code> example app on every merge to{' '}
-          <code>master</code>. Each point is one run of <code>maestro/perf-run.yaml</code> — a mix of note
-          insert/pin/delete churn and a full pagination scroll — driven by CI on a real Android emulator and iOS
-          simulator. Pull requests get the same numbers as an inline comment; this page tracks them over time.
+          CPU, RAM, and FPS recorded from the <code>examples/NotesApp</code> example app on every merge to{' '}
+          <code>master</code>, via{' '}
+          <a href="https://flashlight.dev" target="_blank" rel="noreferrer">
+            flashlight
+          </a>{' '}
+          running <code>maestro/pagination-dynamic.yaml</code> on a real Android emulator (iOS coming later). Pull
+          requests get the same numbers as an inline comment; this page tracks them over time.
         </p>
         <PerformanceCharts />
       </main>

@@ -129,6 +129,7 @@
     "@babel/plugin-transform-typescript": "^7.29.7",
     "@babel/plugin-transform-unicode-regex": "^7.29.7",
     "@nozbe/watermelondb_expect": "npm:expect@24.1.0",
+    "@perf-profiler/reporter": "^0.9.0",
     "@react-native-community/cli": "20.2.0",
     "@react-native-community/cli-platform-android": "20.2.0",
     "@react-native-community/cli-platform-ios": "20.2.0",
