@@ -1,0 +1,52 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  margin: 2rem 0;
+}
+
+.chartCard {
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+
+.chartCard h3 {
+  margin-bottom: 0.5rem;
+}
+
+.unit {
+  font-weight: normal;
+  color: var(--ifm-color-emphasis-600);
+  font-size: 0.85em;
+}
+
+.svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.axis {
+  stroke: var(--ifm-color-emphasis-400);
+  stroke-width: 1;
+}
+
+.axisLabel {
+  fill: var(--ifm-color-emphasis-600);
+  font-size: 11px;
+}
+
+.lineAndroid {
+  stroke: var(--perf-chart-android);
+  stroke-width: 2;
+}
+
+.dotAndroid {
+  fill: var(--perf-chart-android);
+}
+
+.empty {
+  color: var(--ifm-color-emphasis-600);
+  font-style: italic;
+}

@@ -10,6 +10,10 @@ yarn-error.log
 dist/
 dev/
 
+# Local runs of the perf CI scripts (scripts/ci-notesapp-*-perf.sh)
+perf-results/
+.maestro-perf-debug/
+
 *.tgz
 coverage/
 
