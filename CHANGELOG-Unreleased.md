@@ -29,6 +29,7 @@
 ### Changes
 
 - NotesApp: the 100-note demo seed moved from a `useEffect` in `useNotes.ts` (with its own `localStorage` idempotency flag, racing the first render's count subscription) to `database.ts`'s new `seed: { version, run }` option, which now owns that idempotency and ordering.
+- NotesApp: rebuilt on top of this release's own hooks. `useNotes.ts`'s hand-rolled `useState`/`useEffect` pair (manual subscribe/unsubscribe, a `cancelled` flag) is now `useQuery` for the page of notes plus `useObservable(query.observeCount())` for the total. Pin/delete moved from a `NotesScreen`-level `deletingIds` `Set` threaded through `NotesList`/`NotesList.windows` as props into `NoteCard` itself, using `useWriter` for `isPending`/`error` per row instead of hand-tracked state (`Note#togglePinned`/`deleteForever` dropped `@writer` since they're now invoked from inside `useWriter`'s own `database.write()`, and nesting would deadlock).
 - NotesApp Windows renders the Expo NotesApp `src/` UI (shared screen/components/model). List on Windows is `NotesList.windows.tsx`.
 - NotesApp Windows: `yarn metro`, `yarn metro:kill`, `yarn build:debug` / `build:release` / `build:all`, `yarn start:debug` / `start:release`.
 

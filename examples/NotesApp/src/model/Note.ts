@@ -1,6 +1,6 @@
 import type { Collection } from 'nitromelondb'
 import { Model, Q } from 'nitromelondb'
-import { date, field, readonly, text, writer } from 'nitromelondb/decorators'
+import { date, field, readonly, text } from 'nitromelondb/decorators'
 import { NOTES_TABLE } from './schema'
 
 export default class Note extends Model {
@@ -49,14 +49,16 @@ export default class Note extends Model {
   @field('rank')
   rank!: number
 
-  @writer
+  // Not @writer: called via useWriter (see NoteCard), which already runs this
+  // inside a Writer -- an @writer method calling database.write() itself
+  // would nest writers and deadlock, since the outer write() can't resolve
+  // until the inner one does.
   async togglePinned() {
     await this.update((note) => {
       note.pinned = !note.pinned
     })
   }
 
-  @writer
   async deleteForever() {
     const notes = this.collections.get<Note>(NOTES_TABLE)
     const following = await notes.query(Q.where('rank', Q.gt(this.rank))).fetch()
