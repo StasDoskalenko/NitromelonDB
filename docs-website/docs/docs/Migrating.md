@@ -13,6 +13,14 @@ If you are starting a new app, skip this page and go to [Installation](./Install
 Your existing SQLite files, schema version, migrations, and model classes keep working. This is a library swap, not a data migration.
 :::
 
+:::warning If you're also adding `seed`
+NitromelonDB's `seed` option (see [Database seeding](./Advanced/Seeding.md)) tracks "did this
+already run" with a marker that's new in NitromelonDB and never existed under WatermelonDB. On a
+database carried over from WatermelonDB, every configured step looks unapplied and **will run** --
+even though the table may already have real user data. If you add `seed` as part of this swap,
+read the "Where to be careful in production" section there first.
+:::
+
 ## 1. Swap the npm package
 
 ```bash

@@ -124,19 +124,10 @@ function App({ database }) {
 pending `seed` steps have settled. This is optional: as covered above, it's always safe to render
 immediately and let queuing do its job -- these exist for when you want a different UX than that.
 
-To seed initial or demo data, use the `seed` option shown above (built with `databaseSeed()`)
-instead of a "seed on first render" pattern in your UI layer. It's an array of `{ schemaVersion,
-run }` steps, each tied to the schema version it was written against -- the same way a migration's
-`toVersion` is, instead of an independent counter you'd have to remember to bump yourself. A step
-runs at most once, ever, and only once the database has actually reached its `schemaVersion`
-(immediately, for a fresh install already on the latest schema; after migrating, for an existing
-install catching up) -- with the "did this already happen" tracking handled for you, so `run`
-doesn't need to query its own table to decide whether to write. Unlike a migration step, `run` can
-freely be asynchronous (`await fetch(...)`, read a file, etc.), since seeding isn't compiled to a
-single SQL statement the way schema migrations are. Tying a step to the schema version it depends
-on also catches a real class of bug: if `run` uses a column a later migration added, an older step
-declaring an earlier `schemaVersion` would otherwise silently write incomplete data once that
-migration ships.
+The `seed` option shown above (built with `databaseSeed()`) populates the database as part of
+setup instead of a "seed on first render" pattern in your UI layer -- great for demos, local dev,
+and E2E test fixtures, with some real caveats for production use on a database that might already
+have data. See [Database seeding](./Advanced/Seeding.md) for the full picture.
 
 ## Electron (SQLite)
 Electron requires a little extra set up since we have to use IPC between our renderer and main processes to execute queries and return the response. However, if you'd like to use LokiJS instead of SQLite you can skip this section and go to the Web section below.
