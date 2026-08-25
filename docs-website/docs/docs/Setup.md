@@ -42,6 +42,7 @@ Now, in your `index.native.js` (React Native) or `index.js` (Node.js):
 import { Platform } from 'react-native'
 import { Database } from 'nitromelondb'
 import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
+import { databaseSeed } from 'nitromelondb/Database/seed'
 
 import schema from './model/schema'
 import migrations from './model/migrations'
@@ -72,12 +73,16 @@ const database = new Database({
   // Throws if you call a writer from another writer without callWriter() (instead of deadlocking)
   // experimentalDetectNestedWriters: true,
   // (optional) seed initial/demo data -- see "Database initialization" below
-  // seed: {
-  //   version: 1,
-  //   run: async (database) => {
-  //     await database.batch(database.get(Post).prepareCreate(post => { post.title = 'Hello' }))
-  //   },
-  // },
+  // seed: databaseSeed({
+  //   steps: [
+  //     {
+  //       schemaVersion: 1,
+  //       run: async (database) => {
+  //         await database.batch(database.get(Post).prepareCreate(post => { post.title = 'Hello' }))
+  //       },
+  //     },
+  //   ],
+  // }),
 })
 ```
 
@@ -97,12 +102,26 @@ an error -- your code still works correctly -- but it usually means something (a
 singleton, a reader/writer that fires as soon as the app starts) is touching the database earlier
 than intended, which is worth knowing about even when it happens to be harmless.
 
-To seed initial or demo data, use the `seed` option shown above instead of a "seed on first
-render" pattern in your UI layer. It's versioned the same way `schemaMigrations()` is: `run` fires
-at most once per `version` (bump it to reseed), with the "did this already happen" tracking
-handled for you -- `run` doesn't need to query its own table to decide whether to write. Unlike a
-migration step, `run` can freely be asynchronous (`await fetch(...)`, read a file, etc.), since
-seeding isn't compiled to a single SQL statement the way schema migrations are.
+If you'd rather gate your own UI on readiness explicitly -- e.g. show a splash screen until the
+database is usable, instead of letting reads/writes queue silently underneath a screen that
+renders as if nothing were pending -- `await database.readyPromise` (or `.then()` it in a
+`useEffect`). It resolves once schema setup/migrations and any pending `seed` steps have settled.
+This is optional: as covered above, it's always safe to render immediately and let queuing do its
+job, `readyPromise` is purely there for when you want a different UX than that.
+
+To seed initial or demo data, use the `seed` option shown above (built with `databaseSeed()`)
+instead of a "seed on first render" pattern in your UI layer. It's an array of `{ schemaVersion,
+run }` steps, each tied to the schema version it was written against -- the same way a migration's
+`toVersion` is, instead of an independent counter you'd have to remember to bump yourself. A step
+runs at most once, ever, and only once the database has actually reached its `schemaVersion`
+(immediately, for a fresh install already on the latest schema; after migrating, for an existing
+install catching up) -- with the "did this already happen" tracking handled for you, so `run`
+doesn't need to query its own table to decide whether to write. Unlike a migration step, `run` can
+freely be asynchronous (`await fetch(...)`, read a file, etc.), since seeding isn't compiled to a
+single SQL statement the way schema migrations are. Tying a step to the schema version it depends
+on also catches a real class of bug: if `run` uses a column a later migration added, an older step
+declaring an earlier `schemaVersion` would otherwise silently write incomplete data once that
+migration ships.
 
 ## Electron (SQLite)
 Electron requires a little extra set up since we have to use IPC between our renderer and main processes to execute queries and return the response. However, if you'd like to use LokiJS instead of SQLite you can skip this section and go to the Web section below.
