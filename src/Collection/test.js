@@ -79,7 +79,7 @@ describe('finding records', () => {
     expect(m1.table).toBe('mock_tasks')
     expect(m1.collection).toBe(collection)
 
-    expect(collection._cache.map.size).toBe(1)
+    expect(collection._cache.size).toBe(1)
 
     // check call
     expect(adapter.find.mock.calls[0]).toEqual(['mock_tasks', 'm1', expect.anything()])
@@ -88,7 +88,7 @@ describe('finding records', () => {
     const m1Cached = await collection.find('m1')
     expect(m1Cached).toBe(m1)
 
-    expect(collection._cache.map.size).toBe(1)
+    expect(collection._cache.size).toBe(1)
     expect(adapter.find.mock.calls.length).toBe(1)
   })
   it('rejects promise if record cannot be found', async () => {
@@ -128,9 +128,9 @@ describe('fetching queries', () => {
     expect(models[1]._raw).toEqual({ id: 'm2' })
 
     // check if records were cached
-    expect(collection._cache.map.size).toBe(2)
-    expect(collection._cache.map.get('m1')).toBe(models[0])
-    expect(collection._cache.map.get('m2')).toBe(models[1])
+    expect(collection._cache.size).toBe(2)
+    expect(collection._cache.get('m1')).toBe(models[0])
+    expect(collection._cache.get('m2')).toBe(models[1])
 
     // check if query was passed correctly
     expect(adapter.query.mock.calls.length).toBe(1)
@@ -151,7 +151,7 @@ describe('fetching queries', () => {
     expect(models[1]._raw).toEqual({ id: 'm2' })
 
     // check cache
-    expect(collection._cache.map.get('m2')).toBe(models[1])
+    expect(collection._cache.get('m2')).toBe(models[1])
   })
   it('fetches query records from cache even if full raw object was sent', async () => {
     const { tasks: collection, adapter } = mockDatabase()

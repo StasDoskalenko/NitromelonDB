@@ -1,5 +1,5 @@
 import makeDecorator from '../../utils/common/makeDecorator'
-import { onLowMemory } from '../../utils/common/memory'
+import WeakValueCache from '../../utils/common/WeakValueCache'
 import { type ColumnName } from '../../Schema'
 
 import { ensureDecoratorUsedProperly, type ModelDecoratorHost } from '../common'
@@ -14,8 +14,7 @@ import { ensureDecoratorUsedProperly, type ModelDecoratorHost } from '../common'
 // Examples:
 //   @date('reacted_at') reactedAt: Date
 
-const cache = new Map<number, Date>()
-onLowMemory(() => cache.clear())
+const cache = new WeakValueCache<number, Date>()
 
 const dateDecorator = makeDecorator(
   (columnName: unknown) => (target: object, key: string, descriptor: PropertyDescriptor) => {

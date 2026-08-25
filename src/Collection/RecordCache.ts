@@ -1,4 +1,5 @@
 import logger from '../utils/common/logger'
+import WeakValueCache from '../utils/common/WeakValueCache'
 
 import type Model from '../Model'
 import type { RecordId } from '../Model'
@@ -16,7 +17,7 @@ type AdapterDiagnostics = {
 }
 
 export default class RecordCache<Record extends Model> {
-  map: Map<RecordId, Record> = new Map()
+  _cache: WeakValueCache<RecordId, Record> = new WeakValueCache()
 
   tableName: TableName<Record>
 
@@ -35,19 +36,23 @@ export default class RecordCache<Record extends Model> {
   }
 
   get(id: RecordId): Record | undefined {
-    return this.map.get(id)
+    return this._cache.get(id)
   }
 
   add(record: Record): void {
-    this.map.set(record.id, record)
+    this._cache.set(record.id, record)
   }
 
   delete(record: Record): void {
-    this.map.delete(record.id)
+    this._cache.delete(record.id)
   }
 
   unsafeClear(): void {
-    this.map = new Map()
+    this._cache.clear()
+  }
+
+  get size(): number {
+    return this._cache.size
   }
 
   recordsFromQueryResult(result: CachedQueryResult): Record[] {
@@ -68,13 +73,13 @@ export default class RecordCache<Record extends Model> {
         return this._cachedModelForId(res)._raw
       }
 
-      const cachedRecord = this.map.get(res.id)
+      const cachedRecord = this.get(res.id)
       return cachedRecord ? cachedRecord._raw : res
     })
   }
 
   _cachedModelForId(id: RecordId): Record {
-    const record = this.map.get(id)
+    const record = this.get(id)
 
     if (!record) {
       const message = `Record ID ${this.tableName}#${id} was sent over the bridge, but it's not cached`
@@ -109,7 +114,7 @@ export default class RecordCache<Record extends Model> {
 
   _modelForRaw(raw: RawRecord, warnIfCached: boolean = true): Record {
     // Sanity check: is this already cached?
-    const cachedRecord = this.map.get(raw.id)
+    const cachedRecord = this.get(raw.id)
 
     if (cachedRecord) {
       // This may legitimately happen if we previously got ID without a record and we cleared
