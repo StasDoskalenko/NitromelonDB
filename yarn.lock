@@ -2664,6 +2664,23 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@perf-profiler/reporter@npm:^0.9.0":
+  version: 0.9.0
+  resolution: "@perf-profiler/reporter@npm:0.9.0"
+  dependencies:
+    "@perf-profiler/types": "npm:^0.8.0"
+    lodash: "npm:^4.17.21"
+  checksum: 10c0/f25110c5b84334e395acc972fc36ca89d5e227d61d8fadb24df26ba03da628eaa26e11fbf72635483983928776a9409afd0123e93cb4bc1b4f72cd91e2311aca
+  languageName: node
+  linkType: hard
+
+"@perf-profiler/types@npm:^0.8.0":
+  version: 0.8.0
+  resolution: "@perf-profiler/types@npm:0.8.0"
+  checksum: 10c0/43bf3706e7ea84192fffb5874da89936c213a487e183374245792a9e1b41c79bb15f984aac484071d11ef92b2e41b9d77513f4e6cfa1d68e1b8912fd4c1d2dc5
+  languageName: node
+  linkType: hard
+
 "@react-native-community/cli-clean@npm:20.2.0":
   version: 20.2.0
   resolution: "@react-native-community/cli-clean@npm:20.2.0"
@@ -9988,6 +10005,7 @@ __metadata:
     "@babel/plugin-transform-unicode-regex": "npm:^7.29.7"
     "@babel/runtime": "npm:^7.29.7"
     "@nozbe/watermelondb_expect": "npm:expect@24.1.0"
+    "@perf-profiler/reporter": "npm:^0.9.0"
     "@react-native-community/cli": "npm:20.2.0"
     "@react-native-community/cli-platform-android": "npm:20.2.0"
     "@react-native-community/cli-platform-ios": "npm:20.2.0"

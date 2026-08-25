@@ -8,6 +8,9 @@
 .docusaurus
 .cache-loader
 
+# Synced by scripts/update-docusaurus from the `benchmarks` branch at build time.
+/static/data/benchmarks.json
+
 # Misc
 .DS_Store
 .env.local

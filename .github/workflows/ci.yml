@@ -179,7 +179,13 @@ jobs:
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Install flashlight
+        run: |
+          curl -fsSL "https://get.flashlight.dev" | bash
+          echo "$HOME/.flashlight/bin" >> "$GITHUB_PATH"
       # android-emulator-runner runs each YAML line via `sh -c`, so keep this a single command.
+      # Runs the real e2e suite (blocking) then a flashlight perf measurement on the
+      # same build/emulator (informational only, see scripts/ci-notesapp-android-maestro.sh).
       - name: run tests
         uses: reactivecircus/android-emulator-runner@v2.33.0
         with:
@@ -187,6 +193,12 @@ jobs:
           profile: pixel
           disable-animations: true
           script: bash scripts/ci-notesapp-android-maestro.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-result-android
+          path: perf-results/perf-result-android.json
+          if-no-files-found: ignore
   notesapp-ios:
     needs: [eslint, typescript, ci-check]
     runs-on: macos-26
@@ -240,6 +252,87 @@ jobs:
         run: brew install xcbeautify
       - name: run tests
         run: bash scripts/ci-notesapp-ios-maestro.sh
+  perf-comment:
+    needs: [notesapp-android]
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    runs-on: ubuntu-24.04
+    name: Perf benchmark PR comment
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: perf-result-android
+          path: perf-results
+        continue-on-error: true
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - uses: actions/cache@v4
+        with:
+          path: 'node_modules'
+          key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
+      - run: yarn install --immutable
+      - name: Post perf comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/post-perf-comment.mjs \
+            "${{ github.repository }}" \
+            "${{ github.event.pull_request.number }}" \
+            perf-results/perf-result-android.json
+  perf-publish:
+    needs: [notesapp-android]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    name: Publish perf benchmark history
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: perf-result-android
+          path: perf-results
+        continue-on-error: true
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - uses: actions/cache@v4
+        with:
+          path: 'node_modules'
+          key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
+      - run: yarn install --immutable
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Append result and push to benchmarks branch
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin benchmarks > /dev/null 2>&1; then
+            git fetch origin benchmarks
+            git worktree add -B benchmarks ../benchmarks-branch origin/benchmarks
+          else
+            git worktree add --detach ../benchmarks-branch
+            git -C ../benchmarks-branch checkout --orphan benchmarks
+            git -C ../benchmarks-branch rm -rf . > /dev/null 2>&1 || true
+          fi
+
+          node scripts/publish-perf-results.mjs \
+            ../benchmarks-branch/results/benchmarks.json \
+            "$GITHUB_SHA" \
+            "" \
+            perf-results/perf-result-android.json
+
+          git -C ../benchmarks-branch add results/benchmarks.json
+          git -C ../benchmarks-branch commit -m "chore: record perf benchmark for ${GITHUB_SHA:0:7}"
+          git -C ../benchmarks-branch push origin benchmarks
   windows:
     needs: [eslint, typescript, ci-check]
     # windows-2025 currently ships VS 2026 (v180 / MSVC v145), SDK 10.0.26100,

@@ -17,3 +17,17 @@ fi
 
 adb install -r "$APK"
 maestro test examples/NotesApp/maestro/
+
+# Perf measurement reuses this same build/emulator (see .github/workflows/ci.yml)
+# instead of a separate job that would rebuild the APK and boot a second
+# emulator. It's informational only -- `if !` keeps a flashlight hiccup from
+# failing the real e2e suite above, which is what actually gates the build.
+mkdir -p perf-results
+if ! flashlight test \
+  --bundleId com.nitromelondb.example \
+  --testCommand "maestro test examples/NotesApp/maestro/pagination-dynamic.yaml" \
+  --iterationCount 5 \
+  --duration 10000 \
+  --resultsFilePath perf-results/perf-result-android.json; then
+  echo "flashlight perf measurement failed (non-fatal, informational only)"
+fi
