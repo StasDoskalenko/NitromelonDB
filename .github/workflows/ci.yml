@@ -290,6 +290,7 @@ jobs:
     name: Publish perf benchmark history
     permissions:
       contents: write
+      actions: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -333,6 +334,10 @@ jobs:
           git -C ../benchmarks-branch add results/benchmarks.json
           git -C ../benchmarks-branch commit -m "chore: record perf benchmark for ${GITHUB_SHA:0:7}"
           git -C ../benchmarks-branch push origin benchmarks
+      - name: Trigger docs redeploy to pick up the new benchmark
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run docs.yml --ref master
   windows:
     needs: [eslint, typescript, ci-check]
     # windows-2025 currently ships VS 2026 (v180 / MSVC v145), SDK 10.0.26100,
