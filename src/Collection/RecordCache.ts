@@ -1,5 +1,4 @@
 import logger from '../utils/common/logger'
-import WeakValueCache from '../utils/common/WeakValueCache'
 
 import type Model from '../Model'
 import type { RecordId } from '../Model'
@@ -17,7 +16,19 @@ type AdapterDiagnostics = {
 }
 
 export default class RecordCache<Record extends Model> {
-  _cache: WeakValueCache<RecordId, Record> = new WeakValueCache()
+  // NOTE: deliberately a plain, strongly-referencing Map, not a
+  // WeakValueCache. The native/adapter layer maintains its own
+  // "already sent to JS" record-id tracking (e.g.
+  // `src/adapters/lokijs/worker/DatabaseDriver.ts`'s `cachedRecords`) and,
+  // once a record id is in that set, sends only the bare id on subsequent
+  // lookups (see `recordFromQueryResult` below) -- trusting this cache still
+  // holds the corresponding Model. `_cachedModelForId` has no raw data to
+  // fall back to on a miss in that path, so it throws instead. Letting GC
+  // collect an entry here while the adapter still believes it's cached
+  // breaks that cross-language invariant; this bit real device/CI runs
+  // (Android Maestro, Windows) with "note not visible" failures caused by
+  // exactly this race, even though it never reproduced in unit tests.
+  map: Map<RecordId, Record> = new Map()
 
   tableName: TableName<Record>
 
@@ -36,23 +47,19 @@ export default class RecordCache<Record extends Model> {
   }
 
   get(id: RecordId): Record | undefined {
-    return this._cache.get(id)
+    return this.map.get(id)
   }
 
   add(record: Record): void {
-    this._cache.set(record.id, record)
+    this.map.set(record.id, record)
   }
 
   delete(record: Record): void {
-    this._cache.delete(record.id)
+    this.map.delete(record.id)
   }
 
   unsafeClear(): void {
-    this._cache.clear()
-  }
-
-  get size(): number {
-    return this._cache.size
+    this.map = new Map()
   }
 
   recordsFromQueryResult(result: CachedQueryResult): Record[] {
