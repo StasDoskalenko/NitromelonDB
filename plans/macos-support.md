@@ -40,7 +40,7 @@ The library selects a native platform **at compile/link time**: `native/shared/D
 | Concern | iOS today | macOS (this plan) |
 | --- | --- | --- |
 | Build system | CocoaPods (`NitromelonDB.podspec`) | Same pod, add `:osx` platform |
-| Platform impl | `native/ios/WatermelonDB/DatabasePlatformIOS.mm` | Same file, `#if TARGET_OS_OSX` branches (rename to `Apple`) |
+| Platform impl | `native/ios/NitromelonDB/DatabasePlatformIOS.mm` | Same file, `#if TARGET_OS_OSX` branches (rename to `Apple`) |
 | SQLite | system `libsqlite3` (`s.libraries = 'sqlite3'`) | **Vendored** `native/vendor/sqlite/sqlite3.c` — see D7; iOS/tvOS switch too |
 | Nitro registration | `nitrogen/generated/ios/…Autolinking.mm` `+load` | Same generated file, compiled for osx |
 | JS module load | `NitroModules.createHybridObject('Nitromelon')`, `.native.ts` variants | **Unchanged** — macOS resolves `.native.ts` too |

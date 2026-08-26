@@ -218,7 +218,7 @@ NitromelonNative.provideSyncJson(/* id */ syncId, /* byte[] */ data);
 ```objc
 // On iOS (Objective-C):
 // (If using Swift, add the import to the bridging header)
-#import <WatermelonDB/WatermelonDB.h>
+#import <NitromelonDB/NitromelonDB.h>
 
 watermelondbProvideSyncJson(syncId, data, &error)
 ```

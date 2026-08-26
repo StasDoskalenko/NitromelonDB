@@ -105,9 +105,10 @@ Then `pod install` (Expo: `npx expo prebuild`).
 ```objc
 // before
 #import <WatermelonDB/WatermelonDB.h>
+#import <NitromelonDB/WatermelonDB.h>
 
 // after
-#import <NitromelonDB/WatermelonDB.h>
+#import <NitromelonDB/NitromelonDB.h>
 ```
 
 :::warning Do not retarget old header search paths
@@ -269,7 +270,7 @@ Assigning `record.id` anywhere else throws. `_raw.id` and `prepareCreateFromDirt
 - [ ] Replace `@nozbe/watermelondb` → `nitromelondb` in **JS/TS imports**, Jest mocks, and path aliases — not in native JSI / SupportingFiles paths
 - [ ] Remove hand-copied `pod 'WatermelonDB'` / `pod 'NitromelonDB'` / `pod 'simdjson'` / `pod 'FMDB'` lines from the Podfile
 - [ ] Delete pbxproj `SupportingFiles` / old Watermelon header search paths; do not retarget them
-- [ ] Bridging header, if you import it: `#import <NitromelonDB/WatermelonDB.h>`
+- [ ] Bridging header, if you import it: `#import <NitromelonDB/NitromelonDB.h>`
 - [ ] **Delete** `watermelondb-jsi` / `WatermelonDBJSIPackage` from Android. Do not retarget `native/android-jsi`
 - [ ] Windows: spread `windowsAppDependencies()` from `nitromelondb/windows-autolink`; remove UWP `WatermelonDB.vcxproj` / `WMDatabaseBridge` linking
 - [ ] Enable the New Architecture (old / Paper architecture is not supported)
