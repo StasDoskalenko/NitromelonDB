@@ -1,4 +1,4 @@
-package com.nozbe.watermelonTest
+package com.nitromelondb.test
 
 import android.util.Log
 import androidx.test.core.app.launchActivity
