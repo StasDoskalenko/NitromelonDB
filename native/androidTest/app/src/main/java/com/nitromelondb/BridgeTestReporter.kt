@@ -1,4 +1,4 @@
-package com.nozbe.watermelonTest
+package com.nitromelondb
 
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule

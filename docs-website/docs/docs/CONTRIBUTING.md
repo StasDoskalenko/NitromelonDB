@@ -125,7 +125,7 @@ Reuse Metro on port **8081** if it is already running. Prefer `yarn start:e2e` o
 ### Running tests manualy
 
 - For iOS open the `native/iosTest/WatermelonTester.xcworkspace` project and hit Cmd+U.
-- For Android open `native/androidTest` in AndroidStudio navigate to `app/src/androidTest/java/com.nozbe.watermelonTest/BridgeTest` and click green arrow near `class BridgeTest`
+- For Android open `native/androidTest` in AndroidStudio navigate to `app/src/androidTest/java/com.nitromelondb/BridgeTest` and click green arrow near `class BridgeTest`
 
 ### Native linting
 

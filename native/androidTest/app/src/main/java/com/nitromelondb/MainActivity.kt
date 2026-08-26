@@ -1,4 +1,4 @@
-package com.nozbe.watermelonTest
+package com.nitromelondb
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

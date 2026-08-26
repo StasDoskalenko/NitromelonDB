@@ -103,7 +103,7 @@ std::string resolveDatabasePath(std::string path) {
     }
     assert(env);
 
-    jclass clazz = env->FindClass("com/nozbe/watermelondb/NativeDatabasePath");
+    jclass clazz = env->FindClass("com/nitromelondb/NativeDatabasePath");
     if (clazz == NULL) {
         throw std::runtime_error("Unable to resolve db path - missing NativeDatabasePath class");
     }

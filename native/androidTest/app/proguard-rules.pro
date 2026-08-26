@@ -73,4 +73,4 @@
 -dontwarn okio.**
 
 # watermelondb
--keep class com.nozbe.watermelondb.** { *; }
+-keep class com.nitromelondb.** { *; }

@@ -37,7 +37,7 @@ android {
     compileSdkVersion getExtOrIntegerDefault('compileSdkVersion')
     buildToolsVersion getExtOrDefault('buildToolsVersion')
 
-    namespace "com.nozbe.watermelondb"
+    namespace "com.nitromelondb"
 
     buildFeatures {
         buildConfig true

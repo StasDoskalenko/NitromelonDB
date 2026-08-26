@@ -1,4 +1,4 @@
-package com.nozbe.watermelondb;
+package com.nitromelondb;
 
 import android.content.Context;
 
