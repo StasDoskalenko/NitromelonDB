@@ -1,4 +1,4 @@
-package com.nitromelondb
+package com.nitromelondb.test
 
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule

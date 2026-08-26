@@ -50,9 +50,9 @@ android {
 
     testBuildType "debug"
 
-    namespace "com.nitromelondb"
+    namespace "com.nitromelondb.test"
     defaultConfig {
-        applicationId "com.nitromelondb"
+        applicationId "com.nitromelondb.test"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
