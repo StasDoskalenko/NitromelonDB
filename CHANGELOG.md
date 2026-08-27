@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
+## 0.30.0-beta.8 - 2026-08-27
+
+### BREAKING CHANGES
+
+- Android Java/JNI package renamed from `com.nozbe.watermelondb` to `com.nitromelondb`. Update any R8/Proguard keep rule (`-keep class com.nitromelondb.** { *; }`) and any direct `NitromelonNative.provideSyncJson` imports. The test harness package `com.nozbe.watermelonTest` is now `com.nitromelondb.test`.
+- iOS native sources moved from `native/ios/WatermelonDB/` to `native/ios/NitromelonDB/`. The public umbrella header is now `#import <NitromelonDB/NitromelonDB.h>` (was `#import <NitromelonDB/WatermelonDB.h>`). The C turbo-sync entry point remains `watermelondbProvideSyncJson`.
+
 ## 0.30.0-beta.7 - 2026-08-26
 
 ## 0.30.0-beta.6 - 2026-08-26
