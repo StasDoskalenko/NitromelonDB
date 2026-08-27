@@ -25,10 +25,10 @@ Pod::Spec.new do |s|
   s.public_header_files = [
     # FIXME: I don't think we should be exporting all headers as public
     # (although that is CocoaPods default behavior)
-    # but this is needed for WatermelonDB to work in use_frameworks! mode
+    # but this is needed for NitromelonDB to work in use_frameworks! mode
     # 'native/ios/**/*.h',
-    'native/ios/WatermelonDB/JSIInstaller.h',
-    'native/ios/WatermelonDB/WatermelonDB.h',
+    'native/ios/NitromelonDB/JSIInstaller.h',
+    'native/ios/NitromelonDB/NitromelonDB.h',
   ]
   s.private_header_files = "native/vendor/simdjson/*.h"
   s.pod_target_xcconfig = {

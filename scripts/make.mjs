@@ -155,7 +155,7 @@ module.exports = {
 }
 `,
   )
-  cleanFolder(`${buildPath}/native/ios/WatermelonDB.xcodeproj/xcuserdata`)
+  cleanFolder(`${buildPath}/native/ios/NitromelonDB.xcodeproj/xcuserdata`)
   cleanFolder(`${buildPath}/native/android/build`)
   cleanFolder(`${buildPath}/native/android/bin/build`)
   cleanFolder(`${buildPath}/native/windows/.vs`)
@@ -194,7 +194,7 @@ if (isDevelopment) {
     .watch(
       [
         resolvePath('src'),
-        resolvePath('native/ios/WatermelonDB'),
+        resolvePath('native/ios/NitromelonDB'),
         resolvePath('native/shared'),
         resolvePath('native/android/src/main'),
         resolvePath('native/nitro'),
