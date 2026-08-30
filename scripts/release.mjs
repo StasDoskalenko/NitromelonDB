@@ -7,8 +7,8 @@
 //
 // inspired by `np` – https://github.com/sindresorhus/np
 
-import Listr from 'listr'
-import listrInput from 'listr-input'
+import { Listr } from 'listr2'
+import { ListrEnquirerPromptAdapter } from '@listr2/prompt-adapter-enquirer'
 import { execa } from 'execa'
 import inquirer from 'inquirer'
 import semver from 'semver'
@@ -159,21 +159,20 @@ const buildTasks = (options) => {
     },
     {
       title: 'publish package',
-      task: () => {
+      task: async (ctx, task) => {
         console.log('\u0007')
-        return listrInput('2-Factor Authentication code', {
-          validate: (otp) => {
-            return Boolean(otp && otp.match(/\d{6}/))
-          },
-          done: (otp) =>
-            execa('npm', [
-              'publish',
-              `./dist/nozbe-watermelondb-v${version}.tgz`,
-              `--otp=${otp}`,
-              '--tag',
-              tag,
-            ]),
+        const otp = await task.prompt(ListrEnquirerPromptAdapter).run({
+          type: 'input',
+          message: '2-Factor Authentication code',
+          validate: (input) => (/\d{6}/.test(input) ? true : 'Enter the 6-digit code'),
         })
+        return execa('npm', [
+          'publish',
+          `./dist/nozbe-watermelondb-v${version}.tgz`,
+          `--otp=${otp}`,
+          '--tag',
+          tag,
+        ])
       },
     },
     {
@@ -201,6 +200,9 @@ const buildTasks = (options) => {
 
 inquirer.prompt(questions).then((options) => {
   const tasks = buildTasks(options)
-  const listr = new Listr(tasks)
-  listr.run()
+  const listr = new Listr(tasks, { concurrent: false })
+  listr.run().catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })
 })

@@ -2,7 +2,7 @@
 
 // inspired by `np` – https://github.com/sindresorhus/np
 
-import Listr from 'listr'
+import { Listr } from 'listr2'
 import inquirer from 'inquirer'
 import { execSync } from 'child_process'
 
@@ -116,7 +116,11 @@ if (launchFirst) {
 } else {
   inquirer.prompt(askForEmu).then((options) => {
     const tasks = emulatorTasks(options)
-    const listr = new Listr(tasks)
-    listr.run()
+    const listr = new Listr(tasks, { concurrent: false })
+    listr.run().catch((error) => {
+      // eslint-disable-next-line
+      console.error(error)
+      process.exit(1)
+    })
   })
 }
