@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
+## 0.30.0-beta.9 - 2026-08-30
+
+### Internal
+
+- Replace the unmaintained `listr` / `listr-input` (used by the `release` and `android:emulator` scripts) with `listr2`. This drops the transitive `ansi-regex@3.0.0` (ReDoS — [GHSA-93q8-gq69-wqmw](https://github.com/advisories/GHSA-93q8-gq69-wqmw)) that Dependabot couldn't patch, along with a chain of other stale sub-dependencies. Dev tooling only; nothing changes for consumers.
+
 ## 0.30.0-beta.8 - 2026-08-27
 
 ### BREAKING CHANGES
