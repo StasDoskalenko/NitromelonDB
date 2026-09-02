@@ -25,6 +25,10 @@
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.7.0"
   },
+  "//resolutions": "webpackbar <7 passes name/color opts straight to webpack.ProgressPlugin, which webpack >=5.99 rejects with a schema error and breaks `docusaurus build`. v7 is what Docusaurus 3.10 ships; drop this on the next Docusaurus upgrade.",
+  "resolutions": {
+    "webpackbar": "7.0.0"
+  },
   "browserslist": {
     "production": [
       ">0.5%",
