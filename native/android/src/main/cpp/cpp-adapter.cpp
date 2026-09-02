@@ -24,6 +24,6 @@ Java_com_nitromelondb_NitromelonNative_provideSyncJson(JNIEnv* env, jclass, jint
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_nozbe_watermelondb_NitromelonNative_onMemoryAlert(JNIEnv*, jclass, jint) {
+Java_com_nitromelondb_NitromelonNative_onMemoryAlert(JNIEnv*, jclass, jint) {
   watermelondb::platform::triggerMemoryAlert();
 }
