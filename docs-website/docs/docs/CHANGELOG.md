@@ -4,25 +4,35 @@ All notable changes to this project will be documented in this file.
 
 Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
-## 0.30.0-beta.9 - 2026-08-30
+## 0.30.0 - 2026-09-02
 
-### Internal
+### Highlights
 
-- Replace the unmaintained `listr` / `listr-input` (used by the `release` and `android:emulator` scripts) with `listr2`. This drops the transitive `ansi-regex@3.0.0` (ReDoS — [GHSA-93q8-gq69-wqmw](https://github.com/advisories/GHSA-93q8-gq69-wqmw)) that Dependabot couldn't patch, along with a chain of other stale sub-dependencies. Dev tooling only; nothing changes for consumers.
-
-## 0.30.0-beta.8 - 2026-08-27
+- Published package types, `exports`, `rxjs` peer, and Nitro peer range so a WatermelonDB → NitromelonDB swap does not need `tsconfig` path hacks.
 
 ### BREAKING CHANGES
 
+- Minimum supported Node.js version is now 22.x (required by React Native 0.87)
+- [iOS] Minimum deployment target is now iOS 15.1
+- [Android] Minimum SDK version is now 24
+- [iOS] CocoaPods spec renamed from `WatermelonDB` to `NitromelonDB`. Autolinking picks up the pod. Bridging-header imports, if you have them, are `#import &lt;NitromelonDB/WatermelonDB.h>`.
+- [iOS] `simdjson` is vendored in `native/vendor/simdjson` and compiled into the `NitromelonDB` pod. Remove any hand-copied `pod 'simdjson'` Podfile lines; do not add `pod 'NitromelonDB'` either.
+- [SQLite][RN] iOS/Android SQLite is Nitro-only. NativeModules interop (`{ jsi: false }`) is removed. The old React Native architecture (Paper / the legacy bridge) is not supported. Windows still uses the JSI installer. Web and Electron keep the Node/better-sqlite3 dispatcher (`makeDispatcher/index.ts` / `index.web.ts`).
+- [SQLite][RN] Removed the leftover NativeModule SQLite stack: iOS `WMDatabaseBridge` / `WMDatabaseDriver` / FMDB, and the Android Java `WMDatabaseBridge` / `WMDatabase` / `WMDatabaseDriver` APIs. Random IDs use `Nitromelon.getRandomIds()` on Nitro. Android `WatermelonDBPackage` still installs the database path and closes SQLite on JS reload.
+- [Android] Removed `native/android-jsi` (`WatermelonDBJSIPackage`, `libwatermelondb-jsi.so`). Drop `include ':watermelondb-jsi'` and `WatermelonDBJSIPackage` from the app. Nitro autolinks. Native turbo-sync JSON injection uses `com.nozbe.watermelondb.NitromelonNative.provideSyncJson`.
+- [Nitro] The `NitromelonDatabase` HybridObject now exposes the full SQLite adapter API (`initialize`, `find`, `query`, `batchJSON`, …) as typed Nitrogen methods. The `ping()` / `nativeEngine` smoke-test API is removed. iOS/Android no longer install `nativeWatermelonCreateAdapter` JSI bindings.
+- The npm package is now `nitromelondb` (was `@nozbe/watermelondb`). Update install commands and imports (`yarn add nitromelondb`, `import { Database } from 'nitromelondb'`).
+- **Windows:** the UWP Paper `WMDatabaseBridge` JSI installer is removed. `{ jsi: false }` is rejected on Windows the same as iOS/Android.
 - Android Java/JNI package renamed from `com.nozbe.watermelondb` to `com.nitromelondb`. Update any R8/Proguard keep rule (`-keep class com.nitromelondb.** { *; }`) and any direct `NitromelonNative.provideSyncJson` imports. The test harness package `com.nozbe.watermelonTest` is now `com.nitromelondb.test`.
 - iOS native sources moved from `native/ios/WatermelonDB/` to `native/ios/NitromelonDB/`. The public umbrella header is now `#import &lt;NitromelonDB/NitromelonDB.h>` (was `#import &lt;NitromelonDB/WatermelonDB.h>`). The C turbo-sync entry point remains `watermelondbProvideSyncJson`.
 
-## 0.30.0-beta.7 - 2026-08-26
-
-## 0.30.0-beta.6 - 2026-08-26
-
 ### New features
 
+- [Database] `new Database({ experimentalDetectNestedWriters: true })` throws immediately when a reader/writer is called from another without `callWriter()`/`callReader()`, instead of deadlocking. Detection covers the same JS turn and the continuation after Watermelon adapter awaits (`find` / `query` / `batch`).
+- [Electron] Added `RemoteAdapter` so SQLite can run in Electron's main process over IPC (or any serializable transport). Cherry-picked from [Nozbe/WatermelonDB#1859](https://github.com/Nozbe/WatermelonDB/pull/1859) by [@feznyng](https://github.com/feznyng)
+- [Expo] First-class Expo support: config plugin (`app.plugin.js`) for development builds, EAS Build, and EAS Update. Add `"nitromelondb"` to `app.json` `plugins`. Replaces `@morrowdigital/watermelondb-expo-plugin` (Android JSI wiring is not used; SQLite is Nitro). Optional `{ "excludeSimArch": true }`.
+- Documented **Observability**: nested-writer deadlocks, stuck reader/writer queue warnings, and routing logs into your APM.
+- **Windows:** React Native Windows New Architecture (RNW 0.84 / WinAppSDK) uses Nitro SQLite. Autolinking points at `native/windows`. Apps spread `windowsAppDependencies()` from `nitromelondb/windows-autolink` so `react-native-nitro-modules` is not searched for a Windows project it does not ship.
 - `useRecord`/`useQuery`/`useObservable` hooks (`nitromelondb/hooks` or `nitromelondb/react`) as a hooks-based alternative to `withObservables`. Built on the existing Rx-free `experimentalSubscribe*` methods; re-renders on record/query changes without cloning records — see [docs](https://stasdoskalenko.github.io/NitromelonDB/docs/Hooks).
 - `useWriter(model, writer)` hook: a stable callback that runs `writer` inside `model.database.write()`, with `writer`'s first argument typed as the concrete `Model` subclass passed in. Tracks `isPending`/`error` for you, doesn't require `writer` to be memoized (the latest one passed in is always the one that runs), and stops touching `isPending`/`error` (without cancelling the write itself) if the component unmounts before it settles — see [docs](https://stasdoskalenko.github.io/NitromelonDB/docs/Hooks#usewriter--writing-anchored-to-a-record).
 - `useAtomicWriter(modelClass, record, builder)` hook: the narrower sibling of `useWriter` for the single most common write — pass a `record` and it updates it, leave it out (or pass `null`/`undefined`) and it creates a new one of `modelClass` instead. No free-form writer function, just the same field-setting `builder` `.create()`/`.update()` already take, which keeps the Writer to nothing but field assignments (no risk of slow/unrelated logic stalling every other write in the app). Resolves the database itself via `useDatabase()` context, so a `&lt;DatabaseProvider>` is required — see [docs](https://stasdoskalenko.github.io/NitromelonDB/docs/Hooks#useatomicwriter--updating-or-creating-one-record-nothing-else).
@@ -36,6 +46,22 @@ Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
 ### Fixes
 
+- [LokiJS] Multitab sync issue fix
+- [Android] Added linker flag for building with 16kB page alignment
+- [Android] Generate `BuildConfig` under AGP 8+ (fixes `cannot find symbol: BuildConfig`)
+- [TS] make catchError visible to typescript
+- Stop copying the removed `native/android-jsi` tree in `yarn build` (package publish was failing with ENOENT)
+- Run `@babel/plugin-transform-typescript` before class-field plugins so `yarn build` can compile `declare` fields
+- Include `README.md` in the published npm package so the registry page is not empty.
+- **npm types:** the published `package.json` now points `types` at `index.d.ts`. Ramda `merge` was leaving `"types": "src/index.ts"`, which is not in the tarball.
+- **`@json` sanitizers:** `json&lt;T>()` accepts typed sanitizers again (`(source: T) => T`). `memo` on the options object is optional.
+- **`Model.id`:** assigning `record.id = 'custom'` inside `create()` / `prepareCreate()` works. It throws after create instead of silently no-op'ing.
+- **Metro / `nitro.json`:** native `require('.../nitro')` resolved to package-root `nitro.json` instead of `nitro/index.js`, so the HybridObject never loaded in release bundles. Requires now use `.../nitro/index`.
+- **npm:** compile `.tsx` sources into the published tarball. `react/withDatabase.js` and `react/DatabaseProvider.js` were missing (`import from 'nitromelondb/react'` failed in Metro). The JS build only matched `.ts`/`.js`, while `tsc` still emitted their `.d.ts`.
+- **SQLite:** log the underlying error when the Nitromelon HybridObject fails to load, instead of only throwing a follow-on "install react-native-nitro-modules" message.
+- **`@json` sanitizers:** input and output types can differ (`(source: string) => string[]`). The previous `Sanitizer&lt;T> = (source: T) => T` rejected real-world sanitizers and made wrapping `json()` fail.
+- **Web:** init no longer crashes when `window.performance.now` exists but is not a function (`now.bind is not a function`). Timing falls back to `Date.now`. ([#46](https://github.com/StasDoskalenko/NitromelonDB/issues/46))
+- **Windows:** SQLite integration tests run Nitro turbo-sync (`unsafeLoadFromSync` / `provideSyncJson`) instead of expecting those APIs to be missing. Memory URI databases open with `SQLITE_OPEN_URI` and use an in-memory journal so WAL files are not created in a packaged app's cwd. The CI integration app embeds a dev JS bundle (`UseDevBundle=true`) so the suite runs the same DEV assertions as iOS/Android.
 - `Query#observeCount()` (throttled, the default) no longer permanently drops the last write in a burst: `throttleTime(250)` was leading-only, so a write landing inside an already-open window was silently discarded until a later, unrelated change happened to flush it. Now uses `{ trailing: true }` so the latest count is always eventually emitted. Also fixed `SharedSubscribable`/`Query#observe`'s underlying `_notify()` to snapshot its subscriber list before iterating — a subscriber unsubscribing itself from inside its own callback (e.g. a one-shot listener) could otherwise skip notifying the subscriber right after it. Reported upstream as [Nozbe/WatermelonDB#1973](https://github.com/Nozbe/WatermelonDB/issues/1973).
 - `Database#unsafeResetDatabase()` now calls the above internally for any `Query` observation cache (`SharedSubscribable`/`KeyedSharedSubscribable`) that's still actively subscribed when it runs. Guards against stale/other-user data leaking into a still-mounted component across a logout/login when an app (against the documented contract) leaves a subscription open across a database reset.
 - SQLite Node adapter (Windows): fixed two bugs that made every file-backed test fail there. `getPath()` only recognized Unix (`/…`) and `file:` absolute paths, so a Windows drive-letter path (`D:\…`) got `process.cwd()` prepended a second time, producing an unreachable directory. And `DatabaseBridge.setUpWithSchema`/`setUpWithMigrations` leaked a file handle: the driver `initialize()` leaves waiting after a schema/migration error was discarded for a new one without closing it (same root cause as upstream [Nozbe/WatermelonDB#1705](https://github.com/Nozbe/WatermelonDB/issues/1705)). Both were invisible on POSIX (unlinking an open file is a no-op there) but permanently blocked deleting/reopening the file on Windows.
@@ -47,6 +73,28 @@ Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
 ### Changes
 
+- [Nitro] Native SQLite uses a typed `NitromelonDatabase` HybridObject wrapping the existing C++ `Database`. `react-native-nitro-modules` is an optional peer dependency. The Expo SDK 57 app in `examples/nitro` uses `SQLiteAdapter` with a notes schema, migrations, and a list UI.
+- Migrated the JS source from Flow + hand-written `.d.ts` to TypeScript. Implementation under `src/` is now TypeScript, including adapters (SQLite, LokiJS, remote). `yarn typecheck` uses `strict`, `noUnusedLocals`, `noUnusedParameters`, and `exactOptionalPropertyTypes`, and forbids explicit `any`. Tests remain JavaScript.
+- ESLint and TypeScript are dedicated required CI jobs on every pull request. Implementation files under `src/` must be TypeScript (JavaScript is only allowed in tests). ESLint uses `@typescript-eslint/recommended` rather than turning core JS rules off by hand.
+- Removed the Flow toolchain: `flow-bin`, `eslint-plugin-flowtype`, Babel Flow plugins, `.flowconfig`, and `flow-typed`.
+- Metro strips TypeScript for `.ts` sources, and `yarn test:metro-transform` guards that path in CI.
+- Updated better-sqlite3 to 13.0.3
+- Support for React Native 0.87 and React 19
+- Added a [Migrating from WatermelonDB](./Migrating.md) guide to the docs site
+- Publish docs to GitHub Pages at https://stasdoskalenko.github.io/NitromelonDB/ (docs index: https://stasdoskalenko.github.io/NitromelonDB/docs)
+- [iOS] `simdjson` is vendored in `native/vendor/simdjson` and compiled into the `NitromelonDB` pod. Autolinking is enough; remove any hand-copied `pod 'simdjson'` Podfile lines.
+- Dropped the `@nozbe/simdjson` npm dependency. Native builds compile the official amalgamation from this repo.
+- Dropped the `@nozbe/sqlite` npm dependency. Android and Windows compile the official amalgamation from `native/vendor/sqlite`; iOS still links the system sqlite3.
+- Docs site version badge tracks the npm package (including alpha/beta). It had stayed on `0.28.0` through the `0.30.0` prereleases.
+- README and docs use the Nitromelon icon, link to full documentation right after the intro, and credit the original WatermelonDB.
+- `rxjs` is a peer dependency (`^7.8.0`) as well as a dependency, so Yarn can hoist the host copy.
+- `react-native-nitro-modules` peer range is `>=0.35.2` (was `*`).
+- Published package includes an `exports` map for `nitromelondb`, `nitromelondb/decorators`, `nitromelondb/adapters/sqlite`, and other directory imports.
+- Migration guide: do not retarget `native/android-jsi` or iOS `SupportingFiles` paths; Jest/Metro mocks; Expo plugin is optional on bare RN; New Architecture required, tested on RN 0.83+.
+- `RelationId` is exported from the package root.
+- Docs: README and the docs site use the horizontal NitromelonDB logo via a GitHub absolute URL.
+- Docs no longer tell apps to install `rxjs` by hand. It stays a peer (`^7.8.0`) for hoisting and a dependency so `yarn add nitromelondb` installs it.
+- Migration / install docs: remove leftover `pod 'simdjson'` and clarify that the `com.nozbe.watermelondb` Proguard keep rule stays.
 - NotesApp: the 100-note demo seed moved from a `useEffect` in `useNotes.ts` (with its own `localStorage` idempotency flag, racing the first render's count subscription) to `database.ts`'s new `seed: { version, run }` option, which now owns that idempotency and ordering.
 - NotesApp: rebuilt on top of this release's own hooks. `useNotes.ts`'s hand-rolled `useState`/`useEffect` pair (manual subscribe/unsubscribe, a `cancelled` flag) is now `useQuery` for the page of notes plus `useObservable(query.observeCount())` for the total. Pin/delete moved from a `NotesScreen`-level `deletingIds` `Set` threaded through `NotesList`/`NotesList.windows` as props into `NoteCard` itself, using `useWriter` for `isPending`/`error` per row instead of hand-tracked state (`Note#togglePinned`/`deleteForever` dropped `@writer` since they're now invoked from inside `useWriter`'s own `database.write()`, and nesting would deadlock).
 - NotesApp Windows renders the Expo NotesApp `src/` UI (shared screen/components/model). List on Windows is `NotesList.windows.tsx`.
@@ -54,6 +102,28 @@ Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
 ### Internal
 
+- Added GitHub Actions release workflows (Prepare Release / Publish Release) with alpha and beta channels. Notes in `CHANGELOG-Unreleased.md` are rolled into the release automatically. npm publish uses OIDC trusted publishing (no `NPM_TOKEN`).
+- Updated internal dependencies
+- Updated documentation scripts
+- [CI] Run JavaScript tests on Node.js 24 only
+- [CI] Run iOS tests on macOS 26 / latest stable Xcode / iPhone 17 (iOS 26)
+- [CI] Android tests use JDK 21
+- [CI] Use latest CocoaPods (1.17) without the old 1.15 / xcodeproj / ethon pins
+- Bundle React Native 0.87 with its own Babel preset
+- [CI] Weekly `simdjson` bump workflow opens a PR when a newer official amalgamation is available (`scripts/vendor-simdjson.mjs`)
+- [CI] Weekly `sqlite` bump workflow opens a PR when a newer official amalgamation is available (`scripts/vendor-sqlite.mjs`)
+- Prepare Release accepts version bump `none` so another alpha/beta of the same X.Y.Z does not require picking patch/minor/major.
+- Prepare Release skips versions that already have a git tag, GitHub Release, or npm publish, and only reuses a leftover `release/v…` branch when none of those exist.
+- Prepare Release folds all same-version alpha/beta changelog entries into one official entry when graduating to a stable release.
+- Publish Release uses `setup-node@v6` + Node 24 OIDC as in the npm trusted publishers example (`registry-url`, `package-manager-cache: false`). Failed publishes can be retried from Actions → Publish Release.
+- Package `author` is Stanislav Doskalenko.
+- Publish Release omits `setup-node` `registry-url` so npm uses OIDC instead of a dummy `NODE_AUTH_TOKEN` (which caused `PUT 404` for a package that already exists).
+- Drop leftover FMDB comments and regenerate `native/iosTest` CocoaPods so the Xcode project links `NitromelonDB` (sqlite3 C API), not the old WatermelonDB/FMDB sources.
+- Prepare Release: version bump **`promote`** graduates the in-progress alpha/beta to official `X.Y.Z` (changelog fold). Optional **npm dist-tag** dropdown defaults to `none` (channel tags); pick `latest` only when `npm i` should install that version.
+- Publish Release authenticates npm OIDC from a `push` to `master` (or manual dispatch). `pull_request_target` merge tokens are rejected by npm (`OIDC token exchange error - package not found`).
+- CI: Windows job uses `windows-2025` (VS 2026, SDK 26100, Node 24.19, WinAppDriver). It builds NotesApp and runs the Cavy SQLite integration suite via `@react-native-windows/automation`.
+- Example apps use Yarn Classic (`yarn.lock`), not npm `package-lock.json`.
+- Windows Nitro `&lt;NitroModules/…>` header map is generated on install / MSBuild (`scripts/windows-nitro-shims.mjs`), not checked in.
 - CI: lint GitHub Actions workflows with actionlint and action-validator (`yarn lint:workflows`) in a separate workflow so a broken `ci.yml` still fails checks.
 - CI: native/NotesApp jobs wait for ESLint, TypeScript, and JavaScript tests. `concurrency` cancels superseded PR/master runs (including when a PR is closed).
 - CI: run NotesApp Maestro e2e on Android from a Release APK (embedded JS, no Metro). Build and test stay on the same job for now.
@@ -73,171 +143,7 @@ Contributors: Please add your changes to CHANGELOG-Unreleased.md
 - Migrate the repo and example apps from Yarn Classic to Yarn 4.18 (`node-modules` linker, pinned via `packageManager` / `.yarn/releases`).
 - Drop `patch-package` from the library root. There was no root `patches/` directory; the Expo `expo-modules-jsi` workaround stays in the example apps.
 - Pin the Babel 7 toolchain (`@babel/core`, `@babel/cli`, plugins, `@babel/runtime`) to the latest 7.x (7.29.7 / 7.29.8).
-
-## 0.30.0-beta.5 - 2026-08-17
-
-### BREAKING CHANGES
-
-- **Windows:** the UWP Paper `WMDatabaseBridge` JSI installer is removed. `{ jsi: false }` is rejected on Windows the same as iOS/Android.
-
-### New features
-
-- **Windows:** React Native Windows New Architecture (RNW 0.84 / WinAppSDK) uses Nitro SQLite. Autolinking points at `native/windows`. Apps spread `windowsAppDependencies()` from `nitromelondb/windows-autolink` so `react-native-nitro-modules` is not searched for a Windows project it does not ship.
-
-### Fixes
-
-- **Web:** init no longer crashes when `window.performance.now` exists but is not a function (`now.bind is not a function`). Timing falls back to `Date.now`. ([#46](https://github.com/StasDoskalenko/NitromelonDB/issues/46))
-- **Windows:** SQLite integration tests run Nitro turbo-sync (`unsafeLoadFromSync` / `provideSyncJson`) instead of expecting those APIs to be missing. Memory URI databases open with `SQLITE_OPEN_URI` and use an in-memory journal so WAL files are not created in a packaged app's cwd. The CI integration app embeds a dev JS bundle (`UseDevBundle=true`) so the suite runs the same DEV assertions as iOS/Android.
-
-### Changes
-
-- Docs: README and the docs site use the horizontal NitromelonDB logo via a GitHub absolute URL.
-- Docs no longer tell apps to install `rxjs` by hand. It stays a peer (`^7.8.0`) for hoisting and a dependency so `yarn add nitromelondb` installs it.
-- Migration / install docs: remove leftover `pod 'simdjson'` and clarify that the `com.nozbe.watermelondb` Proguard keep rule stays.
-
-### Internal
-
-- CI: Windows job uses `windows-2025` (VS 2026, SDK 26100, Node 24.19, WinAppDriver). It builds NotesApp and runs the Cavy SQLite integration suite via `@react-native-windows/automation`.
-- Example apps use Yarn Classic (`yarn.lock`), not npm `package-lock.json`.
-- Windows Nitro `&lt;NitroModules/…>` header map is generated on install / MSBuild (`scripts/windows-nitro-shims.mjs`), not checked in.
-
-## 0.30.0-beta.4 - 2026-08-16
-
-### Fixes
-
-- **`@json` sanitizers:** input and output types can differ (`(source: string) => string[]`). The previous `Sanitizer&lt;T> = (source: T) => T` rejected real-world sanitizers and made wrapping `json()` fail.
-
-## 0.30.0-beta.3 - 2026-08-16
-
-### Fixes
-
-- **npm:** compile `.tsx` sources into the published tarball. `react/withDatabase.js` and `react/DatabaseProvider.js` were missing (`import from 'nitromelondb/react'` failed in Metro). The JS build only matched `.ts`/`.js`, while `tsc` still emitted their `.d.ts`.
-- **SQLite:** log the underlying error when the Nitromelon HybridObject fails to load, instead of only throwing a follow-on "install react-native-nitro-modules" message.
-
-## 0.30.0-beta.2 - 2026-08-16
-
-### Highlights
-
-- Published package types, `exports`, `rxjs` peer, and Nitro peer range so a WatermelonDB → NitromelonDB swap does not need `tsconfig` path hacks.
-
-### New features
-
-- Documented **Observability**: nested-writer deadlocks, stuck reader/writer queue warnings, and routing logs into your APM.
-
-### Fixes
-
-- **npm types:** the published `package.json` now points `types` at `index.d.ts`. Ramda `merge` was leaving `"types": "src/index.ts"`, which is not in the tarball.
-- **`@json` sanitizers:** `json&lt;T>()` accepts typed sanitizers again (`(source: T) => T`). `memo` on the options object is optional.
-- **`Model.id`:** assigning `record.id = 'custom'` inside `create()` / `prepareCreate()` works. It throws after create instead of silently no-op'ing.
-- **Metro / `nitro.json`:** native `require('.../nitro')` resolved to package-root `nitro.json` instead of `nitro/index.js`, so the HybridObject never loaded in release bundles. Requires now use `.../nitro/index`.
-
-### Changes
-
-- Docs site version badge tracks the npm package (including alpha/beta). It had stayed on `0.28.0` through the `0.30.0` prereleases.
-- README and docs use the Nitromelon icon, link to full documentation right after the intro, and credit the original WatermelonDB.
-- `rxjs` is a peer dependency (`^7.8.0`) as well as a dependency, so Yarn can hoist the host copy.
-- `react-native-nitro-modules` peer range is `>=0.35.2` (was `*`).
-- Published package includes an `exports` map for `nitromelondb`, `nitromelondb/decorators`, `nitromelondb/adapters/sqlite`, and other directory imports.
-- Migration guide: do not retarget `native/android-jsi` or iOS `SupportingFiles` paths; Jest/Metro mocks; Expo plugin is optional on bare RN; New Architecture required, tested on RN 0.83+.
-- `RelationId` is exported from the package root.
-
-### Internal
-
-- Publish Release authenticates npm OIDC from a `push` to `master` (or manual dispatch). `pull_request_target` merge tokens are rejected by npm (`OIDC token exchange error - package not found`).
-
-## 0.30.0-beta.1 - 2026-08-16
-
-### Internal
-
-- Drop leftover FMDB comments and regenerate `native/iosTest` CocoaPods so the Xcode project links `NitromelonDB` (sqlite3 C API), not the old WatermelonDB/FMDB sources.
-- Prepare Release: version bump **`promote`** graduates the in-progress alpha/beta to official `X.Y.Z` (changelog fold). Optional **npm dist-tag** dropdown defaults to `none` (channel tags); pick `latest` only when `npm i` should install that version.
-
-## 0.30.0-beta.0 - 2026-08-16
-
-## 0.30.0-alpha.3 - 2026-08-15
-
-### Internal
-
-- Publish Release omits `setup-node` `registry-url` so npm uses OIDC instead of a dummy `NODE_AUTH_TOKEN` (which caused `PUT 404` for a package that already exists).
-
-## 0.30.0-alpha.2 - 2026-08-15
-
-### Fixes
-
-- Include `README.md` in the published npm package so the registry page is not empty.
-
-### Internal
-
-- Prepare Release skips versions that already have a git tag, GitHub Release, or npm publish, and only reuses a leftover `release/v…` branch when none of those exist.
-- Prepare Release folds all same-version alpha/beta changelog entries into one official entry when graduating to a stable release.
-- Publish Release uses `setup-node@v6` + Node 24 OIDC as in the npm trusted publishers example (`registry-url`, `package-manager-cache: false`). Failed publishes can be retried from Actions → Publish Release.
-- Package `author` is Stanislav Doskalenko.
-
-## 0.30.0-alpha.1 - 2026-08-15
-
-### Internal
-
-- Prepare Release accepts version bump `none` so another alpha/beta of the same X.Y.Z does not require picking patch/minor/major.
-
-## 0.30.0-alpha.0 - 2026-08-15
-
-### BREAKING CHANGES
-
-- Minimum supported Node.js version is now 22.x (required by React Native 0.87)
-- [iOS] Minimum deployment target is now iOS 15.1
-- [Android] Minimum SDK version is now 24
-- [iOS] CocoaPods spec renamed from `WatermelonDB` to `NitromelonDB`. Autolinking picks up the pod. Bridging-header imports, if you have them, are `#import &lt;NitromelonDB/WatermelonDB.h>`.
-- [iOS] `simdjson` is vendored in `native/vendor/simdjson` and compiled into the `NitromelonDB` pod. Remove any hand-copied `pod 'simdjson'` Podfile lines; do not add `pod 'NitromelonDB'` either.
-- [SQLite][RN] iOS/Android SQLite is Nitro-only. NativeModules interop (`{ jsi: false }`) is removed. The old React Native architecture (Paper / the legacy bridge) is not supported. Windows still uses the JSI installer. Web and Electron keep the Node/better-sqlite3 dispatcher (`makeDispatcher/index.ts` / `index.web.ts`).
-- [SQLite][RN] Removed the leftover NativeModule SQLite stack: iOS `WMDatabaseBridge` / `WMDatabaseDriver` / FMDB, and the Android Java `WMDatabaseBridge` / `WMDatabase` / `WMDatabaseDriver` APIs. Random IDs use `Nitromelon.getRandomIds()` on Nitro. Android `WatermelonDBPackage` still installs the database path and closes SQLite on JS reload.
-- [Android] Removed `native/android-jsi` (`WatermelonDBJSIPackage`, `libwatermelondb-jsi.so`). Drop `include ':watermelondb-jsi'` and `WatermelonDBJSIPackage` from the app. Nitro autolinks. Native turbo-sync JSON injection uses `com.nozbe.watermelondb.NitromelonNative.provideSyncJson`.
-- [Nitro] The `NitromelonDatabase` HybridObject now exposes the full SQLite adapter API (`initialize`, `find`, `query`, `batchJSON`, …) as typed Nitrogen methods. The `ping()` / `nativeEngine` smoke-test API is removed. iOS/Android no longer install `nativeWatermelonCreateAdapter` JSI bindings.
-- The npm package is now `nitromelondb` (was `@nozbe/watermelondb`). Update install commands and imports (`yarn add nitromelondb`, `import { Database } from 'nitromelondb'`).
-
-### New features
-
-- [Database] `new Database({ experimentalDetectNestedWriters: true })` throws immediately when a reader/writer is called from another without `callWriter()`/`callReader()`, instead of deadlocking. Detection covers the same JS turn and the continuation after Watermelon adapter awaits (`find` / `query` / `batch`).
-- [Electron] Added `RemoteAdapter` so SQLite can run in Electron's main process over IPC (or any serializable transport). Cherry-picked from [Nozbe/WatermelonDB#1859](https://github.com/Nozbe/WatermelonDB/pull/1859) by [@feznyng](https://github.com/feznyng)
-- [Expo] First-class Expo support: config plugin (`app.plugin.js`) for development builds, EAS Build, and EAS Update. Add `"nitromelondb"` to `app.json` `plugins`. Replaces `@morrowdigital/watermelondb-expo-plugin` (Android JSI wiring is not used; SQLite is Nitro). Optional `{ "excludeSimArch": true }`.
-
-### Fixes
-
-- [LokiJS] Multitab sync issue fix
-- [Android] Added linker flag for building with 16kB page alignment
-- [Android] Generate `BuildConfig` under AGP 8+ (fixes `cannot find symbol: BuildConfig`)
-- [TS] make catchError visible to typescript
-- Stop copying the removed `native/android-jsi` tree in `yarn build` (package publish was failing with ENOENT)
-- Run `@babel/plugin-transform-typescript` before class-field plugins so `yarn build` can compile `declare` fields
-
-### Changes
-
-- [Nitro] Native SQLite uses a typed `NitromelonDatabase` HybridObject wrapping the existing C++ `Database`. `react-native-nitro-modules` is an optional peer dependency. The Expo SDK 57 app in `examples/nitro` uses `SQLiteAdapter` with a notes schema, migrations, and a list UI.
-- Migrated the JS source from Flow + hand-written `.d.ts` to TypeScript. Implementation under `src/` is now TypeScript, including adapters (SQLite, LokiJS, remote). `yarn typecheck` uses `strict`, `noUnusedLocals`, `noUnusedParameters`, and `exactOptionalPropertyTypes`, and forbids explicit `any`. Tests remain JavaScript.
-
-- ESLint and TypeScript are dedicated required CI jobs on every pull request. Implementation files under `src/` must be TypeScript (JavaScript is only allowed in tests). ESLint uses `@typescript-eslint/recommended` rather than turning core JS rules off by hand.
-- Removed the Flow toolchain: `flow-bin`, `eslint-plugin-flowtype`, Babel Flow plugins, `.flowconfig`, and `flow-typed`.
-- Metro strips TypeScript for `.ts` sources, and `yarn test:metro-transform` guards that path in CI.
-
-- Updated better-sqlite3 to 13.0.3
-- Support for React Native 0.87 and React 19
-- Added a [Migrating from WatermelonDB](./Migrating.md) guide to the docs site
-- Publish docs to GitHub Pages at https://stasdoskalenko.github.io/NitromelonDB/ (docs index: https://stasdoskalenko.github.io/NitromelonDB/docs)
-- [iOS] `simdjson` is vendored in `native/vendor/simdjson` and compiled into the `NitromelonDB` pod. Autolinking is enough; remove any hand-copied `pod 'simdjson'` Podfile lines.
-- Dropped the `@nozbe/simdjson` npm dependency. Native builds compile the official amalgamation from this repo.
-- Dropped the `@nozbe/sqlite` npm dependency. Android and Windows compile the official amalgamation from `native/vendor/sqlite`; iOS still links the system sqlite3.
-
-### Internal
-
-- Added GitHub Actions release workflows (Prepare Release / Publish Release) with alpha and beta channels. Notes in `CHANGELOG-Unreleased.md` are rolled into the release automatically. npm publish uses OIDC trusted publishing (no `NPM_TOKEN`).
-- Updated internal dependencies
-- Updated documentation scripts
-- [CI] Run JavaScript tests on Node.js 24 only
-- [CI] Run iOS tests on macOS 26 / latest stable Xcode / iPhone 17 (iOS 26)
-- [CI] Android tests use JDK 21
-- [CI] Use latest CocoaPods (1.17) without the old 1.15 / xcodeproj / ethon pins
-- Bundle React Native 0.87 with its own Babel preset
-- [CI] Weekly `simdjson` bump workflow opens a PR when a newer official amalgamation is available (`scripts/vendor-simdjson.mjs`)
-- [CI] Weekly `sqlite` bump workflow opens a PR when a newer official amalgamation is available (`scripts/vendor-sqlite.mjs`)
+- Replace the unmaintained `listr` / `listr-input` (used by the `release` and `android:emulator` scripts) with `listr2`. This drops the transitive `ansi-regex@3.0.0` (ReDoS — [GHSA-93q8-gq69-wqmw](https://github.com/advisories/GHSA-93q8-gq69-wqmw)) that Dependabot couldn't patch, along with a chain of other stale sub-dependencies. Dev tooling only; nothing changes for consumers.
 
 ## 0.28 - 2025-04-07
 
