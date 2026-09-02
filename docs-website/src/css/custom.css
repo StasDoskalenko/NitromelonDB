@@ -26,6 +26,15 @@
   --ifm-color-primary-lightest: #eb8a97;
 }
 
+/* Performance page (src/components/PerformanceCharts) line color. */
+:root {
+  --perf-chart-android: #1a73e8;
+}
+
+[data-theme='dark'] {
+  --perf-chart-android: #5b9bf7;
+}
+
 .navbar__logo img {
   border-radius: 6px;
 }

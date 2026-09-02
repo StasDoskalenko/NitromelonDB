@@ -16,5 +16,14 @@ hide_title: true
 ---
 " | cat - ./docs-website/docs/docs/CONTRIBUTING.md > temp && mv temp ./docs-website/docs/docs/CONTRIBUTING.md && \
 cp CHANGELOG.md ./docs-website/docs/docs/CHANGELOG.md && \
-node scripts/replace-docs-path.mjs ./docs-website/docs/docs/CHANGELOG.md 
+node scripts/replace-docs-path.mjs ./docs-website/docs/docs/CHANGELOG.md
+
+# Sync the perf benchmark history (docs-website/src/pages/performance.js) from the
+# `benchmarks` branch, which the perf-publish CI job (.github/workflows/ci.yml) appends
+# to on every merge to master. Falls back to an empty history before that branch/file
+# exists yet, or when running this script outside CI without the branch fetched.
+git fetch origin benchmarks --depth=1 > /dev/null 2>&1 || true
+mkdir -p ./docs-website/static/data
+git show origin/benchmarks:results/benchmarks.json > ./docs-website/static/data/benchmarks.json 2>/dev/null \
+  || echo "[]" > ./docs-website/static/data/benchmarks.json
 

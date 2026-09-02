@@ -22,7 +22,6 @@ export function NotesScreen({ db }: NotesScreenProps) {
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(() => new Set())
   // NotesComposer's Windows title field is uncontrolled (defaultValue) because
   // driver-injected/IME input there doesn't reliably fire onChangeText; bumping
   // this after a successful add remounts it to actually clear the text.
@@ -74,24 +73,6 @@ export function NotesScreen({ db }: NotesScreenProps) {
     }
   }
 
-  const deleteNote = async (note: Note) => {
-    if (deletingIds.has(note.id)) {
-      return
-    }
-    setDeletingIds((current) => new Set(current).add(note.id))
-    try {
-      await note.deleteForever()
-    } catch (writeError) {
-      setActionError(writeError instanceof Error ? writeError.message : String(writeError))
-    } finally {
-      setDeletingIds((current) => {
-        const next = new Set(current)
-        next.delete(note.id)
-        return next
-      })
-    }
-  }
-
   return (
     // Keyboard-avoidance is scoped to the composer (ComposerDock), not the
     // whole screen: an earlier root-level KeyboardAvoidingView ate Maestro's
@@ -113,12 +94,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
         onNext={() => goToPage(1)}
       />
 
-      <NotesList
-        ref={listRef}
-        notes={notes}
-        deletingIds={deletingIds}
-        onDelete={(note) => void deleteNote(note)}
-      />
+      <NotesList ref={listRef} notes={notes} onError={setActionError} />
 
       <ComposerDock>
         <NotesComposer

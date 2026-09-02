@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useMemo } from 'react'
 import { Q } from 'nitromelondb'
+import { useObservable, useQuery } from 'nitromelondb/hooks'
 import type { ExampleDatabase } from '../database'
 import type Note from '../model/Note'
 
@@ -12,43 +13,22 @@ export function useNotes(
   page: number,
   pageSize: number,
 ): { notes: Note[]; totalCount: number } {
-  const [notes, setNotes] = useState<Note[]>([])
-  const [totalCount, setTotalCount] = useState(0)
-
-  useEffect(() => {
-    let cancelled = false
-    const unsubscribeCount = session.notes.query().experimentalSubscribeToCount((count) => {
-      if (!cancelled) {
-        setTotalCount(count)
-      }
-    })
-
-    return () => {
-      cancelled = true
-      unsubscribeCount()
-    }
-  }, [session])
-
-  useEffect(() => {
-    let cancelled = false
-    const unsubscribe = session.notes
-      .query(
+  const listQuery = useMemo(
+    () =>
+      session.notes.query(
         Q.sortBy('pinned', Q.desc),
         Q.sortBy('rank', Q.asc),
         Q.skip((page - 1) * pageSize),
         Q.take(pageSize),
-      )
-      .experimentalSubscribeWithColumns(['title', 'body', 'pinned', 'rank'], (next) => {
-        if (!cancelled) {
-          setNotes(next)
-        }
-      })
+      ),
+    [session, page, pageSize],
+  )
+  // A separate, unpaginated query -- observeCount() only reports how many rows match, not which
+  // page they're on, so it doesn't need (or want) the skip/take above.
+  const countObservable = useMemo(() => session.notes.query().observeCount(), [session])
 
-    return () => {
-      cancelled = true
-      unsubscribe()
-    }
-  }, [session, page, pageSize])
+  const notes = useQuery(listQuery, ['title', 'body', 'pinned', 'rank'])
+  const [totalCount] = useObservable(countObservable, 0)
 
   return { notes, totalCount }
 }

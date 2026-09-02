@@ -13,6 +13,11 @@ on:
       - 'scripts/rewrite-readme-docs-links.mjs'
       - 'scripts/replace-docs-path.mjs'
       - '.github/workflows/docs.yml'
+  # Triggered by perf-publish (.github/workflows/ci.yml) after it pushes a new
+  # benchmark record to the `benchmarks` branch -- that push doesn't touch any
+  # of the paths above (or even this branch), so it wouldn't otherwise cause
+  # the Performance page to pick up the new data.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -45,14 +50,14 @@ jobs:
         run: yarn build
         working-directory: docs-website
       - name: Upload Pages artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/master'
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs-website/build
 
   deploy:
     name: Deploy to GitHub Pages
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master'
     needs: build
     permissions:
       pages: write
