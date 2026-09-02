@@ -12,13 +12,13 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) {
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_nozbe_watermelondb_NitromelonNative_onCatalystInstanceDestroy(JNIEnv*, jclass) {
+Java_com_nitromelondb_NitromelonNative_onCatalystInstanceDestroy(JNIEnv*, jclass) {
   watermelondb::platform::destroy();
 }
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_nozbe_watermelondb_NitromelonNative_provideSyncJson(JNIEnv* env, jclass, jint id, jbyteArray array) {
+Java_com_nitromelondb_NitromelonNative_provideSyncJson(JNIEnv* env, jclass, jint id, jbyteArray array) {
   watermelondb::platform::provideJson(id, array);
 }
 

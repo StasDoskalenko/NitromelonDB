@@ -1,4 +1,4 @@
-package com.nozbe.watermelonTest
+package com.nitromelondb.test
 
 import android.app.Application
 import com.facebook.react.PackageList
@@ -6,7 +6,7 @@ import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
 import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
-import com.nozbe.watermelondb.WatermelonDBPackage
+import com.nitromelondb.WatermelonDBPackage
 
 class MainApplication : Application(), ReactApplication {
 

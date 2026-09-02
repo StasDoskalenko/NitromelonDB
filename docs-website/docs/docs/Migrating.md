@@ -105,9 +105,10 @@ Then `pod install` (Expo: `npx expo prebuild`).
 ```objc
 // before
 #import <WatermelonDB/WatermelonDB.h>
+#import <NitromelonDB/WatermelonDB.h>
 
 // after
-#import <NitromelonDB/WatermelonDB.h>
+#import <NitromelonDB/NitromelonDB.h>
 ```
 
 :::warning Do not retarget old header search paths
@@ -137,13 +138,13 @@ That path **does not exist**. Remove the whole JSI block. Do not point it at `na
 
 Do not register `WatermelonDBPackage` by hand — that is the old architecture. Autolinking is required.
 
-The Android Java package is still `com.nozbe.watermelondb`. If you already have this R8 / Proguard rule, **leave it** — do not delete it:
+The Android Java package is `com.nitromelondb` (it used to be `com.nozbe.watermelondb`). Update any R8 / Proguard keep rule:
 
 ```
--keep class com.nozbe.watermelondb.** { *; }
+-keep class com.nitromelondb.** { *; }
 ```
 
-Turbo-sync JSON injection now goes through `com.nozbe.watermelondb.NitromelonNative.provideSyncJson`.
+Turbo-sync JSON injection now goes through `com.nitromelondb.NitromelonNative.provideSyncJson`.
 
 Minimum Android SDK is **24**.
 
@@ -269,7 +270,7 @@ Assigning `record.id` anywhere else throws. `_raw.id` and `prepareCreateFromDirt
 - [ ] Replace `@nozbe/watermelondb` → `nitromelondb` in **JS/TS imports**, Jest mocks, and path aliases — not in native JSI / SupportingFiles paths
 - [ ] Remove hand-copied `pod 'WatermelonDB'` / `pod 'NitromelonDB'` / `pod 'simdjson'` / `pod 'FMDB'` lines from the Podfile
 - [ ] Delete pbxproj `SupportingFiles` / old Watermelon header search paths; do not retarget them
-- [ ] Bridging header, if you import it: `#import <NitromelonDB/WatermelonDB.h>`
+- [ ] Bridging header, if you import it: `#import <NitromelonDB/NitromelonDB.h>`
 - [ ] **Delete** `watermelondb-jsi` / `WatermelonDBJSIPackage` from Android. Do not retarget `native/android-jsi`
 - [ ] Windows: spread `windowsAppDependencies()` from `nitromelondb/windows-autolink`; remove UWP `WatermelonDB.vcxproj` / `WMDatabaseBridge` linking
 - [ ] Enable the New Architecture (old / Paper architecture is not supported)

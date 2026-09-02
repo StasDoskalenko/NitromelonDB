@@ -1,4 +1,4 @@
-package com.nozbe.watermelonTest
+package com.nitromelondb.test
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule

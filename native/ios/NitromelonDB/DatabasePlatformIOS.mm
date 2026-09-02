@@ -79,7 +79,7 @@ extern "C" void watermelondbProvideSyncJson(int id, NSData *json, NSError **erro
 
     if (providedSyncJsons[@(id)]) {
         NSString *errorMsg = [NSString stringWithFormat:@"Sync json %i is already provided", id];
-        *errorPtr = [NSError errorWithDomain:@"com.nozbe.watermelondb.error"
+        *errorPtr = [NSError errorWithDomain:@"com.nitromelondb.error"
                                         code:-1
                                     userInfo:@{ @"NSLocalizedDescriptionKey": errorMsg }];
         return;
