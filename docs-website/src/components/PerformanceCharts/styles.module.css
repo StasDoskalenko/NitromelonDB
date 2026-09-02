@@ -1,24 +1,62 @@
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 2rem;
+  /* Two wide charts per row on desktop, one per row once it gets tight. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+  gap: 1.5rem;
   margin: 2rem 0;
 }
 
 .chartCard {
   border: 1px solid var(--ifm-color-emphasis-300);
-  border-radius: 8px;
-  padding: 1rem 1.25rem;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem 1rem;
+  background: var(--ifm-background-surface-color);
 }
 
-.chartCard h3 {
-  margin-bottom: 0.5rem;
+.chartHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.chartHead h3 {
+  margin: 0;
+  font-size: 1.1rem;
 }
 
 .unit {
   font-weight: normal;
   color: var(--ifm-color-emphasis-600);
-  font-size: 0.85em;
+  font-size: 0.8em;
+}
+
+.latest {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.latestValue {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--perf-chart-android);
+  line-height: 1;
+}
+
+.latestUnit {
+  font-size: 0.7em;
+  font-weight: 600;
+  margin-left: 0.1em;
+  color: var(--ifm-color-emphasis-600);
+}
+
+.delta {
+  font-size: 0.75rem;
+  color: var(--ifm-color-emphasis-600);
+  white-space: nowrap;
 }
 
 .svg {
@@ -27,26 +65,40 @@
   overflow: visible;
 }
 
-.axis {
-  stroke: var(--ifm-color-emphasis-400);
+.gridline {
+  stroke: var(--ifm-color-emphasis-200);
   stroke-width: 1;
 }
 
 .axisLabel {
   fill: var(--ifm-color-emphasis-600);
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .lineAndroid {
   stroke: var(--perf-chart-android);
-  stroke-width: 2;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
 }
 
 .dotAndroid {
   fill: var(--perf-chart-android);
+  stroke: var(--ifm-background-surface-color);
+  stroke-width: 1.5;
+}
+
+.dotAndroid:hover {
+  r: 5;
 }
 
 .empty {
   color: var(--ifm-color-emphasis-600);
   font-style: italic;
+}
+
+.caption {
+  color: var(--ifm-color-emphasis-600);
+  font-size: 0.9rem;
+  margin: 0.5rem 0 0;
 }

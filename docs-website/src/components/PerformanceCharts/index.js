@@ -48,12 +48,19 @@ export default function PerformanceCharts() {
     )
   }
 
+  const runs = history.filter((r) => r.android != null).length
+
   return (
-    <div className={styles.grid}>
-      <MetricChart history={history} metric="score" label="Flashlight score" unit="/100" />
-      <MetricChart history={history} metric="cpu" label="CPU usage" unit="%" />
-      <MetricChart history={history} metric="ram" label="RAM usage" unit="MB" />
-      <MetricChart history={history} metric="fps" label="FPS" unit="fps" />
-    </div>
+    <>
+      <p className={styles.caption}>
+        {runs} run{runs === 1 ? '' : 's'} recorded · hover a point for the commit, date, and exact value.
+      </p>
+      <div className={styles.grid}>
+        <MetricChart history={history} metric="score" label="Flashlight score" unit="/100" />
+        <MetricChart history={history} metric="cpu" label="CPU usage" unit="%" />
+        <MetricChart history={history} metric="ram" label="RAM usage" unit="MB" />
+        <MetricChart history={history} metric="fps" label="FPS" unit="fps" />
+      </div>
+    </>
   )
 }
