@@ -21,6 +21,12 @@ function removeIfExists(file, dbName) {
   }
 }
 
+beforeEach(() => {
+  if (process.env.NITROMELON_TRACE_SQLITE_TESTS === '1') {
+    process.stderr.write(`[sqlite-test] ${expect.getState().currentTestName}\n`)
+  }
+})
+
 describe.each([['SQLiteAdapterNode', 'Asynchronous', 'Memory']])(
   '%s (%s/%s)',
   (adapterSubclass, _dispatcherType, fileString) => {
@@ -28,8 +34,10 @@ describe.each([['SQLiteAdapterNode', 'Asynchronous', 'Memory']])(
       const [name, test] = testCase
 
       if (name.match(/from file system/) && process.platform === 'win32') {
-        // eslint-disable-next-line no-console
-        console.error(`FIXME: Broken test on Windows! ${name}`)
+        // Keep the known platform exclusion visible in Jest's summary without
+        // presenting an intentional skip as a CI error.
+        // eslint-disable-next-line jest/valid-title
+        it.skip(name, () => {})
         return
       }
 

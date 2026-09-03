@@ -1,3 +1,4 @@
+import '@expo/metro-runtime';
 import './disableDevMenu';
 import { registerRootComponent } from 'expo';
 

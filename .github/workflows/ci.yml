@@ -71,6 +71,30 @@ jobs:
       - run: node scripts/prepare-changelog.mjs --self-test
       - name: Gradle Wrapper Validation
         uses: gradle/actions/wrapper-validation@v4
+  notesapp-web:
+    needs: [eslint, typescript, ci-check]
+    runs-on: ubuntu-24.04
+    name: NotesApp web (wa-sqlite)
+    timeout-minutes: 20
+    env:
+      CI: true
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - run: yarn install --immutable
+      - name: Install NotesApp
+        working-directory: examples/NotesApp
+        run: yarn install --immutable
+      - name: Install Chromium
+        working-directory: examples/NotesApp
+        run: yarn playwright install --with-deps chromium
+      - name: Export and test web SQLite
+        working-directory: examples/NotesApp
+        run: yarn test:web
   ios:
     needs: [eslint, typescript, ci-check]
     runs-on: macos-26

@@ -6,8 +6,9 @@ import { createExampleDatabase } from './database'
 import { LoadingScreen } from './screens/LoadingScreen'
 import { NotesScreen } from './screens/NotesScreen'
 import { SetupErrorScreen } from './screens/SetupErrorScreen'
+import WebAdapterTestScreen from './screens/WebAdapterTestScreen'
 
-export default function App() {
+function NotesApp() {
   const [session] = useState(() => {
     try {
       return { ok: true as const, db: createExampleDatabase() }
@@ -48,4 +49,11 @@ export default function App() {
       <StatusBar style="auto" />
     </KeyboardProvider>
   )
+}
+
+export default function App() {
+  const isWebAdapterTest =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).has('adapter-tests')
+  return isWebAdapterTest ? <WebAdapterTestScreen /> : <NotesApp />
 }

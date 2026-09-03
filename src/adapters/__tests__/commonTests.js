@@ -36,9 +36,20 @@ export default () => {
   it.only = (name, test) => commonTests.push([name, test, true])
   it('validates adapter options', async (_adapter, AdapterClass, extraAdapterOptions) => {
     const schema = { ...testSchema, version: 10 }
+    let adapterNumber = 0
 
-    const makeAdapter = (options) =>
-      new AdapterClass({ schema, ...options, ...extraAdapterOptions })
+    const makeAdapter = (options) => {
+      adapterNumber += 1
+      const validationDbName = extraAdapterOptions.dbName
+        ? `${extraAdapterOptions.dbName}-validation-${adapterNumber}`
+        : undefined
+      return new AdapterClass({
+        ...extraAdapterOptions,
+        schema,
+        ...options,
+        ...(validationDbName ? { dbName: validationDbName } : {}),
+      })
+    }
     const adapterWithMigrations = (migrations) => makeAdapter({ migrations })
 
     expect(() => adapterWithMigrations({ migrations: [] })).toThrow(/use schemaMigrations()/)
@@ -58,10 +69,9 @@ export default () => {
     // Empty migrations only allowed if version 1
     expect(
       () =>
-        new AdapterClass({
+        makeAdapter({
           schema: { ...testSchema, version: 1 },
           migrations: schemaMigrations({ migrations: [] }),
-          ...extraAdapterOptions,
         }),
     ).not.toThrow()
     expect(() => adapterWithRealMigrations([])).toThrow(/Missing migration/)

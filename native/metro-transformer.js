@@ -11,7 +11,9 @@ const isNodeModule = (filename) => {
 const isTypeScript = (filename) => /\.tsx?$/.test(filename) && !filename.endsWith('.d.ts')
 
 const pluginsForProjectFile = (filename) => {
-  const basePlugins = babelConfig.testPlugins
+  // wa-sqlite's Asyncify worker and driver must retain native async functions.
+  // Nodent (module:fast-async) cannot transform their async iterator control flow.
+  const basePlugins = babelConfig.testPluginsForFile(filename)
   if (!isTypeScript(filename)) {
     return basePlugins
   }

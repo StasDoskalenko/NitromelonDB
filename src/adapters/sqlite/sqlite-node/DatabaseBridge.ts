@@ -22,6 +22,22 @@ function asTaggedError(error: unknown): TaggedError | null {
 class DatabaseBridge {
   connections: { [key: number]: Connection } = {}
 
+  closeAllConnections(): void {
+    const connections = Object.values(this.connections)
+    this.connections = {}
+    let firstError: unknown
+    connections.forEach(({ driver }) => {
+      try {
+        driver.close()
+      } catch (error) {
+        firstError ??= error
+      }
+    })
+    if (firstError) {
+      throw firstError
+    }
+  }
+
   // MARK: - Asynchronous connections
 
   connected(tag: number, driver: DatabaseDriver): void {
@@ -56,6 +72,7 @@ class DatabaseBridge {
         this.waiting(tag, driver)
         resolve({ code: 'migrations_needed', databaseVersion: tagged.databaseVersion as number })
       } else {
+        driver?.close()
         this.sendReject(reject, error as Error, 'initialize')
       }
     }
@@ -67,16 +84,27 @@ class DatabaseBridge {
     schema: string,
     schemaVersion: number,
     resolve: (value: boolean) => void,
-    _reject: () => void,
+    reject: (code: string, message: string, error: Error) => void,
   ): void {
-    // `initialize()` stashed a driver here (in the `waiting` state) after it
-    // hit SchemaNeededError — that driver's file handle is still open and
-    // must be closed before it's replaced below.
-    this.connections[tag]?.driver.close()
-    const driver = new DatabaseDriver()
-    driver.setUpWithSchema(databaseName, schema, schemaVersion)
-    this.connectDriverAsync(tag, driver)
-    resolve(true)
+    const waitingDriver = this.connections[tag]?.driver
+    const preserveSharedDatabase = waitingDriver?.isSharedMemory === true
+    let driver: DatabaseDriver | undefined
+    try {
+      // File-backed schema reset deletes the database, so Windows requires the
+      // waiting handle to close first. Shared memory must stay open until the
+      // replacement driver has acquired its own reference.
+      if (!preserveSharedDatabase) waitingDriver?.close()
+      driver = new DatabaseDriver()
+      driver.setUpWithSchema(databaseName, schema, schemaVersion)
+      if (preserveSharedDatabase) waitingDriver?.close()
+      this.connectDriverAsync(tag, driver)
+      resolve(true)
+    } catch (error) {
+      driver?.close()
+      waitingDriver?.close()
+      this.disconnectDriver(tag)
+      this.sendReject(reject, error as Error, 'setUpWithSchema')
+    }
   }
 
   setUpWithMigrations(
@@ -88,19 +116,23 @@ class DatabaseBridge {
     resolve: (value: boolean) => void,
     reject: (code: string, message: string, error: Error) => void,
   ): void {
+    const waitingDriver = this.connections[tag]?.driver
+    const preserveSharedDatabase = waitingDriver?.isSharedMemory === true
+    let driver: DatabaseDriver | undefined
     try {
-      // Same as setUpWithSchema: close the driver `initialize()` left waiting
-      // after MigrationNeededError before it's replaced.
-      this.connections[tag]?.driver.close()
-      const driver = new DatabaseDriver()
+      if (!preserveSharedDatabase) waitingDriver?.close()
+      driver = new DatabaseDriver()
       driver.setUpWithMigrations(databaseName, {
         from: fromVersion,
         to: toVersion,
         sql: migrations,
       })
+      if (preserveSharedDatabase) waitingDriver?.close()
       this.connectDriverAsync(tag, driver)
       resolve(true)
     } catch (error) {
+      driver?.close()
+      waitingDriver?.close()
       this.disconnectDriver(tag)
       this.sendReject(reject, error as Error, 'setUpWithMigrations')
     }
@@ -201,9 +233,10 @@ class DatabaseBridge {
     resolve: (value: undefined) => void,
     reject: (code: string, message: string, error: Error) => void,
   ): void {
+    const connection = this.connections[tag]
+    delete this.connections[tag]
     try {
-      this.connections[tag]?.driver.close()
-      delete this.connections[tag]
+      connection?.driver.close()
       resolve(undefined)
     } catch (error) {
       this.sendReject(reject, error as Error, 'unsafeCloseConnection')
@@ -247,7 +280,7 @@ class DatabaseBridge {
   }
 
   disconnectDriver(tag: number): void {
-    const { queue = [] } = this.connections[tag]
+    const { queue = [] } = this.connections[tag] || {}
     delete this.connections[tag]
 
     queue.forEach((operation) => operation())
