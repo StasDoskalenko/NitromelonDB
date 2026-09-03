@@ -105,7 +105,12 @@ jobs:
           if ! node scripts/prepare-changelog.mjs extract "${{ env.NEW_VERSION }}" > /tmp/release_notes.md; then
             echo "See the changelog for details." > /tmp/release_notes.md
           fi
-          if [ ! -s /tmp/release_notes.md ]; then
+          # `-s` only checks byte size; `extract` prints via `console.log()`,
+          # which emits a trailing newline even for an empty string, so a
+          # "no notes" result is a 1-byte file that `-s` reports as non-empty
+          # -- this fallback never fired as a result (see the identical fix
+          # in prepare-release.yml). Strip whitespace before testing.
+          if [ -z "$(tr -d '[:space:]' < /tmp/release_notes.md)" ]; then
             echo "See the changelog for details." > /tmp/release_notes.md
           fi
 
