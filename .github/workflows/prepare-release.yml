@@ -189,9 +189,17 @@ jobs:
         run: |
           node scripts/prepare-changelog.mjs roll "${{ env.NEW_VERSION }}"
           node scripts/prepare-changelog.mjs extract "${{ env.NEW_VERSION }}" > /tmp/release_notes.md
-          if [ ! -s /tmp/release_notes.md ]; then
+          # `[ -s file ]` only checks byte size, and `extract` prints via
+          # `console.log()`, which always emits a trailing newline even for an
+          # empty string -- so a "no notes" result is a 1-byte file, `-s` sees
+          # it as non-empty, and this check never fires. Strip whitespace
+          # before testing, so a genuinely contentless result (nothing but
+          # blank lines) is actually caught instead of silently producing a
+          # release with an empty changelog section further down the line.
+          if [ -z "$(tr -d '[:space:]' < /tmp/release_notes.md)" ]; then
             echo "_No unreleased notes were recorded._" > /tmp/release_notes.md
             echo "NOTES_EMPTY=true" >> "$GITHUB_ENV"
+            echo "::warning::No CHANGELOG-Unreleased.md entries were found for v${{ env.NEW_VERSION }}. Contributors should add an entry to CHANGELOG-Unreleased.md in their PR -- see CONTRIBUTING or the file's own header comment. Review this release PR's changelog section before merging."
           else
             echo "NOTES_EMPTY=false" >> "$GITHUB_ENV"
           fi
@@ -275,4 +283,7 @@ jobs:
         run: |
           echo "🎉 Release PR prepared for v${{ env.NEW_VERSION }}"
           echo ""
+          if [ "${{ env.NOTES_EMPTY }}" = "true" ]; then
+            echo "⚠️ No CHANGELOG-Unreleased.md entries were found -- double-check that's actually correct before merging, not just that PRs forgot to update it." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
           echo "Review and merge the PR. Publishing (tag, GitHub Release, npm) runs automatically after merge."
