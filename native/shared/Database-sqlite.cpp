@@ -1,5 +1,6 @@
 #include "Database.h"
 
+#include <cassert>
 #include <stdexcept>
 #include <type_traits>
 
@@ -11,8 +12,42 @@ namespace watermelondb {
 using platform::consoleError;
 using platform::consoleLog;
 
+sqlite3_stmt *StatementCache::get(const std::string &sql) {
+    auto it = map_.find(sql);
+    if (it == map_.end()) {
+        return nullptr;
+    }
+    // Touch: move to front (most-recently-used).
+    lru_.splice(lru_.begin(), lru_, lruPos_.at(sql));
+    return it->second;
+}
+
+void StatementCache::insert(const std::string &sql, sqlite3_stmt *statement) {
+    assert(map_.find(sql) == map_.end());
+    map_[sql] = statement;
+    lru_.push_front(sql);
+    lruPos_[sql] = lru_.begin();
+
+    if (map_.size() > kCapacity) {
+        const std::string &lruKey = lru_.back();
+        sqlite3_finalize(map_.at(lruKey));
+        map_.erase(lruKey);
+        lruPos_.erase(lruKey);
+        lru_.pop_back();
+    }
+}
+
+void StatementCache::clear() {
+    for (auto const &entry : map_) {
+        sqlite3_finalize(entry.second);
+    }
+    map_.clear();
+    lru_.clear();
+    lruPos_.clear();
+}
+
 sqlite3_stmt* Database::prepareQuery(std::string sql) {
-    sqlite3_stmt *statement = cachedStatements_[sql];
+    sqlite3_stmt *statement = cachedStatements_.get(sql);
 
     if (statement == nullptr) {
         int resultPrepare = sqlite3_prepare_v2(db_->sqlite, sql.c_str(), -1, &statement, nullptr);
@@ -22,7 +57,7 @@ sqlite3_stmt* Database::prepareQuery(std::string sql) {
             throwSqliteError("Failed to prepare query statement");
         }
 
-        cachedStatements_[sql] = statement;
+        cachedStatements_.insert(sql, statement);
     } else {
         // in theory, this shouldn't be necessary, since statements ought to be reset *after* use, not before use
         // but still this might prevent some crashes if this is not done right

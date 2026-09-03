@@ -1,6 +1,7 @@
 #pragma once
 
 #include <jsi/jsi.h>
+#include <list>
 #include <unordered_map>
 #include <unordered_set>
 #include <mutex>
@@ -48,6 +49,41 @@ struct SqliteBatchOperation {
     std::vector<std::vector<SqliteValue>> argBatches;
 };
 
+// Bounds the number of cached prepared statements. `Collection#query()`'s
+// dynamic `where()` conditions embed values directly as SQL literals rather
+// than `?` placeholders (see plans/native-statement-cache-and-temp-store.md),
+// so every distinct filter value combination a query has ever been run with
+// produces a distinct SQL string, and caching one sqlite3_stmt* per string
+// forever grows this unbounded over an app's lifetime. An LRU cap keeps the
+// common case (a small, stable set of hot queries reused often) fast without
+// leaking, evicting only the least-recently-used entry, one at a time, when
+// insertion would exceed capacity.
+class StatementCache {
+public:
+    // Anchored to classic Android SQLiteDatabase's `maxSqlCacheSize` default,
+    // cited in https://github.com/StasDoskalenko/NitromelonDB/issues/111.
+    static constexpr size_t kCapacity = 50;
+
+    // Returns the cached statement for `sql`, or nullptr if not cached.
+    // Marks the entry most-recently-used on a hit.
+    sqlite3_stmt *get(const std::string &sql);
+    // Inserts `sql` -> `statement`. Caller must have already checked get()
+    // returned nullptr for `sql`. Evicts (and sqlite3_finalize's) the
+    // least-recently-used entry if this would exceed kCapacity -- the
+    // just-inserted entry is always most-recently-used, so it's never the
+    // one evicted by its own insertion.
+    void insert(const std::string &sql, sqlite3_stmt *statement);
+    // Finalizes every cached statement and empties the cache. Used by
+    // Database::destroy() -- reuses the same finalize-then-clear idiom that
+    // used to be inlined there.
+    void clear();
+
+private:
+    std::unordered_map<std::string, sqlite3_stmt *> map_;
+    std::list<std::string> lru_; // front = most recently used
+    std::unordered_map<std::string, std::list<std::string>::iterator> lruPos_;
+};
+
 class Database : public jsi::HostObject {
 public:
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
@@ -56,6 +92,18 @@ public:
     Database(jsi::Runtime *runtime, std::string path, bool usesExclusiveLocking);
     ~Database();
     void destroy();
+    // Releases as much of SQLite's own internal heap memory as possible for this
+    // connection (page cache, unused lookaside, etc.) via sqlite3_db_release_memory --
+    // the per-connection API, always effective regardless of compile-time memory-
+    // management flags (unlike the deprecated global sqlite3_release_memory(), which is
+    // a no-op unless SQLITE_ENABLE_MEMORY_MANAGEMENT was set, which it isn't here).
+    // Safe to call from any thread: this vendored SQLite is built SQLITE_THREADSAFE=1
+    // (serialized -- see the sqlite3_threadsafe() assert in Sqlite.cpp), so this
+    // serializes against the JS thread's normal query calls via SQLite's own internal
+    // mutex, not just ours. Called from the native memory-alert path (see
+    // HybridNitromelonDatabase::database()) in addition to (not instead of) the
+    // JS-side WeakValueCache pruning that alert already triggers.
+    void releaseMemory();
 
     jsi::Value find(jsi::String &tableName, jsi::String &id);
     jsi::Value query(jsi::String &tableName, jsi::String &sql, jsi::Array &arguments);
@@ -92,7 +140,7 @@ private:
     std::mutex mutex_;
     jsi::Runtime *runtime_; // TODO: std::shared_ptr would be better than a raw pointer from the JS runtime
     std::unique_ptr<SqliteDb> db_;
-    std::unordered_map<std::string, sqlite3_stmt *> cachedStatements_; // NOTE: may contain null pointers!
+    StatementCache cachedStatements_; // bounded, LRU-evicting -- see StatementCache above
     std::unordered_set<std::string> cachedRecords_;
 
     jsi::Runtime &getRt();

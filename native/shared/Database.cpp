@@ -12,14 +12,19 @@ Database::Database(jsi::Runtime *runtime, std::string path, bool usesExclusiveLo
 
     std::string initSql = "";
 
-    // FIXME: On Android, Watermelon often errors out on large batches with an IO error, because it
-    // can't find a temp store... I tried setting sqlite3_temp_directory to /tmp/something, but that
-    // didn't work. Setting temp_store to memory seems to fix the issue, but causes a significant
-    // slowdown, at least on iOS (not confirmed on Android). Worth investigating if the slowdown is
-    // also present on Android, and if so, investigate the root cause. Perhaps we need to set the temp
-    // directory by interacting with JNI and finding a path within the app's sandbox?
+    // NOTE: Android used to unconditionally force `pragma temp_store = memory` here to work
+    // around large batches erroring out with an IO error (no temp store configured). That
+    // forced all sort/index-rebuild/migration scratch space onto the heap instead of disk --
+    // exactly the wrong tradeoff under memory pressure. Fixed at the root instead: Android's
+    // `platform::initializeSqlite()` (DatabasePlatformAndroid.cpp) now sets
+    // `sqlite3_temp_directory` to a real, app-sandboxed cache directory obtained via JNI, once,
+    // before any connection is opened -- see plans/native-statement-cache-and-temp-store.md.
+    // The pragma stays, but only as a fallback for the (expected-rare) case where that JNI
+    // resolution failed at startup, so we never regress to the original "no temp store" error.
     #ifdef ANDROID
-    initSql += "pragma temp_store = memory;";
+    if (!platform::hasNativeTempDirectory()) {
+        initSql += "pragma temp_store = memory;";
+    }
     #endif
 
     // Packaged WinAppSDK apps often cannot create WAL/SHM next to a URI memory
@@ -55,16 +60,20 @@ void Database::destroy() {
         return;
     }
     isDestroyed_ = true;
-    for (auto const &cachedStatement : cachedStatements_) {
-        sqlite3_stmt *statement = cachedStatement.second;
-        sqlite3_finalize(statement);
-    }
-    cachedStatements_ = {};
+    cachedStatements_.clear();
     db_->destroy();
 }
 
 Database::~Database() {
     destroy();
+}
+
+void Database::releaseMemory() {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    if (isDestroyed_ || !db_) {
+        return;
+    }
+    sqlite3_db_release_memory(db_->sqlite);
 }
 
 bool Database::isCached(std::string cacheKey) {
