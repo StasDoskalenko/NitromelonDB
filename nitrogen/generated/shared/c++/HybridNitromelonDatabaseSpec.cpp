@@ -30,6 +30,7 @@ namespace margelo::nitro::watermelondb {
       prototype.registerHybridMethod("unsafeExecuteMultiple", &HybridNitromelonDatabaseSpec::unsafeExecuteMultiple);
       prototype.registerHybridMethod("unsafeResetDatabase", &HybridNitromelonDatabaseSpec::unsafeResetDatabase);
       prototype.registerHybridMethod("unsafeClose", &HybridNitromelonDatabaseSpec::unsafeClose);
+      prototype.registerHybridMethod("onMemoryWarning", &HybridNitromelonDatabaseSpec::onMemoryWarning);
     });
   }
 

@@ -129,8 +129,8 @@ describe('fetching queries', () => {
 
     // check if records were cached
     expect(collection._cache.map.size).toBe(2)
-    expect(collection._cache.map.get('m1')).toBe(models[0])
-    expect(collection._cache.map.get('m2')).toBe(models[1])
+    expect(collection._cache.get('m1')).toBe(models[0])
+    expect(collection._cache.get('m2')).toBe(models[1])
 
     // check if query was passed correctly
     expect(adapter.query.mock.calls.length).toBe(1)
@@ -151,7 +151,7 @@ describe('fetching queries', () => {
     expect(models[1]._raw).toEqual({ id: 'm2' })
 
     // check cache
-    expect(collection._cache.map.get('m2')).toBe(models[1])
+    expect(collection._cache.get('m2')).toBe(models[1])
   })
   it('fetches query records from cache even if full raw object was sent', async () => {
     const { tasks: collection, adapter } = mockDatabase()

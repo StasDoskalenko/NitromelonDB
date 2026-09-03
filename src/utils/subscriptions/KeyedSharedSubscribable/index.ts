@@ -1,5 +1,6 @@
 import SharedSubscribable, { type SharedSubscribableOptions } from '../SharedSubscribable'
 import type { Unsubscribe } from '../type'
+import WeakValueCache from '../../common/WeakValueCache'
 
 export type Subscriber<Value> = (value: Value) => void
 export type Source<Value> = (subscriber: Subscriber<Value>) => Unsubscribe
@@ -36,7 +37,7 @@ export type Source<Value> = (subscriber: Subscriber<Value>) => Unsubscribe
  * ```
  */
 export default class KeyedSharedSubscribable<Key, Value> {
-  _subscribables: Map<string, SharedSubscribable<Value>> = new Map()
+  _subscribables: WeakValueCache<string, SharedSubscribable<Value>> = new WeakValueCache()
 
   _keyOf: (key: Key) => string
 
@@ -84,6 +85,7 @@ export default class KeyedSharedSubscribable<Key, Value> {
         }
       },
       onDeactivate: () => {
+        this._subscribables.delete(cacheKey)
         this._activeKeyCount -= 1
         if (this._activeKeyCount === 0) {
           this._onDeactivate?.()

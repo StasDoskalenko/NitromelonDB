@@ -62,10 +62,12 @@ describe('KeyedSharedSubscribable', () => {
     expect(sourceFor).toHaveBeenCalledTimes(1)
   })
 
-  it('re-subscribes to the source once a key has no more subscribers', () => {
-    // sourceFor (the factory) runs once per key, ever — it's the source
-    // function *it returns* that SharedSubscribable re-invokes each time a
-    // key goes from zero subscribers back to one.
+  it('calls sourceFor again once a key becomes active after being fully idle', () => {
+    // The family evicts a key's SharedSubscribable once its last subscriber
+    // leaves (so it doesn't keep every key ever observed cached forever) --
+    // resubscribing to a previously-idle key therefore rebuilds it from
+    // scratch, including a fresh call to sourceFor, not just to the source
+    // function it previously returned.
     const source = jest.fn(() => () => {})
     const sourceFor = jest.fn(() => source)
     const keyed = new KeyedSharedSubscribable(String, sourceFor)
@@ -76,7 +78,7 @@ describe('KeyedSharedSubscribable', () => {
     expect(source).toHaveBeenCalledTimes(1)
 
     keyed.subscribe('q', () => {})
-    expect(sourceFor).toHaveBeenCalledTimes(1)
+    expect(sourceFor).toHaveBeenCalledTimes(2)
     expect(source).toHaveBeenCalledTimes(2)
   })
 

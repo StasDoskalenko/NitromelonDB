@@ -1,6 +1,7 @@
 #include "DatabasePlatform.h"
 #import <Foundation/Foundation.h>
 #import <React/RCTBridge.h>
+#import <UIKit/UIKit.h>
 #include <mutex>
 #include <stdexcept>
 
@@ -62,7 +63,12 @@ void deleteDatabaseFile(std::string path, bool warnIfDoesNotExist) {
 }
 
 void onMemoryAlert(std::function<void(void)> callback) {
-    // TODO: Unimplemented
+    [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidReceiveMemoryWarningNotification
+                                                    object:nil
+                                                     queue:nil
+                                                usingBlock: ^(NSNotification *note) {
+        callback();
+    }];
 }
 
 NSMutableDictionary<NSNumber *, NSData *> *providedSyncJsons = [NSMutableDictionary new];

@@ -16,6 +16,18 @@ type AdapterDiagnostics = {
 }
 
 export default class RecordCache<Record extends Model> {
+  // NOTE: deliberately a plain, strongly-referencing Map, not a
+  // WeakValueCache. The native/adapter layer maintains its own
+  // "already sent to JS" record-id tracking (e.g.
+  // `src/adapters/lokijs/worker/DatabaseDriver.ts`'s `cachedRecords`) and,
+  // once a record id is in that set, sends only the bare id on subsequent
+  // lookups (see `recordFromQueryResult` below) -- trusting this cache still
+  // holds the corresponding Model. `_cachedModelForId` has no raw data to
+  // fall back to on a miss in that path, so it throws instead. Letting GC
+  // collect an entry here while the adapter still believes it's cached
+  // breaks that cross-language invariant; this bit real device/CI runs
+  // (Android Maestro, Windows) with "note not visible" failures caused by
+  // exactly this race, even though it never reproduced in unit tests.
   map: Map<RecordId, Record> = new Map()
 
   tableName: TableName<Record>
@@ -68,13 +80,13 @@ export default class RecordCache<Record extends Model> {
         return this._cachedModelForId(res)._raw
       }
 
-      const cachedRecord = this.map.get(res.id)
+      const cachedRecord = this.get(res.id)
       return cachedRecord ? cachedRecord._raw : res
     })
   }
 
   _cachedModelForId(id: RecordId): Record {
-    const record = this.map.get(id)
+    const record = this.get(id)
 
     if (!record) {
       const message = `Record ID ${this.tableName}#${id} was sent over the bridge, but it's not cached`
@@ -109,7 +121,7 @@ export default class RecordCache<Record extends Model> {
 
   _modelForRaw(raw: RawRecord, warnIfCached: boolean = true): Record {
     // Sanity check: is this already cached?
-    const cachedRecord = this.map.get(raw.id)
+    const cachedRecord = this.get(raw.id)
 
     if (cachedRecord) {
       // This may legitimately happen if we previously got ID without a record and we cleared
