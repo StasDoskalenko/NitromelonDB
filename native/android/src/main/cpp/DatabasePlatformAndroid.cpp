@@ -50,6 +50,42 @@ static void sqliteLogCallback(void *data, int err, const char *message) {
 
 std::once_flag sqliteInitialization;
 
+// sqlite3_temp_directory is a bare global pointer that SQLite keeps around
+// (and never copies or frees) for as long as the process runs, so the path
+// it points to needs equally long-lived storage -- hence a function-static
+// std::string rather than a stack/temporary one.
+static std::string androidTempDirectory;
+
+static std::string resolveTempDirectory() {
+    JNIEnv *env;
+    assert(jvm);
+    if (jvm->AttachCurrentThread(&env, NULL) != JNI_OK) {
+        throw std::runtime_error("Unable to resolve temp directory - JVM thread attach failed");
+    }
+    assert(env);
+
+    jclass clazz = env->FindClass("com/nitromelondb/NativeDatabasePath");
+    if (clazz == NULL) {
+        throw std::runtime_error("Unable to resolve temp directory - missing NativeDatabasePath class");
+    }
+    jmethodID mid = env->GetStaticMethodID(clazz, "_getTempDirectory", "()Ljava/lang/String;");
+    if (mid == NULL) {
+        throw std::runtime_error("Unable to resolve temp directory - missing Java _getTempDirectory method");
+    }
+
+    jstring jniTempDir = (jstring)env->CallStaticObjectMethod(clazz, mid);
+    if (env->ExceptionCheck()) {
+        throw std::runtime_error("Unable to resolve temp directory - exception occured while resolving it");
+    }
+    const char *cTempDir = env->GetStringUTFChars(jniTempDir, 0);
+    if (cTempDir == NULL) {
+        throw std::runtime_error("Unable to resolve temp directory - failed to get path string");
+    }
+    std::string tempDir(cTempDir);
+    env->ReleaseStringUTFChars(jniTempDir, cTempDir);
+    return tempDir;
+}
+
 void initializeSqlite() {
     std::call_once(sqliteInitialization, []() {
         // Redirect sqlite messages to Android log
@@ -66,6 +102,19 @@ void initializeSqlite() {
         // 8MB is what android uses by default:
         // https://github.com/aosp-mirror/platform_frameworks_base/blob/6bebb8418ceecf44d2af40033870f3aabacfe36e/core/jni/android_database_SQLiteGlobal.cpp#L68
         sqlite3_soft_heap_limit(8 * 1024 * 1024);
+
+        // Give sqlite a real, app-sandboxed temp directory (context.getCacheDir()) so large
+        // batches/CREATE INDEX/VACUUM scratch space spills to disk, instead of forcing
+        // pragma temp_store=memory per-connection (see Database.cpp), which moves that
+        // scratch space onto the heap -- exactly the wrong tradeoff on a device already under
+        // memory pressure, and works against the 8MB soft heap limit set just above.
+        try {
+            androidTempDirectory = resolveTempDirectory();
+            sqlite3_temp_directory = androidTempDirectory.data();
+        } catch (const std::exception &ex) {
+            consoleError(std::string("Failed to resolve Android temp directory for sqlite - large "
+                                      "batches may fail with a disk I/O error: ") + ex.what());
+        }
 
         if (sqlite3_initialize() != SQLITE_OK) {
             consoleError("Failed to initialize sqlite - this probably means sqlite was already initialized");

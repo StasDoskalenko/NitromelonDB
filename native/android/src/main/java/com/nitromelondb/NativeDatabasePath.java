@@ -17,4 +17,17 @@ public final class NativeDatabasePath {
         }
         return context.getDatabasePath(dbName + ".db").getPath().replace("/databases", "");
     }
+
+    /**
+     * App-sandboxed, OS-manageable cache directory for sqlite3_temp_directory, so large
+     * batches/CREATE INDEX/VACUUM scratch space spills to disk instead of forcing
+     * temp_store=memory (which puts that scratch space on the heap instead -- see
+     * native/shared/Database.cpp).
+     */
+    static String _getTempDirectory() {
+        if (context == null) {
+            throw new IllegalStateException("NativeDatabasePath.install() was not called");
+        }
+        return context.getCacheDir().getAbsolutePath();
+    }
 }

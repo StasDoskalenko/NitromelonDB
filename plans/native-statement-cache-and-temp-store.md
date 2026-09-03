@@ -1,6 +1,11 @@
 # Plan: bound the native prepared-statement cache; stop forcing Android `temp_store=memory`
 
-Status: **proposal / not started**
+Status: **Phase 1 and Phase 2 implemented** (D1 resolved: cap = 50). Phase 3
+(parameterizing `encodeQuery`) remains a deliberate follow-up, not started.
+Native integration tests and on-device benchmarks called for in Phases 1-2
+below were not run -- this environment has no Xcode/Android SDK/NDK to build
+or execute them; only local `yarn test`/typecheck were possible (unaffected,
+since this is native-only).
 Owner: TBD
 Related: [#111](https://github.com/StasDoskalenko/NitromelonDB/issues/111) (issues 1 and 3 of 4 —
 issue 2 is already fixed by #96 via a different mechanism; issue 4 is a documented tradeoff,
@@ -141,31 +146,41 @@ global SQLite config) once, at `initializeSqlite()` time rather than per-connect
 ## 5. Phases
 
 ### Phase 0 — Decisions and research
-- [ ] Resolve D1 (cache cap size) and D2 (whether to also parameterize `encodeQuery`, deferred
-      or not) below.
-- [ ] Confirm `sqlite3_temp_directory` accepts a path that outlives the `Context` reference used
-      to obtain it (it's a static SQLite global, set once — verify no lifetime surprise from
-      holding a raw path string vs. the Java string source).
+- [x] Resolve D1 (cache cap size) — **50**, chosen over the suggested 25 anchor for more
+      headroom (user decision). D2 (parameterize `encodeQuery`) — deferred, tracked as Phase 3.
+- [x] `sqlite3_temp_directory` lifetime — resolved by storing the JNI-obtained path in a
+      function-static `std::string` (`androidTempDirectory` in `DatabasePlatformAndroid.cpp`),
+      set once inside the existing `initializeSqlite()` `std::call_once` block, so the pointer
+      SQLite holds stays valid for the life of the process, independent of the originating
+      `jstring`/`Context` reference.
 
 ### Phase 1 — LRU cap on `cachedStatements_`
-- [ ] Implement the LRU (map + intrusive list, or a small dedicated helper type in
-      `native/shared/`), reusing the `sqlite3_finalize`-on-drop idiom from `destroy()`.
+- [x] Implemented as `StatementCache` (`native/shared/Database.h`/`Database-sqlite.cpp`):
+      `unordered_map` + intrusive `std::list` for O(1) touch/evict, reusing the
+      `sqlite3_finalize`-on-drop idiom from `destroy()` (now `StatementCache::clear()`, called
+      from `Database::destroy()`).
 - [ ] Test (native integration test, since this needs a real `sqlite3_stmt*` lifecycle — not
       mockable in Jest): repeatedly query with >cap distinct SQL strings, assert cache size
       stays bounded and no crash/leak occurs; assert a statement still mid-flight within one
-      call is never the one evicted.
+      call is never the one evicted. **Not run** — no native build toolchain in this
+      environment; needs a follow-up pass with Xcode/Android SDK available.
 - [ ] Benchmark: confirm no regression for the common case (a small, stable set of hot queries
       re-run often) — the whole point of caching prepared statements is to avoid re-parsing SQL
       on every call for exactly that case, and an LRU cap must not defeat it for normal usage.
+      **Not run**, same reason.
 
 ### Phase 2 — Android `temp_store` fix
-- [ ] `NativeDatabasePath.getTempDirectory()` + JNI call site.
-- [ ] Set `sqlite3_temp_directory` once in `initializeSqlite()`.
-- [ ] Drop the `pragma temp_store = memory` line.
+- [x] `NativeDatabasePath._getTempDirectory()` + JNI call site (`resolveTempDirectory()` in
+      `DatabasePlatformAndroid.cpp`, mirroring `resolveDatabasePath`'s reflection pattern).
+- [x] Set `sqlite3_temp_directory` once in `initializeSqlite()`.
+- [x] Dropped the `pragma temp_store = memory` line from `Database.cpp`'s Android branch.
 - [ ] Test: the original bug this workaround fixed (large batches erroring with an IO error
       for lack of a temp store) must be re-verified as fixed by the real temp directory, not
       reintroduced — this needs a native/device-level test, not just Jest, given #96's lesson
-      that this class of bug doesn't reproduce there.
+      that this class of bug doesn't reproduce there. **Not run**, same environment limitation;
+      the JNI resolution failure path logs a clear `consoleError` and falls through to SQLite's
+      default (unset `sqlite3_temp_directory`) rather than crashing, but that fallback path
+      itself is unverified on a real device.
 
 ### Phase 3 (follow-up, not this plan) — Parameterize `encodeQuery`
 Tracked as a follow-up: replacing `encodeValue`'s literal-inlining with real `?` placeholders
