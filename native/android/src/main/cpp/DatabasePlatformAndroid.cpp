@@ -50,6 +50,12 @@ static void sqliteLogCallback(void *data, int err, const char *message) {
 
 std::once_flag sqliteInitialization;
 
+// Declared here (moved up from just before configureJNI) so resolveTempDirectory() below,
+// called from initializeSqlite(), can see it. configureJNI() runs at JNI_OnLoad, before any
+// Database is constructed, so `jvm` is always set by the time initializeSqlite() runs -- same
+// assumption resolveDatabasePath() below already relies on.
+static JavaVM *jvm;
+
 // sqlite3_temp_directory is a bare global pointer that SQLite keeps around
 // (and never copies or frees) for as long as the process runs, so the path
 // it points to needs equally long-lived storage -- hence a function-static
@@ -137,8 +143,6 @@ void initializeSqlite() {
 bool hasNativeTempDirectory() {
     return androidTempDirectoryResolved;
 }
-
-static JavaVM *jvm;
 
 void configureJNI(JNIEnv *env) {
     assert(env);
