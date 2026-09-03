@@ -56,6 +56,13 @@ std::once_flag sqliteInitialization;
 // std::string rather than a stack/temporary one.
 static std::string androidTempDirectory;
 
+// Whether androidTempDirectory was actually resolved and applied. Read by
+// platform::hasNativeTempDirectory() -- Database.cpp's Android-only fallback
+// pragma (temp_store=memory) only kicks in when this is false, so a JNI
+// resolution failure at startup can't silently reintroduce the original "no
+// temp store" IO error large batches used to hit.
+static bool androidTempDirectoryResolved = false;
+
 static std::string resolveTempDirectory() {
     JNIEnv *env;
     assert(jvm);
@@ -111,15 +118,24 @@ void initializeSqlite() {
         try {
             androidTempDirectory = resolveTempDirectory();
             sqlite3_temp_directory = androidTempDirectory.data();
+            androidTempDirectoryResolved = true;
         } catch (const std::exception &ex) {
-            consoleError(std::string("Failed to resolve Android temp directory for sqlite - large "
-                                      "batches may fail with a disk I/O error: ") + ex.what());
+            // Left unresolved: Database.cpp falls back to pragma temp_store=memory per
+            // connection instead (see hasNativeTempDirectory() below), so this doesn't
+            // reintroduce the original large-batch IO error, just the heap-vs-disk
+            // scratch-space tradeoff that pragma always had.
+            consoleError(std::string("Failed to resolve Android temp directory for sqlite - falling back to "
+                                      "temp_store=memory: ") + ex.what());
         }
 
         if (sqlite3_initialize() != SQLITE_OK) {
             consoleError("Failed to initialize sqlite - this probably means sqlite was already initialized");
         }
     });
+}
+
+bool hasNativeTempDirectory() {
+    return androidTempDirectoryResolved;
 }
 
 static JavaVM *jvm;

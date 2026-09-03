@@ -12,13 +12,20 @@ Database::Database(jsi::Runtime *runtime, std::string path, bool usesExclusiveLo
 
     std::string initSql = "";
 
-    // NOTE: Android used to force `pragma temp_store = memory` here to work around large
-    // batches erroring out with an IO error (no temp store configured). That forced all
-    // sort/index-rebuild/migration scratch space onto the heap instead of disk -- exactly the
-    // wrong tradeoff under memory pressure. Fixed at the root instead: Android's
+    // NOTE: Android used to unconditionally force `pragma temp_store = memory` here to work
+    // around large batches erroring out with an IO error (no temp store configured). That
+    // forced all sort/index-rebuild/migration scratch space onto the heap instead of disk --
+    // exactly the wrong tradeoff under memory pressure. Fixed at the root instead: Android's
     // `platform::initializeSqlite()` (DatabasePlatformAndroid.cpp) now sets
     // `sqlite3_temp_directory` to a real, app-sandboxed cache directory obtained via JNI, once,
     // before any connection is opened -- see plans/native-statement-cache-and-temp-store.md.
+    // The pragma stays, but only as a fallback for the (expected-rare) case where that JNI
+    // resolution failed at startup, so we never regress to the original "no temp store" error.
+    #ifdef ANDROID
+    if (!platform::hasNativeTempDirectory()) {
+        initSql += "pragma temp_store = memory;";
+    }
+    #endif
 
     // Packaged WinAppSDK apps often cannot create WAL/SHM next to a URI memory
     // DB (cwd is not writable). Keep WAL for on-disk databases.

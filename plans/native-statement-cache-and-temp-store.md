@@ -173,14 +173,18 @@ global SQLite config) once, at `initializeSqlite()` time rather than per-connect
 - [x] `NativeDatabasePath._getTempDirectory()` + JNI call site (`resolveTempDirectory()` in
       `DatabasePlatformAndroid.cpp`, mirroring `resolveDatabasePath`'s reflection pattern).
 - [x] Set `sqlite3_temp_directory` once in `initializeSqlite()`.
-- [x] Dropped the `pragma temp_store = memory` line from `Database.cpp`'s Android branch.
+- [x] `pragma temp_store = memory` is no longer unconditional — it now only runs when
+      `platform::hasNativeTempDirectory()` reports the JNI resolution failed (revised after
+      initial review: an unconditional drop was judged too risky without real-device
+      verification of the JNI path, since a silent failure there would otherwise
+      reintroduce the original "no temp store" IO error with no fallback at all).
 - [ ] Test: the original bug this workaround fixed (large batches erroring with an IO error
       for lack of a temp store) must be re-verified as fixed by the real temp directory, not
       reintroduced — this needs a native/device-level test, not just Jest, given #96's lesson
-      that this class of bug doesn't reproduce there. **Not run**, same environment limitation;
-      the JNI resolution failure path logs a clear `consoleError` and falls through to SQLite's
-      default (unset `sqlite3_temp_directory`) rather than crashing, but that fallback path
-      itself is unverified on a real device.
+      that this class of bug doesn't reproduce there. **Not run**, same environment limitation.
+      The fallback pragma means a JNI resolution failure degrades to the old (known-safe,
+      if heap-hungry) behavior instead of reintroducing the IO error, but the fallback
+      trigger path itself (JNI failure detection) is still unverified on a real device.
 
 ### Phase 3 (follow-up, not this plan) — Parameterize `encodeQuery`
 Tracked as a follow-up: replacing `encodeValue`'s literal-inlining with real `?` placeholders
