@@ -73,6 +73,11 @@ void Database::releaseMemory() {
     if (isDestroyed_ || !db_) {
         return;
     }
+    // NOTE: sqlite3_db_release_memory's return value is a status code
+    // (SQLITE_OK) in this vendored build, not a byte count -- unlike some
+    // other memory-management APIs, it doesn't report how much it freed, so
+    // this log can only say the call was made, not its effect.
+    consoleLog("Releasing SQLite's internal memory (page cache, etc.) due to a memory-pressure signal");
     sqlite3_db_release_memory(db_->sqlite);
 }
 

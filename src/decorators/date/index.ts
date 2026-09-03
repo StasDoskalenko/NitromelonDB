@@ -15,7 +15,7 @@ import { ensureDecoratorUsedProperly, type ModelDecoratorHost } from '../common'
 // Examples:
 //   @date('reacted_at') reactedAt: Date
 
-const cache = new WeakValueCache<number, Date>()
+const cache = new WeakValueCache<number, Date>('@date decorator cache')
 // prune(), not clear(): only reclaims already-dead entries, never evicts a
 // Date still referenced elsewhere.
 onLowMemory(() => cache.prune())

@@ -178,6 +178,7 @@ HybridNitromelonDatabase::HybridNitromelonDatabase(std::string dbName, bool uses
         if (!hybridDatabase) {
           return;
         }
+        consoleLog("Memory-pressure alert received: releasing SQLite memory and notifying JS-side caches");
         // Release SQLite's own internal memory (page cache, etc.) directly, in
         // addition to (not instead of) the JS-side WeakValueCache pruning the
         // callback below triggers -- see Database::releaseMemory() and

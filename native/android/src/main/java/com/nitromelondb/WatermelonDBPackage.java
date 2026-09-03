@@ -41,6 +41,10 @@ public class WatermelonDBPackage implements ReactPackage {
             @Override
             public void onTrimMemory(int level) {
                 if (level == TRIM_MEMORY_RUNNING_CRITICAL || level >= TRIM_MEMORY_COMPLETE) {
+                    if (BuildConfig.DEBUG) {
+                        Logger.getLogger("NitromelonHost").info(
+                                "onTrimMemory(" + level + ") is critical, forwarding to native memory-pressure listeners");
+                    }
                     NitromelonNative.onMemoryAlert(level);
                 }
             }
