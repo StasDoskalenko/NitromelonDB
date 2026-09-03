@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
+## 0.30.1-alpha.0 - 2026-09-03
+
 ## 0.30.0 - 2026-09-02
 
 ### Highlights
