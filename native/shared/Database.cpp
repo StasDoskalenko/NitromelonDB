@@ -61,6 +61,14 @@ Database::~Database() {
     destroy();
 }
 
+void Database::releaseMemory() {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    if (isDestroyed_ || !db_) {
+        return;
+    }
+    sqlite3_db_release_memory(db_->sqlite);
+}
+
 bool Database::isCached(std::string cacheKey) {
     return cachedRecords_.find(cacheKey) != cachedRecords_.end();
 }

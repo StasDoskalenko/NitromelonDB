@@ -175,7 +175,20 @@ HybridNitromelonDatabase::HybridNitromelonDatabase(std::string dbName, bool uses
     ::watermelondb::platform::onMemoryAlert([weakSelf]() {
       if (auto self = weakSelf.lock()) {
         auto hybridDatabase = self->shared_cast<HybridNitromelonDatabase>();
-        if (hybridDatabase && hybridDatabase->memoryWarningCallback_) {
+        if (!hybridDatabase) {
+          return;
+        }
+        // Release SQLite's own internal memory (page cache, etc.) directly, in
+        // addition to (not instead of) the JS-side WeakValueCache pruning the
+        // callback below triggers -- see Database::releaseMemory() and
+        // plans/native-statement-cache-and-temp-store.md. This previously did
+        // nothing at the SQLite layer: the alert only ever reached JS-side
+        // caches, leaving SQLite's own page cache unreclaimed under real
+        // memory pressure (iOS's didReceiveMemoryWarningNotification).
+        if (hybridDatabase->db_) {
+          hybridDatabase->db_->releaseMemory();
+        }
+        if (hybridDatabase->memoryWarningCallback_) {
           hybridDatabase->memoryWarningCallback_();
         }
       }

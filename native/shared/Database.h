@@ -92,6 +92,18 @@ public:
     Database(jsi::Runtime *runtime, std::string path, bool usesExclusiveLocking);
     ~Database();
     void destroy();
+    // Releases as much of SQLite's own internal heap memory as possible for this
+    // connection (page cache, unused lookaside, etc.) via sqlite3_db_release_memory --
+    // the per-connection API, always effective regardless of compile-time memory-
+    // management flags (unlike the deprecated global sqlite3_release_memory(), which is
+    // a no-op unless SQLITE_ENABLE_MEMORY_MANAGEMENT was set, which it isn't here).
+    // Safe to call from any thread: this vendored SQLite is built SQLITE_THREADSAFE=1
+    // (serialized -- see the sqlite3_threadsafe() assert in Sqlite.cpp), so this
+    // serializes against the JS thread's normal query calls via SQLite's own internal
+    // mutex, not just ours. Called from the native memory-alert path (see
+    // HybridNitromelonDatabase::database()) in addition to (not instead of) the
+    // JS-side WeakValueCache pruning that alert already triggers.
+    void releaseMemory();
 
     jsi::Value find(jsi::String &tableName, jsi::String &id);
     jsi::Value query(jsi::String &tableName, jsi::String &sql, jsi::Array &arguments);
