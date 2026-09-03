@@ -4,7 +4,24 @@ All notable changes to this project will be documented in this file.
 
 Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
+## 0.30.1-alpha.1 - 2026-09-03
+
+### Performance
+
+- The native prepared-statement cache (`Database::cachedStatements_`) is now a bounded, 50-entry LRU instead of growing forever for the life of a connection — `Collection#query()`'s dynamic `where()` conditions inline every distinct filter value directly into the cached SQL string, so this could grow without bound over an app's lifetime.
+- [Android] Stopped unconditionally forcing `pragma temp_store = memory` (which pushed `CREATE INDEX`/`ORDER BY` spill/`VACUUM`/migration scratch space onto the heap instead of disk). SQLite now gets a real, app-sandboxed temp directory (`context.getCacheDir()`, resolved via JNI once at startup) instead; the old pragma is kept only as an automatic fallback if that resolution fails.
+- [iOS][Android] The native low-memory alert added in 0.30.1-alpha.0 now also releases SQLite's own internal memory directly (`sqlite3_db_release_memory`), not just JS-side caches — the alert previously reached JS but never told SQLite itself to give anything back.
+
 ## 0.30.1-alpha.0 - 2026-09-03
+
+### Performance
+
+- Internal caches (`KeyedSharedSubscribable`'s per-column-set subscribable map, the `@date` decorator's memoization cache) now self-prune dead entries via a new `WeakValueCache` utility (`Map<K, WeakRef<V>>` + `FinalizationRegistry`, with a tiered fallback for engines without native `WeakRef`/`FinalizationRegistry` support), instead of growing forever for the life of the process.
+- [iOS][Android] Real OS memory-pressure signals (`didReceiveMemoryWarningNotification` on iOS; `ComponentCallbacks2`/`onTrimMemory`, filtered to critical levels, on Android) now proactively trigger that pruning via a new Nitro `onMemoryWarning` callback, instead of the previously-stubbed `platform::onMemoryAlert` doing nothing.
+
+### Internal
+
+- `plans/single-source-of-truth.md`: a design plan (not implemented) for detecting SQL changes made outside `Database.batch()`'s own JS-side bookkeeping — either a different connection/process writing to the same file, or raw SQL run via `unsafeExecuteMultiple` on our own connection.
 
 ## 0.30.0 - 2026-09-02
 
