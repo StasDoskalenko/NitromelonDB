@@ -1,3 +1,4 @@
+import logger from '../logger'
 import WeakValueCache from './index'
 
 describe('WeakValueCache', () => {
@@ -102,6 +103,34 @@ describe('WeakValueCache', () => {
     expect(cache.size).toBe(1)
     expect(cache.get('a')).toBe(liveValue)
     expect(cache.get('b')).toBe(undefined)
+  })
+
+  it('prune() logs a debug line naming the cache label, and the pruned/remaining counts', () => {
+    const debugSpy = jest.spyOn(logger, 'debug').mockImplementation(() => {})
+    const cache = new WeakValueCache('MyCache')
+    cache.set('a', {})
+    cache.set('b', {})
+
+    const ref = cache._map.get('b')
+    ref.deref = () => undefined
+
+    cache.prune()
+
+    expect(debugSpy).toHaveBeenCalledWith(expect.stringContaining('MyCache'))
+    expect(debugSpy).toHaveBeenCalledWith(expect.stringContaining('pruned 1'))
+    expect(debugSpy).toHaveBeenCalledWith(expect.stringContaining('1 remaining'))
+    debugSpy.mockRestore()
+  })
+
+  it('prune() logs even when nothing was dead, so the signal is visible either way', () => {
+    const debugSpy = jest.spyOn(logger, 'debug').mockImplementation(() => {})
+    const cache = new WeakValueCache()
+    cache.set('a', {})
+
+    cache.prune()
+
+    expect(debugSpy).toHaveBeenCalledWith(expect.stringContaining('pruned 0'))
+    debugSpy.mockRestore()
   })
 
   it('_finalize() is a no-op for a key that was already cleared', () => {

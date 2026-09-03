@@ -19,6 +19,8 @@
 //   polyfilled without engine support, so this tier doesn't pretend to be
 //   weak -- it just doesn't regress.
 
+import logger from '../logger'
+
 const hasWeakRef = typeof WeakRef !== 'undefined'
 const hasFinalizationRegistry = typeof FinalizationRegistry !== 'undefined'
 
@@ -33,7 +35,14 @@ export default class WeakValueCache<K, V extends object> {
 
   _sweepTimer: ReturnType<typeof setInterval> | undefined
 
-  constructor() {
+  // Purely for prune()'s debug log (below) -- identifies which cache logged,
+  // since a bare "pruned N entries" is meaningless with several instances
+  // (KeyedSharedSubscribable, the @date cache, …) all responding to the same
+  // low-memory signal. Optional and unused otherwise.
+  _label: string
+
+  constructor(label: string = 'WeakValueCache') {
+    this._label = label
     if (hasWeakRef && hasFinalizationRegistry) {
       this._registry = new FinalizationRegistry(this._finalize)
     }
@@ -114,7 +123,13 @@ export default class WeakValueCache<K, V extends object> {
   // already collected, sooner than incidental access or (on Tier 1)
   // FinalizationRegistry's own unspecified timing would.
   prune(): void {
+    const before = this._map.size
     this.forEach(() => {})
+    const after = this._map.size
+    const pruned = before - after
+    logger.debug(
+      `[Memory] ${this._label}: pruned ${pruned} dead ${pruned === 1 ? 'entry' : 'entries'} (${after} remaining, ${before} before)`,
+    )
   }
 
   // Tier 2 only (WeakRef without FinalizationRegistry): a best-effort

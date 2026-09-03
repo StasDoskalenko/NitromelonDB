@@ -37,7 +37,9 @@ export type Source<Value> = (subscriber: Subscriber<Value>) => Unsubscribe
  * ```
  */
 export default class KeyedSharedSubscribable<Key, Value> {
-  _subscribables: WeakValueCache<string, SharedSubscribable<Value>> = new WeakValueCache()
+  _subscribables: WeakValueCache<string, SharedSubscribable<Value>> = new WeakValueCache(
+    'KeyedSharedSubscribable',
+  )
 
   _keyOf: (key: Key) => string
 
