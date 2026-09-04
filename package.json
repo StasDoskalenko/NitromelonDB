@@ -191,5 +191,8 @@
     "semver": "^7.8.5",
     "typescript": "^6.0.3"
   },
+  "resolutions": {
+    "ansi-regex@^4.0.0": "4.1.1"
+  },
   "packageManager": "yarn@4.18.0"
 }
