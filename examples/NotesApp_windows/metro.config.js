@@ -29,13 +29,14 @@ function resolveDep(name) {
 }
 
 // Library JS plus packages the Cavy integration bundle pulls in from src/.
+// The bundle's `expect` is an in-repo shim (src/__tests__/expect), resolved as a
+// normal source file via the `src` watchFolder — no node_modules entry needed.
 const libraryDeps = [
   'rxjs',
   'sql-escape-string',
   'hoist-non-react-statics',
   '@babel/runtime',
   'cavy',
-  '@nozbe/watermelondb_expect',
   'rambdax',
   'big-list-of-naughty-strings',
 ];
