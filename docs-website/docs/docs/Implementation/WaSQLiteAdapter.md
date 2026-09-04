@@ -384,7 +384,18 @@ tests; it does not replace real SQLite coverage.
 
 The NotesApp web check exports the production app before running Playwright. It verifies automatic
 worker/WASM loading, `dispatcherType === 'wa-sqlite'`, write/read behavior, reload persistence, and
-concurrent writes from two tabs.
+concurrent writes from two tabs. A dedicated offline test disables Chromium networking after the
+app and WASM are loaded. Before the outage it confirms that a localhost endpoint responds, then
+forces that endpoint to reject requests with a connection-refused failure. While the endpoint is
+unavailable and Chromium networking is disabled, the test confirms that an existing record remains
+readable and commits another record. It then restores networking and the endpoint, confirms that
+remote requests work again, and reloads the page to verify that both records survived worker
+teardown in IndexedDB.
+
+The adapter makes database operations offline-capable; it does not cache the HTML, JavaScript,
+worker, or WASM application shell. Reloading while networking is strictly disabled additionally
+requires the consuming application to provide a PWA/service-worker caching strategy. The test
+reconnects before navigation so it tests adapter persistence independently of that hosting concern.
 
 ## Future improvements
 
