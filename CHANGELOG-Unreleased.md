@@ -6,6 +6,8 @@
 
 ### New features
 
+- [Web] `SQLiteAdapter` now uses wa-sqlite's Asyncify build in a dedicated worker, backed by `IDBBatchAtomicVFS`. The browser adapter keeps the existing `nitromelondb/adapters/sqlite` import and supports the native SQLite contract, including migrations, batches, record caching, local storage, reset, and optimized sync JSON import.
+
 ### Fixes
 
 ### Performance

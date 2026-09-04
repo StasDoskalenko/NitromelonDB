@@ -1,5 +1,5 @@
 /* eslint-disable jest/no-standalone-expect */
-import { taskQuery } from '../helpers'
+import { taskQuery, testSchema } from '../helpers'
 import { createFileAdapter, openFileAdapter, cleanupDb } from './helpers'
 
 /**
@@ -96,6 +96,26 @@ export default (it) => {
     cleanupDb(dbName, platform)
   })
 
+  it('two web adapters invalidate stale record caches after a committed write', async (
+    _adapter,
+    AdapterClass,
+    _extra,
+    platform,
+  ) => {
+    if (platform !== 'web') return
+
+    const { adapter: compat1, dbName } = await createFileAdapter(platform)
+    const { adapter: compat2 } = await openFileAdapter(dbName)
+    await compat2.batch([['create', 'tasks', { id: 'shared', text1: 'before' }]])
+    expect(await compat1.find('tasks', 'shared')).toMatchObject({ text1: 'before' })
+
+    await compat2.batch([['update', 'tasks', { id: 'shared', text1: 'after' }]])
+
+    // Returning only the ID here would prove compat1 still believed its old record was cached.
+    expect(await compat1.find('tasks', 'shared')).toMatchObject({ text1: 'after' })
+    cleanupDb(dbName, platform)
+  })
+
   it('two adapters: long write + concurrent read', async (_adapter, AdapterClass, _extra, platform) => {
     if (AdapterClass.name === 'LokiJSAdapter') return
 
@@ -123,6 +143,17 @@ export default (it) => {
     platform,
   ) => {
     if (AdapterClass.name === 'LokiJSAdapter') return
+    if (platform === 'web') {
+      expect(
+        () =>
+          new AdapterClass({
+            schema: testSchema,
+            dbName: `exclusive-${Math.random()}`,
+            usesExclusiveLocking: true,
+          }),
+      ).toThrow(/not supported by wa-sqlite/)
+      return
+    }
 
     const { adapter: compat1, dbName } = await createFileAdapter(platform, {
       usesExclusiveLocking: true,

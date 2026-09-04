@@ -14,6 +14,7 @@
  */
 
 import path from 'node:path'
+import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { isSourceFile } from './source-files.mjs'
 
@@ -97,6 +98,15 @@ function runSelfTest() {
     const abs = path.join(srcRoot, rel)
     assert(isSourceFile(abs), `${rel} would be skipped by the JS build`)
   }
+
+  assert(
+    fs.existsSync(path.join(srcRoot, 'adapters/sqlite/sqlite-wasm/wa-sqlite-async.wasm')),
+    'packaged wa-sqlite WASM asset is missing',
+  )
+  assert(
+    fs.existsSync(path.join(srcRoot, 'adapters/sqlite/sqlite-wasm/wa-sqlite-async.mjs')),
+    'packaged wa-sqlite Asyncify bootstrap is missing',
+  )
 
   console.log('ok    types overwritten to ./index.d.ts')
   console.log('ok    scripts/bin omitted')

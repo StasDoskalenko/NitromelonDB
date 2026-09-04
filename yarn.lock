@@ -9130,6 +9130,7 @@ __metadata:
     semver: "npm:^7.8.5"
     sql-escape-string: "npm:^1.1.0"
     typescript: "npm:^6.0.3"
+    wa-sqlite: "https://github.com/rhashimoto/wa-sqlite.git#commit=2bf1c59d89eb6497535a4217bc62fec68a0bb994"
   peerDependencies:
     react-native-nitro-modules: ">=0.35.2"
     rxjs: ^7.8.0
@@ -11774,6 +11775,18 @@ __metadata:
   dependencies:
     xml-name-validator: "npm:^4.0.0"
   checksum: 10c0/02cc66d6efc590bd630086cd88252444120f5feec5c4043932b0d0f74f8b060512f79dc77eb093a7ad04b4f02f39da79ce4af47ceb600f2bf9eacdc83204b1a8
+  languageName: node
+  linkType: hard
+
+"wa-sqlite@https://github.com/rhashimoto/wa-sqlite.git#commit=2bf1c59d89eb6497535a4217bc62fec68a0bb994":
+  version: 1.1.1
+  resolution: "wa-sqlite@https://github.com/rhashimoto/wa-sqlite.git#commit=2bf1c59d89eb6497535a4217bc62fec68a0bb994"
+  dependenciesMeta:
+    monaco-editor@0.34.1:
+      unplugged: true
+    web-test-runner-jasmine@0.0.6:
+      unplugged: true
+  checksum: 10c0/f3c5f743777c27c55fd86b5d4c7b68f80689930013f6200dac468e0134933f63acfc969ab3ad9ff2ac06f47ff36a570b7e2f1e9c13cdd86a3fceec008f4a8792
   languageName: node
   linkType: hard
 
