@@ -34,7 +34,6 @@ const libraryDeps = [
   'hoist-non-react-statics',
   '@babel/runtime',
   'wa-sqlite',
-  '@nozbe/watermelondb_expect',
   'big-list-of-naughty-strings',
   'rambdax',
 ]

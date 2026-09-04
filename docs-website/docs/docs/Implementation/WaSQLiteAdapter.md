@@ -179,6 +179,12 @@ use derived names so the harness's baseline schema cannot contaminate their init
 focused dispatcher tests cover SSR behavior, exclusive-lock rejection, worker failure/recovery,
 exactly-once callbacks, override URLs, and the two-phase setup queue.
 
+The browser and native integration bundles use the dependency-free assertion shim under
+`src/__tests__/expect`. This follows upstream commit `36ad1b103338f64097ce60816ff07670db4ef5bb`
+and replaces the former `@nozbe/watermelondb_expect` alias to `expect@24.1.0`. Consequently, a clean
+NotesApp install no longer relies on an undeclared root package or bundles the legacy Jest 24
+dependency tree into its adapter-test chunk.
+
 The review also suggested running both minified and non-minified browser exports. Production
 exports are the required CI path today because that is where the original worker-transform failure
 appeared; adding a second development-mode browser job remains optional future coverage.

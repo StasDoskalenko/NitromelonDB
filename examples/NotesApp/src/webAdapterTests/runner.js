@@ -1,4 +1,4 @@
-import browserExpect from '@nozbe/watermelondb_expect'
+import browserExpect from '../../../../src/__tests__/expect'
 
 import SQLiteAdapterTest from 'nitromelondb/adapters/sqlite/integrationTest'
 
