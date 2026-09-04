@@ -4,7 +4,6 @@
 
 - Preserve the existing `SQLiteAdapter` architecture and import path. It will select Nitro SQLite on native, `better-sqlite3` on Node, and wa-sqlite in browsers.
 - Run wa-sqlite in a dedicated web worker using the Asyncify build and `IDBBatchAtomicVFS` for durable IndexedDB persistence and multi-tab support. This configuration requires no COOP/COEP headers. [wa-sqlite VFS comparison](https://github.com/rhashimoto/wa-sqlite/blob/master/src/examples/README.md)
-- Treat browser SQLite as the client’s offline replica. Supabase/Postgres remains authoritative, and application-level synchronization continues to pull, apply, queue, and push changes.
 - Make changes only inside `nitromelondb-wa-sqlite/NitromelonDB`; do not reference the fork.
 
 ## Public API and Packaging
@@ -60,7 +59,7 @@
 - During SSR/static route evaluation:
   - Allow adapter modules and constructors to evaluate without opening SQLite.
   - Treat initialization as a client-only deferred resource.
-  - Reject actual server-side database operations with a clear message directing server code to Supabase.
+  - Reject actual server-side database operations with a clear message directing server code to a server-side database.
   - Open the persistent replica normally in the separate hydrated browser runtime.
 
 ## Test Plan
@@ -82,7 +81,7 @@
 ## Assumptions
 
 - V1 officially supports Expo SDK 57 with Metro; Vite and Webpack can use the override interfaces but are not first-class CI targets yet.
-- Existing LokiJS browser data is not migrated. The wa-sqlite database begins as a fresh offline replica and is rebuilt from Supabase.
+- Existing LokiJS browser data is not migrated. The wa-sqlite database begins as a fresh offline replica.
 - Full durability is favored over maximum write throughput.
 - “Android feature parity” covers the NitromelonDB SQLite adapter contract and SQL behavior, including the sync JSON fast path. It does not imply identical SQLite versions, native-only locking workarounds, database-file interchange, or identical performance.
-- Client-only SQLite initialization is selected for SSR because Supabase is the server-side source of truth and each browser owns its separate offline replica.
+- Client-only SQLite initialization is selected for SSR because the user's server-side database is the source of truth and each browser owns its separate offline replica.
