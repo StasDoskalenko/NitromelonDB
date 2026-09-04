@@ -1,4 +1,4 @@
-import expect from '@nozbe/watermelondb_expect'
+import expect from './expect'
 
 global.Buffer = class FakeBuffer {}
 if (!global.process) {
