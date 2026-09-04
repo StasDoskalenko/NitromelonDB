@@ -96,7 +96,11 @@ const webWorkerPlugins = plugins.filter(
   (plugin) => !(Array.isArray(plugin) && plugin[0] === 'module:fast-async'),
 )
 const webWorkerTestPlugins = [...webWorkerPlugins, '@babel/plugin-syntax-jsx']
-const webWorkerSource = /(?:sqlite-wasm[\\/].*|wa-sqlite\.worker)\.ts$/
+// Match normalized, linked and absolute paths. Metro may resolve this repository
+// through a `link:` dependency, so relying on the source path starting at
+// `sqlite-wasm` can accidentally send worker async iterators through nodent.
+const webWorkerSource =
+  /(?:^|[\\/])(?:adapters[\\/]sqlite[\\/]sqlite-wasm[\\/].*|wa-sqlite\.worker)\.ts$/
 
 // TypeScript must run before class-properties / decorators. Babel concatenates
 // override plugins after parent plugins, so TS files get a full plugin list here
@@ -119,12 +123,12 @@ function babelConfig(api) {
       },
       {
         test: /\.tsx$/,
-        exclude: /sqlite-wasm[\\/]/,
+        exclude: /[\\/]adapters[\\/]sqlite[\\/]sqlite-wasm[\\/]/,
         env: envPlugins([typescriptPlugin(true)]),
       },
       {
         test: /\.ts$/,
-        exclude: /(?:sqlite-wasm[\\/].*|wa-sqlite\.worker)\.ts$/,
+        exclude: webWorkerSource,
         env: envPlugins([typescriptPlugin(false)]),
       },
       {

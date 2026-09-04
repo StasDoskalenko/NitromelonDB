@@ -16,6 +16,7 @@
     "lint:workflows": "node scripts/lint-workflows.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "jest --config=./jest.config.js --forceExit",
+    "test:web": "yarn --cwd examples/NotesApp test:web",
     "ci": "yarn ci:check",
     "test:metro-transform": "node ./scripts/check-metro-transform.mjs",
     "ci:check": "concurrently -c auto -n jest,eslint,ts,ts-examples,metro,pkg 'yarn test' 'yarn eslint' 'yarn typecheck' 'yarn test:typescript' 'yarn test:metro-transform' 'yarn test:published-package' --kill-others-on-fail",
@@ -76,7 +77,7 @@
     "lokijs": "npm:@nozbe/lokijs@1.5.12-wmelon8",
     "rxjs": "^7.8.0",
     "sql-escape-string": "^1.1.0",
-    "wa-sqlite": "https://github.com/rhashimoto/wa-sqlite.git#tag=v1.1.2"
+    "wa-sqlite": "https://github.com/rhashimoto/wa-sqlite.git#commit=2bf1c59d89eb6497535a4217bc62fec68a0bb994"
   },
   "peerDependencies": {
     "react-native-nitro-modules": ">=0.35.2",

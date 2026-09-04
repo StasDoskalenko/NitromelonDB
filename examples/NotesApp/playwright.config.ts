@@ -9,7 +9,7 @@ export default defineConfig({
     ...(process.env.CI ? {} : { channel: 'msedge' }),
   },
   webServer: {
-    command: 'python -m http.server 4177 --bind 127.0.0.1 --directory dist-web-test',
+    command: 'node scripts/serve-dist.mjs',
     port: 4177,
     reuseExistingServer: !process.env.CI,
   },

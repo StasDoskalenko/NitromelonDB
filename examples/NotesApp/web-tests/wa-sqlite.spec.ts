@@ -49,5 +49,9 @@ test('passes the shared adapter and SQLite-specific suites in Chromium', async (
   await page.goto('/?adapter-tests=1')
   const status = page.getByTestId('adapter-tests-status')
   await expect(status).toContainText(/Done:|Failed:/, { timeout: 570_000 })
-  await expect(page.getByTestId('adapter-test-failure')).toHaveCount(0)
+  const failures = await page.getByTestId('adapter-test-failure').allTextContents()
+  expect(
+    failures,
+    failures.length ? `Adapter suite failures:\n\n${failures.join('\n\n')}` : undefined,
+  ).toEqual([])
 })

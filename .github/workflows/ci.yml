@@ -95,6 +95,15 @@ jobs:
       - name: Export and test web SQLite
         working-directory: examples/NotesApp
         run: yarn test:web
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notesapp-web-playwright-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: |
+            examples/NotesApp/playwright-report
+            examples/NotesApp/test-results
   ios:
     needs: [eslint, typescript, ci-check]
     runs-on: macos-26

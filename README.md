@@ -43,7 +43,7 @@ import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
 
 The same `SQLiteAdapter` automatically selects wa-sqlite in a browser. It runs the Asyncify build in a dedicated worker and stores the offline replica in IndexedDB with `IDBBatchAtomicVFS`; it does not fall back to LokiJS or memory storage. Native platforms continue to select Nitro SQLite, and Node continues to select `better-sqlite3`.
 
-Expo SDK 57 projects must use `expo/metro-config`, include `wasm` in `resolver.assetExts`, and enable bundle splitting by using Expo Router or importing `@expo/metro-runtime` from the app entry file. No COOP/COEP headers are required. Always verify a release build with `npx expo export -p web` and check that the worker chunk and `.wasm` asset are present.
+Expo SDK 57 projects must use `expo/metro-config`, include `wasm` in `resolver.assetExts`, and enable bundle splitting with Expo Router or `@expo/metro-runtime`. In a native-and-web app, load that runtime through a `.web.ts` platform module so it is not bundled on native. No COOP/COEP headers are required. Always verify a release build with `npx expo export -p web` and check that the worker chunk and `.wasm` asset are present.
 
 The packaged worker and WASM load automatically. For a custom CDN, CSP, or bundler policy, override either resource:
 

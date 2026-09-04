@@ -9130,7 +9130,7 @@ __metadata:
     semver: "npm:^7.8.5"
     sql-escape-string: "npm:^1.1.0"
     typescript: "npm:^6.0.3"
-    wa-sqlite: "https://github.com/rhashimoto/wa-sqlite.git#tag=v1.1.2"
+    wa-sqlite: "https://github.com/rhashimoto/wa-sqlite.git#commit=2bf1c59d89eb6497535a4217bc62fec68a0bb994"
   peerDependencies:
     react-native-nitro-modules: ">=0.35.2"
     rxjs: ^7.8.0
@@ -11778,7 +11778,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"wa-sqlite@https://github.com/rhashimoto/wa-sqlite.git#tag=v1.1.2":
+"wa-sqlite@https://github.com/rhashimoto/wa-sqlite.git#commit=2bf1c59d89eb6497535a4217bc62fec68a0bb994":
   version: 1.1.1
   resolution: "wa-sqlite@https://github.com/rhashimoto/wa-sqlite.git#commit=2bf1c59d89eb6497535a4217bc62fec68a0bb994"
   dependenciesMeta:

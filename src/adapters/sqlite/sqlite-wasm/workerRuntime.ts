@@ -18,11 +18,11 @@ type WorkerScope = {
 type Runtime = {
   sqlite3: SQLiteAPI
   module: object
-  vfsByDatabase: Map<string, VfsEntry>
   cacheChannel: BroadcastChannel
 }
 
-type VfsEntry = {
+type DatabaseEntry = {
+  driver: DatabaseDriver
   vfs: IDBBatchAtomicVFS
   references: number
 }
@@ -30,6 +30,7 @@ type VfsEntry = {
 type Connection = {
   driver: DatabaseDriver
   databaseKey: string
+  database: DatabaseEntry
 }
 
 type CacheInvalidationMessage = {
@@ -38,10 +39,12 @@ type CacheInvalidationMessage = {
 }
 
 const connections = new Map<number, Connection>()
-const syncJsons = new Map<number, string>()
+const databases = new Map<string, DatabaseEntry>()
+const syncJsons = new Map<number, Map<number, string>>()
 let runtimePromise: Promise<Runtime> | undefined
 let configuredWasmUrl: string | undefined
-const workerInstanceId = `${Date.now()}-${Math.random()}`
+const workerInstanceId =
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
 const cacheChannelName = 'nitromelondb-wa-sqlite-cache-v1'
 
 function databaseKey(dbName: string): string {
@@ -64,8 +67,7 @@ async function createRuntime(wasmUrl: string): Promise<Runtime> {
   }
   const wasmBinary = new Uint8Array(await response.arrayBuffer())
   // Metro rewrites `import.meta` inside worker chunks. Supplying locateFile as
-  // well as wasmBinary keeps Emscripten from evaluating its import.meta.url
-  // fallback before it notices the already-fetched binary.
+  // well as wasmBinary keeps Emscripten from evaluating its fallback URL.
   const module = (await SQLiteESMFactory({ wasmBinary, locateFile: () => wasmUrl })) as object
   const sqlite3 = SQLite.Factory(module) as unknown as SQLiteAPI
   const cacheChannel = new BroadcastChannel(cacheChannelName)
@@ -75,34 +77,51 @@ async function createRuntime(wasmUrl: string): Promise<Runtime> {
       invalidateConnections(message.databaseKey)
     }
   })
-  return { sqlite3, module, vfsByDatabase: new Map(), cacheChannel }
+  return { sqlite3, module, cacheChannel }
 }
 
-async function vfsFor(runtime: Runtime, dbName: string): Promise<[string, VfsEntry]> {
-  const key = databaseKey(dbName)
-  let entry = runtime.vfsByDatabase.get(key)
-  if (!entry) {
-    const vfs = await IDBBatchAtomicVFS.create(key, runtime.module, { idbName: key })
-    runtime.sqlite3.vfs_register(vfs)
-    entry = { vfs, references: 0 }
-    runtime.vfsByDatabase.set(key, entry)
+async function createDatabaseEntry(runtime: Runtime, key: string): Promise<DatabaseEntry> {
+  if (typeof IDBBatchAtomicVFS.create !== 'function') {
+    throw new Error(
+      'The pinned wa-sqlite IDBBatchAtomicVFS API is incompatible: static create() is unavailable',
+    )
   }
-  return [key, entry]
-}
-
-function releaseVfs(runtime: Runtime, key: string): void {
-  const entry = runtime.vfsByDatabase.get(key)
-  if (!entry) return
-  entry.references = Math.max(0, entry.references - 1)
-  if (entry.references === 0) {
-    entry.vfs.close()
-    runtime.vfsByDatabase.delete(key)
+  const vfs = await IDBBatchAtomicVFS.create(key, runtime.module, { idbName: key })
+  if (typeof vfs.close !== 'function') {
+    throw new Error(
+      'The pinned wa-sqlite IDBBatchAtomicVFS API is incompatible: close() is unavailable',
+    )
   }
+  runtime.sqlite3.vfs_register(vfs)
+  let db: number
+  try {
+    db = await runtime.sqlite3.open_v2('/nitromelondb.db', undefined, vfs.name)
+  } catch (error) {
+    vfs.close()
+    throw error
+  }
+  const driver = new DatabaseDriver(runtime.sqlite3, db)
+  try {
+    await driver.configure()
+  } catch (error) {
+    try {
+      await driver.close()
+    } finally {
+      vfs.close()
+    }
+    throw error
+  }
+  return { driver, vfs, references: 0 }
 }
 
 function invalidateConnections(databaseKeyToInvalidate: string, exceptTag?: number): void {
+  const exceptDriver = exceptTag === undefined ? undefined : connections.get(exceptTag)?.driver
   connections.forEach((connection, tag) => {
-    if (tag !== exceptTag && connection.databaseKey === databaseKeyToInvalidate) {
+    if (
+      tag !== exceptTag &&
+      connection.driver !== exceptDriver &&
+      connection.databaseKey === databaseKeyToInvalidate
+    ) {
       connection.driver.clearCachedRecords()
     }
   })
@@ -151,16 +170,17 @@ function connectionFor(tag: number): Connection {
   return connection
 }
 
-async function disposeConnection(
-  runtime: Runtime,
-  tag: number,
-  connection: Connection,
-): Promise<void> {
+async function disposeConnection(tag: number, connection: Connection): Promise<void> {
+  connections.delete(tag)
+  syncJsons.delete(tag)
+  const { database } = connection
+  database.references = Math.max(0, database.references - 1)
+  if (database.references) return
+  databases.delete(connection.databaseKey)
   try {
-    await connection.driver.close()
+    await database.driver.close()
   } finally {
-    connections.delete(tag)
-    releaseVfs(runtime, connection.databaseKey)
+    database.vfs.close()
   }
 }
 
@@ -172,36 +192,37 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     }
     const runtime = await getRuntime(request.wasmUrl)
     const dbName = String(args[0])
-    const [key, entry] = await vfsFor(runtime, dbName)
-    let db: number
-    try {
-      db = await runtime.sqlite3.open_v2('/nitromelondb.db', undefined, entry.vfs.name)
-    } catch (error) {
-      // vfsFor() may have created this VFS for the failed open. It has no owner yet.
-      if (entry.references === 0) {
-        entry.vfs.close()
-        runtime.vfsByDatabase.delete(key)
-      }
-      throw error
+    const key = databaseKey(dbName)
+    let database = databases.get(key)
+    if (!database) {
+      database = await createDatabaseEntry(runtime, key)
+      databases.set(key, database)
     }
-    entry.references += 1
-    const driver = new DatabaseDriver(runtime.sqlite3, db)
+    database.references += 1
+    // SQL handles are shared per logical database in this worker, but record
+    // caches are per adapter tag because each adapter has its own JS model cache.
+    const driver = new DatabaseDriver(runtime.sqlite3, database.driver.db)
+    const connection = { driver, databaseKey: key, database }
+    connections.set(tag, connection)
     try {
-      await driver.configure()
-      connections.set(tag, { driver, databaseKey: key })
-      return driver.initialize(Number(args[1]))
+      return await driver.initialize(Number(args[1]))
     } catch (error) {
       try {
-        await driver.close()
-      } finally {
-        releaseVfs(runtime, key)
+        await disposeConnection(tag, connection)
+      } catch {
+        // Preserve the initialization error while releasing the tag reference.
       }
       throw error
     }
   }
 
   if (method === 'provideSyncJson') {
-    syncJsons.set(Number(args[0]), String(args[1]))
+    let providedJsons = syncJsons.get(tag)
+    if (!providedJsons) {
+      providedJsons = new Map()
+      syncJsons.set(tag, providedJsons)
+    }
+    providedJsons.set(Number(args[0]), String(args[1]))
     return undefined
   }
 
@@ -216,7 +237,7 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
         return result
       } catch (error) {
         try {
-          await disposeConnection(runtime, tag, connection)
+          await disposeConnection(tag, connection)
         } catch {
           // Preserve the schema setup error while still releasing worker-owned resources.
         }
@@ -234,7 +255,7 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
         return result
       } catch (error) {
         try {
-          await disposeConnection(runtime, tag, connection)
+          await disposeConnection(tag, connection)
         } catch {
           // Preserve the migration error while still releasing worker-owned resources.
         }
@@ -258,7 +279,8 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     }
     case 'unsafeLoadFromSync': {
       const jsonId = Number(args[0])
-      const json = syncJsons.get(jsonId)
+      const providedJsons = syncJsons.get(tag)
+      const json = providedJsons?.get(jsonId)
       if (json === undefined) {
         throw new Error(`Sync json ${jsonId} does not exist`)
       }
@@ -272,7 +294,10 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
         invalidateAfterMutation(runtime, tag, connectionKey, false)
         return result
       } finally {
-        syncJsons.delete(jsonId)
+        providedJsons?.delete(jsonId)
+        if (!providedJsons?.size) {
+          syncJsons.delete(tag)
+        }
       }
     }
     case 'unsafeResetDatabase': {
@@ -291,7 +316,7 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
       return result
     }
     case 'unsafeCloseConnection':
-      await disposeConnection(runtime, tag, connection)
+      await disposeConnection(tag, connection)
       return undefined
     default:
       throw new Error(`Unsupported wa-sqlite dispatcher method ${method}`)

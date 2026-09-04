@@ -69,7 +69,8 @@ SQLite adapter import:
 
 - the browser dispatcher now talks to a dedicated wa-sqlite worker instead of using the Node
   bridge or selecting LokiJS;
-- `wa-sqlite` is a pinned runtime dependency, and the published package contains its worker
+- `wa-sqlite` is pinned to immutable upstream commit
+  `2bf1c59d89eb6497535a4217bc62fec68a0bb994`, and the published package contains its worker
   bootstrap, Asyncify module, and WASM asset;
 - `wa-sqlite` is part of the public `DispatcherType` union and is exposed through
   `adapter.dispatcherType`;
@@ -78,18 +79,119 @@ SQLite adapter import:
   batches, reset, local storage, unsafe SQL, record caching, and sync JSON;
 - initialization is deferred safely during SSR and actual server-side SQLite operations are
   rejected;
-- VFS ownership is reference-counted and failed initialization no longer permanently poisons the
-  runtime promise;
+- adapters for the same logical database in one worker share a reference-counted SQLite connection,
+  while separate tabs coordinate their connections through IndexedDB and Web Locks;
 - committed writes invalidate record caches in other connections and browser tabs; and
 - the NotesApp production export and Chromium suite exercise the real worker, WASM, IndexedDB,
   persistence, and multi-tab paths.
+
+## Upstream review follow-up
+
+The initial implementation received an upstream review covering native safety, database reopen
+correctness, production worker transforms, dependency provenance, test isolation, and smaller
+correctness issues. The following changes address that review.
+
+### Native NotesApp safety and test-harness scope
+
+The adapter-test route no longer runs through the cross-platform `App.tsx`. React Native defines a
+`window` alias without defining `window.location`, so checking only `typeof window` could throw
+during the first native render. The NotesApp now uses platform-specific entry modules:
+
+- `App.tsx` always renders the normal native NotesApp;
+- `App.web.tsx` reads `globalThis.location?.search` and lazily imports the browser adapter-test
+  screen only when `?adapter-tests=1` is present; and
+- `webRuntime.web.ts` imports `@expo/metro-runtime`, while the native `webRuntime.ts` is empty.
+
+This keeps URL access, the Metro web runtime, and adapter test dependencies out of the native
+render path. It also leaves the browser test harness in a separate lazy web chunk instead of the
+normal application module graph.
+
+### Reopen, migration, and initialization ordering
+
+The worker originally created one SQLite handle per adapter tag. Multiple handles backed by the
+same `IDBBatchAtomicVFS` could observe stale SQLite header state, including an old
+`PRAGMA user_version`, immediately after another handle committed. The worker now owns one
+reference-counted SQLite handle and VFS per deterministic logical `dbName`. Adapter tags retain
+separate `DatabaseDriver` instances and record caches but share that handle. The last tag to close
+releases the SQLite connection and VFS without deleting IndexedDB.
+
+A second race existed between the adapter's two-phase setup and ordinary operations. After
+`initialize` returned `schema_needed` or `migrations_needed`, a batch or query could enter the
+worker before the adapter callback submitted `setUpWithSchema` or `setUpWithMigrations`. Each web
+dispatcher now gates ordinary operations until setup reaches `ready`, preserves their FIFO order,
+and rejects the queued callbacks if setup fails.
+
+The Chromium migration cases also needed independent starting databases. The suite creates a
+baseline adapter before invoking each shared test, so a test that constructs its own v1 schema must
+not reuse that already-initialized database. Custom multi-hop and create-table migration tests now
+derive isolated names from the per-test `dbName`, inserting their suffix before SQLite URI query
+parameters. Their subsequent `testClone()` calls continue to reopen the same derived database.
+
+### Production worker transforms and unsafe SQL
+
+`module:fast-async` (nodent) is excluded from every TypeScript source under
+`adapters/sqlite/sqlite-wasm` and from the worker bootstrap. The Babel path matcher accepts
+absolute, normalized, and linked-package paths, which matters when the NotesApp consumes this
+repository through `link:../..`. Worker code therefore retains native async iteration in minified
+Expo exports, preventing `unsafeExecuteMultiple` from stalling while consuming prepared
+statements.
+
+Prepared statements are now explicitly finalized before the next command, commit, or rollback.
+Multi-statement execution exhausts every statement, including row-producing pragmas. Parameter
+binding checks the `bind_collection` return code and reports a clear SQLite result instead of
+continuing after a failed bind. `find` uses the conventional `id = ?` predicate.
+
+### Dependency integrity and VFS compatibility
+
+The wa-sqlite dependency now references immutable commit
+`2bf1c59d89eb6497535a4217bc62fec68a0bb994` rather than the mutable `v1.1.2` tag. The packaged
+Emscripten glue and WASM binary have recorded upstream provenance, SHA-256 hashes, and the reason
+for the Metro-specific glue patch in `src/adapters/sqlite/sqlite-wasm/VENDOR.md`.
+
+Importing `IDBBatchAtomicVFS` from wa-sqlite's examples directory remains an interim dependency on
+a non-public API. Worker startup now validates the expected static `create()` and instance
+`close()` functions and emits an explicit incompatibility error if the pinned shape changes. Full
+vendoring and automated upstream updates remain follow-up work; see [Future improvements](#future-improvements).
+
+### Cache, sync JSON, and worker identity hardening
+
+- Cross-connection writes still use the safe v1 policy of clearing all matching materialization
+  caches. This changes only a JavaScript optimization and does not remove offline SQLite data.
+- Pending sync JSON is scoped by adapter tag, removed after import success or failure, and discarded
+  when the tag closes, preventing abandoned entries from living for the entire shared-worker
+  lifetime.
+- Worker identities use `crypto.randomUUID()` where available, with the previous timestamp/random
+  construction retained only as a compatibility fallback.
+- JavaScript `bigint` values are still converted to `number`, consistent with the existing adapter
+  contract. Values outside JavaScript's safe-integer range can lose precision and remain a known
+  boundary.
+
+### CI and browser diagnostics
+
+The repository root now exposes `yarn test:web`, which delegates to the NotesApp production export
+and Playwright suite. The browser runner records a timed-out case and continues with later cases
+instead of hiding the remainder of the suite. Assertion messages are preserved alongside browser
+stacks, and CI uploads `playwright-report` and `test-results` when the web job fails.
+
+The static export is served by a small Node script rather than a platform-dependent `python`
+command. Browser test cases use unique logical database names, and custom-schema migration tests
+use derived names so the harness's baseline schema cannot contaminate their initial state. The
+focused dispatcher tests cover SSR behavior, exclusive-lock rejection, worker failure/recovery,
+exactly-once callbacks, override URLs, and the two-phase setup queue.
+
+The review also suggested running both minified and non-minified browser exports. Production
+exports are the required CI path today because that is where the original worker-transform failure
+appeared; adding a second development-mode browser job remains optional future coverage.
 
 ### Request ordering
 
 Calls from the main thread carry a monotonically increasing request ID. The worker processes its
 request queue in FIFO order, including calls whose returned promises are not immediately awaited.
-This preserves sequences such as a write followed immediately by a read. Requests arriving during
-WASM initialization remain queued.
+This preserves sequences such as a write followed immediately by a read. Each web dispatcher also
+holds application operations until the adapter's two-phase initialization has either reported
+`ok` or completed schema creation/migration. This matches the native bridge's waiting-connection
+behavior and prevents an immediate query or batch from overtaking schema setup. Requests arriving
+during WASM initialization remain queued.
 
 All outstanding callbacks are rejected exactly once if the worker crashes or returns an unreadable
 message. The failed worker is terminated, and a later adapter initialization can create a new
@@ -98,12 +200,14 @@ the terminated worker.
 
 ### Connections and VFS lifetime
 
-Multiple adapters can share one logical database. The worker keeps a reference count for each
-database VFS:
+Multiple adapters can share one logical database. Inside one worker, adapter connection tags are
+multiplexed onto one SQLite connection per deterministic `dbName`. This avoids divergent SQLite
+pager and VFS state and keeps the WASM footprint bounded. Separate tabs have separate workers and
+SQLite connections, coordinated by the shared IndexedDB database and Web Lock namespace.
 
-- opening a connection increments the reference count;
-- explicit connection closure decrements it;
-- the VFS's IndexedDB connection closes when the final reference is released;
+- opening another adapter for the same `dbName` increments the database connection's reference
+  count;
+- explicit connection closure decrements it and closes SQLite and the VFS after the final owner;
 - failed database opens, configuration, schema creation, and migrations release resources;
 - a failed global WASM/runtime initialization clears the failed promise so a later attempt can retry.
 
@@ -118,6 +222,8 @@ database language:
 - schema creation and `PRAGMA user_version` checks;
 - sequential migrations with a version recheck under the write transaction;
 - prepared bindings, including boolean-to-integer normalization;
+- explicitly awaited prepared-statement finalization before commit, rollback, or the next SQL
+  command;
 - finds, cached queries, ID queries, raw queries, counts, and local storage;
 - atomic batches with commit/rollback and cache updates only after commit;
 - multi-statement unsafe execution;
@@ -136,7 +242,9 @@ schema defaults, ignores unknown tables and columns, and returns the non-`change
 JSON.
 
 The fast path rejects unknown change-set operations and non-empty `deleted` arrays. The supplied
-JSON is removed after success or failure, and any failed import is rolled back.
+JSON is removed after success or failure, and any failed import is rolled back. Pending JSON is
+scoped to the adapter connection and is also discarded when that connection closes, so an aborted
+two-step import does not survive for the lifetime of the shared worker.
 
 ## Offline behavior and cache invalidation
 
@@ -166,10 +274,17 @@ broadcast an application event and re-query, or trigger the normal synchronizati
 ## Expo Metro setup
 
 Expo SDK 57 with Metro is the first-class web target. Projects without Expo Router must load
-Metro's bundle-splitting runtime from their entry file:
+Metro's bundle-splitting runtime on web. Keep it out of native bundles with a platform module:
 
 ```ts
+// webRuntime.web.ts
 import '@expo/metro-runtime'
+
+// webRuntime.ts (native)
+// intentionally empty
+
+// index.ts
+import './webRuntime'
 ```
 
 Preserve Expo's Metro defaults and ensure `.wasm` is treated as an asset:
@@ -282,3 +397,6 @@ concurrent writes from two tabs.
 - Benchmark strict durability and provide documented, explicit performance profiles if a safe
   configuration surface can be designed.
 - Track newer wa-sqlite and SQLite releases while preserving migration and multi-tab compatibility.
+- Replace the commit-pinned dependency with a fully vendored wa-sqlite source subset and automated
+  weekly update workflow. The current binary hashes and Metro glue patch are recorded in
+  `src/adapters/sqlite/sqlite-wasm/VENDOR.md` as the auditable intermediate state.

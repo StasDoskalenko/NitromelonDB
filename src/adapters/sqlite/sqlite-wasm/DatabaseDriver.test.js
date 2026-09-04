@@ -7,10 +7,11 @@ class FakeSqliteApi {
     this.nextStatement = 1
     this.statementsById = new Map()
     this.executed = []
+    this.finalized = []
     this.inTransaction = false
   }
 
-  statements(_db, sql) {
+  statements(_db, sql, _options) {
     const parts = sql
       .split(';')
       .map((part) => part.trim())
@@ -28,9 +29,15 @@ class FakeSqliteApi {
     }
   }
 
+  async finalize(id) {
+    this.finalized.push(id)
+    this.statementsById.delete(id)
+    return 0
+  }
+
   bind_collection(id, args) {
     this.statementsById.get(id).args = args
-    return 0
+    return this.bindResult ?? 0
   }
 
   async step(id) {
@@ -67,6 +74,17 @@ function makeDriver() {
 }
 
 describe('wa-sqlite DatabaseDriver contract', () => {
+  it('surfaces non-success parameter binding results and finalizes the statement', async () => {
+    const { api, driver } = makeDriver()
+    api.bindResult = 25
+
+    await expect(driver.execute('select ?', ['value'])).rejects.toThrow(
+      'failed to bind query parameters (SQLite result 25)',
+    )
+    expect(api.statementsById.size).toBe(0)
+    expect(api.finalized).toHaveLength(1)
+  })
+
   it('normalizes booleans, commits batches, and changes cache only after commit', async () => {
     const { api, driver } = makeDriver()
     await driver.batch([
@@ -90,6 +108,8 @@ describe('wa-sqlite DatabaseDriver contract', () => {
     ).rejects.toThrow('no such table')
     expect(await driver.find('tasks', 'b')).toBeNull()
     expect(api.executed.some(({ sql }) => sql === 'ROLLBACK TRANSACTION')).toBe(true)
+    expect(api.statementsById.size).toBe(0)
+    expect(api.finalized).toHaveLength(api.executed.length)
   })
 
   it('imports sync JSON with defaults and returns residual JSON values', async () => {

@@ -4,6 +4,7 @@ import type { ConnectionTag } from '../../../utils/common'
 import type { ResultCallback } from '../../../utils/fp/Result'
 import type {
   DispatcherType,
+  InitializeStatus,
   SQLiteAdapterOptions,
   SQLiteWebOptions,
   SqliteDispatcher,
@@ -123,6 +124,13 @@ class WaSQLiteDispatcher implements SqliteDispatcher {
   tag: ConnectionTag
   webOptions?: SQLiteWebOptions | undefined
   isServer: boolean
+  setupState: 'initializing' | 'setting-up' | 'ready' | 'failed' = 'initializing'
+  setupError?: Error | undefined
+  queuedCalls: Array<{
+    method: SqliteDispatcherMethod
+    args: unknown[]
+    callback: ResultCallback<unknown>
+  }> = []
 
   constructor(tag: ConnectionTag, webOptions?: SQLiteWebOptions | undefined) {
     this.tag = tag
@@ -142,6 +150,48 @@ class WaSQLiteDispatcher implements SqliteDispatcher {
       }
       return
     }
+    if (method === 'initialize') {
+      this.send<InitializeStatus>(method, args, (result) => {
+        if (result.error) {
+          this.failSetup(result.error)
+        } else if (result.value.code === 'ok') {
+          this.setupState = 'ready'
+        } else {
+          this.setupState = 'setting-up'
+        }
+        callback(result as Parameters<ResultCallback<T>>[0])
+        if (this.setupState === 'ready') this.flushQueuedCalls()
+      })
+      return
+    }
+    if (method === 'setUpWithSchema' || method === 'setUpWithMigrations') {
+      this.send<void>(method, args, (result) => {
+        if (result.error) {
+          this.failSetup(result.error)
+        } else {
+          this.setupState = 'ready'
+        }
+        callback(result as Parameters<ResultCallback<T>>[0])
+        if (this.setupState === 'ready') this.flushQueuedCalls()
+      })
+      return
+    }
+    if (this.setupState === 'failed') {
+      callback({ error: this.setupError ?? new Error('wa-sqlite adapter setup failed') })
+      return
+    }
+    if (this.setupState !== 'ready') {
+      this.queuedCalls.push({
+        method,
+        args,
+        callback: callback as ResultCallback<unknown>,
+      })
+      return
+    }
+    this.send(method, args, callback)
+  }
+
+  send<T>(method: SqliteDispatcherMethod, args: unknown[], callback: ResultCallback<T>): void {
     let client: WorkerClient
     try {
       client = clientFor(this.webOptions)
@@ -153,6 +203,20 @@ class WaSQLiteDispatcher implements SqliteDispatcher {
       (value) => callback({ value: value as T }),
       (error) => callback({ error: error instanceof Error ? error : new Error(String(error)) }),
     )
+  }
+
+  failSetup(error: Error): void {
+    this.setupState = 'failed'
+    this.setupError = error
+    const queued = this.queuedCalls
+    this.queuedCalls = []
+    queued.forEach(({ callback }) => callback({ error }))
+  }
+
+  flushQueuedCalls(): void {
+    const queued = this.queuedCalls
+    this.queuedCalls = []
+    queued.forEach(({ method, args, callback }) => this.send(method, args, callback))
   }
 }
 

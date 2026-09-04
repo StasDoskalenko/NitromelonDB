@@ -114,10 +114,14 @@ The Expo notes example is [`examples/NotesApp`](https://github.com/StasDoskalenk
 
 On web, the normal `nitromelondb/adapters/sqlite` import selects wa-sqlite automatically. SQLite runs in a dedicated worker and persists its database in IndexedDB through `IDBBatchAtomicVFS`. There is no LokiJS or in-memory fallback, and no COOP/COEP header requirement.
 
-Expo SDK 57 web workers require bundle splitting. Expo Router already provides the runtime; projects without Router should install `@expo/metro-runtime` and import it once from the entry file:
+Expo SDK 57 web workers require bundle splitting. Expo Router already provides the runtime; projects without Router should install `@expo/metro-runtime` and load it through a web-only platform module:
 
 ```ts
+// webRuntime.web.ts
 import '@expo/metro-runtime'
+
+// webRuntime.ts (native) is intentionally empty
+// index.ts imports './webRuntime'
 ```
 
 If you have a custom `metro.config.js`, preserve Expo's defaults and ensure WASM is an asset:

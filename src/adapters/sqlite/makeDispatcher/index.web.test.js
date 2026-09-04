@@ -102,4 +102,65 @@ describe('wa-sqlite web dispatcher', () => {
     expect(second).toHaveBeenCalledTimes(1)
     expect(second).toHaveBeenCalledWith({ value: { code: 'ok' } })
   })
+
+  it('queues operations until two-phase schema setup completes', async () => {
+    class FakeWorker {
+      listeners = {}
+      requests = []
+
+      addEventListener(type, listener) {
+        this.listeners[type] = listener
+      }
+
+      postMessage(request) {
+        this.requests.push(request)
+      }
+
+      emitResponse(id, value) {
+        this.listeners.message({ data: { id, value } })
+      }
+
+      terminate() {}
+    }
+
+    global.window = { location: { href: 'https://app.example.test/' } }
+    global.Worker = FakeWorker
+    const worker = new FakeWorker()
+    const dispatcher = makeDispatcher('wa-sqlite', 42, 'test', {
+      usesExclusiveLocking: false,
+      experimentalUnsafeNativeReuse: false,
+      web: { wasmUrl: '/sqlite.wasm', workerFactory: () => worker },
+    })
+
+    const initialized = jest.fn()
+    const counted = jest.fn()
+    dispatcher.call('initialize', ['test', 1], initialized)
+    dispatcher.call('count', ['select count(*) from tasks', []], counted)
+    expect(worker.requests.map(({ method }) => method)).toEqual(['initialize'])
+
+    worker.emitResponse(1, { code: 'schema_needed' })
+    await Promise.resolve()
+    expect(initialized).toHaveBeenCalledWith({ value: { code: 'schema_needed' } })
+    expect(worker.requests.map(({ method }) => method)).toEqual(['initialize'])
+
+    const setUp = jest.fn()
+    dispatcher.call('setUpWithSchema', ['test', 'create table tasks (id);', 1], setUp)
+    expect(worker.requests.map(({ method }) => method)).toEqual([
+      'initialize',
+      'setUpWithSchema',
+    ])
+
+    worker.emitResponse(2, undefined)
+    await Promise.resolve()
+    expect(setUp).toHaveBeenCalledWith({ value: undefined })
+    expect(worker.requests.map(({ method }) => method)).toEqual([
+      'initialize',
+      'setUpWithSchema',
+      'count',
+    ])
+
+    worker.emitResponse(3, 0)
+    await Promise.resolve()
+    expect(counted).toHaveBeenCalledWith({ value: 0 })
+  })
 })

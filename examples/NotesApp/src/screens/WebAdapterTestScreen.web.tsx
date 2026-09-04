@@ -5,6 +5,13 @@ type Failure = { name: string; error: string }
 type Report = { total: number; passed: number; failures: Failure[] }
 type Progress = { current: number; total: number; name: string }
 
+function formatError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error)
+  const summary = `${error.name}: ${error.message}`
+  if (!error.stack) return summary
+  return error.stack.includes(error.message) ? error.stack : `${summary}\n${error.stack}`
+}
+
 export default function WebAdapterTestScreen() {
   const [report, setReport] = useState<Report | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
@@ -24,7 +31,7 @@ export default function WebAdapterTestScreen() {
           failures: [
             {
               name: 'web adapter test runner',
-              error: error instanceof Error ? error.stack || error.message : String(error),
+              error: formatError(error),
             },
           ],
         }),

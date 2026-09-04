@@ -6,6 +6,15 @@ global.expect = browserExpect
 
 const testTimeoutMs = 30_000
 
+const formatError = (error) => {
+  if (!(error instanceof Error)) return String(error)
+  const summary = `${error.name}: ${error.message}`
+  if (!error.stack) return summary
+  // Some browser assertion libraries generate a useful message but replace
+  // the stack's first line with a bare "Error". Never hide that diagnostic.
+  return error.stack.includes(error.message) ? error.stack : `${summary}\n${error.stack}`
+}
+
 const withTimeout = (promise, name) =>
   new Promise((resolve, reject) => {
     const timeout = setTimeout(
@@ -50,11 +59,8 @@ export default async function runWebAdapterTests(onProgress = () => {}) {
       results.push({
         name: testCase.name,
         passed: false,
-        error: error instanceof Error ? error.stack || error.message : String(error),
+        error: formatError(error),
       })
-      if (error instanceof Error && error.message.startsWith('Timed out after')) {
-        break
-      }
     }
   }
 

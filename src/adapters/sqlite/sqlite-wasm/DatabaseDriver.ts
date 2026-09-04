@@ -5,7 +5,12 @@ type SQLiteValue = string | number | bigint | Uint8Array | null
 export type SQLiteAPI = {
   open_v2: (filename: string, flags?: number, vfs?: string) => Promise<number>
   close: (db: number) => Promise<number>
-  statements: (db: number, sql: string) => AsyncIterable<number>
+  statements: (
+    db: number,
+    sql: string,
+    options?: { unscoped?: boolean },
+  ) => AsyncIterable<number>
+  finalize: (statement: number) => Promise<number>
   bind_collection: (statement: number, values: SQLiteValue[]) => number
   step: (statement: number) => Promise<number>
   row: (statement: number) => SQLiteValue[]
@@ -15,6 +20,7 @@ export type SQLiteAPI = {
 }
 
 const SQLITE_ROW = 100
+const SQLITE_OK = 0
 
 type SchemaColumn = {
   name: string
@@ -105,7 +111,7 @@ export default class DatabaseDriver {
     if (this.isCached(table, id)) {
       return id
     }
-    const rows = await this.queryRaw(`SELECT * FROM ${quoteIdentifier(table)} WHERE id == ? LIMIT 1`, [
+    const rows = await this.queryRaw(`SELECT * FROM ${quoteIdentifier(table)} WHERE id = ? LIMIT 1`, [
       id,
     ])
     if (!rows.length) {
@@ -146,7 +152,7 @@ export default class DatabaseDriver {
   async queryRaw(sql: string, args: SQLiteArg[] = []): Promise<Record<string, unknown>[]> {
     const rows: Record<string, unknown>[] = []
     await this.eachStatement(sql, async (statement) => {
-      this.sqlite3.bind_collection(statement, fixArgs(args))
+      this.bind(statement, args)
       const columns = this.sqlite3.column_names(statement)
       while ((await this.sqlite3.step(statement)) === SQLITE_ROW) {
         const values = this.sqlite3.row(statement)
@@ -162,11 +168,18 @@ export default class DatabaseDriver {
 
   async execute(sql: string, args: SQLiteArg[] = []): Promise<void> {
     await this.eachStatement(sql, async (statement) => {
-      this.sqlite3.bind_collection(statement, fixArgs(args))
+      this.bind(statement, args)
       while ((await this.sqlite3.step(statement)) === SQLITE_ROW) {
         // Exhaust result rows so statements complete before finalization.
       }
     })
+  }
+
+  private bind(statement: number, args: SQLiteArg[]): void {
+    const result = this.sqlite3.bind_collection(statement, fixArgs(args))
+    if (result !== SQLITE_OK) {
+      throw new Error(`wa-sqlite failed to bind query parameters (SQLite result ${result})`)
+    }
   }
 
   async executeStatements(sql: string): Promise<void> {
@@ -351,14 +364,24 @@ export default class DatabaseDriver {
     sql: string,
     action: (statement: number) => Promise<void>,
   ): Promise<void> {
-    const iterator = this.sqlite3.statements(this.db, sql)[Symbol.asyncIterator]()
+    // wa-sqlite's default scoped iterator calls its async finalize operation
+    // without awaiting it. That leaves a failed statement alive while we try to
+    // roll its transaction back, which can poison the connection. Take explicit
+    // ownership of every statement so finalization completes before continuing.
+    const iterator = this.sqlite3
+      .statements(this.db, sql, { unscoped: true })
+      [Symbol.asyncIterator]()
     try {
       let isDone = false
       while (!isDone) {
         const next = await iterator.next()
         isDone = Boolean(next.done)
         if (!isDone) {
-          await action(next.value)
+          try {
+            await action(next.value)
+          } finally {
+            await this.sqlite3.finalize(next.value)
+          }
         }
       }
     } finally {
