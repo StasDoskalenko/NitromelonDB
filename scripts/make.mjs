@@ -137,6 +137,14 @@ const copyNonJavaScriptFiles = (buildPath) => {
     'windows-autolink.js',
     'scripts/windows-nitro-shims.mjs',
   ])
+  fs.copySync(
+    resolvePath('src/adapters/sqlite/sqlite-wasm/wa-sqlite-async.wasm'),
+    path.join(buildPath, 'adapters/sqlite/sqlite-wasm/wa-sqlite-async.wasm'),
+  )
+  fs.copySync(
+    resolvePath('src/adapters/sqlite/sqlite-wasm/wa-sqlite-async.mjs'),
+    path.join(buildPath, 'adapters/sqlite/sqlite-wasm/wa-sqlite-async.mjs'),
+  )
   // Generated at install / MSBuild; do not ship whatever is on the developer's disk.
   fs.removeSync(path.join(buildPath, 'native/windows/include/NitroModules'))
   fs.writeFileSync(

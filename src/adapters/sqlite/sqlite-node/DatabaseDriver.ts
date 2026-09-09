@@ -85,25 +85,26 @@ class DatabaseDriver {
   }
 
   init(dbName: string): void {
-    this.database = new Database(getPath(dbName))
-
     this.isSharedMemory = dbName.indexOf('mode=memory') > 0 && dbName.indexOf('cache=shared') > 0
     if (this.isSharedMemory) {
-      if (!DatabaseDriver.sharedMemoryConnections[dbName]) {
-        DatabaseDriver.sharedMemoryConnections[dbName] = this.database
+      const sharedDatabase = DatabaseDriver.sharedMemoryConnections[dbName]
+      if (sharedDatabase) {
+        this.database = sharedDatabase
+        return
       }
-      this.database = DatabaseDriver.sharedMemoryConnections[dbName]
+    }
+
+    const database = new Database(getPath(dbName))
+    this.database = database
+    if (this.isSharedMemory) {
+      DatabaseDriver.sharedMemoryConnections[dbName] = database
     }
   }
 
-  // A driver stashed in DatabaseBridge's `waiting` state (schema/migrations
-  // needed) holds an open file handle. If it's about to be discarded for a
-  // fresh driver, that handle must be released explicitly — nothing else
-  // will close it, and on Windows an open handle blocks deleting/reopening
-  // the same file (POSIX allows unlinking an open file, so this is silent
-  // there). Shared in-memory connections are reused elsewhere, so skip those.
+  // Shared-memory connections are retained for process lifetime because another
+  // adapter tag may reuse them. File-backed handles have explicit ownership.
   close(): void {
-    if (!this.isSharedMemory && this.database) {
+    if (!this.isSharedMemory && this.database?.instance.open) {
       this.database.instance.close()
     }
   }

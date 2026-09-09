@@ -19,13 +19,13 @@
 - **First-class Expo.** A config plugin covers development builds, EAS Build, and EAS Update. It replaces `@morrowdigital/watermelondb-expo-plugin`. Expo Go is not supported.
 - **One TypeScript codebase.** Implementation lives in TypeScript under `strict` checking. That removes Flow and the standalone `.d.ts` layer, so types and runtime cannot drift.
 - **Simpler native install.** SQLite and simdjson are vendored in-tree. No FMDB, no `@nozbe/sqlite` / `@nozbe/simdjson`, no separate `android-jsi` package. Autolinking is enough.
-- **Current platforms.** Tested on React Native 0.83+ (NotesApp is Expo SDK 57 / RN 0.86) and React 19. Android builds with 16kB page alignment. Electron can run SQLite in the main process via `RemoteAdapter`.
+- **Current platforms.** Tested on React Native 0.83+ (NotesApp is Expo SDK 57 / RN 0.86) and React 19. Android builds with 16kB page alignment. Web uses persistent SQLite through wa-sqlite and IndexedDB. Electron can run SQLite in the main process via `RemoteAdapter`.
 - **Extensively tested — a safer bet.** Every push runs the full stack in CI, not just JS unit tests: the shared correctness suite (CRUD, queries, migrations, concurrent writers, batches) executes against the real native SQLite bridge on real iOS and Android devices, and the Expo [NotesApp](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp) ships [Maestro](https://docs.maestro.dev) end-to-end flows — cold start, create/pin/delete, kill-and-relaunch persistence, sticky `Q.skip` / `Q.take` pagination — run on iOS, Android, **and** Windows.
 - **Observability.** Nested writers, stuck readers, and incorrect `callWriter`/`callReader` usage should fail loudly so engineers can see *where* — not hang in production. See [Observability](https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Observability).
 - **Performance.** We want to keep improving SQLite, native, and JS performance. The TypeScript rewrite is one step on that path (including future runtimes such as Static Hermes), alongside further native optimizations.
 - **Same product, new package name.** Install `nitromelondb` and import from `nitromelondb` (not `@nozbe/watermelondb`). Existing SQLite files, schema, and models keep working. Step-by-step: **[Migrating from WatermelonDB](https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating)**.
 
-**On the roadmap:** [SQLCipher](https://github.com/StasDoskalenko/NitromelonDB/issues/60) (including existing databases), [VACUUM](https://github.com/StasDoskalenko/NitromelonDB/issues/59), [macOS](https://github.com/StasDoskalenko/NitromelonDB/issues/49), [wa-sqlite on the web](https://github.com/StasDoskalenko/NitromelonDB/issues/44), [paginated sync](https://github.com/StasDoskalenko/NitromelonDB/issues/50), [more reliable migrations](https://github.com/StasDoskalenko/NitromelonDB/issues/57), and [clearer critical-error handling](https://github.com/StasDoskalenko/NitromelonDB/issues/61).
+**On the roadmap:** [SQLCipher](https://github.com/StasDoskalenko/NitromelonDB/issues/60) (including existing databases), [VACUUM](https://github.com/StasDoskalenko/NitromelonDB/issues/59), [macOS](https://github.com/StasDoskalenko/NitromelonDB/issues/49), [paginated sync](https://github.com/StasDoskalenko/NitromelonDB/issues/50), [more reliable migrations](https://github.com/StasDoskalenko/NitromelonDB/issues/57), and [clearer critical-error handling](https://github.com/StasDoskalenko/NitromelonDB/issues/61).
 
 ```bash
 yarn add nitromelondb
@@ -38,6 +38,30 @@ On Expo, add `"nitromelondb"` to the `plugins` array in `app.json` (development 
 import { Database } from 'nitromelondb'
 import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
 ```
+
+### SQLite on Expo web
+
+The same `SQLiteAdapter` automatically selects wa-sqlite in a browser. It runs the Asyncify build in a dedicated worker and stores the offline replica in IndexedDB with `IDBBatchAtomicVFS`; it does not fall back to LokiJS or memory storage. Native platforms continue to select Nitro SQLite, and Node continues to select `better-sqlite3`.
+
+Expo SDK 57 projects must use `expo/metro-config`, include `wasm` in `resolver.assetExts`, and enable bundle splitting with Expo Router or `@expo/metro-runtime`. In a native-and-web app, load that runtime through a `.web.ts` platform module so it is not bundled on native. No COOP/COEP headers are required. Always verify a release build with `npx expo export -p web` and check that the worker chunk and `.wasm` asset are present.
+
+The packaged worker and WASM load automatically. For a custom CDN, CSP, or bundler policy, override either resource:
+
+```js
+const adapter = new SQLiteAdapter({
+  dbName: 'app',
+  schema,
+  web: {
+    wasmUrl: 'https://static.example.com/wa-sqlite-async.wasm',
+    workerFactory: () => new Worker('/nitromelondb-sqlite-worker.js'),
+  },
+})
+```
+
+`usesExclusiveLocking: true` is rejected on web because the IndexedDB VFS supports multiple connections and tabs. Web initialization is deferred until hydration, so importing and constructing an adapter during SSR is safe; attempts to query it on the server fail with a message directing server code to its authoritative database. Existing LokiJS browser data is not migrated.
+
+Architecture, offline and multi-tab behavior, sync JSON, known issues, testing, and future work are
+documented in the [wa-sqlite web adapter guide](docs-website/docs/docs/Implementation/WaSQLiteAdapter.md).
 
 Full credit to [@Nozbe](https://github.com/Nozbe) and [Radek Pietruszewski](https://github.com/radex) for designing and shipping the original WatermelonDB.
 

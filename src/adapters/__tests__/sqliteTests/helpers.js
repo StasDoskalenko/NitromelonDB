@@ -69,6 +69,13 @@ function nodeFs() {
   return eval('require')('fs')
 }
 
+function nodeDatabaseBridge() {
+  // Keep the Node-only bridge out of Metro's browser dependency graph.
+  // eslint-disable-next-line no-eval
+  const module = eval('require')('../../sqlite/sqlite-node/DatabaseBridge')
+  return module.default || module
+}
+
 /**
  * Clean up a file-backed test database and its sidecars.
  * On node: removes .tmp/<name>.db
@@ -78,6 +85,9 @@ export function cleanupDb(dbName, platform) {
   if (platform !== 'node') {
     return
   }
+  // Windows cannot unlink an open SQLite database. Tests often create secondary
+  // adapters internally, so release all bridge-owned handles before cleanup.
+  nodeDatabaseBridge().closeAllConnections()
   const fs = nodeFs()
   for (const path of [dbName, `${dbName}-wal`, `${dbName}-shm`]) {
     try {

@@ -30,15 +30,49 @@ class BadModel extends Model {
   static table = 'nonexistent'
 }
 
+// Function/class names are minified in the production Expo bundle. Prefer the
+// adapter's stable public dispatcher discriminator when identifying SQLite.
+const isSQLiteAdapter = (adapter, AdapterClass) =>
+  AdapterClass.name === 'SQLiteAdapter' ||
+  ['nitro', 'asynchronous', 'wa-sqlite'].includes(
+    adapter.underlyingAdapter?.dispatcherType,
+  )
+
+const withTestDatabaseSuffix = (options, suffix) => {
+  const { dbName } = options
+  if (!dbName) {
+    return options
+  }
+  // The harness's baseline adapter has already initialized dbName with testSchema.
+  // Insert the suffix before URI parameters so custom-schema migration tests start empty.
+  const queryIndex = dbName.indexOf('?')
+  const isolatedDbName =
+    queryIndex === -1
+      ? `${dbName}-${suffix}`
+      : `${dbName.slice(0, queryIndex)}-${suffix}${dbName.slice(queryIndex)}`
+  return { ...options, dbName: isolatedDbName }
+}
+
 export default () => {
   const commonTests = []
   const it = (name, test) => commonTests.push([name, test])
   it.only = (name, test) => commonTests.push([name, test, true])
   it('validates adapter options', async (_adapter, AdapterClass, extraAdapterOptions) => {
     const schema = { ...testSchema, version: 10 }
+    let adapterNumber = 0
 
-    const makeAdapter = (options) =>
-      new AdapterClass({ schema, ...options, ...extraAdapterOptions })
+    const makeAdapter = (options) => {
+      adapterNumber += 1
+      const validationDbName = extraAdapterOptions.dbName
+        ? `${extraAdapterOptions.dbName}-validation-${adapterNumber}`
+        : undefined
+      return new AdapterClass({
+        ...extraAdapterOptions,
+        schema,
+        ...options,
+        ...(validationDbName ? { dbName: validationDbName } : {}),
+      })
+    }
     const adapterWithMigrations = (migrations) => makeAdapter({ migrations })
 
     expect(() => adapterWithMigrations({ migrations: [] })).toThrow(/use schemaMigrations()/)
@@ -58,10 +92,9 @@ export default () => {
     // Empty migrations only allowed if version 1
     expect(
       () =>
-        new AdapterClass({
+        makeAdapter({
           schema: { ...testSchema, version: 1 },
           migrations: schemaMigrations({ migrations: [] }),
-          ...extraAdapterOptions,
         }),
     ).not.toThrow()
     expect(() => adapterWithRealMigrations([])).toThrow(/Missing migration/)
@@ -318,7 +351,7 @@ export default () => {
       ['create', 'tag_assignments', mockTagAssignmentRaw({ id: 'ta3', task_id: 't3', num1: 3 })],
     ])
 
-    if (AdapterClass.name === 'SQLiteAdapter') {
+    if (isSQLiteAdapter(adapter, AdapterClass)) {
       expect(
         await adapter.unsafeQueryRaw(
           taskQuery(Q.unsafeSqlQuery('select * from tasks where text1 = ?', ['bad'])),
@@ -582,7 +615,7 @@ export default () => {
         ['create', 'tasks', mockTaskRaw({ id: 't2' })],
         ['create', 'tasks', mockTaskRaw({ id: 't2' })], // duplicate — causes rollback
       ]),
-      AdapterClass.name === 'SQLiteAdapter'
+      isSQLiteAdapter(adapter, AdapterClass)
         ? /UNIQUE constraint failed: tasks.id/
         : /Duplicate key for property id: t2/,
     )
@@ -653,7 +686,7 @@ export default () => {
         ['create', 'tasks', mockTaskRaw({ id: 't2' })],
         ['create', 'tasks', mockTaskRaw({ id: 't2' })], // duplicate
       ]),
-      AdapterClass.name === 'SQLiteAdapter'
+      isSQLiteAdapter(adapter, AdapterClass)
         ? /UNIQUE constraint failed: tasks.id/
         : /Duplicate key for property id: t2/,
     )
@@ -696,7 +729,7 @@ export default () => {
   it(`can unsafely load from sync JSON`, async (adapter, AdapterClass, _extraAdapterOptions) => {
     if (
       !(
-        AdapterClass.name === 'SQLiteAdapter' &&
+        isSQLiteAdapter(adapter, AdapterClass) &&
         adapter.underlyingAdapter._dispatcherType !== 'asynchronous'
       )
     ) {
@@ -800,7 +833,7 @@ export default () => {
   it(`can return residual JSON from sync JSON`, async (adapter, AdapterClass, _extraAdapterOptions) => {
     if (
       !(
-        AdapterClass.name === 'SQLiteAdapter' &&
+        isSQLiteAdapter(adapter, AdapterClass) &&
         adapter.underlyingAdapter._dispatcherType !== 'asynchronous'
       )
     ) {
@@ -829,7 +862,7 @@ export default () => {
   it(`destroys provided jsons after being used`, async (adapter, AdapterClass, _extraAdapterOptions) => {
     if (
       !(
-        AdapterClass.name === 'SQLiteAdapter' &&
+        isSQLiteAdapter(adapter, AdapterClass) &&
         adapter.underlyingAdapter._dispatcherType !== 'asynchronous'
       )
     ) {
@@ -927,7 +960,7 @@ export default () => {
     // TODO: Mark as deleted?
   })
   it(`can unsafely execute raw commands`, async (adapter, AdapterClass) => {
-    if (AdapterClass.name === 'SQLiteAdapter') {
+    if (isSQLiteAdapter(adapter, AdapterClass)) {
       await adapter.unsafeExecute({
         sqls: [['insert into tasks (id, text1) values (?, ?)', ['rec1', 'bar']]],
       })
@@ -1321,7 +1354,7 @@ export default () => {
       const perform = () => performMatchTest(adapter, testCase)
       const shouldSkip =
         (AdapterClass.name === 'LokiJSAdapter' && testCase.skipLoki) ||
-        (AdapterClass.name === 'SQLiteAdapter' && testCase.skipSqlite)
+        (isSQLiteAdapter(adapter, AdapterClass) && testCase.skipSqlite)
       if (shouldSkip) {
         await expect(perform()).rejects.toBeInstanceOf(Error)
       } else {
@@ -1334,7 +1367,7 @@ export default () => {
       const perform = () => performJoinTest(adapter, testCase)
       const shouldSkip =
         (AdapterClass.name === 'LokiJSAdapter' && testCase.skipLoki) ||
-        (AdapterClass.name === 'SQLiteAdapter' && testCase.skipSqlite)
+        (isSQLiteAdapter(adapter, AdapterClass) && testCase.skipSqlite)
       if (shouldSkip) {
         await expect(perform()).rejects.toBeInstanceOf(Error)
       } else {
@@ -1381,7 +1414,7 @@ export default () => {
   })
 
   // M1: Three sequential hops v1→v2→v3→v4 in one launch
-  it('migrates database through three sequential hops (v1→v2→v3→v4)', async (_adapter, AdapterClass) => {
+  it('migrates database through three sequential hops (v1→v2→v3→v4)', async (_adapter, AdapterClass, extraAdapterOptions) => {
     if (AdapterClass.name === 'LokiJSAdapter') {
       // LokiJS handles version bumps without steps
       return
@@ -1398,6 +1431,7 @@ export default () => {
       new AdapterClass({
         schema: testSchemaV1,
         migrations: schemaMigrations({ migrations: [] }),
+        ...withTestDatabaseSuffix(extraAdapterOptions, 'sequential-migrations'),
         ...(AdapterClass.name === 'LokiJSAdapter' ? { useWebWorker: false, useIncrementalIndexedDB: false } : {}),
       }),
     )
@@ -1464,7 +1498,11 @@ export default () => {
   })
 
   // M2: Sequential hops stepping one version at a time across reopen
-  it('migrates database through sequential hops, stepping one version at a time across reopen', async (_adapter, AdapterClass) => {
+  it('migrates database through sequential hops, stepping one version at a time across reopen', async (
+    _adapter,
+    AdapterClass,
+    extraAdapterOptions,
+  ) => {
     // Start at v1
     const taskColumnsV1 = [{ name: 'text1', type: 'string' }]
     const testSchemaV1 = appSchema({
@@ -1476,6 +1514,7 @@ export default () => {
       new AdapterClass({
         schema: testSchemaV1,
         migrations: schemaMigrations({ migrations: [] }),
+        ...withTestDatabaseSuffix(extraAdapterOptions, 'reopen-migrations'),
         ...(AdapterClass.name === 'LokiJSAdapter' ? { useWebWorker: false, useIncrementalIndexedDB: false } : {}),
       }),
     )
@@ -1529,7 +1568,7 @@ export default () => {
   })
 
   // M6: createTable in a migration, then write to and query the new table, then reopen
-  it('createTable in migration, then write/query, then reopen', async (_adapter, AdapterClass) => {
+  it('createTable in migration, then write/query, then reopen', async (_adapter, AdapterClass, extraAdapterOptions) => {
     if (AdapterClass.name === 'LokiJSAdapter') {
       // LokiJS doesn't support querying projects via MockProject
       return
@@ -1545,6 +1584,7 @@ export default () => {
       new AdapterClass({
         schema: testSchemaV1,
         migrations: schemaMigrations({ migrations: [] }),
+        ...withTestDatabaseSuffix(extraAdapterOptions, 'create-table-migration'),
       }),
     )
 

@@ -99,6 +99,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     this._dispatcher = makeDispatcher(this._dispatcherType, this._tag, this.dbName, {
       usesExclusiveLocking,
       experimentalUnsafeNativeReuse,
+      ...(options.web ? { web: options.web } : {}),
     })
 
     if (process.env.NODE_ENV !== 'production') {

@@ -31,9 +31,17 @@ export type SQLiteAdapterOptions = {
   usesExclusiveLocking?: boolean | undefined
   // Deprecated: Android NativeModule-only. Ignored; SQLite no longer uses NativeModules.
   experimentalUnsafeNativeReuse?: boolean | undefined
+  // Browser-only wa-sqlite configuration. Expo Metro uses the packaged worker and
+  // WASM asset automatically; these hooks support custom asset hosting/bundlers.
+  web?: SQLiteWebOptions | undefined
 }
 
-export type DispatcherType = 'nitro' | 'jsi' | 'asynchronous'
+export type SQLiteWebOptions = {
+  wasmUrl?: string | undefined
+  workerFactory?: (() => Worker) | undefined
+}
+
+export type DispatcherType = 'nitro' | 'jsi' | 'asynchronous' | 'wa-sqlite'
 
 // This is the internal format of batch operations
 // It's ugly, but optimized for performance and versatility, e.g.:
@@ -62,6 +70,7 @@ export type SyncReturn<T> =
 export type SqliteDispatcherOptions = {
   usesExclusiveLocking: boolean
   experimentalUnsafeNativeReuse: boolean
+  web?: SQLiteWebOptions | undefined
 }
 
 export type SqliteDispatcherMethod =

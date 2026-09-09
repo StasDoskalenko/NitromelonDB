@@ -110,6 +110,51 @@ You do **not** need `@morrowdigital/watermelondb-expo-plugin`. Remove it if you 
 
 The Expo notes example is [`examples/NotesApp`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp).
 
+### Expo web SQLite
+
+On web, the normal `nitromelondb/adapters/sqlite` import selects wa-sqlite automatically. SQLite runs in a dedicated worker and persists its database in IndexedDB through `IDBBatchAtomicVFS`. There is no LokiJS or in-memory fallback, and no COOP/COEP header requirement.
+
+Expo SDK 57 web workers require bundle splitting. Expo Router already provides the runtime; projects without Router should install `@expo/metro-runtime` and load it through a web-only platform module:
+
+```ts
+// webRuntime.web.ts
+import '@expo/metro-runtime'
+
+// webRuntime.ts (native) is intentionally empty
+// index.ts imports './webRuntime'
+```
+
+If you have a custom `metro.config.js`, preserve Expo's defaults and ensure WASM is an asset:
+
+```js
+const { getDefaultConfig } = require('expo/metro-config')
+const config = getDefaultConfig(__dirname)
+
+if (!config.resolver.assetExts.includes('wasm')) {
+  config.resolver.assetExts.push('wasm')
+}
+
+module.exports = config
+```
+
+The package resolves its worker and WASM automatically. A custom host or worker policy can override them:
+
+```ts
+const adapter = new SQLiteAdapter({
+  dbName: 'app',
+  schema,
+  web: {
+    wasmUrl: 'https://static.example.com/wa-sqlite-async.wasm',
+    workerFactory: () => new Worker('/nitromelondb-sqlite-worker.js'),
+  },
+})
+```
+
+Run `npx expo export -p web` before release and confirm the output contains a worker bundle and the `.wasm` asset. `usesExclusiveLocking` is unsupported on web. SSR may import and construct the adapter, but server-side database operations are rejected; use the authoritative server database there and let the hydrated browser open its own replica. Existing LokiJS databases are not migrated.
+
+For the runtime design, transaction behavior, offline and multi-tab semantics, known limitations,
+testing strategy, and future work, see the [wa-sqlite web adapter](./Implementation/WaSQLiteAdapter.md).
+
 ### EAS Update
 
 [EAS Update](https://docs.expo.dev/eas-update/introduction/) ships a new JavaScript bundle on top of an existing native binary. Models, queries, schema, and migrations live in JS, so those changes work over OTA as long as the native SQLite engine is already in the app.
