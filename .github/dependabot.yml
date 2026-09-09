@@ -1,0 +1,31 @@
+# Dependabot config.
+#
+# Scheduled version-update PRs are turned off (open-pull-requests-limit: 0) —
+# routine bumps go through `ncu` by hand (see .ncurc.js). Dependabot security
+# updates are NOT affected by that limit and keep running; this block exists so
+# they can be steered with `ignore`.
+#
+# Babel is held on the 7.x line on purpose: `fast-async` (module:fast-async) and
+# the `babel-minify` plugins in babel.config.js are unmaintained and do not work
+# on Babel 8, and Metro / React Native still require `@babel/core@^7`. A Babel 8
+# security bump would break the build for no real gain (the direct `@babel/core`
+# is already past the advisory range; the vulnerable copies are transitive under
+# jest/metro and can only move with those tools). Revisit when Metro ships Babel
+# 8 support.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directories:
+      - "/"
+      - "/docs-website"
+      - "/examples/NotesApp"
+      - "/examples/NotesApp_windows"
+      - "/examples/typescript"
+      - "/examples/benchmark/nitromelondb_benchmark"
+      - "/examples/benchmark/watermelondb_benchmark"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "@babel/*"
+        versions: [">=8.0.0"]
