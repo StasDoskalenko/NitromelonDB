@@ -175,6 +175,20 @@ Windows uses the same Nitro SQLite engine. See [Windows (React Native)](#windows
 
 We highly recommend that you _do not_ use `use_frameworks!`. If you need it (RN Firebase often uses `use_frameworks! :linkage => :static`), prefer **static** linkage. If NitromelonDB fails to build in frameworks mode, [use this workaround](https://github.com/Nozbe/WatermelonDB/issues/1285#issuecomment-1381323060) to force static libraries. Manual (non-CocoaPods) iOS linking is not supported.
 
+<details>
+  <summary>Why does <code>Podfile.lock</code> list <code>React-Core</code>, <code>React-jsi</code>, <code>ReactCommon</code> and other React pods under <code>NitromelonDB</code>?</summary>
+
+This is expected, and it is not specific to NitromelonDB — every React Native native module that uses the New Architecture (JSI / TurboModules / Fabric) produces the same entries. `react-native-reanimated`, `react-native-screens`, `react-native-gesture-handler`, `react-native-mmkv` and WatermelonDB itself all list a dozen-plus `React-*` pods in a consumer's `Podfile.lock`.
+
+The `NitromelonDB` podspec declares `React-Core`, `React-jsi` and `React-callinvoker`, then calls React Native's own `install_modules_dependencies` helper, which expands to the full New-Arch dependency set (`React-Fabric`, `React-graphics`, `React-ImageManager`, `RCTRequired`, `RCTTypeSafety`, `ReactCommon/turbomodule/core`, `ReactCodegen`, `Yoga`, `hermes-engine`, …). CocoaPods records those edges in `Podfile.lock`.
+
+It does **not** mean:
+
+- **Duplicate React is compiled.** CocoaPods deduplicates — your app has one `React-Core` pod and every module links against that same one.
+- **NitromelonDB pins a React version.** `install_modules_dependencies` inherits whatever version your app's `use_react_native!` configured; the podspec adds no version constraints on any `React-*` pod.
+
+</details>
+
 ### Android (React Native)
 
 Autolinking is enough. No Gradle or `MainApplication` changes. Manual `ReactPackage` registration is the old architecture and is not supported.
