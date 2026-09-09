@@ -12,21 +12,27 @@
     "postinstall": "patch-package"
   },
   "dependencies": {
-    "expo": "~57.0.12",
-    "expo-dev-client": "~57.0.11",
+    "expo": "~57.0.21",
+    "expo-dev-client": "~57.0.18",
     "expo-status-bar": "~57.0.1",
     "nitromelondb": "link:../../..",
     "react": "19.2.3",
-    "react-native": "0.86.2",
+    "react-native": "0.86.3",
     "react-native-nitro-modules": "0.36.5",
     "rxjs": "^7.8.2",
     "sql-escape-string": "^1.1.0"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
-    "babel-preset-expo": "~57.0.6",
+    "babel-preset-expo": "~57.0.11",
     "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
+  },
+  "resolutions": {
+    "@expo/plist/@xmldom/xmldom": "^0.8.15",
+    "plist/@xmldom/xmldom": "^0.9.12",
+    "@expo/xcpretty/js-yaml": "^4.3.2",
+    "xcode/uuid": "^11.1.1"
   },
   "packageManager": "yarn@4.18.0"
 }
