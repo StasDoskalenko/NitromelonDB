@@ -13,18 +13,25 @@
   },
   "dependencies": {
     "@nozbe/watermelondb": "0.28.0",
-    "expo": "~57.0.12",
-    "expo-build-properties": "~57.0.4",
-    "expo-dev-client": "~57.0.11",
+    "expo": "~57.0.21",
+    "expo-build-properties": "~57.0.17",
+    "expo-dev-client": "~57.0.18",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.2"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
-    "babel-preset-expo": "~57.0.6",
+    "babel-preset-expo": "~57.0.11",
     "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
+  },
+  "resolutions": {
+    "@expo/plist/@xmldom/xmldom": "^0.8.15",
+    "plist/@xmldom/xmldom": "^0.9.12",
+    "@expo/xcpretty/js-yaml": "^4.3.2",
+    "xcode/uuid": "^11.1.1",
+    "@nozbe/watermelondb/@babel/runtime": "^7.26.10"
   },
   "packageManager": "yarn@4.18.0"
 }
