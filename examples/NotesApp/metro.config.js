@@ -8,11 +8,30 @@ const workspaceRoot = path.resolve(projectRoot, '../..')
 const config = getDefaultConfig(projectRoot)
 
 // The web conformance screen intentionally imports NitromelonDB's shared
-// adapter cases. Expo excludes __tests__ by default, so make those sources
-// visible to this example's test bundle.
-config.resolver.blockList = config.resolver.blockList.filter(
-  (pattern) => !String(pattern).includes('__tests__'),
-)
+// adapter cases from `src/adapters/__tests__` (and their transitive `__tests__`
+// imports elsewhere under the library's `src/`). Expo's default blockList
+// excludes every `__tests__` directory, plus `.expo/types` and `.expo/web/cache`,
+// in one combined pattern. Dropping that whole pattern also unblocks `__tests__`
+// inside every installed package and drops the `.expo/*` exclusions as collateral.
+// Instead, keep blocking `__tests__` under `node_modules` (where Expo's default is
+// genuinely useful, e.g. broken fixtures or huge snapshots in a dependency's own
+// test folder) and keep the `.expo/*` exclusions, while leaving this workspace's
+// own `src/` alone. `nitromelondb`'s `src/` is resolved directly via
+// `extraNodeModules`/`watchFolders` below, never through a real
+// `node_modules/nitromelondb` path, so anchoring on `node_modules` targets
+// third-party packages precisely. This stays a positive match rather than a
+// `src/`-relative negative lookahead: Metro can hand combined blockList patterns
+// to Watchman's regex engine, which does not reliably support lookahead, and a
+// pattern Watchman mishandles fails silently by excluding files from the crawl.
+config.resolver.blockList = config.resolver.blockList.flatMap((pattern) => {
+  if (!String(pattern).includes('__tests__')) {
+    return [pattern]
+  }
+  return [
+    /[\\/]\.expo[\\/](?:types|web[\\/]cache)$/,
+    /[\\/]node_modules[\\/].*[\\/]__tests__[\\/].*$/,
+  ]
+})
 
 function resolveDep(name) {
   const local = path.resolve(projectRoot, 'node_modules', name)

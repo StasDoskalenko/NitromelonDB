@@ -86,6 +86,8 @@ jobs:
         with:
           node-version: 24.x
       - run: yarn install --immutable
+      - name: Verify vendored wa-sqlite matches upstream + the documented patch
+        run: node scripts/vendor-wa-sqlite.mjs --verify
       - name: Install NotesApp
         working-directory: examples/NotesApp
         run: yarn install --immutable

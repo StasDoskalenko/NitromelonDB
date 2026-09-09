@@ -1,8 +1,8 @@
 # wa-sqlite binary provenance
 
-The Emscripten artifacts in this directory come from rhashimoto/wa-sqlite
-tag `v1.1.2`, commit `2bf1c59d89eb6497535a4217bc62fec68a0bb994`.
-The runtime JavaScript dependency is pinned to that immutable commit too.
+The Emscripten artifacts in this directory come from rhashimoto/wa-sqlite tag `v1.1.2` (commit `2bf1c59d89eb6497535a4217bc62fec68a0bb994`).
+The runtime JavaScript dependency in `package.json` is pinned to that same
+immutable commit.
 
 | File | SHA-256 |
 | --- | --- |
@@ -15,7 +15,15 @@ The JavaScript glue has one deliberate source patch: its `_scriptName` base is
 `import.meta` in the emitted worker chunk. This adapter is worker-only and also
 supplies `wasmBinary` and `locateFile`, so the worker URL is the correct safe base.
 
-The intended follow-up is a `scripts/vendor-wa-sqlite.mjs` updater and scheduled
-workflow, matching the existing SQLite and simdjson vendor automation. Until
-then, updates must copy both upstream artifacts from the same commit, reapply
-the single patch above, update all three hashes, and run the Chromium suite.
+Regenerate both artifacts and this file with:
+
+```
+node scripts/vendor-wa-sqlite.mjs <commit-sha>
+```
+
+CI runs `node scripts/vendor-wa-sqlite.mjs --verify` on every push to confirm the
+committed artifacts still equal upstream plus exactly that one patch, and that this
+file's hashes match. When bumping to a new commit, also update the pinned commit in
+`package.json`'s `wa-sqlite` dependency (`.yarnrc.yml`'s `approvedGitRepositories`
+entry for rhashimoto/wa-sqlite does not need to change), then run the Chromium suite
+(`yarn --cwd examples/NotesApp test:web`).
