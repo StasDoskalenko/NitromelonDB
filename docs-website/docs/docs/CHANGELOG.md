@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
+## 0.30.1-beta.0 - 2026-09-10
+
+### New features
+
+- [Web] `SQLiteAdapter` now uses wa-sqlite's Asyncify build in a dedicated worker, backed by `IDBBatchAtomicVFS`. The browser adapter keeps the existing `nitromelondb/adapters/sqlite` import and supports the native SQLite contract, including migrations, batches, record caching, local storage, reset, and optimized sync JSON import.
+
+### Internal
+
+- Memory-pressure trimming (the WeakValueCache-based caches and the native `sqlite3_db_release_memory` call added in 0.30.1) now logs when it actually runs — `logger.debug` on the JS side (`[Memory] &lt;cache>: pruned N dead entries (...)`, `[Memory] Low memory signal received, notifying N listener(s)`), native `consoleLog`/`Logger` on iOS/Android — mirroring MMKV's debug logging for its own memory-warning handler, so the mechanism's activity is actually visible instead of silent.
+
 ## 0.30.1-alpha.1 - 2026-09-03
 
 ### Performance
@@ -16,7 +26,7 @@ Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
 ### Performance
 
-- Internal caches (`KeyedSharedSubscribable`'s per-column-set subscribable map, the `@date` decorator's memoization cache) now self-prune dead entries via a new `WeakValueCache` utility (`Map<K, WeakRef<V>>` + `FinalizationRegistry`, with a tiered fallback for engines without native `WeakRef`/`FinalizationRegistry` support), instead of growing forever for the life of the process.
+- Internal caches (`KeyedSharedSubscribable`'s per-column-set subscribable map, the `@date` decorator's memoization cache) now self-prune dead entries via a new `WeakValueCache` utility (`Map&lt;K, WeakRef&lt;V>>` + `FinalizationRegistry`, with a tiered fallback for engines without native `WeakRef`/`FinalizationRegistry` support), instead of growing forever for the life of the process.
 - [iOS][Android] Real OS memory-pressure signals (`didReceiveMemoryWarningNotification` on iOS; `ComponentCallbacks2`/`onTrimMemory`, filtered to critical levels, on Android) now proactively trigger that pruning via a new Nitro `onMemoryWarning` callback, instead of the previously-stubbed `platform::onMemoryAlert` doing nothing.
 
 ### Internal
