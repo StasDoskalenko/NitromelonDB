@@ -53,6 +53,10 @@
     "react-test-renderer": "19.2.3",
     "typescript": "^5.8.3"
   },
+  "resolutions": {
+    "@react-native-windows/cli/@xmldom/xmldom": "^0.8.15",
+    "@react-native-windows/telemetry/@xmldom/xmldom": "^0.8.15"
+  },
   "engines": {
     "node": ">= 22.11.0"
   },
