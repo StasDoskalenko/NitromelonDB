@@ -1,7 +1,9 @@
 import * as React from 'react'
 import { withObservables, ExtractedObservables } from 'nitromelondb/react'
 import { Model, Database, tableName } from 'nitromelondb'
-import { expectType } from 'tsd-check'
+// Minimal compile-time assertion helper (previously from `tsd-check`, dropped
+// to avoid its vulnerable transitive deps — braces <3.0.3, GHSA-grv7-fg5c-xmjg).
+declare function expectType<T>(value: T): void
 
 const TableName_BLOGS = tableName<Blog>('blogs')
 
