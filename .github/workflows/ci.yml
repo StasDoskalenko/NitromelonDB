@@ -19,12 +19,12 @@ jobs:
     runs-on: ubuntu-24.04
     name: ESLint
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set Node.js version
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24.x
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
@@ -35,12 +35,12 @@ jobs:
     runs-on: ubuntu-24.04
     name: TypeScript
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set Node.js version
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24.x
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
@@ -54,12 +54,12 @@ jobs:
     runs-on: ubuntu-24.04
     name: JavaScript tests
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set Node.js version
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24.x
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
@@ -70,7 +70,7 @@ jobs:
       - run: node scripts/next-version.mjs --self-test
       - run: node scripts/prepare-changelog.mjs --self-test
       - name: Gradle Wrapper Validation
-        uses: gradle/actions/wrapper-validation@v4
+        uses: gradle/actions/wrapper-validation@v5
   notesapp-web:
     needs: [eslint, typescript, ci-check]
     runs-on: ubuntu-24.04
@@ -80,9 +80,9 @@ jobs:
       CI: true
       EXPO_NO_TELEMETRY: 1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set Node.js version
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24.x
       - run: yarn install --immutable
@@ -99,7 +99,7 @@ jobs:
         run: yarn test:web
       - name: Upload Playwright diagnostics
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: notesapp-web-playwright-${{ github.run_attempt }}
           if-no-files-found: ignore
@@ -112,9 +112,9 @@ jobs:
     name: iOS tests
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set Node.js version
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24.x
       - name: Set Xcode version
@@ -124,13 +124,13 @@ jobs:
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1
       - name: cache node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
       - run: yarn install --immutable
       - name: cache Pods
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: pods-cache
         with:
           path: native/iosTest/Pods
@@ -145,31 +145,31 @@ jobs:
     name: Android tests
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
-          distribution: 'adopt'
+          distribution: 'temurin'
           java-version: '21'
       - name: Set Node.js version
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24.x
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
       - run: yarn install --immutable
       - run: yarn dev:native &
-      - uses: gradle/actions/setup-gradle@v3
+      - uses: gradle/actions/setup-gradle@v5
       # See: https://github.com/android/compose-samples/actions/runs/27015993/workflow for ideas for caching
       # android-emulator-runner runs each YAML line via `sh -c`, so keep this a single command.
       - name: run tests
-        uses: reactivecircus/android-emulator-runner@v2.33.0
+        uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
           api-level: 29
           working-directory: ./native/androidTest
@@ -184,21 +184,21 @@ jobs:
       CI: true
       EXPO_NO_TELEMETRY: 1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
-          distribution: 'adopt'
+          distribution: 'temurin'
           java-version: '21'
       - name: Set Node.js version
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24.x
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
@@ -206,7 +206,7 @@ jobs:
       - name: Install NotesApp
         working-directory: examples/NotesApp
         run: yarn install --immutable
-      - uses: gradle/actions/setup-gradle@v3
+      - uses: gradle/actions/setup-gradle@v5
       - name: Expo prebuild Android
         working-directory: examples/NotesApp
         run: yarn expo prebuild --platform android --non-interactive --no-install
@@ -222,13 +222,13 @@ jobs:
       # Runs the real e2e suite (blocking) then a flashlight perf measurement on the
       # same build/emulator (informational only, see scripts/ci-notesapp-android-maestro.sh).
       - name: run tests
-        uses: reactivecircus/android-emulator-runner@v2.33.0
+        uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
           api-level: 29
           profile: pixel
           disable-animations: true
           script: bash scripts/ci-notesapp-android-maestro.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: perf-result-android
@@ -243,9 +243,9 @@ jobs:
       CI: true
       EXPO_NO_TELEMETRY: 1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set Node.js version
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24.x
       - name: Set Xcode version
@@ -254,7 +254,7 @@ jobs:
           xcode-version: latest-stable
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
@@ -270,7 +270,7 @@ jobs:
         # there's no committed Podfile.lock to key a cache off before this.
         run: yarn expo prebuild --platform ios --non-interactive --no-install
       - name: cache Pods
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             examples/NotesApp/ios/Pods
@@ -295,17 +295,17 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
         with:
           name: perf-result-android
           path: perf-results
         continue-on-error: true
       - name: Set Node.js version
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24.x
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
@@ -327,19 +327,19 @@ jobs:
       contents: write
       actions: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: perf-result-android
           path: perf-results
         continue-on-error: true
       - name: Set Node.js version
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24.x
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
@@ -385,15 +385,15 @@ jobs:
         working-directory: examples/NotesApp_windows
         shell: pwsh
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set Node.js version
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24.19.0'
           cache: yarn
           cache-dependency-path: examples/NotesApp_windows/yarn.lock
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.nuget/packages
@@ -416,7 +416,7 @@ jobs:
         run: yarn test:windows:e2e
       - name: Upload e2e failure diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: notesapp-windows-e2e-diagnostics
           path: examples/NotesApp_windows/.tmp/diagnostics
