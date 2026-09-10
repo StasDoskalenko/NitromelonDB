@@ -55,7 +55,8 @@
   },
   "resolutions": {
     "@react-native-windows/cli/@xmldom/xmldom": "^0.8.15",
-    "@react-native-windows/telemetry/@xmldom/xmldom": "^0.8.15"
+    "@react-native-windows/telemetry/@xmldom/xmldom": "^0.8.15",
+    "js-yaml@npm:^4.1.0": "^4.3.2"
   },
   "engines": {
     "node": ">= 22.11.0"
