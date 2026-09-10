@@ -61,7 +61,7 @@ const adapter = new SQLiteAdapter({
 `usesExclusiveLocking: true` is rejected on web because the IndexedDB VFS supports multiple connections and tabs. Web initialization is deferred until hydration, so importing and constructing an adapter during SSR is safe; attempts to query it on the server fail with a message directing server code to its authoritative database. Existing LokiJS browser data is not migrated.
 
 Architecture, offline and multi-tab behavior, sync JSON, known issues, testing, and future work are
-documented in the [wa-sqlite web adapter guide](docs-website/docs/docs/Implementation/WaSQLiteAdapter.md).
+documented in the [wa-sqlite web adapter guide](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs-website/docs/docs/Implementation/WaSQLiteAdapter.md).
 
 Full credit to [@Nozbe](https://github.com/Nozbe) and [Radek Pietruszewski](https://github.com/radex) for designing and shipping the original WatermelonDB.
 
