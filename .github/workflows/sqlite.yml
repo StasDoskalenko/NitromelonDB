@@ -14,15 +14,15 @@ jobs:
     runs-on: ubuntu-24.04
     name: Vendor latest SQLite
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set Node.js version
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24.x
       - name: Vendor latest SQLite if newer
         id: vendor
         run: node scripts/vendor-sqlite.mjs --latest --if-newer
-      - uses: peter-evans/create-pull-request@v7
+      - uses: peter-evans/create-pull-request@v8
         if: steps.vendor.outputs.updated == 'true'
         with:
           branch: chore/sqlite-bump
