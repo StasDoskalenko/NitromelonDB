@@ -192,5 +192,9 @@
     "semver": "^7.8.5",
     "typescript": "^6.0.3"
   },
+  "//resolutions": "tmp: path traversal GHSA-ph9p-34f9-6g65 (< 0.2.6). Pulled in dev-only via inquirer -> external-editor -> tmp@^0.0.33; external-editor is unmaintained and still pins 0.0.33. 0.2.x keeps the tmpNameSync/fileSync API external-editor uses. Drop once inquirer/external-editor moves off it.",
+  "resolutions": {
+    "tmp@npm:^0.0.33": "^0.2.6"
+  },
   "packageManager": "yarn@4.18.0"
 }
