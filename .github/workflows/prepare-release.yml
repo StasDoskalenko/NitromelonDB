@@ -33,6 +33,11 @@ on:
           - alpha
           - beta
         default: 'none'
+      allow_empty_changelog:
+        description: 'Allow preparing a release with no CHANGELOG-Unreleased.md entries (rare -- normally add an entry to CHANGELOG-Unreleased.md instead)'
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   prepare:
@@ -197,9 +202,13 @@ jobs:
           # blank lines) is actually caught instead of silently producing a
           # release with an empty changelog section further down the line.
           if [ -z "$(tr -d '[:space:]' < /tmp/release_notes.md)" ]; then
+            if [ "${{ inputs.allow_empty_changelog }}" != "true" ]; then
+              echo "::error::No CHANGELOG-Unreleased.md entries were found for v${{ env.NEW_VERSION }}. Add an entry to CHANGELOG-Unreleased.md (see CONTRIBUTING.md or the file's own header comment) before preparing this release, or re-run this workflow with 'allow_empty_changelog' checked if it genuinely has no user-facing changes."
+              exit 1
+            fi
             echo "_No unreleased notes were recorded._" > /tmp/release_notes.md
             echo "NOTES_EMPTY=true" >> "$GITHUB_ENV"
-            echo "::warning::No CHANGELOG-Unreleased.md entries were found for v${{ env.NEW_VERSION }}. Contributors should add an entry to CHANGELOG-Unreleased.md in their PR -- see CONTRIBUTING or the file's own header comment. Review this release PR's changelog section before merging."
+            echo "::warning::Preparing v${{ env.NEW_VERSION }} with no CHANGELOG-Unreleased.md entries (allow_empty_changelog was set). Review this release PR's changelog section before merging."
           else
             echo "NOTES_EMPTY=false" >> "$GITHUB_ENV"
           fi
