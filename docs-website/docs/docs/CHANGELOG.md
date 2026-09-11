@@ -6,6 +6,18 @@ Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
 ## 0.30.1-beta.1 - 2026-09-11
 
+### Fixes
+
+- [Android] `native/android/build.gradle` no longer applies `kotlin-android` unconditionally. AGP 9 registers a `kotlin` extension itself and enables built-in Kotlin support by default, so the explicit apply collided with it ("Cannot add extension with name 'kotlin'"), making the module unbuildable on AGP 9 projects with no consumer-side workaround. The plugin is now applied only when nothing has registered that extension yet, which also covers AGP 10 (where the `android.builtInKotlin` opt-out is removed).
+
+### Internal
+
+- Dependabot cleanup across the example apps and docs site — none of these ship in the published `nitromelondb` package:
+  - `examples/NotesApp_windows`: `@xmldom/xmldom` 0.7.13 → 0.8.15 (GHSA-2v35-w6hq-6mfw, uncontrolled recursion DoS) and `js-yaml` 4.x → 4.3.2 (GHSA-2883-xcg3-v3hh, uncontrolled CPU on empty merge sources), both dev-only transitives.
+  - `docs-website`: `minimatch` → 3.1.5, `js-yaml` (4.x) → 4.3.2, `ws` → 8.21.3, `path-to-regexp` (0.1.x) → 0.1.13, `serialize-javascript` 6 → 7.1.1 — all Docusaurus build-time transitives, none shipped in the generated site.
+  - Root toolchain: `tmp` 0.0.33 → 0.2.7 (GHSA-ph9p-34f9-6g65, path traversal), pulled in transitively via `inquirer` → `external-editor`.
+  - `examples/typescript`: dropped the unmaintained `tsd-check` dev dependency (its only use was a single `expectType` call, replaced with a local type-only helper), clearing its `braces`/`got`/`yargs-parser`/`decode-uri-component` advisory chain.
+
 ## 0.30.1-beta.0 - 2026-09-10
 
 ### New features
