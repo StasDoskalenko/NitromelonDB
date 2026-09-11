@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
+## 0.30.1-beta.1 - 2026-09-11
+
 ## 0.30.1-beta.0 - 2026-09-10
 
 ### New features
