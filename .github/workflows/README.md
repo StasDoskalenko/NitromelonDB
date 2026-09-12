@@ -15,6 +15,7 @@ Automated releases for `nitromelondb`, modeled on the two-step process used in [
 | Version bump | `none`, `promote`, `patch`, `minor`, `major` | Semver bump. `none` keeps the current X.Y.Z (next `-alpha.N`, or graduate if prerelease is `none`). `promote` ships the in-progress alpha/beta as official `X.Y.Z` and folds the changelog |
 | Prerelease | `none`, `alpha`, `beta` | Optional prerelease channel. Ignored when bump is `promote` |
 | npm dist-tag | `none`, `latest`, `alpha`, `beta` | `none` (default) uses the version's channel tag. Pick `latest` only when this version should be what `npm i nitromelondb` installs |
+| Allow empty changelog | `true`, `false` (default `false`) | The workflow fails if `CHANGELOG-Unreleased.md` has no entries — add one, or check this only for a release that genuinely has no user-facing changes |
 
 **What it does:**
 
@@ -22,7 +23,7 @@ Automated releases for `nitromelondb`, modeled on the two-step process used in [
 2. Skips versions that already have a git tag, GitHub Release, or npm publish (alpha/beta then increment `-alpha.N`)
 3. Creates or recreates a `release/vX.Y.Z` branch from master (leftover branches without a tag/release are reused; already-open PRs are not)
 4. Bumps `package.json`
-5. Moves `CHANGELOG-Unreleased.md` into `CHANGELOG.md` under the new version heading
+5. Moves `CHANGELOG-Unreleased.md` into `CHANGELOG.md` under the new version heading, failing the run if it's empty and `allow_empty_changelog` isn't set
 6. When graduating to a stable release (`promote`, or bump `none` + prerelease `none`), folds every same-version `-alpha.N` / `-beta.N` changelog entry into that one official heading and removes the prerelease sections
 7. Records the npm dist-tag choice in `.github/publish-npm-tag` (always written, including `none`)
 8. Resets `CHANGELOG-Unreleased.md` to empty section headers
