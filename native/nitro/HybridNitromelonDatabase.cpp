@@ -335,6 +335,13 @@ void HybridNitromelonDatabase::batch(
   database().batch(cppOps);
 }
 
+std::vector<std::string> HybridNitromelonDatabase::destroyMatching(const std::string& table, const std::string& sql,
+                                                                    const std::vector<NitroSqliteValue>& args,
+                                                                    bool permanently, bool isUnconditional) {
+  assert(initialized_);
+  return database().destroyMatching(table, sql, toSqliteArgs(args), permanently, isUnconditional);
+}
+
 void HybridNitromelonDatabase::batchJSON(const std::string& operations) {
   assert(initialized_);
   database().batchJSON(operations);

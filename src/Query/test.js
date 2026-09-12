@@ -442,12 +442,14 @@ describe('Query', () => {
       expect(await queryAll.fetchCount()).toBe(5)
       expect(await query.fetchCount()).toBe(3)
 
-      const adapterBatchSpy = jest.spyOn(database.adapter.underlyingAdapter, 'batch')
+      const destroyMatchingSpy = jest.spyOn(database.adapter.underlyingAdapter, 'destroyMatching')
+      const batchSpy = jest.spyOn(database.adapter.underlyingAdapter, 'batch')
       await database.write(() => query[methodName]())
-      // regardless of how many records matched, this must be a single adapter.batch() call (one
-      // transaction) -- not one per record, which is what made bulk deletes slow enough that
-      // people reached for unsafe raw SQL instead
-      expect(adapterBatchSpy).toHaveBeenCalledTimes(1)
+      // regardless of how many records matched, this must be a single adapter.destroyMatching()
+      // call (one native/engine-level operation) -- not a per-record adapter.batch(), which is
+      // what made bulk deletes slow enough that people reached for unsafe raw SQL instead
+      expect(destroyMatchingSpy).toHaveBeenCalledTimes(1)
+      expect(batchSpy).not.toHaveBeenCalled()
 
       expect(await queryAll.fetchCount()).toBe(2)
       expect(await query.fetchCount()).toBe(0)
@@ -483,15 +485,19 @@ describe('Query', () => {
 
       const querySpy = jest.spyOn(freshDatabase.adapter.underlyingAdapter, 'query')
       const findSpy = jest.spyOn(freshDatabase.adapter.underlyingAdapter, 'find')
+      const queryIdsSpy = jest.spyOn(freshDatabase.adapter.underlyingAdapter, 'queryIds')
       const batchSpy = jest.spyOn(freshDatabase.adapter.underlyingAdapter, 'batch')
+      const destroyMatchingSpy = jest.spyOn(freshDatabase.adapter.underlyingAdapter, 'destroyMatching')
 
       await freshDatabase.write(() => freshQuery[methodName]())
 
-      // no full-row fetch for records nobody has loaded -- only the id-only queryIds() call
-      // (exercised via fetchIds()) plus the single destroy batch
+      // no full-row fetch for records nobody has loaded, and no separate id-resolution call or
+      // per-id batch either -- destroyMatching() resolves and mutates in one adapter call
       expect(querySpy).not.toHaveBeenCalled()
       expect(findSpy).not.toHaveBeenCalled()
-      expect(batchSpy).toHaveBeenCalledTimes(1)
+      expect(queryIdsSpy).not.toHaveBeenCalled()
+      expect(batchSpy).not.toHaveBeenCalled()
+      expect(destroyMatchingSpy).toHaveBeenCalledTimes(1)
 
       expect(await freshQuery.fetchCount()).toBe(0)
     }

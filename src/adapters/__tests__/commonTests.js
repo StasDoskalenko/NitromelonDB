@@ -341,6 +341,55 @@ export default () => {
     expect(await adapter.queryIds(taskQuery())).toEqual(['s1', 's2'])
     expect(await adapter.queryIds(taskQuery())).toEqual(['s1', 's2'])
   })
+  it('can permanently destroy records matching a query, without fetching them first', async (_adapter) => {
+    let adapter = _adapter
+    await adapter.batch([
+      ['create', 'tasks', mockTaskRaw({ id: 's1', order: 1, bool1: true })],
+      ['create', 'tasks', mockTaskRaw({ id: 's2', order: 2, bool1: true })],
+      ['create', 'tasks', mockTaskRaw({ id: 's3', order: 3, bool1: false })],
+    ])
+
+    // reload so nothing is cached in this adapter instance -- exercises the "nobody has fetched
+    // these records" path, not just the "records happen to already be cached" one
+    adapter = await adapter.testClone()
+
+    const destroyedIds = await adapter.destroyMatching(taskQuery(Q.where('bool1', true)), true)
+    expect(destroyedIds.slice().sort()).toEqual(['s1', 's2'])
+    expect(await adapter.queryIds(taskQuery())).toEqual(['s3'])
+
+    // destroying again (nothing left matching) is a safe no-op
+    expect(await adapter.destroyMatching(taskQuery(Q.where('bool1', true)), true)).toEqual([])
+  })
+  it('can mark records as deleted matching a query', async (_adapter) => {
+    let adapter = _adapter
+    await adapter.batch([
+      ['create', 'tasks', mockTaskRaw({ id: 's1', order: 1, bool1: true })],
+      ['create', 'tasks', mockTaskRaw({ id: 's2', order: 2, bool1: false })],
+    ])
+    adapter = await adapter.testClone()
+
+    const affectedIds = await adapter.destroyMatching(taskQuery(Q.where('bool1', true)), false)
+    expect(affectedIds).toEqual(['s1'])
+    // markAsDeleted records are excluded from ordinary queries (Q.queryWithoutDeleted)
+    expect(await adapter.queryIds(taskQuery())).toEqual(['s2'])
+    // but the row still physically exists, unlike a permanent destroy
+    expect(await adapter.getDeletedRecords('tasks')).toEqual(['s1'])
+  })
+  it('can destroy every record when the query has no conditions at all', async (_adapter) => {
+    let adapter = _adapter
+    await adapter.batch([
+      ['create', 'tasks', mockTaskRaw({ id: 's1' })],
+      ['create', 'tasks', mockTaskRaw({ id: 's2' })],
+    ])
+    adapter = await adapter.testClone()
+
+    const destroyedIds = await adapter.destroyMatching(taskQuery(), true)
+    expect(destroyedIds.slice().sort()).toEqual(['s1', 's2'])
+    expect(await adapter.queryIds(taskQuery())).toEqual([])
+  })
+  it('destroying matching returns an empty array when nothing matches', async (adapter) => {
+    expect(await adapter.destroyMatching(taskQuery(Q.where('text1', 'nope')), true)).toEqual([])
+  })
   it('can unsafely query raws with SQL', async (adapter, AdapterClass) => {
     await adapter.batch([
       ['create', 'tasks', mockTaskRaw({ id: 't1', order: 1, text1: 'hello' })],

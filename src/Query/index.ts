@@ -328,18 +328,17 @@ export default class Query<Record extends Model> {
   /**
    * Marks all records matching this query as deleted (they will be deleted permenantly after sync)
    *
-   * This commits a single `database.batch()` call (one underlying adapter transaction) no matter
-   * how many records match, and only builds a `Model` for a matching record if one is already
-   * cached (i.e. something might be observing it) -- see `destroyAllPermanently()` for why that
-   * matters and why it's still fully correct.
+   * This resolves and mutates matching records in a single `adapter.destroyMatching()` call (one
+   * native/engine-level operation) no matter how many records match, and only builds a `Model`
+   * for a matching record if one is already cached (i.e. something might be observing it) -- see
+   * `destroyAllPermanently()` for why that matters and why it's still fully correct.
    *
    * Note: This method must be called within a Writer {@link Database#write}.
    *
    * @see {Model#markAsDeleted}
    */
   async markAllAsDeleted(): Promise<void> {
-    const ids = await this.fetchIds()
-    await this.collection.database._performMassDestroy(this.table, ids, 'markAsDeleted')
+    await this.collection.database._performMassDestroy(this.serialize(), 'markAsDeleted')
   }
 
   /**
@@ -351,13 +350,18 @@ export default class Query<Record extends Model> {
    * active observers (`.observe()`, `.observeCount()`, etc.) correctly up to date -- see
    * `Database#unsafeExecute()`/`adapter.unsafeExecute()` for why a raw `DELETE` doesn't.
    *
-   * This uses `fetchIds()` rather than `fetch()`, and commits every matching id in a single
-   * `database.batch()` call (one adapter transaction, see `DatabaseAdapter#batch`) regardless of
-   * how many records match. A full `Model` is only built for an id that's already cached (i.e.
-   * something might hold a reference to it, e.g. via `.observe()`) -- building one for every
-   * matching row just to immediately destroy it would mean a full row fetch and cache insert per
-   * row, purely to undo it a moment later. See `Database#_performMassDestroy` for the full
-   * reasoning, including why this stays correct for every active observer.
+   * This resolves which records match AND deletes them in a single `adapter.destroyMatching()`
+   * call -- one native/engine-level operation (e.g. one SQL statement) regardless of how many
+   * records match, rather than first fetching ids in JS and then batching a mutation per id. For
+   * a query with no conditions at all (delete the whole table), this also lets the underlying
+   * engine skip straight to an unconditional delete, unlocking optimizations (like SQLite's own
+   * page-truncation fast path) that a per-id `WHERE id IN (...)` could never trigger. A full
+   * `Model` is only built for an id that's already cached (i.e. something might hold a reference
+   * to it, e.g. via `.observe()`) -- building one for every matching row just to immediately
+   * destroy it would mean a full row fetch and cache insert per row, purely to undo it a moment
+   * later. See `Database#_performMassDestroy` and each `DatabaseAdapter#destroyMatching`
+   * implementation for the full reasoning, including why this stays correct for every active
+   * observer.
    *
    * Note: Do not use this when using Sync, as deletion will not be synced.
    *
@@ -366,8 +370,7 @@ export default class Query<Record extends Model> {
    * @see {Model#destroyPermanently}
    */
   async destroyAllPermanently(): Promise<void> {
-    const ids = await this.fetchIds()
-    await this.collection.database._performMassDestroy(this.table, ids, 'destroyPermanently')
+    await this.collection.database._performMassDestroy(this.serialize(), 'destroyPermanently')
   }
 
   // MARK: - Internals

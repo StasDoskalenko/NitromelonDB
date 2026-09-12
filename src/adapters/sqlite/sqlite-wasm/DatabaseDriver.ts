@@ -209,6 +209,42 @@ export default class DatabaseDriver {
     removed.forEach(([table, id]) => this.removeFromCache(table, id))
   }
 
+  // Powers Query#markAllAsDeleted()/destroyAllPermanently(). `sql`/`args` are exactly what would
+  // otherwise be passed to queryIds() for this same Query. Reused here twice: once as-is to
+  // collect which ids match, and (unless `isUnconditional`) a second time wrapped as an inline
+  // derived table inside the actual DELETE/UPDATE, so no `WHERE id IN (?,?,…)` argument list
+  // needs to be built here, and no separate id-based batch call needs to happen at all.
+  async destroyMatching(
+    table: string,
+    sql: string,
+    args: SQLiteArg[],
+    permanently: boolean,
+    isUnconditional: boolean,
+  ): Promise<string[]> {
+    let ids: string[] = []
+
+    await this.inTransaction(async () => {
+      ids = (await this.queryRaw(sql, args)).map((row) => String(row.id))
+      if (ids.length === 0) {
+        return
+      }
+
+      if (isUnconditional) {
+        await this.execute(
+          permanently ? `DELETE FROM "${table}"` : `UPDATE "${table}" SET "_status" = 'deleted'`,
+        )
+      } else {
+        const mutationSql = permanently
+          ? `DELETE FROM "${table}" WHERE "id" IN (SELECT "id" FROM (${sql}))`
+          : `UPDATE "${table}" SET "_status" = 'deleted' WHERE "id" IN (SELECT "id" FROM (${sql}))`
+        await this.execute(mutationSql, args)
+      }
+    })
+
+    ids.forEach((id) => this.removeFromCache(table, id))
+    return ids
+  }
+
   async getLocal(key: string): Promise<unknown> {
     const rows = await this.queryRaw('SELECT "value" FROM "local_storage" WHERE "key" = ?', [key])
     return rows.length ? rows[0].value : null

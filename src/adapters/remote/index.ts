@@ -52,6 +52,14 @@ export default class RemoteAdapter implements DatabaseAdapter {
     this.handler('batch', [operations], callback)
   }
 
+  destroyMatching(
+    query: SerializedQuery,
+    permanently: boolean,
+    callback: ResultCallback<RecordId[]>,
+  ): void {
+    this.handler('destroyMatching', [query, permanently], callback)
+  }
+
   getDeletedRecords(tableName: TableName, callback: ResultCallback<RecordId[]>): void {
     this.handler('getDeletedRecords', [tableName], callback)
   }

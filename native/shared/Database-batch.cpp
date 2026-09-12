@@ -157,4 +157,64 @@ void Database::batchJSON(jsi::String &&jsiJson) {
     batchJSON(jsiJson.utf8(getRt()));
 }
 
+// Powers Query#markAllAsDeleted()/destroyAllPermanently(). `sql`/`args` are exactly what would
+// otherwise be passed to queryIds() for this same Query -- reused here twice: once as-is, to
+// collect which ids match (identical loop to queryIds() above), and, when there IS a predicate
+// (`!isUnconditional`), a second time wrapped as an inline derived table inside the actual
+// DELETE/UPDATE (`where "id" in (select "id" from (<sql>))`), so no `WHERE id IN (?,?,…)`
+// argument list ever needs to be built (and chunked around SQLite's bound-parameter limit) here,
+// and no separate id-based batch call needs to cross the JS bridge at all. When there's no
+// predicate at all (a plain "delete/mark-delete everything" call, e.g. `collection.query()
+// .destroyAllPermanently()`), skips straight to a bare `delete from`/`update ... set` -- letting
+// SQLite's own truncate optimization deallocate whole pages instead of visiting every row, which
+// the `WHERE id IN (subquery)` form could never trigger even when the subquery matches every row.
+std::vector<std::string> Database::destroyMatching(const std::string &table, const std::string &sql,
+                                                    const std::vector<SqliteValue> &args, bool permanently,
+                                                    bool isUnconditional) {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    beginTransaction();
+
+    std::vector<std::string> ids;
+
+    try {
+        auto statement = executeQuery(sql, args);
+        while (true) {
+            if (getNextRowOrTrue(statement.stmt)) {
+                break;
+            }
+            assert(std::string(sqlite3_column_name(statement.stmt, 0)) == "id");
+            const char *id = reinterpret_cast<const char *>(sqlite3_column_text(statement.stmt, 0));
+            if (!id) {
+                throw std::runtime_error("Failed to get ID of a record");
+            }
+            ids.emplace_back(id);
+        }
+
+        if (!ids.empty()) {
+            if (isUnconditional) {
+                executeUpdate(permanently ? "delete from `" + table + "`"
+                                          : "update `" + table + "` set `_status` = 'deleted'");
+            } else {
+                std::string mutationSql =
+                    permanently
+                        ? "delete from `" + table + "` where `id` in (select `id` from (" + sql + "))"
+                        : "update `" + table + "` set `_status` = 'deleted' where `id` in (select `id` from (" +
+                              sql + "))";
+                executeUpdate(mutationSql, args);
+            }
+        }
+
+        commit();
+    } catch (const std::exception &ex) {
+        rollback();
+        throw;
+    }
+
+    for (auto const &id : ids) {
+        removeFromCache(cacheKey(table, id));
+    }
+
+    return ids;
+}
+
 } // namespace watermelondb

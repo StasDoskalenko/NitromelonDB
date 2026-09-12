@@ -27,6 +27,7 @@ export type LokiCollection = {
   remove: (doc: LokiRawDocument) => unknown
   find: (query: LokiQueryObject) => LokiRawDocument[]
   findAndUpdate: (query: LokiQueryObject, updateFn: (doc: LokiRawDocument) => void) => unknown
+  findAndRemove: (query: LokiQueryObject) => unknown
   ensureIndex: (field: string) => void
   data: LokiRawDocument[]
 }

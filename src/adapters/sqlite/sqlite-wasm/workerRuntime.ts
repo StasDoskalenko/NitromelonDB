@@ -277,6 +277,17 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
       invalidateAfterMutation(runtime, tag, connectionKey, true)
       return result
     }
+    case 'destroyMatching': {
+      const result = await driver.destroyMatching(
+        String(args[0]),
+        String(args[1]),
+        args[2] as SQLiteArg[],
+        Boolean(args[3]),
+        Boolean(args[4]),
+      )
+      invalidateAfterMutation(runtime, tag, connectionKey, true)
+      return result
+    }
     case 'unsafeLoadFromSync': {
       const jsonId = Number(args[0])
       const providedJsons = syncJsons.get(tag)
