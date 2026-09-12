@@ -441,7 +441,14 @@ describe('Query', () => {
       )
       expect(await queryAll.fetchCount()).toBe(5)
       expect(await query.fetchCount()).toBe(3)
+
+      const adapterBatchSpy = jest.spyOn(database.adapter.underlyingAdapter, 'batch')
       await database.write(() => query[methodName]())
+      // regardless of how many records matched, this must be a single adapter.batch() call (one
+      // transaction) -- not one per record, which is what made bulk deletes slow enough that
+      // people reached for unsafe raw SQL instead
+      expect(adapterBatchSpy).toHaveBeenCalledTimes(1)
+
       expect(await queryAll.fetchCount()).toBe(2)
       expect(await query.fetchCount()).toBe(0)
     }

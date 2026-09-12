@@ -1,4 +1,3 @@
-import allPromises from '../utils/fp/allPromises'
 import invariant from '../utils/common/invariant'
 import { Observable, type Observer } from '../utils/rx'
 import { toPromise } from '../utils/fp/Result'
@@ -329,17 +328,33 @@ export default class Query<Record extends Model> {
   /**
    * Marks all records matching this query as deleted (they will be deleted permenantly after sync)
    *
+   * Unlike calling `markAsDeleted()` on each record individually, this issues a single
+   * `database.batch()` call (one underlying adapter transaction) for every matching record,
+   * regardless of how many there are -- the same trick `destroyAllPermanently()` uses, see there
+   * for why that matters.
+   *
    * Note: This method must be called within a Writer {@link Database#write}.
    *
    * @see {Model#markAsDeleted}
    */
   async markAllAsDeleted(): Promise<void> {
     const records = await this.fetch()
-    await allPromises((record) => record.markAsDeleted(), records)
+    await this.collection.database.batch(records.map((record) => record.prepareMarkAsDeleted()))
   }
 
   /**
    * Permanently deletes all records matching this query
+   *
+   * This is the right way to clear a whole table (or a subset of it): pass a query with no
+   * conditions to delete everything, or add `Q.where`/`Q.notEq`/`Q.notIn` clauses to exclude
+   * specific records. Unlike raw/unsafe SQL, this keeps the in-memory record cache and any
+   * active observers (`.observe()`, `experimentalSubscribe()`, etc.) correctly up to date --
+   * see `Database#unsafeExecute()`/`adapter.unsafeExecute()` for why a raw `DELETE` doesn't.
+   *
+   * Internally this calls `record.prepareDestroyPermanently()` on every matching record and
+   * commits them all via a single `database.batch()` call, so it's one adapter transaction
+   * (see `DatabaseAdapter#batch`) no matter how many records match -- not one transaction per
+   * record, which is what calling `destroyPermanently()` on each record in a loop would do.
    *
    * Note: Do not use this when using Sync, as deletion will not be synced.
    *
@@ -349,7 +364,9 @@ export default class Query<Record extends Model> {
    */
   async destroyAllPermanently(): Promise<void> {
     const records = await this.fetch()
-    await allPromises((record) => record.destroyPermanently(), records)
+    await this.collection.database.batch(
+      records.map((record) => record.prepareDestroyPermanently()),
+    )
   }
 
   // MARK: - Internals
