@@ -1,5 +1,6 @@
 import Database from './Database'
 import type { NativeBridgeBatchOperation, SQLiteArg } from '../type'
+import encodeDestroyMatchingMutation from '../encodeDestroyMatchingMutation'
 
 function fixArgs(args: SQLiteArg[]): SQLiteArg[] {
   return args.map((value) => {
@@ -176,11 +177,8 @@ class DatabaseDriver {
     })
   }
 
-  // Powers Query#markAllAsDeleted()/destroyAllPermanently(). `sql`/`args` are exactly what would
-  // otherwise be passed to queryIds() for this same Query. Reused here twice: once as-is to
-  // collect which ids match, and (unless `isUnconditional`) a second time wrapped as an inline
-  // derived table inside the actual DELETE/UPDATE, so no `WHERE id IN (?,?,…)` argument list
-  // needs to be built here, and no separate id-based batch call needs to happen at all.
+  // Powers Query#markAllAsDeleted()/destroyAllPermanently() -- see encodeDestroyMatchingMutation
+  // for what the resulting statement looks like and why.
   destroyMatching(
     table: string,
     sql: string,
@@ -197,16 +195,8 @@ class DatabaseDriver {
         return
       }
 
-      if (isUnconditional) {
-        this.database.execute(
-          permanently ? `DELETE FROM '${table}'` : `UPDATE '${table}' SET _status = 'deleted'`,
-        )
-      } else {
-        const mutationSql = permanently
-          ? `DELETE FROM '${table}' WHERE id IN (SELECT id FROM (${sql}))`
-          : `UPDATE '${table}' SET _status = 'deleted' WHERE id IN (SELECT id FROM (${sql}))`
-        this.database.execute(mutationSql, fixedArgs)
-      }
+      const mutationSql = encodeDestroyMatchingMutation(table, sql, permanently, isUnconditional)
+      this.database.execute(mutationSql, isUnconditional ? [] : fixedArgs)
     })
 
     ids.forEach((id) => this.removeFromCache(table, id))

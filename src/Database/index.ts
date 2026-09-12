@@ -519,13 +519,12 @@ export default class Database {
   // Powers Query#markAllAsDeleted()/destroyAllPermanently(). Delegates the actual matching AND
   // mutating to a single adapter.destroyMatching() call -- one native/engine-level operation that
   // resolves the query, deletes/marks-deleted every matching row, and returns just the affected
-  // ids -- rather than resolving ids here (Query#fetchIds()) and then batching a mutation per id
-  // (see git history for that intermediate design): a full row SELECT/DELETE-by-id loop is real,
+  // ids. See each DatabaseAdapter's destroyMatching() implementation (e.g.
+  // native/shared/Database-batch.cpp's Database::destroyMatching) for why that beats resolving
+  // ids here and batching a mutation per id -- in short, a full row SELECT/DELETE-by-id loop is
   // avoidable work when most matching rows were never loaded into memory to begin with, and (for
-  // an unconditional "clear the whole table" query) throwing away SQLite's own truncate
-  // optimization is real, avoidable slowness too. See each DatabaseAdapter's destroyMatching()
-  // implementation (e.g. native/shared/Database-batch.cpp's Database::destroyMatching) for the
-  // full reasoning.
+  // an unconditional "clear the whole table" query) it throws away SQLite's own truncate
+  // optimization.
   //
   // What we still must do here in JS: only ids already resident in the collection's RecordCache
   // (i.e. some Model instance for them already exists, so *something* might be holding a

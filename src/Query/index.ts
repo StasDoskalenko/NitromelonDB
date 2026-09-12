@@ -328,10 +328,9 @@ export default class Query<Record extends Model> {
   /**
    * Marks all records matching this query as deleted (they will be deleted permenantly after sync)
    *
-   * This resolves and mutates matching records in a single `adapter.destroyMatching()` call (one
-   * native/engine-level operation) no matter how many records match, and only builds a `Model`
-   * for a matching record if one is already cached (i.e. something might be observing it) -- see
-   * `destroyAllPermanently()` for why that matters and why it's still fully correct.
+   * Resolves and mutates matching records in a single operation, regardless of how many records
+   * match -- see {@link Database#_performMassDestroy} for the mechanism, shared with
+   * {@link Query#destroyAllPermanently}.
    *
    * Note: This method must be called within a Writer {@link Database#write}.
    *
@@ -350,18 +349,9 @@ export default class Query<Record extends Model> {
    * active observers (`.observe()`, `.observeCount()`, etc.) correctly up to date -- see
    * `Database#unsafeExecute()`/`adapter.unsafeExecute()` for why a raw `DELETE` doesn't.
    *
-   * This resolves which records match AND deletes them in a single `adapter.destroyMatching()`
-   * call -- one native/engine-level operation (e.g. one SQL statement) regardless of how many
-   * records match, rather than first fetching ids in JS and then batching a mutation per id. For
-   * a query with no conditions at all (delete the whole table), this also lets the underlying
-   * engine skip straight to an unconditional delete, unlocking optimizations (like SQLite's own
-   * page-truncation fast path) that a per-id `WHERE id IN (...)` could never trigger. A full
-   * `Model` is only built for an id that's already cached (i.e. something might hold a reference
-   * to it, e.g. via `.observe()`) -- building one for every matching row just to immediately
-   * destroy it would mean a full row fetch and cache insert per row, purely to undo it a moment
-   * later. See `Database#_performMassDestroy` and each `DatabaseAdapter#destroyMatching`
-   * implementation for the full reasoning, including why this stays correct for every active
-   * observer.
+   * Resolves and mutates matching records in a single operation, regardless of how many records
+   * match -- see {@link Database#_performMassDestroy} for the mechanism, and each
+   * `DatabaseAdapter#destroyMatching` implementation for how each backend does it.
    *
    * Note: Do not use this when using Sync, as deletion will not be synced.
    *
