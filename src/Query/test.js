@@ -458,6 +458,82 @@ describe('Query', () => {
     it('can destroy all permanently', async () => {
       await testMassDelete('destroyAllPermanently')
     })
+
+    const testMassDeleteAvoidsFullFetch = async (methodName) => {
+      const { database, tasks, cloneDatabase } = mockDatabase()
+
+      await database.write(() =>
+        database.batch(
+          tasks.prepareCreate((t) => {
+            t.name = 'foo'
+          }),
+          tasks.prepareCreate((t) => {
+            t.name = 'foo'
+          }),
+        ),
+      )
+
+      // Records created above are immediately cached in `tasks`'s RecordCache -- database.batch()
+      // adds them on 'created'. Simulate the common case of destroying records nobody has loaded
+      // into memory yet (e.g. right after an app start) via a fresh Database over the same
+      // (cloned) persisted data, which starts with an empty RecordCache.
+      const freshDatabase = await cloneDatabase()
+      const freshTasks = freshDatabase.collections.get('mock_tasks')
+      const freshQuery = new Query(freshTasks, [Q.where('name', 'foo')])
+
+      const querySpy = jest.spyOn(freshDatabase.adapter.underlyingAdapter, 'query')
+      const findSpy = jest.spyOn(freshDatabase.adapter.underlyingAdapter, 'find')
+      const batchSpy = jest.spyOn(freshDatabase.adapter.underlyingAdapter, 'batch')
+
+      await freshDatabase.write(() => freshQuery[methodName]())
+
+      // no full-row fetch for records nobody has loaded -- only the id-only queryIds() call
+      // (exercised via fetchIds()) plus the single destroy batch
+      expect(querySpy).not.toHaveBeenCalled()
+      expect(findSpy).not.toHaveBeenCalled()
+      expect(batchSpy).toHaveBeenCalledTimes(1)
+
+      expect(await freshQuery.fetchCount()).toBe(0)
+    }
+    it('marks all as deleted without fetching full records for ids nobody has cached', async () => {
+      await testMassDeleteAvoidsFullFetch('markAllAsDeleted')
+    })
+    it('destroys all permanently without fetching full records for ids nobody has cached', async () => {
+      await testMassDeleteAvoidsFullFetch('destroyAllPermanently')
+    })
+
+    const testMassDeleteUpdatesLiveSubscription = async (methodName) => {
+      const { database, tasks } = mockDatabase()
+      const query = new Query(tasks, [Q.where('name', 'foo')])
+
+      await database.write(() =>
+        tasks.create((t) => {
+          t.name = 'foo'
+        }),
+      )
+
+      const observer = jest.fn()
+      const unsubscribe = query.experimentalSubscribe(observer)
+      await database.adapter.getLocal('nothing') // flush the queue, see waitFor() above
+
+      expect(observer).toHaveBeenCalledTimes(1)
+      expect(observer.mock.calls[0][0]).toHaveLength(1)
+
+      // this record is now cached (fetched above) -- destroying it must still remove it from the
+      // live subscription's own result list by identity, not just from the DB
+      await database.write(() => query[methodName]())
+
+      expect(observer).toHaveBeenCalledTimes(2)
+      expect(observer.mock.calls[1][0]).toHaveLength(0)
+
+      unsubscribe()
+    }
+    it('correctly updates a live subscription when marking an already-cached record as deleted', async () => {
+      await testMassDeleteUpdatesLiveSubscription('markAllAsDeleted')
+    })
+    it('correctly updates a live subscription when destroying an already-cached record permanently', async () => {
+      await testMassDeleteUpdatesLiveSubscription('destroyAllPermanently')
+    })
   })
 
   it(`has wmelon tag`, () => {

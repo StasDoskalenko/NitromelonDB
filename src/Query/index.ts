@@ -328,18 +328,18 @@ export default class Query<Record extends Model> {
   /**
    * Marks all records matching this query as deleted (they will be deleted permenantly after sync)
    *
-   * Unlike calling `markAsDeleted()` on each record individually, this issues a single
-   * `database.batch()` call (one underlying adapter transaction) for every matching record,
-   * regardless of how many there are -- the same trick `destroyAllPermanently()` uses, see there
-   * for why that matters.
+   * This commits a single `database.batch()` call (one underlying adapter transaction) no matter
+   * how many records match, and only builds a `Model` for a matching record if one is already
+   * cached (i.e. something might be observing it) -- see `destroyAllPermanently()` for why that
+   * matters and why it's still fully correct.
    *
    * Note: This method must be called within a Writer {@link Database#write}.
    *
    * @see {Model#markAsDeleted}
    */
   async markAllAsDeleted(): Promise<void> {
-    const records = await this.fetch()
-    await this.collection.database.batch(records.map((record) => record.prepareMarkAsDeleted()))
+    const ids = await this.fetchIds()
+    await this.collection.database._performMassDestroy(this.table, ids, 'markAsDeleted')
   }
 
   /**
@@ -348,13 +348,16 @@ export default class Query<Record extends Model> {
    * This is the right way to clear a whole table (or a subset of it): pass a query with no
    * conditions to delete everything, or add `Q.where`/`Q.notEq`/`Q.notIn` clauses to exclude
    * specific records. Unlike raw/unsafe SQL, this keeps the in-memory record cache and any
-   * active observers (`.observe()`, `experimentalSubscribe()`, etc.) correctly up to date --
-   * see `Database#unsafeExecute()`/`adapter.unsafeExecute()` for why a raw `DELETE` doesn't.
+   * active observers (`.observe()`, `.observeCount()`, etc.) correctly up to date -- see
+   * `Database#unsafeExecute()`/`adapter.unsafeExecute()` for why a raw `DELETE` doesn't.
    *
-   * Internally this calls `record.prepareDestroyPermanently()` on every matching record and
-   * commits them all via a single `database.batch()` call, so it's one adapter transaction
-   * (see `DatabaseAdapter#batch`) no matter how many records match -- not one transaction per
-   * record, which is what calling `destroyPermanently()` on each record in a loop would do.
+   * This uses `fetchIds()` rather than `fetch()`, and commits every matching id in a single
+   * `database.batch()` call (one adapter transaction, see `DatabaseAdapter#batch`) regardless of
+   * how many records match. A full `Model` is only built for an id that's already cached (i.e.
+   * something might hold a reference to it, e.g. via `.observe()`) -- building one for every
+   * matching row just to immediately destroy it would mean a full row fetch and cache insert per
+   * row, purely to undo it a moment later. See `Database#_performMassDestroy` for the full
+   * reasoning, including why this stays correct for every active observer.
    *
    * Note: Do not use this when using Sync, as deletion will not be synced.
    *
@@ -363,10 +366,8 @@ export default class Query<Record extends Model> {
    * @see {Model#destroyPermanently}
    */
   async destroyAllPermanently(): Promise<void> {
-    const records = await this.fetch()
-    await this.collection.database.batch(
-      records.map((record) => record.prepareDestroyPermanently()),
-    )
+    const ids = await this.fetchIds()
+    await this.collection.database._performMassDestroy(this.table, ids, 'destroyPermanently')
   }
 
   // MARK: - Internals
