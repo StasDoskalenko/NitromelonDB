@@ -29,6 +29,18 @@ npx expo run:android
 
 Links the local library via `link:../../..`. After native SQLite / Nitro changes, rebuild.
 
+### Mass delete: old vs new
+
+Below the main comparison, the NitromelonDB app has an extra, self-contained card: "Mass delete:
+old vs new". It seeds N rows twice into their own dedicated databases and times destroying all of
+them once via the pre-optimization `Query#destroyAllPermanently()` (one `database.batch()` call --
+one adapter transaction -- per matching record) and once via the current one (one
+`destroyMatching()` call total, regardless of match count). It's NitromelonDB-only -- there's
+nothing to compare against in the WatermelonDB app, since upstream never had `destroyMatching()`.
+See `nitromelondb_benchmark/massDeleteBenchmark.ts`, and
+`src/adapters/__tests__/sqliteTests/destroyAll.benchmark.js` (`yarn benchmark:destroy-all` at the
+repo root) for the same comparison against Node/better-sqlite3.
+
 ## WatermelonDB
 
 ```sh

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { BenchmarkScreen } from '../shared/BenchmarkScreen'
 import { createNitromelonAdapter } from './database'
+import { MassDeleteBenchmarkCard } from './MassDeleteBenchmarkCard'
 
 const theme = {
   background: '#09090b',
@@ -31,6 +32,8 @@ export default function App() {
       adapter={session.ok ? session.adapter : null}
       setupError={session.ok ? null : session.message}
       theme={theme}
-    />
+    >
+      <MassDeleteBenchmarkCard theme={theme} />
+    </BenchmarkScreen>
   )
 }
