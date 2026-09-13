@@ -67,6 +67,7 @@ namespace margelo::nitro::watermelondb {
       virtual std::vector<std::shared_ptr<AnyMap>> unsafeQueryRaw(const std::string& sql, const std::vector<std::variant<nitro::NullType, bool, std::string, double>>& args) = 0;
       virtual double count(const std::string& sql, const std::vector<std::variant<nitro::NullType, bool, std::string, double>>& args) = 0;
       virtual void batch(const std::vector<std::tuple<double, std::optional<std::variant<nitro::NullType, std::string>>, std::string, std::vector<std::vector<std::variant<nitro::NullType, bool, std::string, double>>>>>& operations) = 0;
+      virtual std::vector<std::string> destroyMatching(const std::string& table, const std::string& sql, const std::vector<std::variant<nitro::NullType, bool, std::string, double>>& args, bool permanently, bool isUnconditional) = 0;
       virtual void batchJSON(const std::string& operations) = 0;
       virtual std::variant<nitro::NullType, std::string> getLocal(const std::string& key) = 0;
       virtual std::shared_ptr<AnyMap> unsafeLoadFromSync(double jsonId, const std::shared_ptr<AnyMap>& schema, const std::string& preamble, const std::string& postamble) = 0;

@@ -28,6 +28,15 @@ export default class Note extends Model {
     })
   }
 
+  // Exercises Query#destroyAllPermanently()'s unconditional ("clear the whole table") fast path
+  // -- a bare `collection.query()` with no where/join/take/skip at all -- end to end against
+  // whichever native SQLite engine this app is actually built against, not just a JS unit test.
+  static async deleteAllForever(notes: Collection<Note>): Promise<void> {
+    await notes.database.write(async () => {
+      await notes.query().destroyAllPermanently()
+    })
+  }
+
   @text('title')
   title!: string
   @text('body')

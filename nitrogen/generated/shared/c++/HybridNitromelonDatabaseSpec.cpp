@@ -24,6 +24,7 @@ namespace margelo::nitro::watermelondb {
       prototype.registerHybridMethod("unsafeQueryRaw", &HybridNitromelonDatabaseSpec::unsafeQueryRaw);
       prototype.registerHybridMethod("count", &HybridNitromelonDatabaseSpec::count);
       prototype.registerHybridMethod("batch", &HybridNitromelonDatabaseSpec::batch);
+      prototype.registerHybridMethod("destroyMatching", &HybridNitromelonDatabaseSpec::destroyMatching);
       prototype.registerHybridMethod("batchJSON", &HybridNitromelonDatabaseSpec::batchJSON);
       prototype.registerHybridMethod("getLocal", &HybridNitromelonDatabaseSpec::getLocal);
       prototype.registerHybridMethod("unsafeLoadFromSync", &HybridNitromelonDatabaseSpec::unsafeLoadFromSync);

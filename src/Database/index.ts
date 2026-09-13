@@ -6,6 +6,7 @@ import { noop, fromArrayOrSpread } from '../utils/fp'
 import type { DatabaseAdapter, BatchOperation } from '../adapters/type'
 import DatabaseAdapterCompat from '../adapters/compat'
 import type Model from '../Model'
+import type { SerializedQuery } from '../Query'
 import type Collection from '../Collection'
 import type { CollectionChangeSet, ModelClass } from '../Collection'
 import type { TableName, AppSchema, SchemaVersion } from '../Schema'
@@ -513,6 +514,61 @@ export default class Database {
     this._notify(changes)
 
     return undefined // shuts up flow
+  }
+
+  // Powers Query#markAllAsDeleted()/destroyAllPermanently(). Delegates the actual matching AND
+  // mutating to a single adapter.destroyMatching() call -- one native/engine-level operation that
+  // resolves the query, deletes/marks-deleted every matching row, and returns just the affected
+  // ids. See each DatabaseAdapter's destroyMatching() implementation (e.g.
+  // native/shared/Database-batch.cpp's Database::destroyMatching) for why that beats resolving
+  // ids here and batching a mutation per id -- in short, a full row SELECT/DELETE-by-id loop is
+  // avoidable work when most matching rows were never loaded into memory to begin with, and (for
+  // an unconditional "clear the whole table" query) it throws away SQLite's own truncate
+  // optimization.
+  //
+  // What we still must do here in JS: only ids already resident in the collection's RecordCache
+  // (i.e. some Model instance for them already exists, so *something* might be holding a
+  // reference to it) go through the real record.prepareMarkAsDeleted()/prepareDestroyPermanently(),
+  // so that instance is properly evicted from the cache and any of its own subscribers
+  // (record.experimentalSubscribe(), Model#observe()) are notified. Records nobody has ever
+  // fetched can't be referenced by any per-record observer (processChangeSet.ts matches destroyed
+  // records by identity against the Model instances a query previously handed out -- see also
+  // Collection._cache's own note on why that identity must come from this same cache), so for
+  // those there's nothing further to do. Table-level observers (Query#observe/observeCount, which
+  // don't key off specific record identity -- see subscribeToCount/subscribeToQueryReloading)
+  // still fire correctly either way, since _notify() below always includes `table`.
+  async _performMassDestroy(
+    query: SerializedQuery,
+    type: 'markAsDeleted' | 'destroyPermanently',
+  ): Promise<void> {
+    this._ensureInWriter(
+      `Query#${type === 'destroyPermanently' ? 'destroyAllPermanently' : 'markAllAsDeleted'}()`,
+    )
+
+    const { table } = query
+    const ids = await this.adapter.destroyMatching(query, type === 'destroyPermanently')
+
+    if (!ids.length) {
+      return
+    }
+
+    const collection = this.collections.get(table)
+    const changeSet: CollectionChangeSet<Model> = []
+
+    ids.forEach((id) => {
+      const cachedRecord = collection._cache.get(id)
+      if (cachedRecord) {
+        type === 'destroyPermanently'
+          ? cachedRecord.prepareDestroyPermanently()
+          : cachedRecord.prepareMarkAsDeleted()
+        // See _performBatch above for why this is reset eagerly
+        cachedRecord._preparedState = null
+        changeSet.push({ record: cachedRecord, type: 'destroyed' })
+      }
+    })
+
+    collection._applyChangesToCache(changeSet)
+    this._notify([[table, changeSet]])
   }
 
   _pendingNotificationBatches: number = 0

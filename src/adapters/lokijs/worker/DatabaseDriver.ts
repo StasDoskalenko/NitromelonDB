@@ -215,6 +215,33 @@ export default class DatabaseDriver {
     }
   }
 
+  // Powers Query#markAllAsDeleted()/destroyAllPermanently(). Reuses executeQuery() -- the exact
+  // same join/sort/take/skip-aware resolution queryIds() already uses -- to find which ids
+  // match, then applies the delete/soft-delete to precisely that id set via one bulk Loki call
+  // (findAndRemove/findAndUpdate) instead of looping per record the way batch() above must for
+  // an explicit list of individually-prepared operations.
+  destroyMatching(query: SerializedQuery, permanently: boolean): RecordId[] {
+    this._assertNotBroken()
+
+    const { table } = query
+    const ids = executeQuery(query, this.loki).map((record) => record.id as RecordId)
+
+    if (ids.length) {
+      const collection = this.loki.getCollection(table)
+      const idFilter = { id: { $in: ids } }
+      if (permanently) {
+        collection.findAndRemove(idFilter)
+      } else {
+        collection.findAndUpdate(idFilter, (doc) => {
+          doc._status = 'deleted'
+        })
+      }
+    }
+
+    ids.forEach((id) => this.removeFromCache(table, id))
+    return ids
+  }
+
   getDeletedRecords(table: TableName): RecordId[] {
     return this.loki
       .getCollection(table)

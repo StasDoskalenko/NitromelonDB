@@ -1,5 +1,6 @@
 import Database from './Database'
 import type { NativeBridgeBatchOperation, SQLiteArg } from '../type'
+import encodeDestroyMatchingMutation from '../encodeDestroyMatchingMutation'
 
 function fixArgs(args: SQLiteArg[]): SQLiteArg[] {
   return args.map((value) => {
@@ -174,6 +175,32 @@ class DatabaseDriver {
     removedIds.forEach(([table, id]) => {
       this.removeFromCache(table, id)
     })
+  }
+
+  // Powers Query#markAllAsDeleted()/destroyAllPermanently() -- see encodeDestroyMatchingMutation
+  // for what the resulting statement looks like and why.
+  destroyMatching(
+    table: string,
+    sql: string,
+    args: SQLiteArg[],
+    permanently: boolean,
+    isUnconditional: boolean,
+  ): string[] {
+    const fixedArgs = fixArgs(args)
+    let ids: string[] = []
+
+    this.database.inTransaction(() => {
+      ids = this.database.queryRaw(sql, fixedArgs).map((row) => `${row.id}`)
+      if (ids.length === 0) {
+        return
+      }
+
+      const mutationSql = encodeDestroyMatchingMutation(table, sql, permanently, isUnconditional)
+      this.database.execute(mutationSql, isUnconditional ? [] : fixedArgs)
+    })
+
+    ids.forEach((id) => this.removeFromCache(table, id))
+    return ids
   }
 
   // MARK: - LocalStorage

@@ -10,6 +10,7 @@ export type WorkerExecutorType =
   | 'unsafeQueryRaw'
   | 'count'
   | 'batch'
+  | 'destroyMatching'
   | 'getDeletedRecords'
   | 'unsafeResetDatabase'
   | 'unsafeExecute'

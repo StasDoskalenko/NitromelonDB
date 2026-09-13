@@ -125,6 +125,7 @@ public:
     std::vector<SqliteRow> unsafeQueryRaw(const std::string &sql, const std::vector<SqliteValue> &arguments);
     double count(const std::string &sql, const std::vector<SqliteValue> &arguments);
     void batch(const std::vector<SqliteBatchOperation> &operations);
+    std::vector<std::string> destroyMatching(const std::string &table, const std::string &sql, const std::vector<SqliteValue> &args, bool permanently, bool isUnconditional);
     void batchJSON(const std::string &operationsJson);
     std::unordered_map<std::string, std::string> loadFromSync(int jsonId, const SyncSchema &schema, std::string preamble, std::string postamble);
     void unsafeResetDatabase(const std::string &schema, int schemaVersion);

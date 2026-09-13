@@ -47,6 +47,17 @@ export interface DatabaseAdapter {
   // Executes multiple prepared operations
   batch(operations: BatchOperation[], callback: ResultCallback<void>): void
 
+  // Permanently destroys (or marks as deleted) every record matching `query`, in a single
+  // operation -- without ever fetching full rows or instantiating them. Returns the ids that
+  // were actually affected, already evicted from this adapter's own "already sent to JS" record
+  // cache (if it has one). Powers Query#markAllAsDeleted()/destroyAllPermanently(); see there and
+  // Database#_performMassDestroy for why this exists instead of resolving ids and batching by id.
+  destroyMatching(
+    query: SerializedQuery,
+    permanently: boolean,
+    callback: ResultCallback<RecordId[]>,
+  ): void
+
   // Return marked as deleted records
   getDeletedRecords(tableName: TableName, callback: ResultCallback<RecordId[]>): void
 
