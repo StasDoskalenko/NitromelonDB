@@ -1,0 +1,41 @@
+# Delete every note in one shot via Query#destroyAllPermanently() (Note.deleteAllForever, called
+# by the "Delete all" button) against the live database — the unconditional "clear the whole
+# table" path (native/shared/Database-batch.cpp's Database::destroyMatching, isUnconditional
+# branch) that a JS unit test alone can't confirm actually compiles and runs on-device.
+# Run from examples/NotesApp: maestro test maestro/delete-all.yaml
+
+appId: com.nitromelondb.example
+---
+- launchApp:
+    clearState: true
+
+# Seed is async — wait for subtitle (only visible after seeding).
+- extendedWaitUntil:
+    visible:
+      id: "subtitle"
+    timeout: 60000
+
+- assertVisible:
+    text: ".*100 notes.*"
+
+- assertVisible:
+    text: "Note #100"
+
+- tapOn:
+    id: "delete-all-button"
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: ".*0 notes.*"
+    timeout: 15000
+
+- assertVisible:
+    text: ".*0 notes.*"
+
+- assertNotVisible:
+    text: "Note #100"
+
+# The button itself disables once there's nothing left to delete.
+- assertNotVisible:
+    text: "Deleting all…"
