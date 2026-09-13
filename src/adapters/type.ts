@@ -52,6 +52,12 @@ export interface DatabaseAdapter {
   // were actually affected, already evicted from this adapter's own "already sent to JS" record
   // cache (if it has one). Powers Query#markAllAsDeleted()/destroyAllPermanently(); see there and
   // Database#_performMassDestroy for why this exists instead of resolving ids and batching by id.
+  //
+  // Required on this interface, but Database#_performMassDestroy still checks for it at runtime
+  // (typeof adapter.destroyMatching === 'function') and falls back to the old resolve-then-batch
+  // approach -- with a one-time console warning -- for a JS (non-TS-checked) or pre-existing
+  // custom adapter that predates this method. Implement it for the real speedup; don't rely on
+  // the fallback, which exists for compatibility, not as a supported permanent option.
   destroyMatching(
     query: SerializedQuery,
     permanently: boolean,
