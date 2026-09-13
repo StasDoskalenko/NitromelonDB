@@ -2,6 +2,8 @@
 
 ### BREAKING CHANGES
 
+- `DatabaseAdapter` (the interface `SQLiteAdapter`/`LokiJSAdapter`/`RemoteAdapter` implement) gained a new required method, `destroyMatching()`, powering the perf improvement below. If you maintain a fully custom `DatabaseAdapter` (not one of the three built-in ones), you'll need to implement it too -- see its doc comment in `src/adapters/type.ts` for the contract. There is no runtime fallback for adapters missing it, consistent with how every other `DatabaseAdapter` method is already required (this mirrors how the Promise-to-callback adapter API change was handled previously: a note here, not a compatibility shim).
+
 ### Deprecations
 
 ### New features

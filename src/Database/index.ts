@@ -546,6 +546,11 @@ export default class Database {
     )
 
     const { table } = query
+    // Known tradeoff, not yet worth solving: every matching id crosses the bridge here even
+    // though the loop below only cares about ones already in collection._cache -- the adapter
+    // has no way to know which ids JS has ever seen. Fine at the sizes this has been measured at
+    // (20k rows: ~69ms total, see examples/benchmark's mass-delete card); would need a protocol
+    // change (e.g. adapter-side "already sent to JS" filtering) to matter at far larger scales.
     const ids = await this.adapter.destroyMatching(query, type === 'destroyPermanently')
 
     if (!ids.length) {
