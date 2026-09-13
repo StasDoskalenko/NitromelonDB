@@ -16,6 +16,7 @@
     "lint:workflows": "node scripts/lint-workflows.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "jest --config=./jest.config.js --forceExit",
+    "benchmark:destroy-all": "jest --config=./jest.config.js --forceExit --testMatch '**/destroyAll.benchmark.js'",
     "test:web": "yarn --cwd examples/NotesApp test:web",
     "ci": "yarn ci:check",
     "test:metro-transform": "node ./scripts/check-metro-transform.mjs",
