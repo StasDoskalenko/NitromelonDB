@@ -182,7 +182,19 @@ std::vector<std::string> Database::destroyMatching(const std::string &table, con
             if (getNextRowOrTrue(statement.stmt)) {
                 break;
             }
-            assert(std::string(sqlite3_column_name(statement.stmt, 0)) == "id");
+            // An explicit check, not assert() -- assert() compiles out under NDEBUG (i.e. in
+            // release builds, which is exactly where this matters most), and getting this wrong
+            // silently would mean the DELETE/UPDATE below runs against whatever garbage column 0
+            // happens to hold instead of the intended id list. `sql` is always the same query
+            // that powers queryIds() for this table (see the comment above destroyMatching), so
+            // its first column is expected to be aliased "id"; this only fails if that query
+            // construction ever changes.
+            const char *columnName = sqlite3_column_name(statement.stmt, 0);
+            if (!columnName || std::string(columnName) != "id") {
+                throw std::runtime_error(
+                    "destroyMatching: expected the resolving query's first column to be \"id\", got \"" +
+                    (columnName ? std::string(columnName) : std::string("<none>")) + "\"");
+            }
             const char *id = reinterpret_cast<const char *>(sqlite3_column_text(statement.stmt, 0));
             if (!id) {
                 throw std::runtime_error("Failed to get ID of a record");

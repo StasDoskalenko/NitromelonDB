@@ -546,11 +546,16 @@ export default class Database {
     )
 
     const { table } = query
-    // Known tradeoff, not yet worth solving: every matching id crosses the bridge here even
-    // though the loop below only cares about ones already in collection._cache -- the adapter
-    // has no way to know which ids JS has ever seen. Fine at the sizes this has been measured at
-    // (20k rows: ~69ms total, see examples/benchmark's mass-delete card); would need a protocol
-    // change (e.g. adapter-side "already sent to JS" filtering) to matter at far larger scales.
+    // TODO: Every matching id crosses the bridge here, even though the loop below only cares
+    // about ones already in collection._cache -- the adapter has no way to know which ids JS has
+    // ever seen. Fine at the sizes this has been measured at (20k rows: ~69ms total, see
+    // examples/benchmark's mass-delete card), but on a very large unconditional clear (e.g.
+    // millions of rows on a low-end device) that's a large array allocated and serialized across
+    // the bridge for ids that get thrown away unused. If this ever needs fixing, options include:
+    // having the adapter return only ids it knows are cached (it already tracks this for its own
+    // purposes), returning { affectedCount, cachedIds } instead of a flat array, or accepting a
+    // flag asking the adapter to filter server-side -- all require a DatabaseAdapter contract
+    // change, so not worth doing speculatively.
     const ids = await this.adapter.destroyMatching(query, type === 'destroyPermanently')
 
     if (!ids.length) {
