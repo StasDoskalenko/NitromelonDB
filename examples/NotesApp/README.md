@@ -37,6 +37,7 @@ CI runs these flows on an Android emulator (`NotesApp Android (build)` then `Not
 | --- | --- |
 | `cold-start.yaml` | App launch, empty → seeded list (`100 notes`) |
 | `add-pin-delete.yaml` | Create, pin, delete against live observers |
+| `delete-all.yaml` | `Query#destroyAllPermanently()` clears the whole table in one shot |
 | `kill-and-relaunch.yaml` | Persistence across process kill |
 | `interaction-burst.yaml` | Rapid create / pin / delete |
 | `pagination-seed.yaml` | Sticky pager + `Q.skip` / `Q.take(20)` after seed |

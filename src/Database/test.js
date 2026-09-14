@@ -1724,4 +1724,102 @@ describe('Database', () => {
       })
     })
   })
+
+  describe('_performMassDestroy() fallback for a DatabaseAdapter without destroyMatching()', () => {
+    // Simulates a fully custom third-party DatabaseAdapter that predates destroyMatching() (a
+    // required DatabaseAdapter method as of this feature -- see its doc comment in
+    // src/adapters/type.ts). destroyMatching() is a normal class method (inherited via the
+    // prototype), so shadowing it with an own `undefined` property is what it actually takes to
+    // make `typeof adapter.destroyMatching !== 'function'` true -- `delete` alone would not
+    // remove an inherited method.
+    const withoutDestroyMatching = (adapter) => {
+      const original = adapter.destroyMatching
+      adapter.destroyMatching = undefined
+      return () => {
+        adapter.destroyMatching = original
+      }
+    }
+
+    const testMassDeleteFallback = async (methodName) => {
+      const { database, tasks } = mockDatabase()
+      const query = tasks.query(Q.where('name', 'foo'))
+      const queryAll = tasks.query()
+
+      await database.write(() =>
+        database.batch(
+          tasks.prepareCreate((t) => {
+            t.name = 'foo'
+          }),
+          tasks.prepareCreate((t) => {
+            t.name = 'foo'
+          }),
+          tasks.prepareCreate(),
+        ),
+      )
+      expect(await queryAll.fetchCount()).toBe(3)
+      expect(await query.fetchCount()).toBe(2)
+
+      const adapter = database.adapter.underlyingAdapter
+      const restore = withoutDestroyMatching(adapter)
+      try {
+        const queryIdsSpy = jest.spyOn(adapter, 'queryIds')
+        const batchSpy = jest.spyOn(adapter, 'batch')
+
+        await database.write(() => query[methodName]())
+
+        // no native destroyMatching() available -- must fall back to resolving ids, then
+        // mutating via a single adapter.batch() of raw per-id operations (not a per-record
+        // database.batch() transaction, and no full-row fetch)
+        expect(queryIdsSpy).toHaveBeenCalledTimes(1)
+        expect(batchSpy).toHaveBeenCalledTimes(1)
+
+        const [operations] = batchSpy.mock.calls[0]
+        expect(operations).toHaveLength(2)
+        const expectedType = methodName === 'destroyAllPermanently' ? 'destroyPermanently' : 'markAsDeleted'
+        operations.forEach(([opType, opTable, id]) => {
+          expect(opType).toBe(expectedType)
+          expect(opTable).toBe('mock_tasks')
+          expect(typeof id).toBe('string')
+        })
+
+        expect(await queryAll.fetchCount()).toBe(1)
+        expect(await query.fetchCount()).toBe(0)
+      } finally {
+        restore()
+      }
+    }
+    it('falls back to id-resolve + batch for markAllAsDeleted()', async () => {
+      await testMassDeleteFallback('markAllAsDeleted')
+    })
+    it('falls back to id-resolve + batch for destroyAllPermanently()', async () => {
+      await testMassDeleteFallback('destroyAllPermanently')
+    })
+
+    it('warns about the missing destroyMatching() only once, not on every fallback call', async () => {
+      // The "only once" flag is process-global (see warnedAboutMissingDestroyMatching in
+      // Database/index.ts), so an earlier test in this file may already have tripped it -- assert
+      // on the *change* in call count across a second fallback trigger, not an absolute count,
+      // so this doesn't depend on test execution order.
+      const { database, tasks } = mockDatabase()
+      const queryAll = tasks.query()
+      await database.write(() => tasks.create())
+
+      const adapter = database.adapter.underlyingAdapter
+      const restore = withoutDestroyMatching(adapter)
+      try {
+        const warnSpy = jest.spyOn(logger, 'warn')
+
+        await database.write(() => queryAll.markAllAsDeleted())
+        const warnCallsAfterFirst = warnSpy.mock.calls.length
+
+        // a second fallback call, on a freshly-created record -- must not warn again
+        await database.write(() => tasks.create())
+        await database.write(() => queryAll.markAllAsDeleted())
+
+        expect(warnSpy.mock.calls.length).toBe(warnCallsAfterFirst)
+      } finally {
+        restore()
+      }
+    })
+  })
 })

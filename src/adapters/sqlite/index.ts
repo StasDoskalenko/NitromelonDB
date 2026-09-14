@@ -285,6 +285,29 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     )
   }
 
+  destroyMatching(
+    query: SerializedQuery,
+    permanently: boolean,
+    callback: ResultCallback<RecordId[]>,
+  ): void {
+    validateTable(query.table, this.schema)
+    const { table, description, associations } = query
+    // "The whole table" -- no predicate at all -- gets a bare delete/update below instead of a
+    // `where id in (...)` filter, so SQLite can take its truncate-optimization fast path (see
+    // native/shared/Database-batch.cpp's Database::destroyMatching for the full reasoning).
+    const isUnconditional =
+      !description.sql &&
+      !description.where.length &&
+      !associations.length &&
+      !description.take &&
+      !description.skip
+    this._dispatcher.call(
+      'destroyMatching',
+      [table, ...encodeQuery(query), permanently, isUnconditional],
+      callback,
+    )
+  }
+
   getDeletedRecords(table: TableName, callback: ResultCallback<RecordId[]>): void {
     validateTable(table, this.schema)
     this._dispatcher.call(

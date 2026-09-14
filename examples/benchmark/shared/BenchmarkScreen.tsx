@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar'
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Pressable,
   ScrollView,
@@ -33,6 +33,10 @@ type Props = {
   adapter: BenchmarkAdapter | null
   setupError: string | null
   theme: BenchmarkTheme
+  // Rendered below the main write/query/delete comparison, for engine-specific extra
+  // benchmarks (e.g. NitromelonDB's mass-delete-implementation comparison) that don't belong
+  // in this shared, engine-agnostic screen.
+  children?: ReactNode
 }
 
 const idleProgress = (workload: BenchmarkWorkload): BenchmarkProgress => ({
@@ -46,7 +50,7 @@ const idleProgress = (workload: BenchmarkWorkload): BenchmarkProgress => ({
   roundsCompleted: [],
 })
 
-export function BenchmarkScreen({ title, subtitle, adapter, setupError, theme }: Props) {
+export function BenchmarkScreen({ title, subtitle, adapter, setupError, theme, children }: Props) {
   const [workload, setWorkload] = useState<BenchmarkWorkload>(FULL_WORKLOAD)
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState<BenchmarkProgress>(() => idleProgress(FULL_WORKLOAD))
@@ -185,6 +189,8 @@ export function BenchmarkScreen({ title, subtitle, adapter, setupError, theme }:
             ))}
           </View>
         ) : null}
+
+        {children}
       </ScrollView>
       <StatusBar style="light" />
     </View>

@@ -1,4 +1,3 @@
-import allPromises from '../utils/fp/allPromises'
 import invariant from '../utils/common/invariant'
 import { Observable, type Observer } from '../utils/rx'
 import { toPromise } from '../utils/fp/Result'
@@ -329,17 +328,30 @@ export default class Query<Record extends Model> {
   /**
    * Marks all records matching this query as deleted (they will be deleted permenantly after sync)
    *
+   * Resolves and mutates matching records in a single operation, regardless of how many records
+   * match -- see {@link Database#_performMassDestroy} for the mechanism, shared with
+   * {@link Query#destroyAllPermanently}.
+   *
    * Note: This method must be called within a Writer {@link Database#write}.
    *
    * @see {Model#markAsDeleted}
    */
   async markAllAsDeleted(): Promise<void> {
-    const records = await this.fetch()
-    await allPromises((record) => record.markAsDeleted(), records)
+    await this.collection.database._performMassDestroy(this.serialize(), 'markAsDeleted')
   }
 
   /**
    * Permanently deletes all records matching this query
+   *
+   * This is the right way to clear a whole table (or a subset of it): pass a query with no
+   * conditions to delete everything, or add `Q.where`/`Q.notEq`/`Q.notIn` clauses to exclude
+   * specific records. Unlike raw/unsafe SQL, this keeps the in-memory record cache and any
+   * active observers (`.observe()`, `.observeCount()`, etc.) correctly up to date -- see
+   * `Database#unsafeExecute()`/`adapter.unsafeExecute()` for why a raw `DELETE` doesn't.
+   *
+   * Resolves and mutates matching records in a single operation, regardless of how many records
+   * match -- see {@link Database#_performMassDestroy} for the mechanism, and each
+   * `DatabaseAdapter#destroyMatching` implementation for how each backend does it.
    *
    * Note: Do not use this when using Sync, as deletion will not be synced.
    *
@@ -348,8 +360,7 @@ export default class Query<Record extends Model> {
    * @see {Model#destroyPermanently}
    */
   async destroyAllPermanently(): Promise<void> {
-    const records = await this.fetch()
-    await allPromises((record) => record.destroyPermanently(), records)
+    await this.collection.database._performMassDestroy(this.serialize(), 'destroyPermanently')
   }
 
   // MARK: - Internals

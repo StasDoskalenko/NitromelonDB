@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { BenchmarkScreen } from '../shared/BenchmarkScreen'
 import { createWatermelonAdapter } from './database'
+import { MassDeleteBenchmarkCard } from './MassDeleteBenchmarkCard'
 
 const theme = {
   background: '#0b1210',
@@ -31,6 +32,8 @@ export default function App() {
       adapter={session.ok ? session.adapter : null}
       setupError={session.ok ? null : session.message}
       theme={theme}
-    />
+    >
+      <MassDeleteBenchmarkCard theme={theme} />
+    </BenchmarkScreen>
   )
 }

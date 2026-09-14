@@ -36,6 +36,9 @@ public:
   void batch(const std::vector<std::tuple<double, std::optional<std::variant<nitro::NullType, std::string>>, std::string,
                                           std::vector<std::vector<std::variant<nitro::NullType, bool, std::string, double>>>>>&
                  operations) override;
+  std::vector<std::string> destroyMatching(const std::string& table, const std::string& sql,
+                                           const std::vector<std::variant<nitro::NullType, bool, std::string, double>>& args,
+                                           bool permanently, bool isUnconditional) override;
   void batchJSON(const std::string& operations) override;
   std::variant<nitro::NullType, std::string> getLocal(const std::string& key) override;
   std::shared_ptr<AnyMap> unsafeLoadFromSync(double jsonId, const std::shared_ptr<AnyMap>& schema,

@@ -23,6 +23,13 @@ export interface NitromelonDatabase extends HybridObject<{ ios: 'c++'; android: 
   unsafeQueryRaw(sql: string, args: SqliteValue[]): AnyMap[]
   count(sql: string, args: SqliteValue[]): number
   batch(operations: NitromelonBatchOperation[]): void
+  // Powers Query#markAllAsDeleted()/destroyAllPermanently(): `sql`/`args` are the exact same
+  // query that would otherwise be used for `queryIds()`. Collects the matching ids, then --
+  // unless `isUnconditional` (no where/join/take/skip at all, i.e. "the whole table"), in which
+  // case it skips straight to an unconditional delete/update to unlock SQLite's own truncate
+  // optimization -- deletes/marks-deleted those exact rows by reusing `sql`/`args` again as an
+  // inline subquery, all in one transaction. Returns the ids that were actually affected.
+  destroyMatching(table: string, sql: string, args: SqliteValue[], permanently: boolean, isUnconditional: boolean): string[]
   batchJSON(operations: string): void
   getLocal(key: string): NitromelonLocalValue
   unsafeLoadFromSync(jsonId: number, schema: AnyMap, preamble: string, postamble: string): AnyMap

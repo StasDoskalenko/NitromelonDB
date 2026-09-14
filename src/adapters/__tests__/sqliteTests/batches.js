@@ -1,4 +1,5 @@
 /* eslint-disable jest/no-standalone-expect */
+import * as Q from '../../../QueryDescription'
 import { taskQuery } from '../helpers'
 import { createFileAdapter } from './helpers'
 
@@ -45,6 +46,50 @@ export default (it) => {
     const records = Array.from({ length: 1000 }, (_, i) => ({ id: `t${i}`, text1: `task ${i}` }))
     await adapter.batch(records.map((r) => ['create', 'tasks', r]))
     await adapter.batch(records.map((r) => ['destroyPermanently', 'tasks', r.id]))
+    expect(await adapter.count(taskQuery())).toBe(0)
+  })
+
+  it('large destroyMatching (10k records) removes only matching records', async (
+    _adapter,
+    AdapterClass,
+    _extra,
+    platform,
+  ) => {
+    if (AdapterClass.name === 'LokiJSAdapter') return
+
+    const { adapter } = await createFileAdapter(platform)
+
+    const records = Array.from({ length: 10000 }, (_, i) => ({
+      id: `t${i}`,
+      text1: `task ${i}`,
+      bool1: i % 3 === 0,
+    }))
+    await adapter.batch(records.map((r) => ['create', 'tasks', r]))
+    const matchingCount = records.filter((r) => r.bool1).length
+
+    const destroyedIds = await adapter.destroyMatching(taskQuery(Q.where('bool1', true)), true)
+
+    expect(destroyedIds).toHaveLength(matchingCount)
+    expect(await adapter.count(taskQuery(Q.where('bool1', true)))).toBe(0)
+    expect(await adapter.count(taskQuery())).toBe(records.length - matchingCount)
+  })
+
+  it('large destroyMatching with no conditions clears the whole table via one statement', async (
+    _adapter,
+    AdapterClass,
+    _extra,
+    platform,
+  ) => {
+    if (AdapterClass.name === 'LokiJSAdapter') return
+
+    const { adapter } = await createFileAdapter(platform)
+
+    const records = Array.from({ length: 10000 }, (_, i) => ({ id: `t${i}`, text1: `task ${i}` }))
+    await adapter.batch(records.map((r) => ['create', 'tasks', r]))
+
+    const destroyedIds = await adapter.destroyMatching(taskQuery(), true)
+
+    expect(destroyedIds).toHaveLength(records.length)
     expect(await adapter.count(taskQuery())).toBe(0)
   })
 

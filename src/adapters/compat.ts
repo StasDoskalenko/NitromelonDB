@@ -59,6 +59,12 @@ export default class DatabaseAdapterCompat {
     return toPromise((callback) => this.underlyingAdapter.batch(operations, callback))
   }
 
+  destroyMatching(query: SerializedQuery, permanently: boolean): Promise<RecordId[]> {
+    return toPromise((callback) =>
+      this.underlyingAdapter.destroyMatching(query, permanently, callback),
+    )
+  }
+
   getDeletedRecords(tableName: TableName): Promise<RecordId[]> {
     return toPromise((callback) => this.underlyingAdapter.getDeletedRecords(tableName, callback))
   }

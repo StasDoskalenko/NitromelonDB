@@ -112,6 +112,27 @@ await somePost.destroyPermanently() // permanent
 
 **Note:** Do not access, update, or observe records after they're deleted.
 
+### Delete all records matching a query
+
+To delete more than one record at once — including clearing a whole table — use `Query.markAllAsDeleted()` / `Query.destroyAllPermanently()` instead of fetching and deleting records one by one, or dropping down to [raw SQL](#advanced-unsafe-raw-execute). It resolves and deletes matching records in a single operation, and — unlike raw SQL — keeps the in-memory record cache and any active observers correctly up to date.
+
+```js
+import { Q } from 'nitromelondb'
+
+await database.write(async () => {
+  // clear a whole table
+  await database.get('posts').query().destroyAllPermanently()
+
+  // delete only what matches a condition
+  await database.get('posts').query(Q.where('is_draft', true)).destroyAllPermanently()
+
+  // delete everything except a few ids
+  await database.get('posts').query(Q.where('id', Q.notIn(idsToKeep))).destroyAllPermanently()
+})
+```
+
+Use `markAllAsDeleted()` instead if you [synchronize](./Sync/Intro.md).
+
 ## Advanced
 
 - `Model.observe()` - usually you only use this [when connecting records to components](./Components.md), but you can manually observe a record outside of React components. The returned [RxJS](https://github.com/reactivex/rxjs) `Observable` will emit the record immediately upon subscription, and then every time the record is updated. If the record is deleted, the Observable will complete.
@@ -130,7 +151,7 @@ await somePost.destroyPermanently() // permanent
 
 ### Logging out / switching users
 
-Most apps use a single, long-lived `Database` instance and, on logout, either call `database.unsafeResetDatabase()` or drop down to raw SQL/adapter calls to wipe every table. Either way, **the safe pattern is to make sure nothing is still observing the database when you do this**:
+Most apps use a single, long-lived `Database` instance and, on logout, either call `database.unsafeResetDatabase()` or drop down to raw SQL/adapter calls to wipe every table. If you only need to clear specific tables rather than the whole database, prefer [`Query.destroyAllPermanently()`](#delete-all-records-matching-a-query) over raw SQL — it keeps the record cache and observers correct on its own. Either way, **the safe pattern is to make sure nothing is still observing the database when you do this**:
 
 - `unsafeResetDatabase()` clears each `Collection`'s internal record cache, but it does not — and cannot — reach into every `Query`/`Model` observer your app may still be holding onto. Its own doc comment says so explicitly: you must not hold onto records, collections, or other Watermelon objects, and all observers/subscribers should be disposed of first.
 - If a subscription genuinely stays alive across the reset (a persistent top-level component, a memoized `Query` held in module scope, a `useQuery`/`useRecord`/`withObservables`-connected component that didn't unmount), NitromelonDB now detects and self-heals it: any `Query` cache (`.observe()`, `.observeWithColumns()`, `.observeCount()`, and their Rx-free `experimentalSubscribe*()` equivalents) that's still actively subscribed when `unsafeResetDatabase()` runs is invalidated and immediately refetched, so the subscriber gets fresh (post-reset) data instead of being frozen on the previous user's data forever. This is a safety net for a real app bug, not a substitute for tearing subscriptions down properly — until that invalidation runs, the still-mounted component *will* briefly render the old user's data.

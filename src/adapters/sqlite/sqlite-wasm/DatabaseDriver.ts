@@ -1,4 +1,5 @@
 import type { NativeBridgeBatchOperation, SQLiteArg } from '../type'
+import encodeDestroyMatchingMutation from '../encodeDestroyMatchingMutation'
 
 type SQLiteValue = string | number | bigint | Uint8Array | null
 
@@ -207,6 +208,31 @@ export default class DatabaseDriver {
     })
     added.forEach(([table, id]) => this.markAsCached(table, id))
     removed.forEach(([table, id]) => this.removeFromCache(table, id))
+  }
+
+  // Powers Query#markAllAsDeleted()/destroyAllPermanently() -- see encodeDestroyMatchingMutation
+  // for what the resulting statement looks like and why.
+  async destroyMatching(
+    table: string,
+    sql: string,
+    args: SQLiteArg[],
+    permanently: boolean,
+    isUnconditional: boolean,
+  ): Promise<string[]> {
+    let ids: string[] = []
+
+    await this.inTransaction(async () => {
+      ids = (await this.queryRaw(sql, args)).map((row) => String(row.id))
+      if (ids.length === 0) {
+        return
+      }
+
+      const mutationSql = encodeDestroyMatchingMutation(table, sql, permanently, isUnconditional)
+      await this.execute(mutationSql, isUnconditional ? [] : args)
+    })
+
+    ids.forEach((id) => this.removeFromCache(table, id))
+    return ids
   }
 
   async getLocal(key: string): Promise<unknown> {

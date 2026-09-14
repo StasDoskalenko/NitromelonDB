@@ -114,6 +114,15 @@ export default class LokiJSAdapter implements DatabaseAdapter {
     this._dispatcher.call('batch', [operations], callback, 'shallowCloneDeepObjects')
   }
 
+  destroyMatching(
+    query: SerializedQuery,
+    permanently: boolean,
+    callback: ResultCallback<RecordId[]>,
+  ): void {
+    validateTable(query.table, this.schema)
+    this._dispatcher.call('destroyMatching', [query, permanently], callback)
+  }
+
   getDeletedRecords(table: TableName, callback: ResultCallback<RecordId[]>): void {
     validateTable(table, this.schema)
     this._dispatcher.call('getDeletedRecords', [table], callback)

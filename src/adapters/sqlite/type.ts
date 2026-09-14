@@ -83,6 +83,7 @@ export type SqliteDispatcherMethod =
   | 'unsafeQueryRaw'
   | 'count'
   | 'batch'
+  | 'destroyMatching'
   | 'unsafeLoadFromSync'
   | 'provideSyncJson'
   | 'unsafeResetDatabase'

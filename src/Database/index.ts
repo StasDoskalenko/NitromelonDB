@@ -6,6 +6,7 @@ import { noop, fromArrayOrSpread } from '../utils/fp'
 import type { DatabaseAdapter, BatchOperation } from '../adapters/type'
 import DatabaseAdapterCompat from '../adapters/compat'
 import type Model from '../Model'
+import type { SerializedQuery } from '../Query'
 import type Collection from '../Collection'
 import type { CollectionChangeSet, ModelClass } from '../Collection'
 import type { TableName, AppSchema, SchemaVersion } from '../Schema'
@@ -108,6 +109,9 @@ let experimentalAllowsFatalError = false
 export function setExperimentalAllowsFatalError(): void {
   experimentalAllowsFatalError = true
 }
+
+// Warned at most once per process -- see _performMassDestroyFallback.
+let warnedAboutMissingDestroyMatching = false
 
 export default class Database {
   /**
@@ -513,6 +517,113 @@ export default class Database {
     this._notify(changes)
 
     return undefined // shuts up flow
+  }
+
+  // Powers Query#markAllAsDeleted()/destroyAllPermanently(). Delegates the actual matching AND
+  // mutating to a single adapter.destroyMatching() call -- one native/engine-level operation that
+  // resolves the query, deletes/marks-deleted every matching row, and returns just the affected
+  // ids. See each DatabaseAdapter's destroyMatching() implementation (e.g.
+  // native/shared/Database-batch.cpp's Database::destroyMatching) for why that beats resolving
+  // ids here and batching a mutation per id -- in short, a full row SELECT/DELETE-by-id loop is
+  // avoidable work when most matching rows were never loaded into memory to begin with, and (for
+  // an unconditional "clear the whole table" query) it throws away SQLite's own truncate
+  // optimization.
+  //
+  // What we still must do here in JS: only ids already resident in the collection's RecordCache
+  // (i.e. some Model instance for them already exists, so *something* might be holding a
+  // reference to it) go through the real record.prepareMarkAsDeleted()/prepareDestroyPermanently(),
+  // so that instance is properly evicted from the cache and any of its own subscribers
+  // (record.experimentalSubscribe(), Model#observe()) are notified. Records nobody has ever
+  // fetched can't be referenced by any per-record observer (processChangeSet.ts matches destroyed
+  // records by identity against the Model instances a query previously handed out -- see also
+  // Collection._cache's own note on why that identity must come from this same cache), so for
+  // those there's nothing further to do. Table-level observers (Query#observe/observeCount, which
+  // don't key off specific record identity -- see subscribeToCount/subscribeToQueryReloading)
+  // still fire correctly either way, since _notify() below always includes `table`.
+  async _performMassDestroy(
+    query: SerializedQuery,
+    type: 'markAsDeleted' | 'destroyPermanently',
+  ): Promise<void> {
+    this._ensureInWriter(
+      `Query#${type === 'destroyPermanently' ? 'destroyAllPermanently' : 'markAllAsDeleted'}()`,
+    )
+
+    const { table } = query
+    const permanently = type === 'destroyPermanently'
+
+    let ids: string[]
+    if (typeof this.adapter.underlyingAdapter.destroyMatching === 'function') {
+      // TODO: Every matching id crosses the bridge here, even though the loop below only cares
+      // about ones already in collection._cache -- the adapter has no way to know which ids JS
+      // has ever seen. Fine at the sizes this has been measured at (20k rows: ~69ms total, see
+      // examples/benchmark's mass-delete card), but on a very large unconditional clear (e.g.
+      // millions of rows on a low-end device) that's a large array allocated and serialized
+      // across the bridge for ids that get thrown away unused. If this ever needs fixing,
+      // options include: having the adapter return only ids it knows are cached (it already
+      // tracks this for its own purposes), returning { affectedCount, cachedIds } instead of a
+      // flat array, or accepting a flag asking the adapter to filter server-side -- all require
+      // a DatabaseAdapter contract change, so not worth doing speculatively.
+      ids = await this.adapter.destroyMatching(query, permanently)
+    } else {
+      ids = await this._performMassDestroyFallback(query, table, permanently)
+    }
+
+    if (!ids.length) {
+      return
+    }
+
+    const collection = this.collections.get(table)
+    const changeSet: CollectionChangeSet<Model> = []
+
+    ids.forEach((id) => {
+      const cachedRecord = collection._cache.get(id)
+      if (cachedRecord) {
+        type === 'destroyPermanently'
+          ? cachedRecord.prepareDestroyPermanently()
+          : cachedRecord.prepareMarkAsDeleted()
+        // See _performBatch above for why this is reset eagerly
+        cachedRecord._preparedState = null
+        changeSet.push({ record: cachedRecord, type: 'destroyed' })
+      }
+    })
+
+    collection._applyChangesToCache(changeSet)
+    this._notify([[table, changeSet]])
+  }
+
+  // Compatibility path for a DatabaseAdapter that predates destroyMatching() -- e.g. a fully
+  // custom third-party adapter that hasn't been updated yet (see this method's doc comment in
+  // src/adapters/type.ts). Reconstructs the same two ids-then-mutate steps destroyMatching()
+  // collapses into one native/engine-level operation: resolve matching ids via the
+  // unconditionally-required queryIds(), then apply the mutation as one adapter.batch() call of
+  // raw ['markAsDeleted' | 'destroyPermanently', table, id] operations (no per-record
+  // database.batch() transaction, and no full-row fetch for records nobody has loaded -- unlike
+  // the very first, pre-optimization version of this feature, this still avoids both of those).
+  // Slower than the native path (a full SELECT id list plus a second bridge crossing for the
+  // mutation, instead of one), but correct, and only reached for adapters that don't implement
+  // destroyMatching.
+  async _performMassDestroyFallback(
+    query: SerializedQuery,
+    table: TableName<Model>,
+    permanently: boolean,
+  ): Promise<string[]> {
+    if (!warnedAboutMissingDestroyMatching) {
+      warnedAboutMissingDestroyMatching = true
+      logger.warn(
+        '[Database] This DatabaseAdapter does not implement destroyMatching() (added to the ' +
+          'DatabaseAdapter interface -- see src/adapters/type.ts). Falling back to a slower, ' +
+          'two-step id-resolve-then-batch path for Query#markAllAsDeleted()/destroyAllPermanently(). ' +
+          'Implement destroyMatching() on your adapter to remove this warning and get the faster, ' +
+          'single-operation path; see CHANGELOG-Unreleased.md for details.',
+      )
+    }
+
+    const ids = await this.adapter.queryIds(query)
+    if (ids.length) {
+      const type = permanently ? 'destroyPermanently' : 'markAsDeleted'
+      await this.adapter.batch(ids.map((id): BatchOperation => [type, table, id]))
+    }
+    return ids
   }
 
   _pendingNotificationBatches: number = 0

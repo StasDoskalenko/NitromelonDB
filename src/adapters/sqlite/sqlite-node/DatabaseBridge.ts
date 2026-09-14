@@ -204,6 +204,21 @@ class DatabaseBridge {
     this.withDriver(tag, resolve, reject, 'batch', (driver) => driver.batch(operations))
   }
 
+  destroyMatching(
+    tag: number,
+    table: string,
+    sql: string,
+    args: SQLiteArg[],
+    permanently: boolean,
+    isUnconditional: boolean,
+    resolve: (value: unknown) => void,
+    reject: (code: string, message: string, error: Error) => void,
+  ): void {
+    this.withDriver(tag, resolve, reject, 'destroyMatching', (driver) =>
+      driver.destroyMatching(table, sql, args, permanently, isUnconditional),
+    )
+  }
+
   unsafeResetDatabase(
     tag: number,
     schema: string,

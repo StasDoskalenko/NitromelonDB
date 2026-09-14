@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Keyboard, StyleSheet, Text, View } from 'react-native'
+import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native'
 import { ComposerDock } from '../components/ComposerDock'
 import { NotesComposer } from '../components/NotesComposer'
 import { NotesHeader } from '../components/NotesHeader'
@@ -21,6 +21,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
+  const [deletingAll, setDeletingAll] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   // NotesComposer's Windows title field is uncontrolled (defaultValue) because
   // driver-injected/IME input there doesn't reliably fire onChangeText; bumping
@@ -73,6 +74,22 @@ export function NotesScreen({ db }: NotesScreenProps) {
     }
   }
 
+  const deleteAllNotes = async () => {
+    if (deletingAll) {
+      return
+    }
+    setActionError(null)
+    setDeletingAll(true)
+    try {
+      await Note.deleteAllForever(db.notes)
+      setPage(1)
+    } catch (writeError) {
+      setActionError(writeError instanceof Error ? writeError.message : String(writeError))
+    } finally {
+      setDeletingAll(false)
+    }
+  }
+
   return (
     // Keyboard-avoidance is scoped to the composer (ComposerDock), not the
     // whole screen: an earlier root-level KeyboardAvoidingView ate Maestro's
@@ -84,6 +101,23 @@ export function NotesScreen({ db }: NotesScreenProps) {
         schemaVersion={db.schemaVersion}
         totalCount={totalCount}
       />
+
+      <Pressable
+        onPress={() => void deleteAllNotes()}
+        disabled={deletingAll || totalCount === 0}
+        hitSlop={12}
+        style={[
+          styles.deleteAllButton,
+          (deletingAll || totalCount === 0) && styles.deleteAllButtonDisabled,
+        ]}
+        testID="delete-all-button"
+        accessibilityRole="button"
+        accessibilityLabel="Delete all notes"
+      >
+        <Text style={styles.deleteAllLabel} accessible={false}>
+          {deletingAll ? 'Deleting all…' : 'Delete all'}
+        </Text>
+      </Pressable>
 
       {actionError ? <Text style={styles.error}>{actionError}</Text> : null}
 
@@ -123,5 +157,24 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontSize: 14,
     textAlign: 'center',
+  },
+  deleteAllButton: {
+    alignSelf: 'flex-end',
+    marginHorizontal: 20,
+    marginBottom: 8,
+    minHeight: 32,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.danger,
+  },
+  deleteAllButtonDisabled: {
+    opacity: 0.35,
+  },
+  deleteAllLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.danger,
   },
 })

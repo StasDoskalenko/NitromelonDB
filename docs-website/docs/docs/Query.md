@@ -312,6 +312,10 @@ It isn't _necessarily_ better or more efficient to sort on query level instead o
 
 If you only need IDs of records matching a query, you can optimize the query by calling `await query.fetchIds()` instead of `await query.fetch()`
 
+### Deleting matching records
+
+To delete every record matching a query — including clearing a whole table — use `query.markAllAsDeleted()` / `query.destroyAllPermanently()` instead of fetching and deleting records one by one. See [Delete all records matching a query](./CRUD.md#delete-all-records-matching-a-query) in the CRUD guide.
+
 ### Security
 
 Remember that Queries are a sensitive subject, security-wise. Never trust user input and pass it directly into queries. In particular:
