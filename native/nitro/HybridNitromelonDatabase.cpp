@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <type_traits>
+#include <unordered_set>
 
 namespace margelo::nitro::watermelondb {
 
@@ -148,7 +149,129 @@ SyncSchema schemaFromAnyMap(const std::shared_ptr<AnyMap>& schema) {
   return tables;
 }
 
+std::vector<SqliteValue> jsiToSqliteArgs(jsi::Runtime& runtime, const jsi::Value& value) {
+  jsi::Array array = value.asObject(runtime).asArray(runtime);
+  size_t length = array.size(runtime);
+  std::vector<SqliteValue> args;
+  args.reserve(length);
+  for (size_t i = 0; i < length; i++) {
+    jsi::Value arg = array.getValueAtIndex(runtime, i);
+    if (arg.isNull() || arg.isUndefined()) {
+      args.emplace_back(nullptr);
+    } else if (arg.isString()) {
+      args.emplace_back(arg.getString(runtime).utf8(runtime));
+    } else if (arg.isNumber()) {
+      args.emplace_back(arg.getNumber());
+    } else if (arg.isBool()) {
+      args.emplace_back(arg.getBool());
+    } else {
+      throw jsi::JSError(runtime, "Invalid argument type for query");
+    }
+  }
+  return args;
+}
+
+jsi::Value sqliteValueToJsi(jsi::Runtime& runtime, const SqliteValue& value) {
+  return std::visit(
+      [&](auto&& v) -> jsi::Value {
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (std::is_same_v<T, std::nullptr_t>) {
+          return jsi::Value::null();
+        } else if constexpr (std::is_same_v<T, std::string>) {
+          return jsi::String::createFromUtf8(runtime, v);
+        } else {
+          return jsi::Value(v);
+        }
+      },
+      value);
+}
+
+// Turns positional rows into jsi::Objects. PropNameIDs are created once per query. If a column
+// name repeats (raw SQL selecting `a.id, b.id`), the first one wins, same as Database::resultRow().
+class RowObjectBuilder {
+public:
+  RowObjectBuilder(jsi::Runtime& runtime, const std::vector<SqliteValue>& columnNames) : runtime_(runtime) {
+    std::unordered_set<std::string> seen;
+    for (size_t i = 0; i < columnNames.size(); i++) {
+      const auto& name = std::get<std::string>(columnNames[i]);
+      if (seen.insert(name).second) {
+        columns_.emplace_back(i, jsi::PropNameID::forUtf8(runtime_, name));
+      }
+    }
+  }
+
+  jsi::Object build(const std::vector<SqliteValue>& values) {
+    jsi::Object object(runtime_);
+    for (const auto& [index, name] : columns_) {
+      object.setProperty(runtime_, name, sqliteValueToJsi(runtime_, values[index]));
+    }
+    return object;
+  }
+
+private:
+  jsi::Runtime& runtime_;
+  std::vector<std::pair<size_t, jsi::PropNameID>> columns_;
+};
+
 } // namespace
+
+void HybridNitromelonDatabase::loadHybridMethods() {
+  HybridNitromelonDatabaseSpec::loadHybridMethods();
+  registerHybrids(this, [](Prototype& prototype) {
+    prototype.registerRawHybridMethod("queryJSI", 3, &HybridNitromelonDatabase::queryJSI);
+    prototype.registerRawHybridMethod("unsafeQueryRawJSI", 2, &HybridNitromelonDatabase::unsafeQueryRawJSI);
+  });
+}
+
+// Rows are read into compact positional C++ vectors first, then converted in one tight loop into
+// an array of known size. Building jsi::Objects while stepping SQLite, and keeping every row as a
+// pending jsi::Value until the row count is known, measured several times slower on Hermes for
+// 50k-row results (each pending jsi::Value is a GC root).
+jsi::Value HybridNitromelonDatabase::queryJSI(jsi::Runtime& runtime, const jsi::Value&, const jsi::Value* args,
+                                              size_t count) {
+  assert(initialized_);
+  if (count != 3) {
+    throw jsi::JSError(runtime, "queryJSI(tableName, sql, args) expects 3 arguments");
+  }
+  auto tableName = args[0].asString(runtime).utf8(runtime);
+  auto sql = args[1].asString(runtime).utf8(runtime);
+  auto items = database().queryAsArray(tableName, sql, jsiToSqliteArgs(runtime, args[2]));
+  if (items.empty()) {
+    return jsi::Array(runtime, 0);
+  }
+
+  // items[0] is the column names, then either a cached record's id or a row's values
+  RowObjectBuilder builder(runtime, std::get<std::vector<SqliteValue>>(items[0]));
+  jsi::Array records(runtime, items.size() - 1);
+  for (size_t i = 1; i < items.size(); i++) {
+    if (std::holds_alternative<std::string>(items[i])) {
+      records.setValueAtIndex(runtime, i - 1, jsi::String::createFromUtf8(runtime, std::get<std::string>(items[i])));
+    } else {
+      records.setValueAtIndex(runtime, i - 1, builder.build(std::get<std::vector<SqliteValue>>(items[i])));
+    }
+  }
+  return records;
+}
+
+jsi::Value HybridNitromelonDatabase::unsafeQueryRawJSI(jsi::Runtime& runtime, const jsi::Value&, const jsi::Value* args,
+                                                       size_t count) {
+  assert(initialized_);
+  if (count != 2) {
+    throw jsi::JSError(runtime, "unsafeQueryRawJSI(sql, args) expects 2 arguments");
+  }
+  auto sql = args[0].asString(runtime).utf8(runtime);
+  auto rows = database().unsafeQueryRawAsArray(sql, jsiToSqliteArgs(runtime, args[1]));
+  if (rows.empty()) {
+    return jsi::Array(runtime, 0);
+  }
+
+  RowObjectBuilder builder(runtime, rows[0]);
+  jsi::Array result(runtime, rows.size() - 1);
+  for (size_t i = 1; i < rows.size(); i++) {
+    result.setValueAtIndex(runtime, i - 1, builder.build(rows[i]));
+  }
+  return result;
+}
 
 HybridNitromelonDatabase::HybridNitromelonDatabase(std::string dbName, bool usesExclusiveLocking)
     : HybridObject(TAG), dbName_(std::move(dbName)), usesExclusiveLocking_(usesExclusiveLocking) {}

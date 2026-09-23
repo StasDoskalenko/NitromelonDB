@@ -83,6 +83,13 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
 
     if (methodName === 'query' && !global.HermesInternal) {
       methodName = 'queryAsArray'
+    } else if (
+      (methodName === 'query' || methodName === 'unsafeQueryRaw') &&
+      (this._db as NativeDatabase)[`${methodName}JSI`]
+    ) {
+      // Raw-JSI variants build JS objects straight from SQLite rows, skipping Nitro's AnyMap
+      // copy (see HybridNitromelonDatabase::queryJSI). Older native builds don't have them.
+      methodName = `${methodName}JSI`
     } else if (methodName === 'batch') {
       methodName = 'batchJSON'
       args = [JSON.stringify(args[0])]

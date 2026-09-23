@@ -123,6 +123,9 @@ public:
     std::vector<SqliteQueryAsArrayItem> queryAsArray(const std::string &tableName, const std::string &sql, const std::vector<SqliteValue> &arguments);
     std::vector<std::string> queryIds(const std::string &sql, const std::vector<SqliteValue> &arguments);
     std::vector<SqliteRow> unsafeQueryRaw(const std::string &sql, const std::vector<SqliteValue> &arguments);
+    // Like unsafeQueryRaw(), but positional: the first item is the column names, then one values
+    // vector per row (no per-row maps). Empty when there are no rows.
+    std::vector<std::vector<SqliteValue>> unsafeQueryRawAsArray(const std::string &sql, const std::vector<SqliteValue> &arguments);
     double count(const std::string &sql, const std::vector<SqliteValue> &arguments);
     void batch(const std::vector<SqliteBatchOperation> &operations);
     std::vector<std::string> destroyMatching(const std::string &table, const std::string &sql, const std::vector<SqliteValue> &args, bool permanently, bool isUnconditional);

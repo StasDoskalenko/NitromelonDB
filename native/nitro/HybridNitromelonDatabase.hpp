@@ -48,7 +48,17 @@ public:
   void unsafeClose() override;
   void onMemoryWarning(const std::function<void()>& callback) override;
 
+protected:
+  void loadHybridMethods() override;
+
 private:
+  // Raw-JSI fast paths for the read methods that return records. The generated `query` /
+  // `unsafeQueryRaw` go SQLite row -> SqliteRow -> AnyMap -> jsi::Object; these build the
+  // jsi::Object straight from the SQLite statement, reusing one PropNameID per column. The
+  // JS dispatcher prefers them when present. Same arguments as the typed methods.
+  jsi::Value queryJSI(jsi::Runtime& runtime, const jsi::Value& thisValue, const jsi::Value* args, size_t count);
+  jsi::Value unsafeQueryRawJSI(jsi::Runtime& runtime, const jsi::Value& thisValue, const jsi::Value* args, size_t count);
+
   ::watermelondb::Database& database();
 
   std::string dbName_;

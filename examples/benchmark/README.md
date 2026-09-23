@@ -46,6 +46,21 @@ The WatermelonDB app has a matching "Mass delete (reference)" card -- upstream h
 NitromelonDB card's "old" column (same algorithm); the NitromelonDB card's "new" column is the
 improvement. See `watermelondb_benchmark/massDeleteBenchmark.ts`.
 
+### Sync
+
+Both apps have the same "Sync" card, driven by `shared/syncBenchmark.ts`. It runs the real
+`synchronize()` against a 12-column table:
+
+1. **Initial**: N records arrive as `created`, 2,000 per `synchronize()` call
+2. **Update**: the same N records arrive again as `updated`. Sync reads every existing row back
+   from SQLite first, so this is the phase most sensitive to native -> JS row conversion
+3. **Fetch**: `query().fetch()` of all N records
+4. **Push**: 1,000 local changes pushed and marked as synced
+
+Every phase uses a fresh `Database` instance on the same file, so nothing is cached in JS between
+phases, the same as a sync after an app restart. For comparable numbers, relaunch the app before
+each run: the first large query after launch pays for Hermes heap growth, in both apps.
+
 ## WatermelonDB
 
 ```sh
