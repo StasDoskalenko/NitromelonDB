@@ -139,6 +139,7 @@ Use `markAllAsDeleted()` instead if you [synchronize](./Sync/Intro.md).
 - `Query.observe()`, `Relation.observe()` — analagous to the above, but for [Queries](./Query.md) and [Relations](./Relation.md)
 - `Query.observeWithColumns()` - used for [sorted lists](./Components.md)
 - `Collection.findAndObserve(id)` — same as using `.find(id)` and then calling `record.observe()`
+- `Collection.findAndObserveOrNull(id)` — like `findAndObserve`, but emits `null` instead of erroring when the record doesn't exist, picks the record up if it's created later, and emits `null` (instead of completing) when it's deleted
 - `Model.prepareUpdate()`, `Collection.prepareCreate`, `Database.batch` — used for [batch updates](./Writers.md)
 - `Database.unsafeResetDatabase()` destroys the whole database - [be sure to see this comment before using it](https://github.com/Nozbe/WatermelonDB/blob/22188ee5b6e3af08e48e8af52d14e0d90db72925/src/Database/index.js#L131)
 - To override the `record.id` during creation (for example to match a server id), assign `record.id` inside `create()` / `prepareCreate()`. The id must be a non-empty string. Assigning `id` after create throws.

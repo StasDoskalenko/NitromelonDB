@@ -216,11 +216,21 @@ export const or: ArrayOrSpreadFn<Where, Or> = (...args: unknown[]): Or => {
 export const asc: SortOrder = 'asc'
 export const desc: SortOrder = 'desc'
 
-export function sortBy(sortColumn: ColumnName, sortOrder: SortOrder = asc): SortBy {
+// Use: sortBy('column_name', desc)
+// or: sortBy(unsafeSqlExpr('CAST(image_id AS INTEGER)'), desc) -- SQLite adapters only.
+// The expression is inserted into `order by` as-is: never build it from user input
+export function sortBy(sortColumn: ColumnName | SqlExpr, sortOrder: SortOrder = asc): SortBy {
   invariant(
     sortOrder === 'asc' || sortOrder === 'desc',
     `Invalid sortOrder argument received in Q.sortBy (valid: asc, desc)`,
   )
+  if (typeof sortColumn === 'object' && sortColumn !== null) {
+    invariant(
+      sortColumn.type === 'sql' && typeof sortColumn.expr === 'string',
+      'Q.sortBy() accepts a column name or Q.unsafeSqlExpr()',
+    )
+    return { type: 'sortBy', sortExpr: sortColumn.expr, sortOrder }
+  }
   return { type: 'sortBy', sortColumn: checkName(sortColumn), sortOrder }
 }
 

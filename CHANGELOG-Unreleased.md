@@ -6,7 +6,12 @@
 
 ### New features
 
+- `Collection.findAndObserveOrNull(id)`: like `findAndObserve(id)`, but emits `null` instead of erroring when the record doesn't exist, so a missing record no longer throws out of `withObservables`. It also emits the record once it's created (e.g. by sync) and emits `null` instead of completing when it's deleted. `findAndObserve` is unchanged.
+- `Q.sortBy()` accepts `Q.unsafeSqlExpr()` on SQLite adapters, e.g. `Q.sortBy(Q.unsafeSqlExpr('CAST(image_id AS INTEGER)'), Q.desc)`. LokiJS rejects it with a clear error.
+
 ### Fixes
+
+- Observing a query whose only condition is `Q.unsafeSqlExpr()` / `Q.unsafeLokiExpr()` (including inside `Q.and` / `Q.or`) no longer throws `Illegal clause sql` when the table changes, e.g. during sync. Such queries now re-run on change instead of being matched in JavaScript ([WatermelonDB#1679](https://github.com/Nozbe/WatermelonDB/discussions/1679)).
 
 ### Performance
 

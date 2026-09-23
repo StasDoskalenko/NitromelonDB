@@ -256,6 +256,16 @@ describe('SQLite encodeQuery', () => {
       `select "tasks".* from "tasks" where "tasks"."_status" is not 'deleted' order by "tasks"."sortable_column" desc, "tasks"."sortable_column2" asc`,
     )
   })
+  it('encodes order by a raw SQL expression', () => {
+    expect(
+      encoded([
+        Q.sortBy(Q.unsafeSqlExpr('CAST(image_id AS INTEGER)'), Q.desc),
+        Q.sortBy('sortable_column', Q.asc),
+      ]),
+    ).toBe(
+      `select "tasks".* from "tasks" where "tasks"."_status" is not 'deleted' order by CAST(image_id AS INTEGER) desc, "tasks"."sortable_column" asc`,
+    )
+  })
   it('encodes limit clause', () => {
     expect(encoded([Q.take(100)])).toBe(
       `select "tasks".* from "tasks" where "tasks"."_status" is not 'deleted' limit 100`,

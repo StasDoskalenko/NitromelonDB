@@ -461,6 +461,16 @@ describe('buildQueryDescription', () => {
       sortBy: [{ type: 'sortBy', sortColumn: 'sortable_column', sortOrder: 'desc' }],
     })
   })
+  it('supports sorting by a raw SQL expression', () => {
+    const query = Q.buildQueryDescription([
+      Q.sortBy(Q.unsafeSqlExpr('CAST(image_id AS INTEGER)'), Q.desc),
+      Q.sortBy('sortable_column'),
+    ])
+    expect(query.sortBy).toEqual([
+      { type: 'sortBy', sortExpr: 'CAST(image_id AS INTEGER)', sortOrder: 'desc' },
+      { type: 'sortBy', sortColumn: 'sortable_column', sortOrder: 'asc' },
+    ])
+  })
   it('does not support skip operator without take operator', () => {
     expect(() => {
       Q.buildQueryDescription([Q.skip(100)])
@@ -530,6 +540,7 @@ describe('buildQueryDescription', () => {
   })
   it(`catches bad argument values`, () => {
     expect(() => Q.sortBy('foo', 'ascasc')).toThrow('Invalid sortOrder')
+    expect(() => Q.sortBy(Q.unsafeLokiExpr({ foo: 1 }))).toThrow('Q.unsafeSqlExpr()')
     expect(() => Q.where('foo', Q.unsafeSqlExpr('is RANDOM()'))).toThrow()
     expect(() => Q.where('foo', Q.unsafeLokiExpr('is RANDOM()'))).toThrow()
     expect(() => Q.and(Q.like('foo'))).toThrow('can only contain')
