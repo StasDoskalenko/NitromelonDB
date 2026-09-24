@@ -8,6 +8,10 @@ const SIZES = [5_000, 20_000, 50_000]
 const CHUNK_SIZE = 2_000
 const PUSH_COUNT = 1_000
 
+function formatMb(bytes: number): string {
+  return `${(bytes / 1024 / 1024).toFixed(0)}MB`
+}
+
 function formatMs(ms: number): string {
   return ms >= 10_000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`
 }
@@ -102,6 +106,17 @@ export function SyncBenchmarkCard({ theme, run }: Props) {
               <Text style={styles.tableCell}>{formatMs(result.totalMs)}</Text>
             </View>
           ))}
+          {results[0]!.memory ? (
+            <Text style={styles.memory}>
+              Latest run: JS heap peak {formatMb(results[0]!.memory.heapPeakBytes)} (start{' '}
+              {formatMb(results[0]!.memory.heapStartBytes)}), {results[0]!.memory.gcCount} GCs,{' '}
+              {formatMs(results[0]!.memory.gcMs)} in GC
+            </Text>
+          ) : null}
+          {/* Machine-readable copy of the latest result for scripted runs (maestro hierarchy) */}
+          <Text testID="sync-json" style={styles.json}>
+            {JSON.stringify(results[0])}
+          </Text>
         </View>
       ) : null}
     </View>
@@ -195,6 +210,18 @@ function createStyles(theme: BenchmarkTheme) {
       color: theme.text,
       fontSize: 12,
       fontVariant: ['tabular-nums'],
+    },
+    memory: {
+      marginTop: 10,
+      color: theme.muted,
+      fontSize: 12,
+      lineHeight: 17,
+    },
+    json: {
+      marginTop: 6,
+      color: theme.muted,
+      fontSize: 6,
+      opacity: 0.5,
     },
     tableWide: {
       flex: 1.2,

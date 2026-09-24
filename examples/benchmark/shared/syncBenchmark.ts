@@ -10,6 +10,9 @@
 //      conversion cost
 //   3. fetchAll    -- query().fetch() of all N records with a cold JS cache
 //   4. push        -- M records changed locally, then synchronize() pushes and marks them synced
+//
+// On Hermes, each phase also records JS heap size (end and peak) and GC count/time. The gcCount/gcMs
+// totals cover the whole run, including the untimed local edits before the push.
 
 export const SYNC_TABLE = 'sync_items'
 
@@ -76,6 +79,97 @@ export type SyncBenchmarkResult = SyncBenchmarkOptions & {
   fetchAllMs: number
   pushMs: number
   totalMs: number
+  // null when the JS engine isn't Hermes (no HermesInternal.getInstrumentedStats)
+  memory: SyncMemory | null
+}
+
+export type PhaseMemory = {
+  // JS heap size (bytes the Hermes GC has reserved) at the end of the phase, and the highest value
+  // seen while it ran (sampled after every synchronize() chunk)
+  heapEndBytes: number
+  heapPeakBytes: number
+  gcCount: number
+  gcMs: number
+}
+
+export type SyncMemory = {
+  heapStartBytes: number
+  heapPeakBytes: number
+  gcCount: number
+  gcMs: number
+  initialPull: PhaseMemory
+  updatePull: PhaseMemory
+  fetchAll: PhaseMemory
+  push: PhaseMemory
+}
+
+type HermesStats = { heapSize: number; numGCs: number; gcTimeMs: number }
+
+// Hermes-only, no native module needed. Field names from Hermes' getInstrumentedStats().
+// js_gcTime is in seconds.
+function readHermesStats(): HermesStats | null {
+  const hermes = (globalThis as { HermesInternal?: { getInstrumentedStats?: () => Record<string, number> } })
+    .HermesInternal
+  const stats = hermes?.getInstrumentedStats?.()
+  if (!stats || typeof stats.js_heapSize !== 'number') {
+    return null
+  }
+  return {
+    heapSize: stats.js_heapSize,
+    numGCs: stats.js_numGCs ?? 0,
+    gcTimeMs: (stats.js_gcTime ?? 0) * 1000,
+  }
+}
+
+class MemoryTracker {
+  _start: HermesStats | null = readHermesStats()
+  _phaseStart: HermesStats | null = this._start
+  _phasePeak = this._start?.heapSize ?? 0
+  _overallPeak = this._phasePeak
+
+  sample(): void {
+    const stats = readHermesStats()
+    if (stats) {
+      this._phasePeak = Math.max(this._phasePeak, stats.heapSize)
+      this._overallPeak = Math.max(this._overallPeak, stats.heapSize)
+    }
+  }
+
+  endPhase(): PhaseMemory | null {
+    this.sample()
+    const end = readHermesStats()
+    const start = this._phaseStart
+    if (!end || !start) {
+      return null
+    }
+    const phase = {
+      heapEndBytes: end.heapSize,
+      heapPeakBytes: this._phasePeak,
+      gcCount: end.numGCs - start.numGCs,
+      gcMs: end.gcTimeMs - start.gcTimeMs,
+    }
+    this._phaseStart = end
+    this._phasePeak = end.heapSize
+    return phase
+  }
+
+  summary(phases: Record<'initialPull' | 'updatePull' | 'fetchAll' | 'push', PhaseMemory | null>): SyncMemory | null {
+    const end = readHermesStats()
+    const { initialPull, updatePull, fetchAll, push } = phases
+    if (!this._start || !end || !initialPull || !updatePull || !fetchAll || !push) {
+      return null
+    }
+    return {
+      heapStartBytes: this._start.heapSize,
+      heapPeakBytes: this._overallPeak,
+      gcCount: end.numGCs - this._start.numGCs,
+      gcMs: end.gcTimeMs - this._start.gcTimeMs,
+      initialPull,
+      updatePull,
+      fetchAll,
+      push,
+    }
+  }
 }
 
 function now(): number {
@@ -105,6 +199,7 @@ async function pullInChunks(
   synchronize: SynchronizeFn,
   { records, chunkSize }: SyncBenchmarkOptions,
   revision: number,
+  memory: MemoryTracker,
 ): Promise<number> {
   const started = now()
   let timestamp = revision * 1_000_000
@@ -131,6 +226,7 @@ async function pullInChunks(
       }),
       pushChanges: async () => {},
     })
+    memory.sample()
   }
   return now() - started
 }
@@ -143,15 +239,20 @@ export async function runSyncBenchmark(
   let database = await openDatabase()
   await database.write(() => database.unsafeResetDatabase())
 
-  const initialPullMs = await pullInChunks(database, synchronize, options, 0)
+  const memory = new MemoryTracker()
+
+  const initialPullMs = await pullInChunks(database, synchronize, options, 0, memory)
+  const initialPullMemory = memory.endPhase()
 
   database = await openDatabase()
-  const updatePullMs = await pullInChunks(database, synchronize, options, 1)
+  const updatePullMs = await pullInChunks(database, synchronize, options, 1, memory)
+  const updatePullMemory = memory.endPhase()
 
   database = await openDatabase()
   const fetchStarted = now()
   const all = await (database.get(SYNC_TABLE) as SyncCollection).query().fetch()
   const fetchAllMs = now() - fetchStarted
+  const fetchAllMemory = memory.endPhase()
 
   const toChange = all.slice(0, options.pushCount)
   await database.write(() =>
@@ -163,6 +264,7 @@ export async function runSyncBenchmark(
       ),
     ),
   )
+  memory.endPhase() // local edits aren't part of any timed phase
   const pushStarted = now()
   await synchronize({
     database: database as never,
@@ -170,6 +272,7 @@ export async function runSyncBenchmark(
     pushChanges: async () => {},
   })
   const pushMs = now() - pushStarted
+  const pushMemory = memory.endPhase()
 
   return {
     ...options,
@@ -178,5 +281,11 @@ export async function runSyncBenchmark(
     fetchAllMs,
     pushMs,
     totalMs: initialPullMs + updatePullMs + fetchAllMs + pushMs,
+    memory: memory.summary({
+      initialPull: initialPullMemory,
+      updatePull: updatePullMemory,
+      fetchAll: fetchAllMemory,
+      push: pushMemory,
+    }),
   }
 }

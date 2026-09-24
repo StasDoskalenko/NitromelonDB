@@ -61,6 +61,30 @@ Every phase uses a fresh `Database` instance on the same file, so nothing is cac
 phases, the same as a sync after an app restart. For comparable numbers, relaunch the app before
 each run: the first large query after launch pays for Hermes heap growth, in both apps.
 
+Under the table, the card shows the latest run's JS heap peak and GC count/time. These come from
+Hermes' `HermesInternal.getInstrumentedStats()`, so no native code is involved. Heap size is
+reported in whole heap segments, so small differences don't show up.
+
+#### Scripted runs
+
+To collect many runs and compare them, install a Release build of each app on a simulator
+(`npx expo run:ios --configuration Release`), then:
+
+```sh
+cd examples/benchmark
+node scripts/run-sync-trials.mjs --app com.nitromelondb.benchmark --label NitromelonDB \
+  --sizes 5000,20000,50000 --runs 10 --device <simulator udid> --out results.jsonl
+node scripts/run-sync-trials.mjs --app com.watermelondb.benchmark --label WatermelonDB \
+  --sizes 5000,20000,50000 --runs 10 --device <simulator udid> --out results.jsonl
+node scripts/summarize-sync.mjs results.jsonl
+```
+
+Each run relaunches the app, drives the card with [Maestro](https://maestro.dev), and appends one
+JSON line to `--out`. The runner also samples the app process's RSS from the host every 100ms,
+which works because a simulator app is a normal macOS process. It approximates native memory use,
+but it isn't the `phys_footprint` iOS uses for memory limits on a device. The summary prints the
+median of each column, with min–max underneath.
+
 ## WatermelonDB
 
 ```sh
