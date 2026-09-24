@@ -4,12 +4,13 @@ import { releaseCollectionCache } from '../shared/releaseCache'
 import type { BenchmarkAdapter, QueryBreakdown } from '../shared/types'
 import Item from './model/Item'
 import { ITEMS_TABLE, schema } from './model/schema'
+import { USE_JSI } from './jsiMode'
 
 export function createWatermelonAdapter(): BenchmarkAdapter {
   const sqlite = new SQLiteAdapter({
     schema,
     dbName: 'watermelon-benchmark',
-    jsi: true,
+    jsi: USE_JSI,
     onSetUpError: (error) => {
       console.error('[WatermelonDB] Failed to set up SQLite', error)
     },

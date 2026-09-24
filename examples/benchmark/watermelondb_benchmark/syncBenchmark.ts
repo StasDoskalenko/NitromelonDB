@@ -10,6 +10,7 @@ import {
   type SyncDatabase,
   type SynchronizeFn,
 } from '../shared/syncBenchmark'
+import { USE_JSI } from './jsiMode'
 
 // Its own database, separate from the main write/query/delete harness. See
 // ../shared/syncBenchmark.ts for the workload.
@@ -24,7 +25,7 @@ const schema = appSchema({
 })
 
 function openDatabase(): Promise<SyncDatabase> {
-  const adapter = new SQLiteAdapter({ schema, dbName: 'watermelon-sync', jsi: true })
+  const adapter = new SQLiteAdapter({ schema, dbName: 'watermelon-sync', jsi: USE_JSI })
   const database = new Database({ adapter, modelClasses: [SyncItem] })
   return Promise.resolve(database as unknown as SyncDatabase)
 }
