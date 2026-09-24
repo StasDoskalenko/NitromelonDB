@@ -298,30 +298,42 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   // already has. Recreating scans and sorts the whole table, so doing it for every chunk of a
   // chunked sync into a big table made each chunk cost O(table size) (3-7x slower at 100k rows).
   // Reindex only tables where the batch has at least as many operations as the table has rows.
+  //
+  // Deciding needs row counts, and the batch must still reach the database in call order: a read
+  // issued right after batch() must not run before it. So `done` is always called before this
+  // returns. Counts are used only if the dispatcher answers them synchronously (Nitro, and Node
+  // once open). Otherwise the batch goes out now without reindexing. The web dispatcher is
+  // always async, so it doesn't ask at all.
   _tablesToReindex(candidates: Map<TableName, number>, done: (tables: TableName[]) => void): void {
-    const pending = Array.from(candidates.entries())
+    if (this._dispatcherType === 'wa-sqlite') {
+      done([])
+      return
+    }
     const tables: TableName[] = []
-    const next = (): void => {
-      const entry = pending.shift()
-      if (!entry) {
-        done(tables)
-        return
-      }
-      const [table, operationCount] = entry
+    let decided = false
+    for (const [table, operationCount] of candidates) {
+      let answered = false
       this._dispatcher.call<number>(
         'count',
         [`select count(*) as "count" from "${table}"`, []],
         (result) => {
-          // A failed count only costs the optimization
-          if (typeof result.value === 'number' && operationCount >= result.value) {
+          answered = true
+          // A failed count (or one answered too late) only costs the optimization
+          if (!decided && typeof result.value === 'number' && operationCount >= result.value) {
             tables.push(table)
           }
-          next()
         },
       )
+      if (!answered) {
+        decided = true
+        done([])
+        return
+      }
     }
-    next()
+    decided = true
+    done(tables)
   }
+
 
   destroyMatching(
     query: SerializedQuery,
