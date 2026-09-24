@@ -1,6 +1,6 @@
 {
   "name": "React-RCTFBReactNativeSpec",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "FBReactNativeSpec for React Native.",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
@@ -10,7 +10,7 @@
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "source_files": "FBReactNativeSpec/**/*.{h}",
   "compiler_flags": "-DRCT_NEW_ARCH_ENABLED=1",
@@ -22,13 +22,7 @@
   "pod_target_xcconfig": {
     "USE_HEADERMAP": "NO",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
-    "HEADER_SEARCH_PATHS": [
-      "$(PODS_TARGET_SRCROOT)/FBReactNativeSpec",
-      "$(PODS_ROOT)/Headers/Private/Yoga",
-      "${PODS_ROOT}/ReactCommon",
-      "${PODS_ROOT}/ReactCommon/react/nativemodule/core",
-      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
-    ]
+    "HEADER_SEARCH_PATHS": "\"$(PODS_TARGET_SRCROOT)/FBReactNativeSpec\" \"$(PODS_ROOT)/Headers/Private/Yoga\" \"${PODS_ROOT}/ReactCommon\" \"${PODS_ROOT}/ReactCommon/react/nativemodule/core\" \"$(PODS_ROOT)/ReactNativeDependencies/Headers\""
   },
   "dependencies": {
     "React-jsi": [],

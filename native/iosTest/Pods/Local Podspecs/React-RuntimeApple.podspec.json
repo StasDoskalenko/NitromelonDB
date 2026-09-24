@@ -1,6 +1,6 @@
 {
   "name": "React-RuntimeApple",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "The React Native Runtime.",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
@@ -10,24 +10,12 @@
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "source_files": "ReactCommon/*.{h}",
   "header_dir": "ReactCommon",
   "pod_target_xcconfig": {
-    "HEADER_SEARCH_PATHS": [
-      "$(PODS_ROOT)/Headers/Private/React-Core",
-      "$(PODS_TARGET_SRCROOT)/../../../..",
-      "$(PODS_TARGET_SRCROOT)/../../../../..",
-      "${PODS_ROOT}/React-runtimeexecutor",
-      "${PODS_ROOT}/React-runtimeexecutor/platform/ios",
-      "${PODS_ROOT}/React-jsitooling",
-      "${PODS_ROOT}/React-RCTFBReactNativeSpec",
-      "${PODS_ROOT}/React-utils",
-      "${PODS_ROOT}/React-utils/react/utils/platform/ios",
-      "${PODS_ROOT}/React-RuntimeHermes",
-      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
-    ],
+    "HEADER_SEARCH_PATHS": "$(PODS_ROOT)/Headers/Private/React-Core $(PODS_TARGET_SRCROOT)/../../../.. $(PODS_TARGET_SRCROOT)/../../../../.. \"${PODS_ROOT}/React-runtimeexecutor\" \"${PODS_ROOT}/React-runtimeexecutor/platform/ios\" \"${PODS_ROOT}/React-jsitooling\" \"${PODS_ROOT}/React-RCTFBReactNativeSpec\" \"${PODS_ROOT}/React-utils\" \"${PODS_ROOT}/React-utils/react/utils/platform/ios\" \"${PODS_ROOT}/React-RuntimeHermes\" \"$(PODS_ROOT)/ReactNativeDependencies/Headers\"",
     "USE_HEADERMAP": "YES",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
     "GCC_WARN_PEDANTIC": "YES"
