@@ -59,9 +59,12 @@ export default (it) => {
         { id: `t${from + i}`, text1: `task ${from + i}`, order: from + i },
       ])
 
-    // Bulk load into an empty table: rebuilding indices once at the end is the cheaper path
+    // Bulk load into an empty table: rebuilding indices once at the end is the cheaper path. The
+    // web adapter never rebuilds (it can't check row counts without delaying the batch behind
+    // later calls -- see SQLiteAdapter#_tablesToReindex)
+    const rebuildsOnBulkLoad = sqlite._dispatcherType !== 'wa-sqlite'
     await adapter.batch(creates(0, 3000))
-    expect(dropsIndices(sentBatches[0])).toBe(true)
+    expect(dropsIndices(sentBatches[0])).toBe(rebuildsOnBulkLoad)
 
     // A chunk smaller than the table: rebuilding would re-sort all rows, so keep the indices
     await adapter.batch(creates(3000, 1000))
