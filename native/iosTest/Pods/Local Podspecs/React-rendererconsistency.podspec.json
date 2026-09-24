@@ -1,6 +1,6 @@
 {
   "name": "React-rendererconsistency",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "Fabric UI consistency primitives",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
@@ -10,7 +10,7 @@
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "source_files": "**/*.h",
   "header_dir": "react/renderer/consistency",

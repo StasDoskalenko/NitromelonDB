@@ -1,6 +1,6 @@
 {
   "name": "React-oscompat",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "Small set of OS-level utilities for React Native",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
@@ -10,7 +10,7 @@
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "source_files": "*.{h}",
   "pod_target_xcconfig": {

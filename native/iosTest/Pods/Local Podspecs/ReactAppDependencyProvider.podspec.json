@@ -1,6 +1,6 @@
 {
   "name": "ReactAppDependencyProvider",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "The third party dependency provider for the app",
   "homepage": "https://reactnative.dev/",
   "documentation_url": "https://reactnative.dev/",
@@ -11,7 +11,7 @@
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "source_files": "**/RCTAppDependencyProvider.{h,mm}",
   "pod_target_xcconfig": {

@@ -1,13 +1,13 @@
 {
   "name": "NitroModules",
-  "version": "0.36.5",
+  "version": "0.37.1",
   "summary": "Fast, type-safe native modules for React Native with statically compiled JSI bindings.",
   "homepage": "https://nitro.margelo.com",
   "license": "MIT",
   "authors": "Marc Rousavy <me@mrousavy.com> (https://github.com/mrousavy)",
   "source": {
     "git": "https://github.com/mrousavy/nitro.git",
-    "tag": "0.36.5"
+    "tag": "0.37.1"
   },
   "platforms": {
     "ios": "15.1",
@@ -42,6 +42,10 @@
     "cpp/utils/NitroDefines.hpp",
     "cpp/utils/PropNameIDCache.hpp",
     "cpp/views/CachedProp.hpp",
+    "cpp/views/RawPropsCompat.hpp",
+    "cpp/views/ReactProp.hpp",
+    "cpp/views/ViewComponentDescriptor.hpp",
+    "cpp/views/ViewPropsHolderState.hpp",
     "ios/core/ArrayBufferHolder.hpp",
     "ios/core/PromiseHolder.hpp",
     "ios/utils/AnyMapUtils.hpp",
@@ -54,10 +58,7 @@
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
     "SWIFT_OBJC_INTEROP_MODE": "objcxx",
     "DEFINES_MODULE": "YES",
-    "HEADER_SEARCH_PATHS": [
-      "$(PODS_ROOT)/Headers/Private/Yoga",
-      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
-    ],
+    "HEADER_SEARCH_PATHS": "\"$(PODS_ROOT)/Headers/Private/Yoga\" \"$(PODS_ROOT)/ReactNativeDependencies/Headers\"",
     "OTHER_CPLUSPLUSFLAGS": "$(inherited) -DRCT_NEW_ARCH_ENABLED=1 ",
     "OTHER_SWIFT_FLAGS": "$(inherited) -DRCT_NEW_ARCH_ENABLED"
   },

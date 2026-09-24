@@ -1,6 +1,6 @@
 {
   "name": "React-RCTNetwork",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "The networking library of React Native.",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
@@ -11,7 +11,7 @@
   "compiler_flags": "-Wno-nullability-completeness",
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "source_files": "",
   "preserve_paths": [
@@ -23,20 +23,7 @@
   "pod_target_xcconfig": {
     "USE_HEADERMAP": "YES",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
-    "HEADER_SEARCH_PATHS": [
-      "${PODS_ROOT}/Headers/Public/ReactCodegen/react/renderer/components",
-      "${PODS_ROOT}/React-debug",
-      "${PODS_ROOT}/React-RCTFBReactNativeSpec",
-      "${PODS_ROOT}/ReactCommon",
-      "${PODS_ROOT}/ReactCommon/react/nativemodule/core",
-      "${PODS_ROOT}/React-featureflags",
-      "${PODS_ROOT}/React-jsinspectorcdp",
-      "${PODS_ROOT}/React-jsinspectornetwork",
-      "${PODS_ROOT}/React-NativeModulesApple",
-      "${PODS_ROOT}/React-NativeModulesApple/build/generated/ios",
-      "${PODS_ROOT}/React-networking",
-      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
-    ]
+    "HEADER_SEARCH_PATHS": "\"${PODS_ROOT}/Headers/Public/ReactCodegen/react/renderer/components\" \"${PODS_ROOT}/React-debug\" \"${PODS_ROOT}/React-RCTFBReactNativeSpec\" \"${PODS_ROOT}/ReactCommon\" \"${PODS_ROOT}/ReactCommon/react/nativemodule/core\" \"${PODS_ROOT}/React-featureflags\" \"${PODS_ROOT}/React-jsinspectorcdp\" \"${PODS_ROOT}/React-jsinspectornetwork\" \"${PODS_ROOT}/React-NativeModulesApple\" \"${PODS_ROOT}/React-NativeModulesApple/build/generated/ios\" \"${PODS_ROOT}/React-networking\" \"$(PODS_ROOT)/ReactNativeDependencies/Headers\""
   },
   "frameworks": "MobileCoreServices",
   "dependencies": {

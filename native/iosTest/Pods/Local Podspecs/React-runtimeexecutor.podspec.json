@@ -1,7 +1,7 @@
 {
   "name": "React-runtimeexecutor",
   "module_name": "React_runtimeexecutor",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "-",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
@@ -11,7 +11,7 @@
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "source_files": [
     "ReactCommon/*.h",
@@ -21,14 +21,14 @@
   "pod_target_xcconfig": {
     "USE_HEADERMAP": "NO",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
-    "HEADER_SEARCH_PATHS": "$(PODS_TARGET_SRCROOT) $(PODS_ROOT)/ReactNativeDependencies/Headers \"${PODS_ROOT}/React-featureflags\" \"${PODS_ROOT}/React-debug\" \"${PODS_ROOT}/React-utils\" \"${PODS_ROOT}/React-utils/react/utils/platform/ios\"",
+    "HEADER_SEARCH_PATHS": "\"$(PODS_TARGET_SRCROOT)\" \"$(PODS_ROOT)/ReactNativeDependencies/Headers\" \"${PODS_ROOT}/React-featureflags\" \"${PODS_ROOT}/React-debug\" \"${PODS_ROOT}/React-utils\" \"${PODS_ROOT}/React-utils/react/utils/platform/ios\"",
     "DEFINES_MODULE": "YES"
   },
   "dependencies": {
     "ReactNativeDependencies": [],
     "React-Core-prebuilt": [],
     "React-jsi": [
-      "0.87.0"
+      "0.87.1"
     ],
     "React-featureflags": [],
     "React-debug": [],
