@@ -7,13 +7,43 @@ hide_title: true
 
 ## Database viewer
 
-[See discussion](https://github.com/Nozbe/WatermelonDB/issues/710)
+**Android Studio's Database Inspector can't see NitromelonDB databases.** The Inspector only
+hooks databases opened through Android's `android.database.sqlite` API (this is how WatermelonDB's
+old `jsi: false` mode worked). NitromelonDB opens the file with its own SQLite build from C++, so
+the Inspector never sees it. Copy the file off the device and open it in a desktop tool
+([DB Browser for SQLite](https://sqlitebrowser.org), [TablePlus](https://tableplus.com), or
+`sqlite3`).
 
-**Android** - you can use the new [App Inspector](https://medium.com/androiddevelopers/database-inspector-9e91aa265316) in modern versions of Android Studio.
+**Android** (debug builds): the database is at `/data/data/<applicationId>/<dbName>.db`.
+`dbName` defaults to `watermelon`. The database uses WAL mode, so copy the `-wal` file too, or
+recent writes will be missing:
 
-**Via Flipper** You can also use Facebook Flipper [with a plugin](https://github.com/panz3r/react-native-flipper-databases#readme). See [discussion](https://github.com/Nozbe/WatermelonDB/issues/653).
+```bash
+APP=com.example.app   # your applicationId
+DB=watermelon         # your SQLiteAdapter dbName
+for f in "$DB.db" "$DB.db-wal"; do
+  adb exec-out run-as "$APP" cat "$f" > "$f"
+done
+sqlite3 "$DB.db"
+```
 
-**iOS** - check open database path in iOS System Log (via Console for plugged-in device, or Xcode logs, or [by using `find`](https://github.com/Nozbe/WatermelonDB/issues/710#issuecomment-776255654)), then open it via `sqlite3` in the console, or an external tool like [sqlitebrowser](https://sqlitebrowser.org)
+In Android Studio you can also use **Device Explorer** → `data/data/<applicationId>` → *Save As*.
+Save the `.db` and `.db-wal` files next to each other.
+
+**iOS simulator**: the database is at `Documents/<dbName>.db` in the app's data container:
+
+```bash
+open "$(xcrun simctl get_app_container booted <bundleId> data)/Documents"
+```
+
+**iOS device**: in Xcode → *Devices and Simulators*, select the app → *Download Container*, then
+open `AppData/Documents/<dbName>.db`.
+
+**Web** (wa-sqlite): the database is stored as pages in IndexedDB, so it isn't a file you can
+open. Query it from the dev console instead, for example
+`await database.get('posts').query(Q.unsafeSqlQuery('select * from posts')).unsafeFetchRaw()`.
+
+The file is a copy, so re-copy it to see new changes.
 
 ## Which SQLite version am I using?
 
