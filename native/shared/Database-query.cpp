@@ -160,6 +160,27 @@ std::vector<SqliteRow> Database::unsafeQueryRaw(const std::string &sql, const st
     return raws;
 }
 
+std::vector<std::vector<SqliteValue>> Database::unsafeQueryRawAsArray(const std::string &sql,
+                                                                     const std::vector<SqliteValue> &arguments) {
+    const std::lock_guard<std::mutex> lock(mutex_);
+
+    auto statement = executeQuery(sql, arguments);
+    std::vector<std::vector<SqliteValue>> results;
+
+    while (true) {
+        if (getNextRowOrTrue(statement.stmt)) {
+            break;
+        }
+        if (results.empty()) {
+            auto columns = resultColumnNames(statement.stmt);
+            results.emplace_back(columns.begin(), columns.end());
+        }
+        results.push_back(resultValues(statement.stmt));
+    }
+
+    return results;
+}
+
 double Database::count(const std::string &sql, const std::vector<SqliteValue> &arguments) {
     const std::lock_guard<std::mutex> lock(mutex_);
 

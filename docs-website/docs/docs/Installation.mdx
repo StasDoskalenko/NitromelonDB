@@ -1,67 +1,76 @@
 # Installation
 
 :::tip Migrating from `@nozbe/watermelondb`?
-Follow the [migration guide](./Migrating.md) first, then come back here for a full native install.
+Use the [migration guide](./Migrating.md) instead. It covers everything on this page.
 :::
 
-First, add NitromelonDB to your project:
+## Requirements
 
-```bash
-yarn add nitromelondb
+| | Minimum |
+| --- | --- |
+| React Native | **0.83+, New Architecture** (the old / Paper architecture is not supported) |
+| iOS | 15.1 (Xcode 15+) |
+| Android | minSdk 24 |
+| Windows | RNW 0.84 (New Architecture). See [Windows](#windows) |
+| `react-native-nitro-modules` | 0.35.2+ (only needed on iOS, Android, and Windows) |
 
-# (or with npm:)
-npm install nitromelondb
-```
+Expo Go is not supported. Use a development build.
 
-## React Native setup
+## React Native (bare)
 
-Native SQLite on iOS, Android, and Windows uses [Nitro Modules](https://nitro.margelo.com) and React Native **autolinking** (`react-native.config.js`; iOS also uses the `NitromelonDB` podspec). `simdjson` is compiled into the iOS pod from vendored sources. You do not add CocoaPods or Gradle lines by hand, and you do not run a separate setup CLI. Expo is fully supported — development builds, EAS Build, and EAS Update. See [Expo](#expo).
-
-:::warning New Architecture only
-NitromelonDB does **not** support the old React Native architecture (Paper / the legacy bridge). Enable the New Architecture. Tested on React Native **0.83+**. React Native 0.87 has it on by default.
-:::
-
-```bash
-# skip if the app already depends on it:
-yarn add react-native-nitro-modules
-```
-
-`react-native-nitro-modules` `>=0.35.2` is required for SQLite on iOS, Android, and Windows. It is optional on web / Node / Electron. Do not add it a second time if it is already in the app.
-
-1. Install the Babel plugin for decorators if you haven't already:
+1. Install the package, the Nitro peer, and the decorators Babel plugin. If the app already depends on `react-native-nitro-modules`, leave it out.
 
    ```bash
+   yarn add nitromelondb react-native-nitro-modules
    yarn add --dev @babel/plugin-proposal-decorators
-
-   # (or with npm:)
-   npm install -D @babel/plugin-proposal-decorators
    ```
 
-2. Add ES6 decorators support to your `.babelrc` / Babel config:
-   ```json
-   {
-     "presets": ["module:metro-react-native-babel-preset"],
-     "plugins": [["@babel/plugin-proposal-decorators", { "legacy": true }]]
+2. Enable decorators in `babel.config.js`:
+
+   ```js
+   module.exports = {
+     presets: ['module:@react-native/babel-preset'],
+     plugins: [['@babel/plugin-proposal-decorators', { legacy: true }]],
    }
    ```
 
-3. Rebuild the native app after adding these packages. Autolinking runs as part of the usual Expo / React Native CLI flow (`use_native_modules!` on iOS). There is no extra setup command.
+3. Rebuild the native app. Metro reload is not enough.
 
-Minimums: Xcode 15+, iOS 15.1, Android minSdk 24, React Native **0.83+ with New Architecture**, Windows **RNW 0.84**. This will not run in Expo Go.
+   ```bash
+   npx react-native run-ios      # runs pod install for you
+   npx react-native run-android
+   ```
+
+That's it. Autolinking links SQLite on iOS and Android. You don't add Podfile lines, Gradle lines, or `MainApplication` code, and there is no setup CLI to run.
+
+If you minify with R8 / Proguard, keep this rule:
+
+```
+-keep class com.nitromelondb.** { *; }
+```
 
 ## Expo
 
-NitromelonDB fully supports Expo **development builds**, **EAS Build**, and **EAS Update**. Native SQLite is not available in Expo Go. The New Architecture must stay enabled (`newArchEnabled` must not be `false`).
-
-1. Install NitromelonDB and the Nitro peer:
+1. Install:
 
    ```bash
    npx expo install nitromelondb react-native-nitro-modules
+   yarn add --dev @babel/plugin-proposal-decorators
    ```
 
-   Decorators still need the Babel plugin from the React Native setup above (`@babel/plugin-proposal-decorators` with `{ "legacy": true }`).
+2. Enable decorators in `babel.config.js`:
 
-2. Add the config plugin to `app.json` or `app.config.js`:
+   ```js
+   module.exports = function (api) {
+     api.cache(true)
+     return {
+       presets: ['babel-preset-expo'],
+       plugins: [['@babel/plugin-proposal-decorators', { legacy: true }]],
+     }
+   }
+   ```
+
+3. Add the config plugin to `app.json`:
 
    ```json
    {
@@ -71,60 +80,47 @@ NitromelonDB fully supports Expo **development builds**, **EAS Build**, and **EA
    }
    ```
 
-   The plugin is optional for **bare** React Native — autolinking is what actually links SQLite. On Expo it runs during `expo prebuild` (EAS Build does this for you). It does **not** install the old `watermelondb-jsi` Android module. It rejects `"newArchEnabled": false`.
-
-   Optional:
-
-   ```json
-   {
-     "expo": {
-       "plugins": [
-         [
-           "nitromelondb",
-           { "excludeSimArch": true }
-         ]
-       ]
-     }
-   }
-   ```
-
-   `excludeSimArch` excludes `arm64` from iOS simulator builds. Use it only if you hit `No such module 'ExpoModulesCore'` (or similar) on Apple Silicon simulators.
-
-3. Create a development build, then run it:
+4. Build a development client:
 
    ```bash
-   npx expo prebuild
    npx expo run:ios
-   # or
    npx expo run:android
+   # or: eas build --profile development
    ```
 
-   Or with EAS:
+Development builds, EAS Build, and EAS Update all work. See [`examples/NotesApp`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp) for a complete app.
 
-   ```bash
-   eas build --profile development
-   eas build --profile production
-   ```
+**EAS Update:** models, queries, schema, and migrations are JS, so they ship over the air. Bumping `nitromelondb` or `react-native-nitro-modules` needs a new EAS Build.
 
-You do **not** need `@morrowdigital/watermelondb-expo-plugin`. Remove it if you used it with `@nozbe/watermelondb`.
+<details>
+  <summary>Expo on Apple Silicon: <code>No such module 'ExpoModulesCore'</code></summary>
 
-The Expo notes example is [`examples/NotesApp`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp).
+Pass `excludeSimArch` to the plugin. It excludes `arm64` from iOS simulator builds:
 
-### Expo web SQLite
+```json
+{
+  "expo": {
+    "plugins": [["nitromelondb", { "excludeSimArch": true }]]
+  }
+}
+```
 
-On web, the normal `nitromelondb/adapters/sqlite` import selects wa-sqlite automatically. SQLite runs in a dedicated worker and persists its database in IndexedDB through `IDBBatchAtomicVFS`. There is no LokiJS or in-memory fallback, and no COOP/COEP header requirement.
+</details>
 
-Expo SDK 57 web workers require bundle splitting. Expo Router already provides the runtime; projects without Router should install `@expo/metro-runtime` and load it through a web-only platform module:
+### Expo web
+
+The same `nitromelondb/adapters/sqlite` import runs SQLite in the browser through wa-sqlite. It runs in a worker and stores data in IndexedDB. No COOP/COEP headers are needed.
+
+Expo web workers need bundle splitting. Expo Router already sets that up. Without Router, install `@expo/metro-runtime` and load it only on web:
 
 ```ts
 // webRuntime.web.ts
 import '@expo/metro-runtime'
 
-// webRuntime.ts (native) is intentionally empty
-// index.ts imports './webRuntime'
+// webRuntime.ts is an empty file. index.ts does: import './webRuntime'
 ```
 
-If you have a custom `metro.config.js`, preserve Expo's defaults and ensure WASM is an asset:
+If you have a custom `metro.config.js`, start from Expo's defaults and make sure `.wasm` is an asset:
 
 ```js
 const { getDefaultConfig } = require('expo/metro-config')
@@ -137,7 +133,9 @@ if (!config.resolver.assetExts.includes('wasm')) {
 module.exports = config
 ```
 
-The package resolves its worker and WASM automatically. A custom host or worker policy can override them:
+Before a release, run `npx expo export -p web` and check that the output has a worker bundle and a `.wasm` file.
+
+To host the worker or WASM yourself (custom CDN or CSP), pass `web` options:
 
 ```ts
 const adapter = new SQLiteAdapter({
@@ -150,281 +148,139 @@ const adapter = new SQLiteAdapter({
 })
 ```
 
-Run `npx expo export -p web` before release and confirm the output contains a worker bundle and the `.wasm` asset. `usesExclusiveLocking` is unsupported on web. SSR may import and construct the adapter, but server-side database operations are rejected; use the authoritative server database there and let the hydrated browser open its own replica. Existing LokiJS databases are not migrated.
+Limitations, multi-tab behavior, and SSR notes are in [wa-sqlite web adapter](./Implementation/WaSQLiteAdapter.md).
 
-For the runtime design, transaction behavior, offline and multi-tab semantics, known limitations,
-testing strategy, and future work, see the [wa-sqlite web adapter](./Implementation/WaSQLiteAdapter.md).
+## Web without Expo (Webpack, Vite)
 
-### EAS Update
-
-[EAS Update](https://docs.expo.dev/eas-update/introduction/) ships a new JavaScript bundle on top of an existing native binary. Models, queries, schema, and migrations live in JS, so those changes work over OTA as long as the native SQLite engine is already in the app.
-
-Ship a new **EAS Build** when you bump `nitromelondb`, `react-native-nitro-modules`, or any other native dependency.
-
-## Bare React Native
+Install the Babel plugins:
 
 ```bash
-npx react-native run-ios
-# or
-npx react-native run-android
+yarn add --dev @babel/plugin-proposal-decorators @babel/plugin-transform-class-properties
 ```
 
-`run-ios` installs pods and applies autolinking. You do not add `pod 'NitromelonDB'` or `pod 'simdjson'` to the Podfile.
+Use this Babel config. Decorators must come first, and class properties must use `loose` mode:
 
-Windows uses the same Nitro SQLite engine. See [Windows (React Native)](#windows-react-native).
-
-We highly recommend that you _do not_ use `use_frameworks!`. If you need it (RN Firebase often uses `use_frameworks! :linkage => :static`), prefer **static** linkage. If NitromelonDB fails to build in frameworks mode, [use this workaround](https://github.com/Nozbe/WatermelonDB/issues/1285#issuecomment-1381323060) to force static libraries. Manual (non-CocoaPods) iOS linking is not supported.
-
-<details>
-  <summary>Why does <code>Podfile.lock</code> list <code>React-Core</code>, <code>React-jsi</code>, <code>ReactCommon</code> and other React pods under <code>NitromelonDB</code>?</summary>
-
-This is expected, and it is not specific to NitromelonDB — every React Native native module that uses the New Architecture (JSI / TurboModules / Fabric) produces the same entries. `react-native-reanimated`, `react-native-screens`, `react-native-gesture-handler`, `react-native-mmkv` and WatermelonDB itself all list a dozen-plus `React-*` pods in a consumer's `Podfile.lock`.
-
-The `NitromelonDB` podspec declares `React-Core`, `React-jsi` and `React-callinvoker`, then calls React Native's own `install_modules_dependencies` helper, which expands to the full New-Arch dependency set (`React-Fabric`, `React-graphics`, `React-ImageManager`, `RCTRequired`, `RCTTypeSafety`, `ReactCommon/turbomodule/core`, `ReactCodegen`, `Yoga`, `hermes-engine`, …). CocoaPods records those edges in `Podfile.lock`.
-
-It does **not** mean:
-
-- **Duplicate React is compiled.** CocoaPods deduplicates — your app has one `React-Core` pod and every module links against that same one.
-- **NitromelonDB pins a React version.** `install_modules_dependencies` inherits whatever version your app's `use_react_native!` configured; the podspec adds no version constraints on any `React-*` pod.
-
-</details>
-
-### Android (React Native)
-
-Autolinking is enough. No Gradle or `MainApplication` changes. Manual `ReactPackage` registration is the old architecture and is not supported.
-
-<details>
-  <summary>Troubleshooting</summary>
-  If you get this error:
-
-> `Can't find variable: Symbol`
-
-You're using an ancient version of JSC. Install [`jsc-android`](https://github.com/react-community/jsc-android-buildscripts) or Hermes.
-
-</details>
-
-<details>
-  <summary>Android JSI package (removed)</summary>
-
-The separate `native/android-jsi` Gradle module (`WatermelonDBJSIPackage`, `libwatermelondb-jsi.so`) is gone. iOS and Android SQLite go through Nitro and autolink with `react-native-nitro-modules`.
-
-If you previously installed JSI manually, remove:
-
-- `include ':watermelondb-jsi'` from `android/settings.gradle`
-- `implementation project(':watermelondb-jsi')` from `android/app/build.gradle`
-- `WatermelonDBJSIPackage` from `MainApplication`
-
-</details>
-
-If you minify with R8 / Proguard, keep this rule:
-
-```
--keep class com.nitromelondb.** { *; }
-```
-
-## Web setup
-
-If you haven't already, install Babel plugins for decorators, static class properties, and async/await to get the most out of Watermelon. This assumes you use Babel 7 and already support ES6 syntax.
-
-   ```bash
-   yarn add --dev @babel/plugin-proposal-decorators
-   yarn add --dev @babel/plugin-proposal-class-properties
-   yarn add --dev @babel/plugin-transform-runtime
-
-   # (or with npm:)
-   npm install -D @babel/plugin-proposal-decorators
-   npm install -D @babel/plugin-proposal-class-properties
-   npm install -D @babel/plugin-transform-runtime
-   ```
-
-### Webpack
-If you're using Webpack, add ES7 support to your `.babelrc` file:
-   ```json
-   {
-     "plugins": [
-       ["@babel/plugin-proposal-decorators", { "legacy": true }],
-       ["@babel/plugin-proposal-class-properties", { "loose": true }],
-       [
-         "@babel/plugin-transform-runtime",
-         {
-           "helpers": true,
-           "regenerator": true
-         }
-       ]
-     ]
-   }
-   ```
-
-### Vite
-If you're using Vite, you'll need to edit your vite.config.js file.
-
-If you're working with React, ensure your config looks something like this:
-```js
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-
-export default defineConfig({
-    plugins: [
-        react({
-            babel: {
-                plugins: [
-                    ["@babel/plugin-proposal-decorators", { "legacy": true }],
-                    ["@babel/plugin-proposal-class-properties", { "loose": true }],
-                    [
-                        "@babel/plugin-transform-runtime",
-                        {
-                            "helpers": true,
-                            "regenerator": true
-                        }
-                    ]
-                ],
-            }
-        }),
-    ]
-});
-```
-If you're not using React, you can try this (untested):
-```js
-import { defineConfig } from 'vite';
-import babel from 'vite-plugin-babel';
-
-export default defineConfig({
-    plugins: [
-        babel({
-            babelConfig: {
-              babelrc: false,
-              configFile: false,
-              plugins: [
-                ["@babel/plugin-proposal-decorators", { "legacy": true }],
-                ["@babel/plugin-proposal-class-properties", { "loose": true }],
-                [
-                    "@babel/plugin-transform-runtime",
-                    {
-                        "helpers": true,
-                        "regenerator": true
-                    }
-                ]
-              ],
-            },
-        }),
-    ]
-});
-```
-
-## Windows (React Native)
-
-NitromelonDB supports [React Native Windows](https://microsoft.github.io/react-native-windows/) **New Architecture** (RNW **0.84** / WinAppSDK / Fabric) through Nitro — the same `Nitromelon` HybridObject as iOS and Android.
-
-RNW 0.84 is New Architecture only and pairs with React Native **0.84.1**. Expo NotesApp is on a newer RN, so the Windows playground is a separate app: [`examples/NotesApp_windows`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp_windows).
-
-### Tools
-
-| Tool | Version / notes |
-| --- | --- |
-| Windows | Windows 10 22H2+ or Windows 11 |
-| Node.js | **22.11+** |
-| Yarn | Classic (v1) |
-| Visual Studio | **2022** (MSVC **v143**) or **2026** (MSVC **v145**) |
-| Workloads | Desktop development with C++; Windows application development (Windows App SDK / WinUI) |
-| Windows SDK | **10.0.26100** recommended (the example pins this) |
-
-If anything is missing, run [RNW's dependency script](https://microsoft.github.io/react-native-windows/docs/rnw-dependencies) from an elevated PowerShell prompt.
-
-### How Nitro is wired
-
-`react-native-nitro-modules` has no official Windows autolink ([nitro#168](https://github.com/mrousavy/nitro/issues/168)). NitromelonDB's WinAppSDK DLL **is** the install entry:
-
-1. JS calls `TurboModuleRegistry.getEnforcing('NitroModules').install()`, same as iOS/Android.
-2. `native/windows` exports that TurboModule. `install()` runs `margelo::nitro::install()` with RNW's `CallInvoker`, then registers `HybridNitromelon`.
-3. The vcxproj compiles Nitro C++ from `node_modules/react-native-nitro-modules/cpp` plus NitromelonDB's SQLite engine.
-4. Apps must tell RNW **not** to look for a Nitro Windows project (next snippet).
-
-Longer write-up: [`native/windows/README.md`](https://github.com/StasDoskalenko/NitromelonDB/blob/master/native/windows/README.md).
-
-### Install
-
-Skip `react-native-nitro-modules` if the app already has it:
-
-```bash
-yarn add nitromelondb react-native-nitro-modules
-```
-
-Set up Babel decorators the same way as [React Native setup](#react-native-setup).
-
-Autolinking picks up `native/windows`. Add this to the app `react-native.config.js`:
-
-```js
-const { windowsAppDependencies } = require('nitromelondb/windows-autolink')
-
-module.exports = {
-  // ...existing project.windows...
-  dependencies: windowsAppDependencies(),
+```json
+{
+  "plugins": [
+    ["@babel/plugin-proposal-decorators", { "legacy": true }],
+    ["@babel/plugin-transform-class-properties", { "loose": true }]
+  ]
 }
 ```
 
-If you link NitromelonDB with `file:` (a monorepo), pass `{ root: path.resolve(__dirname, '../path-to-nitromelondb') }`.
+- **Webpack:** put it in `.babelrc` / `babel.config.js`.
+- **Vite + React:** pass it to `@vitejs/plugin-react`:
 
-Rebuild:
+  ```js
+  import { defineConfig } from 'vite'
+  import react from '@vitejs/plugin-react'
+
+  export default defineConfig({
+    plugins: [
+      react({
+        babel: {
+          plugins: [
+            ['@babel/plugin-proposal-decorators', { legacy: true }],
+            ['@babel/plugin-transform-class-properties', { loose: true }],
+          ],
+        },
+      }),
+    ],
+  })
+  ```
+
+Then pick an adapter in [Setup](./Setup.md): SQLite (wa-sqlite) or LokiJS.
+
+## Windows
+
+NitromelonDB runs on [React Native Windows](https://microsoft.github.io/react-native-windows/) **0.84** (New Architecture / WinAppSDK). It uses the same Nitro engine as iOS and Android. The example app is [`examples/NotesApp_windows`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp_windows).
+
+You need Node 22.11+, Visual Studio 2022 or 2026 with the C++ and Windows App SDK workloads, and Windows SDK 10.0.26100. If something is missing, run [RNW's dependency script](https://microsoft.github.io/react-native-windows/docs/rnw-dependencies).
+
+1. Install the packages and set up Babel the same way as [React Native (bare)](#react-native-bare).
+
+2. `react-native-nitro-modules` has no Windows project ([nitro#168](https://github.com/mrousavy/nitro/issues/168)), so tell RNW autolinking to skip it. In the app's `react-native.config.js`:
+
+   ```js
+   const { windowsAppDependencies } = require('nitromelondb/windows-autolink')
+
+   module.exports = {
+     // ...existing project.windows...
+     dependencies: windowsAppDependencies(),
+   }
+   ```
+
+   In a monorepo that links NitromelonDB with `file:`, pass `{ root: path.resolve(__dirname, '../path-to-nitromelondb') }`.
+
+3. Build:
+
+   ```bash
+   yarn react-native run-windows
+   ```
+
+Only direct debugging works (no Remote JS Debugging). How the Nitro install works on Windows: [`native/windows/README.md`](https://github.com/StasDoskalenko/NitromelonDB/blob/master/native/windows/README.md).
+
+## Node.js and Electron
+
+Install the [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) peer:
 
 ```bash
-yarn react-native run-windows
+yarn add better-sqlite3
 ```
 
-Caveats:
+On Electron, rebuild it against Electron's Node version. Electron Forge does this for production builds, but not in development:
 
-- Direct debugging only (no Remote JS Debugging)
-- Turbo Sync (`unsafeLoadFromSync` / `provideSyncJson`) goes through Nitro
-- The old UWP Paper / `WMDatabaseBridge` JSI installer is removed
+```bash
+npx electron-rebuild -f -w better-sqlite3
+```
+
+Electron runs SQLite in the main process. See [Setup — Electron](./Setup.md#electron-sqlite).
+
+## Troubleshooting
 
 <details>
-  <summary>Linking Manually</summary>
+  <summary>Yarn or npm fails to install <code>wa-sqlite</code></summary>
 
-By default, React Native uses **autolinking**, and **you don't need the steps below**!
+Versions up to `0.30.1-beta.1` pulled `wa-sqlite` from a git URL. Yarn Classic fails on that with `fatal: not a git repository`, and Yarn 4 rejects git dependencies that aren't allowlisted. Newer versions use a tarball URL instead. If you are stuck on an older version, add this to your app's `package.json`:
 
-Follow [instructions on React Native Windows website](https://microsoft.github.io/react-native-windows/docs/native-modules-using), noting that:
+```json
+{
+  "resolutions": {
+    "wa-sqlite": "https://codeload.github.com/rhashimoto/wa-sqlite/tar.gz/2bf1c59d89eb6497535a4217bc62fec68a0bb994"
+  }
+}
+```
 
-- Path to vcxproj: `node_modules\nitromelondb\native\windows\NitromelonDB\NitromelonDB.vcxproj`
-- Name of project to reference: `NitromelonDB`
-- Header for PCH: `#include "winrt/NitromelonDB.h"`
-- Package provider: `PackageProviders().Append(winrt::NitromelonDB::ReactPackageProvider());`
+With npm, use `overrides` instead of `resolutions`.
 
 </details>
 
-## NodeJS (SQLite) setup
+<details>
+  <summary>SQLiteAdapter can't create the native database</summary>
 
-You only need this if you want to use WatermelonDB in NodeJS with SQLite (e.g. for scripts that share code with your web/React Native app)
+Check that `react-native-nitro-modules` is installed and that you did a full native rebuild. Also check that the New Architecture is on and that you aren't passing `{ jsi: false }`, which throws on iOS and Android.
 
-1. Install [better-sqlite3](https://github.com/JoshuaWise/better-sqlite3) peer dependency
+</details>
 
-   ```sh
-   yarn add --dev better-sqlite3
+<details>
+  <summary><code>use_frameworks!</code> on iOS</summary>
 
-   # (or with npm:)
-   npm install -D better-sqlite3
-   ```
+Avoid it if you can. If you need it (RN Firebase often does), use `use_frameworks! :linkage => :static`. If the build still fails, [force static libraries](https://github.com/Nozbe/WatermelonDB/issues/1285#issuecomment-1381323060).
 
----
+</details>
 
-## Electron (SQLite) setup
+<details>
+  <summary>Why does <code>Podfile.lock</code> list <code>React-Core</code>, <code>React-jsi</code>, and other React pods under <code>NitromelonDB</code>?</summary>
 
-You only need this if you want to use WatermelonDB in Electron with SQLite.
+This is normal for any New Architecture native module. Reanimated, Screens, MMKV, and WatermelonDB itself all show the same entries.
 
-1. Install [better-sqlite3](https://github.com/JoshuaWise/better-sqlite3) peer dependency
+The podspec calls React Native's `install_modules_dependencies` helper, which adds the full New Architecture dependency set (`React-Fabric`, `ReactCommon`, `hermes-engine`, and so on). CocoaPods records those links in `Podfile.lock`.
 
-   ```sh
-   yarn add --dev better-sqlite3
+This does **not** mean React is compiled twice (CocoaPods deduplicates pods), and it does not pin a React version (the podspec has no version constraints on `React-*` pods).
 
-   # (or with npm:)
-   npm install -D better-sqlite3
-   ```
-2. Run electron rebuild on sqlite3. This step is necessary to ensure the sqlite native build (.node) is compatible with Electron's version of Node.js. If you're using Electron Forge, this step will be performed for you during build **but not development**.
-
-  ```sh
-  npx electron-rebuild -f -w -t dev better-sqlite3
-  ```
-
----
+</details>
 
 ## Next steps
 
-➡️ After Watermelon is installed, [**set it up**](./Setup.md)
+➡️ [**Set up the database**](./Setup.md)
