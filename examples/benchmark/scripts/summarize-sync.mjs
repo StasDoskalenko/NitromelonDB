@@ -96,6 +96,7 @@ function normalCdf(z) {
 
 const ms = (value) => `${Math.round(value)}`
 const mb = (value) => `${(value / 1048576).toFixed(0)}`
+const mb1 = (value) => `${(value / 1048576).toFixed(1)}`
 
 const metrics = [
   ['Initial ms', (r) => r.initialPullMs, ms],
@@ -106,9 +107,10 @@ const metrics = [
   ['GC ms', (r) => r.memory?.gcMs, ms],
   ['Total − GC ms', (r) => (r.memory ? r.totalMs - r.memory.gcMs : undefined), ms],
   ['JS heap peak MB', (r) => r.memory?.heapPeakBytes, mb],
+  ['JS allocated peak MB', (r) => r.memory?.allocatedPeakBytes, mb1],
   ['RSS peak MB', (r) => r.rssPeakBytes, mb],
 ]
-const compared = ['Update ms', 'Fetch ms', 'Total ms', 'GC ms', 'Total − GC ms', 'JS heap peak MB', 'RSS peak MB']
+const compared = ['Initial ms', 'Update ms', 'Fetch ms', 'Total ms', 'GC ms', 'Total − GC ms', 'JS allocated peak MB', 'RSS peak MB']
 
 const labels = [...new Set(rows.map((r) => r.label))]
 const sizes = [...new Set(rows.map((r) => r.records))].sort((a, b) => a - b)

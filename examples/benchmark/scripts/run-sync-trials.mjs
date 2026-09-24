@@ -17,7 +17,7 @@
 // memory limits on a device.
 
 import { execFileSync, spawn } from 'node:child_process'
-import { appendFileSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -146,8 +146,29 @@ function readResult(device) {
   return JSON.parse(match[0].replace(/\\"/g, '"'))
 }
 
+// Every run starts from a brand-new database file. unsafeResetDatabase() empties tables but keeps
+// the file, its free pages, and the WAL, so without this a run's timing depended on what earlier
+// runs (of other sizes) left behind -- enough to show up as a few ms on small workloads.
+function deleteSyncDatabases(device, app) {
+  try {
+    execFileSync('xcrun', ['simctl', 'terminate', device, app], { stdio: 'ignore' })
+  } catch {
+    // not running
+  }
+  const container = execFileSync('xcrun', ['simctl', 'get_app_container', device, app, 'data'], {
+    encoding: 'utf8',
+  }).trim()
+  const documents = path.join(container, 'Documents')
+  for (const file of existsSync(documents) ? readdirSync(documents) : []) {
+    if (/-sync\.db(-wal|-shm|-journal)?$/.test(file)) {
+      rmSync(path.join(documents, file))
+    }
+  }
+}
+
 async function runOnce(app, device, size, flowPath) {
   writeFileSync(flowPath, flowFor(app, size))
+  deleteSyncDatabases(device, app)
 
   let pid = null
   let peak = 0
