@@ -11,7 +11,7 @@
 #endif
 
 #import "JSIInstaller.h"
-#import "WatermelonDB.h"
+#import "NitromelonDB.h"
 #import "HybridNitromelonDatabaseSpec.hpp"
 #import "HybridNitromelonSpec.hpp"
 #import "NitromelonInitializeResult.hpp"

@@ -1,6 +1,6 @@
 {
   "name": "React-FabricComponents",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "Fabric Components for React Native.",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
@@ -10,27 +10,13 @@
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "source_files": "",
   "pod_target_xcconfig": {
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
     "DEFINES_MODULE": "YES",
-    "HEADER_SEARCH_PATHS": [
-      "$(PODS_TARGET_SRCROOT)/ReactCommon",
-      "$(PODS_ROOT)/Headers/Private/Yoga",
-      "$(PODS_TARGET_SRCROOT)",
-      "${PODS_ROOT}/React-RCTFBReactNativeSpec",
-      "${PODS_ROOT}/React-rendererdebug",
-      "${PODS_ROOT}/React-graphics",
-      "${PODS_ROOT}/React-graphics/react/renderer/graphics/platform/ios",
-      "${PODS_ROOT}/React-Fabric",
-      "${PODS_ROOT}/React-Fabric/react/renderer/components/scrollview/platform/cxx",
-      "${PODS_ROOT}/React-Fabric/react/renderer/components/scrollview/platform/ios",
-      "${PODS_ROOT}/React-Fabric/react/renderer/components/view/platform/cxx",
-      "${PODS_ROOT}/React-Fabric/react/renderer/imagemanager/platform/ios",
-      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
-    ]
+    "HEADER_SEARCH_PATHS": "\"$(PODS_TARGET_SRCROOT)/ReactCommon\" \"$(PODS_ROOT)/Headers/Private/Yoga\" \"$(PODS_TARGET_SRCROOT)\" \"${PODS_ROOT}/React-RCTFBReactNativeSpec\" \"${PODS_ROOT}/React-rendererdebug\" \"${PODS_ROOT}/React-graphics\" \"${PODS_ROOT}/React-graphics/react/renderer/graphics/platform/ios\" \"${PODS_ROOT}/React-Fabric\" \"${PODS_ROOT}/React-Fabric/react/renderer/components/scrollview/platform/cxx\" \"${PODS_ROOT}/React-Fabric/react/renderer/components/scrollview/platform/ios\" \"${PODS_ROOT}/React-Fabric/react/renderer/components/view/platform/cxx\" \"${PODS_ROOT}/React-Fabric/react/renderer/imagemanager/platform/ios\" \"$(PODS_ROOT)/ReactNativeDependencies/Headers\""
   },
   "dependencies": {
     "React-jsiexecutor": [],

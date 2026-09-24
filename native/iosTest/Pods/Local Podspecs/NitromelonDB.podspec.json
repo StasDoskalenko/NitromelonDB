@@ -1,6 +1,6 @@
 {
   "name": "NitromelonDB",
-  "version": "0.30.0-beta.0",
+  "version": "0.30.1-beta.1",
   "summary": "Reactive SQLite database for React Native and React web. A maintained fork of WatermelonDB.",
   "description": "Reactive SQLite database for React Native and React web. A maintained fork of WatermelonDB.",
   "homepage": "https://stasdoskalenko.github.io/NitromelonDB/",
@@ -17,7 +17,7 @@
   },
   "source": {
     "git": "https://github.com/StasDoskalenko/NitromelonDB.git",
-    "tag": "v0.30.0-beta.0"
+    "tag": "v0.30.1-beta.1"
   },
   "source_files": [
     "native/ios/**/*.{h,m,mm,swift,c,cpp}",
@@ -28,8 +28,8 @@
     "nitrogen/generated/ios/**/*.{h,hpp,c,cpp,mm,swift}"
   ],
   "public_header_files": [
-    "native/ios/WatermelonDB/JSIInstaller.h",
-    "native/ios/WatermelonDB/WatermelonDB.h",
+    "native/ios/NitromelonDB/JSIInstaller.h",
+    "native/ios/NitromelonDB/NitromelonDB.h",
     "nitrogen/generated/shared/**/*.{h,hpp}",
     "nitrogen/generated/ios/NitromelonDB-Swift-Cxx-Bridge.hpp"
   ],
@@ -39,16 +39,7 @@
     "nitrogen/generated/shared/**/views/**/*"
   ],
   "pod_target_xcconfig": {
-    "HEADER_SEARCH_PATHS": [
-      "$(inherited)",
-      "$(PODS_TARGET_SRCROOT)/native/nitro",
-      "$(PODS_TARGET_SRCROOT)/native/shared",
-      "$(PODS_TARGET_SRCROOT)/nitrogen/generated/shared/c++",
-      "$(PODS_TARGET_SRCROOT)/native/vendor",
-      "$(PODS_TARGET_SRCROOT)/native/vendor/simdjson",
-      "$(PODS_ROOT)/Headers/Private/Yoga",
-      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
-    ],
+    "HEADER_SEARCH_PATHS": "$(inherited) \"$(PODS_TARGET_SRCROOT)/native/nitro\" \"$(PODS_TARGET_SRCROOT)/native/shared\" \"$(PODS_TARGET_SRCROOT)/nitrogen/generated/shared/c++\" \"$(PODS_TARGET_SRCROOT)/native/vendor\" \"$(PODS_TARGET_SRCROOT)/native/vendor/simdjson\" \"$(PODS_ROOT)/Headers/Private/Yoga\" \"$(PODS_ROOT)/ReactNativeDependencies/Headers\"",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
     "OTHER_CPLUSPLUSFLAGS": "$(inherited) -DRCT_NEW_ARCH_ENABLED=1 ",
     "OTHER_SWIFT_FLAGS": "$(inherited) -DRCT_NEW_ARCH_ENABLED",

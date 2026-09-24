@@ -1,6 +1,6 @@
 {
   "name": "React-FabricImage",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "Image Component for Fabric for React Native.",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
@@ -10,7 +10,7 @@
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "source_files": "react/renderer/components/image/**/*.h",
   "exclude_files": "react/renderer/components/image/tests",
@@ -18,31 +18,17 @@
   "pod_target_xcconfig": {
     "USE_HEADERMAP": "YES",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
-    "HEADER_SEARCH_PATHS": [
-      "$(PODS_TARGET_SRCROOT)/ReactCommon",
-      "$(PODS_ROOT)/Headers/Private/Yoga",
-      "${PODS_ROOT}/React-ImageManager",
-      "${PODS_ROOT}/React-ImageManager/react/renderer/components/view/platform/cxx",
-      "${PODS_ROOT}/React-ImageManager/react/renderer/imagemanager/platform/ios",
-      "${PODS_ROOT}/ReactCommon",
-      "${PODS_ROOT}/React-graphics",
-      "${PODS_ROOT}/React-graphics/react/renderer/graphics/platform/ios",
-      "${PODS_ROOT}/React-Fabric",
-      "${PODS_ROOT}/React-Fabric/react/renderer/components/view/platform/cxx",
-      "${PODS_ROOT}/React-Fabric/react/renderer/imagemanager/platform/ios",
-      "${PODS_ROOT}/React-rendererdebug",
-      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
-    ]
+    "HEADER_SEARCH_PATHS": "\"$(PODS_TARGET_SRCROOT)/ReactCommon\" \"$(PODS_ROOT)/Headers/Private/Yoga\" \"${PODS_ROOT}/React-ImageManager\" \"${PODS_ROOT}/React-ImageManager/react/renderer/components/view/platform/cxx\" \"${PODS_ROOT}/React-ImageManager/react/renderer/imagemanager/platform/ios\" \"${PODS_ROOT}/ReactCommon\" \"${PODS_ROOT}/React-graphics\" \"${PODS_ROOT}/React-graphics/react/renderer/graphics/platform/ios\" \"${PODS_ROOT}/React-Fabric\" \"${PODS_ROOT}/React-Fabric/react/renderer/components/view/platform/cxx\" \"${PODS_ROOT}/React-Fabric/react/renderer/imagemanager/platform/ios\" \"${PODS_ROOT}/React-rendererdebug\" \"$(PODS_ROOT)/ReactNativeDependencies/Headers\""
   },
   "dependencies": {
     "React-jsiexecutor": [
-      "0.87.0"
+      "0.87.1"
     ],
     "RCTRequired": [
-      "0.87.0"
+      "0.87.1"
     ],
     "RCTTypeSafety": [
-      "0.87.0"
+      "0.87.1"
     ],
     "React-jsi": [],
     "React-logger": [],

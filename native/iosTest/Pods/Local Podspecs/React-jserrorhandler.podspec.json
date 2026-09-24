@@ -1,6 +1,6 @@
 {
   "name": "React-jserrorhandler",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "-",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
@@ -10,7 +10,7 @@
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "header_dir": "jserrorhandler",
   "source_files": [
@@ -21,11 +21,7 @@
   "pod_target_xcconfig": {
     "USE_HEADERMAP": "YES",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
-    "HEADER_SEARCH_PATHS": [
-      "${PODS_ROOT}/React-featureflags",
-      "${PODS_ROOT}/React-debug",
-      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
-    ]
+    "HEADER_SEARCH_PATHS": "\"${PODS_ROOT}/React-featureflags\" \"${PODS_ROOT}/React-debug\" \"$(PODS_ROOT)/ReactNativeDependencies/Headers\""
   },
   "dependencies": {
     "React-jsi": [],
