@@ -1,6 +1,6 @@
 {
   "name": "React-RCTRuntime",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "Prebuilt facade for React-RCTRuntime (code + headers live in React-Core-prebuilt).",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",

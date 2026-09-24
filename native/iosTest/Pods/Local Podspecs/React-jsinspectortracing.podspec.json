@@ -1,6 +1,6 @@
 {
   "name": "React-jsinspectortracing",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "Experimental performance tooling for React Native DevTools",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
@@ -10,17 +10,12 @@
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "source_files": "*.h",
   "header_dir": "jsinspector-modern/tracing",
   "pod_target_xcconfig": {
-    "HEADER_SEARCH_PATHS": [
-      "${PODS_ROOT}/React-jsinspectornetwork",
-      "${PODS_ROOT}/React-utils",
-      "${PODS_ROOT}/React-utils/react/utils/platform/ios",
-      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
-    ],
+    "HEADER_SEARCH_PATHS": "\"${PODS_ROOT}/React-jsinspectornetwork\" \"${PODS_ROOT}/React-utils\" \"${PODS_ROOT}/React-utils/react/utils/platform/ios\" \"$(PODS_ROOT)/ReactNativeDependencies/Headers\"",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
     "DEFINES_MODULE": "YES"
   },

@@ -1,6 +1,6 @@
 {
   "name": "ReactNativeDependencies",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "React Native Dependencies",
   "description": "ReactNativeDependencies is a podspec that contains all the third-party dependencies of React Native.",
   "homepage": "https://github.com/facebook/react-native",
@@ -13,7 +13,7 @@
     "WARNING_CFLAGS": "-Wno-comma -Wno-shorten-64-to-32"
   },
   "source": {
-    "http": "https://repo1.maven.org/maven2/com/facebook/react/react-native-artifacts/0.87.0/react-native-artifacts-0.87.0-reactnative-dependencies-debug.tar.gz"
+    "http": "https://repo1.maven.org/maven2/com/facebook/react/react-native-artifacts/0.87.1/react-native-artifacts-0.87.1-reactnative-dependencies-debug.tar.gz"
   },
   "preserve_paths": "**/*.*",
   "vendored_frameworks": "framework/packages/react-native/ReactNativeDependencies.xcframework",
@@ -23,7 +23,7 @@
   "script_phases": {
     "name": "[RNDeps] Replace React Native Dependencies for the right configuration, if needed",
     "execution_position": "before_compile",
-    "script": "      . \"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\n\n      CONFIG=\"Release\"\n      if echo $GCC_PREPROCESSOR_DEFINITIONS | grep -q \"DEBUG=1\"; then\n        CONFIG=\"Debug\"\n      fi\n\n      \"$NODE_BINARY\" \"$REACT_NATIVE_PATH/third-party-podspecs/replace_dependencies_version.js\" -c \"$CONFIG\" -r \"0.87.0\" -p \"$PODS_ROOT\"\n",
+    "script": "      . \"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\n\n      CONFIG=\"Release\"\n      if echo $GCC_PREPROCESSOR_DEFINITIONS | grep -q \"DEBUG=1\"; then\n        CONFIG=\"Debug\"\n      fi\n\n      \"$NODE_BINARY\" \"$REACT_NATIVE_PATH/third-party-podspecs/replace_dependencies_version.js\" -c \"$CONFIG\" -r \"0.87.1\" -p \"$PODS_ROOT\"\n",
     "always_out_of_date": "1"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "React-Fabric",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "Fabric for React Native.",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
@@ -10,23 +10,14 @@
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "source_files": "",
   "pod_target_xcconfig": {
     "USE_HEADERMAP": "YES",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
     "DEFINES_MODULE": "YES",
-    "HEADER_SEARCH_PATHS": [
-      "${PODS_ROOT}/React-runtimeexecutor",
-      "${PODS_ROOT}/React-runtimeexecutor/platform/ios",
-      "${PODS_ROOT}/React-rendererdebug",
-      "${PODS_ROOT}/React-graphics",
-      "${PODS_ROOT}/React-graphics/react/renderer/graphics/platform/ios",
-      "${PODS_ROOT}/React-utils",
-      "${PODS_ROOT}/React-utils/react/utils/platform/ios",
-      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
-    ]
+    "HEADER_SEARCH_PATHS": "\"${PODS_ROOT}/React-runtimeexecutor\" \"${PODS_ROOT}/React-runtimeexecutor/platform/ios\" \"${PODS_ROOT}/React-rendererdebug\" \"${PODS_ROOT}/React-graphics\" \"${PODS_ROOT}/React-graphics/react/renderer/graphics/platform/ios\" \"${PODS_ROOT}/React-utils\" \"${PODS_ROOT}/React-utils/react/utils/platform/ios\" \"$(PODS_ROOT)/ReactNativeDependencies/Headers\""
   },
   "dependencies": {
     "React-jsiexecutor": [],
