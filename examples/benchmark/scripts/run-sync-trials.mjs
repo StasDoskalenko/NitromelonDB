@@ -17,7 +17,7 @@
 // memory limits on a device.
 
 import { execFileSync, spawn } from 'node:child_process'
-import { appendFileSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -69,6 +69,12 @@ function flowFor(app, size) {
     visible: "Cancel"
     timeout: 3000
     optional: true
+- tapOn:
+    text: "Cancel"
+    optional: true
+# expo run:ios can leave a late "Open in …?" deep-link prompt behind
+- waitForAnimationToEnd:
+    timeout: 2000
 - tapOn:
     text: "Cancel"
     optional: true
@@ -140,8 +146,29 @@ function readResult(device) {
   return JSON.parse(match[0].replace(/\\"/g, '"'))
 }
 
+// Every run starts from a brand-new database file. unsafeResetDatabase() empties tables but keeps
+// the file, its free pages, and the WAL, so without this a run's timing depended on what earlier
+// runs (of other sizes) left behind -- enough to show up as a few ms on small workloads.
+function deleteSyncDatabases(device, app) {
+  try {
+    execFileSync('xcrun', ['simctl', 'terminate', device, app], { stdio: 'ignore' })
+  } catch {
+    // not running
+  }
+  const container = execFileSync('xcrun', ['simctl', 'get_app_container', device, app, 'data'], {
+    encoding: 'utf8',
+  }).trim()
+  const documents = path.join(container, 'Documents')
+  for (const file of existsSync(documents) ? readdirSync(documents) : []) {
+    if (/-sync\.db(-wal|-shm|-journal)?$/.test(file)) {
+      rmSync(path.join(documents, file))
+    }
+  }
+}
+
 async function runOnce(app, device, size, flowPath) {
   writeFileSync(flowPath, flowFor(app, size))
+  deleteSyncDatabases(device, app)
 
   let pid = null
   let peak = 0
@@ -177,8 +204,21 @@ async function main() {
   for (let run = 1; run <= options.runs; run += 1) {
     for (const size of options.sizes) {
       for (const { label, app } of shuffled(options.apps)) {
-        // eslint-disable-next-line no-await-in-loop
-        const { result, rssPeakBytes, rssEndBytes } = await runOnce(app, options.device, size, flowPath)
+        // A flow can fail before the benchmark starts (a system prompt in the way). Retry once, so
+        // one flaky launch doesn't end the session, and log it so no run is dropped silently.
+        let outcome
+        for (let attempt = 1; !outcome; attempt += 1) {
+          try {
+            // eslint-disable-next-line no-await-in-loop
+            outcome = await runOnce(app, options.device, size, flowPath)
+          } catch (error) {
+            if (attempt >= 2) {
+              throw error
+            }
+            console.log(`${label} ${size} #${run}: attempt ${attempt} failed, retrying (${String(error).split('\n')[0]})`)
+          }
+        }
+        const { result, rssPeakBytes, rssEndBytes } = outcome
         const row = { label, app, run, ...result, rssPeakBytes, rssEndBytes }
         appendFileSync(options.out, `${JSON.stringify(row)}\n`)
         console.log(
