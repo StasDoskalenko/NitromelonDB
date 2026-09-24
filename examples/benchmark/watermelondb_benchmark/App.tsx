@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { BenchmarkScreen } from '../shared/BenchmarkScreen'
 import { createWatermelonAdapter } from './database'
 import { MassDeleteBenchmarkCard } from './MassDeleteBenchmarkCard'
+import { SyncBenchmarkCard } from '../shared/SyncBenchmarkCard'
+import { runSync } from './syncBenchmark'
 
 const theme = {
   background: '#0b1210',
@@ -33,6 +35,7 @@ export default function App() {
       setupError={session.ok ? null : session.message}
       theme={theme}
     >
+      <SyncBenchmarkCard theme={theme} run={runSync} />
       <MassDeleteBenchmarkCard theme={theme} />
     </BenchmarkScreen>
   )
