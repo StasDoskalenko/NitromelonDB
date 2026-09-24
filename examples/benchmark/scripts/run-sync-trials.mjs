@@ -72,6 +72,12 @@ function flowFor(app, size) {
 - tapOn:
     text: "Cancel"
     optional: true
+# expo run:ios can leave a late "Open in …?" deep-link prompt behind
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    text: "Cancel"
+    optional: true
 - scrollUntilVisible:
     element:
       id: "sync-run"
@@ -177,8 +183,21 @@ async function main() {
   for (let run = 1; run <= options.runs; run += 1) {
     for (const size of options.sizes) {
       for (const { label, app } of shuffled(options.apps)) {
-        // eslint-disable-next-line no-await-in-loop
-        const { result, rssPeakBytes, rssEndBytes } = await runOnce(app, options.device, size, flowPath)
+        // A flow can fail before the benchmark starts (a system prompt in the way). Retry once, so
+        // one flaky launch doesn't end the session, and log it so no run is dropped silently.
+        let outcome
+        for (let attempt = 1; !outcome; attempt += 1) {
+          try {
+            // eslint-disable-next-line no-await-in-loop
+            outcome = await runOnce(app, options.device, size, flowPath)
+          } catch (error) {
+            if (attempt >= 2) {
+              throw error
+            }
+            console.log(`${label} ${size} #${run}: attempt ${attempt} failed, retrying (${String(error).split('\n')[0]})`)
+          }
+        }
+        const { result, rssPeakBytes, rssEndBytes } = outcome
         const row = { label, app, run, ...result, rssPeakBytes, rssEndBytes }
         appendFileSync(options.out, `${JSON.stringify(row)}\n`)
         console.log(
