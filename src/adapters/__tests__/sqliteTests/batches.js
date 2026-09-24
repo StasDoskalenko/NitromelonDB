@@ -33,6 +33,53 @@ export default (it) => {
     }
   })
 
+  it('drops and recreates indices only when a batch is at least as big as the table', async (
+    _adapter,
+    AdapterClass,
+    _extra,
+    platform,
+  ) => {
+    if (AdapterClass.name === 'LokiJSAdapter') return
+
+    const { adapter } = await createFileAdapter(platform)
+    const sqlite = adapter.underlyingAdapter
+    const sentBatches = []
+    const originalCall = sqlite._dispatcher.call.bind(sqlite._dispatcher)
+    sqlite._dispatcher.call = (method, args, callback) => {
+      if (method === 'batch') {
+        sentBatches.push(args[0])
+      }
+      return originalCall(method, args, callback)
+    }
+    const dropsIndices = (batch) => batch.some(([, , sql]) => sql.startsWith('drop index'))
+    const creates = (from, count) =>
+      Array.from({ length: count }, (_, i) => [
+        'create',
+        'tasks',
+        { id: `t${from + i}`, text1: `task ${from + i}`, order: from + i },
+      ])
+
+    // Bulk load into an empty table: rebuilding indices once at the end is the cheaper path
+    await adapter.batch(creates(0, 3000))
+    expect(dropsIndices(sentBatches[0])).toBe(true)
+
+    // A chunk smaller than the table: rebuilding would re-sort all rows, so keep the indices
+    await adapter.batch(creates(3000, 1000))
+    expect(dropsIndices(sentBatches[1])).toBe(false)
+
+    expect(await adapter.count(taskQuery())).toBe(4000)
+    const indices = (
+      await adapter.unsafeQueryRaw({
+        table: 'tasks',
+        description: Q.buildQueryDescription([
+          Q.unsafeSqlQuery(`select name from sqlite_master where type = 'index' and tbl_name = 'tasks'`),
+        ]),
+        associations: [],
+      })
+    ).map((row) => row.name)
+    expect(indices).toEqual(expect.arrayContaining(['tasks__status']))
+  })
+
   it('large delete batch (10k destroyPermanently) removes all records', async (
     _adapter,
     AdapterClass,

@@ -89,27 +89,58 @@ export function groupOperations(operations: BatchOperation[]): GroupedBatchOpera
   return grouppedOperations
 }
 
+// Batches with at least this many operations on one table may drop that table's indices before
+// writing and recreate them after -- see tablesToReindex() in ../index.ts for when that pays off
+export const LARGE_BATCH_OPERATIONS = 1000
+
+// Operation count per table, for tables with at least LARGE_BATCH_OPERATIONS operations
+export function largeBatchTables(operations: BatchOperation[]): Map<TableName, number> {
+  const counts = new Map<TableName, number>()
+  if (operations.length < LARGE_BATCH_OPERATIONS) {
+    return counts
+  }
+  operations.forEach(([, table]) => {
+    counts.set(table, (counts.get(table) ?? 0) + 1)
+  })
+  counts.forEach((count, table) => {
+    if (count < LARGE_BATCH_OPERATIONS) {
+      counts.delete(table)
+    }
+  })
+  return counts
+}
+
 function withRecreatedIndices(
   operations: NativeBridgeBatchOperation[],
   schema: AppSchema,
+  tables: TableName[],
 ): NativeBridgeBatchOperation[] {
   const { encodeDropIndices, encodeCreateIndices } = require('../encodeSchema') as {
     encodeDropIndices: (schema: AppSchema) => SQL
     encodeCreateIndices: (schema: AppSchema) => SQL
   }
+  // Same encoders (and unsafeSql hook) as for the whole schema, limited to these tables
+  const tablesSchema: AppSchema = { ...schema, tables: {} }
+  tables.forEach((table) => {
+    tablesSchema.tables[table] = schema.tables[table]
+  })
   const toEncodedOperations = (sqlStr: SQL): NativeBridgeBatchOperation[] =>
     sqlStr
       .split(';') // TODO: This will break when FTS is merged
       .filter((sql) => sql)
       .map((sql) => [0, null, sql, [[]]])
-  operations.unshift(...toEncodedOperations(encodeDropIndices(schema)))
-  operations.push(...toEncodedOperations(encodeCreateIndices(schema)))
+  operations.unshift(...toEncodedOperations(encodeDropIndices(tablesSchema)))
+  operations.push(...toEncodedOperations(encodeCreateIndices(tablesSchema)))
   return operations
 }
 
+// `tablesToReindex`: tables whose indices are dropped before the batch and recreated after it.
+// Worth it only when the batch writes about as many rows as the table already has -- otherwise
+// recreating scans and sorts the whole table, on every batch. See tablesToReindex() in ../index.ts
 export default function encodeBatch(
   operations: BatchOperation[],
   schema: AppSchema,
+  tablesToReindex: TableName[] = [],
 ): NativeBridgeBatchOperation[] {
   const nativeOperations = groupOperations(operations).map(([type, table, recordsOrIds]) => {
     validateTable(table, schema)
@@ -148,9 +179,8 @@ export default function encodeBatch(
     }
   })
 
-  // For large batches, it's profitable to delete all indices and then recreate them
-  if (operations.length >= 1000) {
-    return withRecreatedIndices(nativeOperations, schema)
+  if (tablesToReindex.length) {
+    return withRecreatedIndices(nativeOperations, schema, tablesToReindex)
   }
   return nativeOperations
 }

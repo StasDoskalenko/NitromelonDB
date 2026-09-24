@@ -52,6 +52,7 @@ type EncodeSchemaModule = {
 type EncodeBatchFn = (
   operations: BatchOperation[],
   schema: AppSchema,
+  tablesToReindex?: TableName[],
 ) => NativeBridgeBatchOperation[]
 
 if (process.env.NODE_ENV !== 'production') {
@@ -273,16 +274,53 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   }
 
   batch(operations: BatchOperation[], callback: ResultCallback<void>): void {
-    this._dispatcher.call(
-      'batch',
-      [
-        (require('./encodeBatch') as { default: EncodeBatchFn }).default(
-          operations,
-          this.schema,
-        ),
-      ],
-      callback,
-    )
+    const encodeBatch = require('./encodeBatch') as {
+      default: EncodeBatchFn
+      largeBatchTables: (operations: BatchOperation[]) => Map<TableName, number>
+    }
+    const send = (tablesToReindex: TableName[]) =>
+      this._dispatcher.call(
+        'batch',
+        [encodeBatch.default(operations, this.schema, tablesToReindex)],
+        callback,
+      )
+
+    const candidates = encodeBatch.largeBatchTables(operations)
+    if (!candidates.size) {
+      send([])
+      return
+    }
+    this._tablesToReindex(candidates, send)
+  }
+
+  // Dropping a table's indices before a large batch and recreating them after is faster than
+  // updating them row by row -- but only if the batch writes about as many rows as the table
+  // already has. Recreating scans and sorts the whole table, so doing it for every chunk of a
+  // chunked sync into a big table made each chunk cost O(table size) (3-7x slower at 100k rows).
+  // Reindex only tables where the batch has at least as many operations as the table has rows.
+  _tablesToReindex(candidates: Map<TableName, number>, done: (tables: TableName[]) => void): void {
+    const pending = Array.from(candidates.entries())
+    const tables: TableName[] = []
+    const next = (): void => {
+      const entry = pending.shift()
+      if (!entry) {
+        done(tables)
+        return
+      }
+      const [table, operationCount] = entry
+      this._dispatcher.call<number>(
+        'count',
+        [`select count(*) as "count" from "${table}"`, []],
+        (result) => {
+          // A failed count only costs the optimization
+          if (typeof result.value === 'number' && operationCount >= result.value) {
+            tables.push(table)
+          }
+          next()
+        },
+      )
+    }
+    next()
   }
 
   destroyMatching(

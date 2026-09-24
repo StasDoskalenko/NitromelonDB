@@ -6,6 +6,7 @@ import encodeBatch, {
   encodeUpdateSql,
   encodeUpdateArgs,
   groupOperations,
+  largeBatchTables,
 } from './index'
 
 const testSchema = appSchema({
@@ -156,8 +157,14 @@ describe('encodeBatch', () => {
       [-1, 'tasks', `delete from "tasks" where "id" == ?`, [['bar'], ['baz']]],
     ])
   })
-  it(`can recreate indices for large batches`, () => {
-    expect(encodeBatch(Array(1000).fill(['markAsDeleted', 'tasks', 'foo']), testSchema)).toEqual([
+  it(`does not touch indices unless asked to`, () => {
+    const encoded = encodeBatch(Array(1000).fill(['markAsDeleted', 'tasks', 'foo']), testSchema)
+    expect(encoded.some(([, , sql]) => sql.includes('index'))).toBe(false)
+  })
+  it(`can recreate indices for the given tables`, () => {
+    expect(
+      encodeBatch(Array(1000).fill(['markAsDeleted', 'tasks', 'foo']), testSchema, ['tasks']),
+    ).toEqual([
       [0, null, 'drop index if exists "tasks_author_id"', [[]]],
       [0, null, 'drop index if exists "tasks__status"', [[]]],
       [
@@ -169,5 +176,14 @@ describe('encodeBatch', () => {
       [0, null, 'create index if not exists "tasks_author_id" on "tasks" ("author_id")', [[]]],
       [0, null, 'create index if not exists "tasks__status" on "tasks" ("_status")', [[]]],
     ])
+  })
+  it(`finds tables with enough operations to consider reindexing`, () => {
+    const ops = (table, count) => Array(count).fill(['markAsDeleted', table, 'foo'])
+    expect(largeBatchTables(ops('tasks', 999))).toEqual(new Map())
+    expect(largeBatchTables([...ops('tasks', 1000), ...ops('projects', 5)])).toEqual(
+      new Map([['tasks', 1000]]),
+    )
+    // over the threshold overall, but no single table is
+    expect(largeBatchTables([...ops('tasks', 600), ...ops('projects', 600)])).toEqual(new Map())
   })
 })
