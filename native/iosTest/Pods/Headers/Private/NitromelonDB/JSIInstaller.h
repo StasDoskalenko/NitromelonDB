@@ -1,1 +1,1 @@
-../../../../../ios/WatermelonDB/JSIInstaller.h
+../../../../../ios/NitromelonDB/JSIInstaller.h

@@ -1,6 +1,6 @@
 {
   "name": "React-RCTLinking",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "A general interface to interact with both incoming and outgoing app links.",
   "homepage": "https://reactnative.dev/",
   "documentation_url": "https://reactnative.dev/docs/linking",
@@ -12,7 +12,7 @@
   "compiler_flags": "-Wno-nullability-completeness",
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "source_files": "",
   "preserve_paths": [
@@ -29,13 +29,13 @@
   "frameworks": "UIKit",
   "dependencies": {
     "React-Core/RCTLinkingHeaders": [
-      "0.87.0"
+      "0.87.1"
     ],
     "ReactCommon/turbomodule/core": [
-      "0.87.0"
+      "0.87.1"
     ],
     "React-jsi": [
-      "0.87.0"
+      "0.87.1"
     ],
     "React-RCTFBReactNativeSpec": [],
     "ReactCommon": [],

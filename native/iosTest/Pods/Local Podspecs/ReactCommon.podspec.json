@@ -1,7 +1,7 @@
 {
   "name": "ReactCommon",
   "module_name": "ReactCommon",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "-",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
@@ -11,14 +11,11 @@
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "header_dir": "ReactCommon",
   "pod_target_xcconfig": {
-    "HEADER_SEARCH_PATHS": [
-      "$(PODS_ROOT)/Headers/Private/React-Core",
-      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
-    ],
+    "HEADER_SEARCH_PATHS": "\"$(PODS_ROOT)/Headers/Private/React-Core\" \"$(PODS_ROOT)/ReactNativeDependencies/Headers\"",
     "USE_HEADERMAP": "YES",
     "DEFINES_MODULE": "YES",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
@@ -33,16 +30,16 @@
       "name": "turbomodule",
       "dependencies": {
         "React-callinvoker": [
-          "0.87.0"
+          "0.87.1"
         ],
         "React-perflogger": [
-          "0.87.0"
+          "0.87.1"
         ],
         "React-jsi": [
-          "0.87.0"
+          "0.87.1"
         ],
         "React-logger": [
-          "0.87.0"
+          "0.87.1"
         ],
         "hermes-engine": []
       },
@@ -56,16 +53,16 @@
           "dependencies": {
             "React-bridging": [],
             "React-cxxreact": [
-              "0.87.0"
+              "0.87.1"
             ],
             "React-debug": [
-              "0.87.0"
+              "0.87.1"
             ],
             "React-featureflags": [
-              "0.87.0"
+              "0.87.1"
             ],
             "React-utils": [
-              "0.87.0"
+              "0.87.1"
             ]
           }
         }

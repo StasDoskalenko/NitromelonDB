@@ -1,6 +1,6 @@
 {
   "name": "React-RuntimeHermes",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "The React Native Runtime.",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
@@ -10,22 +10,12 @@
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "source_files": "hermes/*.h",
   "header_dir": "react/runtime/hermes",
   "pod_target_xcconfig": {
-    "HEADER_SEARCH_PATHS": [
-      "${PODS_TARGET_SRCROOT}/../..",
-      "${PODS_TARGET_SRCROOT}/../../hermes/executor",
-      "${PODS_ROOT}/React-jsinspector",
-      "${PODS_ROOT}/React-jsinspectorcdp",
-      "${PODS_ROOT}/React-jsinspectortracing",
-      "${PODS_ROOT}/React-runtimeexecutor",
-      "${PODS_ROOT}/React-runtimeexecutor/platform/ios",
-      "${PODS_ROOT}/React-jsitooling",
-      "$(PODS_ROOT)/ReactNativeDependencies/Headers"
-    ],
+    "HEADER_SEARCH_PATHS": "\"${PODS_TARGET_SRCROOT}/../..\" \"${PODS_TARGET_SRCROOT}/../../hermes/executor\" \"${PODS_ROOT}/React-jsinspector\" \"${PODS_ROOT}/React-jsinspectorcdp\" \"${PODS_ROOT}/React-jsinspectortracing\" \"${PODS_ROOT}/React-runtimeexecutor\" \"${PODS_ROOT}/React-runtimeexecutor/platform/ios\" \"${PODS_ROOT}/React-jsitooling\" \"$(PODS_ROOT)/ReactNativeDependencies/Headers\"",
     "USE_HEADERMAP": "YES",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
     "GCC_WARN_PEDANTIC": "YES"

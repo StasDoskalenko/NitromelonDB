@@ -1,6 +1,6 @@
 {
   "name": "React-defaultsnativemodule",
-  "version": "0.87.0",
+  "version": "0.87.1",
   "summary": "React Native Default native modules",
   "homepage": "https://reactnative.dev/",
   "license": "MIT",
@@ -10,13 +10,13 @@
   },
   "source": {
     "git": "https://github.com/facebook/react-native.git",
-    "tag": "v0.87.0"
+    "tag": "v0.87.1"
   },
   "source_files": "*.h",
   "header_dir": "react/nativemodule/defaults",
   "pod_target_xcconfig": {
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
-    "HEADER_SEARCH_PATHS": "$(PODS_ROOT)/Headers/Private/Yoga $(PODS_ROOT)/ReactNativeDependencies/Headers \"${PODS_ROOT}/React-RCTFBReactNativeSpec\" \"${PODS_ROOT}/React-featureflags\" \"${PODS_ROOT}/React-featureflagsnativemodule\"",
+    "HEADER_SEARCH_PATHS": "\"$(PODS_ROOT)/Headers/Private/Yoga\" \"$(PODS_ROOT)/ReactNativeDependencies/Headers\" \"${PODS_ROOT}/React-RCTFBReactNativeSpec\" \"${PODS_ROOT}/React-featureflags\" \"${PODS_ROOT}/React-featureflagsnativemodule\"",
     "OTHER_CFLAGS": "$(inherited)",
     "DEFINES_MODULE": "YES"
   },
