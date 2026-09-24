@@ -11,7 +11,7 @@
 
 ### Fixes
 
-- Observing a query whose only condition is `Q.unsafeSqlExpr()` / `Q.unsafeLokiExpr()` (including inside `Q.and` / `Q.or`) no longer throws `Illegal clause sql` when the table changes, e.g. during sync. Such queries now re-run on change instead of being matched in JavaScript ([WatermelonDB#1679](https://github.com/Nozbe/WatermelonDB/discussions/1679)).
+- Observing a query whose only condition is `Q.unsafeSqlExpr()` / `Q.unsafeLokiExpr()` (including inside `Q.and` / `Q.or`) no longer throws `Illegal clause sql` when the table changes, e.g. during sync. The same goes for a `Q.on` nested inside `Q.and` / `Q.or`, which used to throw `Illegal Q.on`. Such queries now re-run on change instead of being matched in JavaScript ([WatermelonDB#1679](https://github.com/Nozbe/WatermelonDB/discussions/1679), approach from [WatermelonDB#1977](https://github.com/Nozbe/WatermelonDB/pull/1977)).
 - `yarn install` no longer fails on Yarn Classic (`fatal: not a git repository`) or on Yarn 4 projects that don't allowlist git dependencies. The `wa-sqlite` dependency now points at a GitHub tarball of the same pinned commit instead of a git URL. The installed files are the same.
 
 ### Performance
