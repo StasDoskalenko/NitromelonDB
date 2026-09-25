@@ -30,7 +30,12 @@ function performQuery(query: SerializedQuery, loki: Loki): LokiResultset {
   const { sortBy, take, skip } = query.description
   if (sortBy.length) {
     resultset = resultset.compoundsort(
-      sortBy.map(({ sortColumn, sortOrder }) => [sortColumn, sortOrder === 'desc']),
+      sortBy.map((sort) => {
+        if ('sortExpr' in sort) {
+          throw new Error('Q.sortBy(Q.unsafeSqlExpr()) is not supported on LokiJSAdapter')
+        }
+        return [sort.sortColumn, sort.sortOrder === 'desc']
+      }),
     )
   }
   if (skip) {

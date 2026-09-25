@@ -306,6 +306,17 @@ database.get('comments').query(
 )
 ```
 
+On SQLite adapters, you can also sort by a SQL expression. It's inserted into `order by` as-is, so never build it from user input:
+
+```js
+database.get('photos').query(
+  // image_id is a string column holding numbers: sort numerically, not alphabetically
+  Q.sortBy(Q.unsafeSqlExpr('CAST(photos.image_id AS INTEGER)'), Q.desc),
+)
+```
+
+LokiJS rejects this query.
+
 It isn't _necessarily_ better or more efficient to sort on query level instead of in JavaScript, **however** the most important use case for `Q.sortBy` is when used alongside `Q.skip` and `Q.take` to implement paging - to limit the number of records loaded from database to memory on very long lists
 
 ### Fetch IDs
@@ -398,6 +409,8 @@ postsCollection.query(
 ```
 
 For SQL, be sure to prefix column names with table name when joining with other tables.
+
+Queries containing `Q.unsafeSqlExpr` or `Q.unsafeLokiExpr` can be observed. Because the expression can't be evaluated in JavaScript, such a query re-runs whenever its table changes, the same as a query with `Q.on` or `Q.sortBy`. (In earlier versions, a query whose only condition was a raw expression threw `Illegal clause sql` on the first change to the table. See [WatermelonDB#1679](https://github.com/Nozbe/WatermelonDB/discussions/1679).)
 
 ⚠️ Please do not use this if you don't know what you're doing. Do not pass user input directly to avoid SQL injection.
 

@@ -364,3 +364,54 @@ describe('Collection observation', () => {
     expect(subscriber).toHaveBeenCalledTimes(4)
   })
 })
+
+describe('findAndObserveOrNull', () => {
+  const settle = (tasks) => tasks.query().fetch()
+
+  it('emits null for a missing record, then the record once created, then null once deleted', async () => {
+    const { db, tasks } = mockDatabase()
+    const observer = jest.fn()
+    const subscription = tasks.findAndObserveOrNull('t1').subscribe(observer)
+    await settle(tasks)
+    expect(observer).toHaveBeenLastCalledWith(null)
+
+    const task = await db.write(() =>
+      tasks.create((record) => {
+        record._raw.id = 't1'
+        record.name = 'hello'
+      }),
+    )
+    await settle(tasks)
+    expect(observer).toHaveBeenLastCalledWith(task)
+
+    const calls = observer.mock.calls.length
+    await db.write(() => task.update((record) => (record.name = 'changed')))
+    await settle(tasks)
+    expect(observer.mock.calls.length).toBeGreaterThan(calls)
+    expect(observer).toHaveBeenLastCalledWith(task)
+
+    await db.write(() => task.destroyPermanently())
+    await settle(tasks)
+    expect(observer).toHaveBeenLastCalledWith(null)
+    expect(subscription.closed).toBe(false)
+    subscription.unsubscribe()
+  })
+
+  it('emits null right away for a null or undefined id', () => {
+    const { tasks } = mockDatabase()
+    const observer = jest.fn()
+    tasks.findAndObserveOrNull(null).subscribe(observer)
+    tasks.findAndObserveOrNull(undefined).subscribe(observer)
+    expect(observer.mock.calls).toEqual([[null], [null]])
+  })
+
+  it('does not error where findAndObserve would', async () => {
+    const { tasks } = mockDatabase()
+    const error = jest.fn()
+    const next = jest.fn()
+    tasks.findAndObserveOrNull('missing').subscribe({ next, error })
+    await settle(tasks)
+    expect(error).not.toHaveBeenCalled()
+    expect(next).toHaveBeenCalledWith(null)
+  })
+})

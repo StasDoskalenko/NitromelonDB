@@ -902,6 +902,21 @@ matchTest({
   checkOrder: true,
 })
 matchTest({
+  name: 'sorts results by a raw SQL expression',
+  query: [Q.sortBy(Q.unsafeSqlExpr('CAST(tasks.text1 AS INTEGER)'), Q.desc), Q.sortBy('num1')],
+  matching: [
+    { id: 'n0', text1: '100', num1: 1 },
+    { id: 'n1', text1: '20', num1: 1 },
+    { id: 'n2', text1: '3', num1: 1 },
+    { id: 'n3', text1: '3', num1: 2 },
+    { id: 'n4', text1: '-5', num1: 1 },
+  ],
+  nonMatching: [],
+  skipLoki: true,
+  skipMatcher: true,
+  checkOrder: true,
+})
+matchTest({
   name: 'sorts results by multiple columns',
   query: [Q.sortBy('text1', Q.asc), Q.sortBy('num1', Q.desc)],
   matching: [
