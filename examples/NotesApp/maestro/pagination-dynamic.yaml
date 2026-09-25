@@ -48,13 +48,20 @@ appId: com.nitromelondb.example
     text: "Page 1 of 6"
 - assertVisible:
     text: "Dynamic Note 5"
-- scrollUntilVisible:
-    element:
-      text: "Note #100"
-    direction: DOWN
-    timeout: 15000
-    speed: 40
-    visibilityPercentage: 40
+# Step the list down with slow, short drags until Note #100 (6th on the page) shows up.
+# Not scrollUntilVisible: its swipes fling, and with only ~2 cards visible between the pager
+# and the composer, one fling on a slow emulator could carry Note #100 from below the
+# composer to above the pager between two checks -- after which scrolling DOWN never
+# finds it. A slow drag (~270px, < one card) has no momentum, so it can't skip the target.
+- repeat:
+    while:
+      notVisible: "Note #100"
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 62%"
+          end: "50%, 48%"
+          duration: 1500
 - assertVisible:
     text: "Note #100"
 - assertNotVisible:

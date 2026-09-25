@@ -228,6 +228,15 @@ jobs:
           profile: pixel
           disable-animations: true
           script: bash scripts/ci-notesapp-android-maestro.sh
+      - name: Upload Maestro diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: notesapp-android-maestro-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          # Maestro writes its screenshots/logs under a hidden .maestro/ directory
+          include-hidden-files: true
+          path: maestro-debug
       - uses: actions/upload-artifact@v6
         if: always()
         with:
@@ -287,6 +296,15 @@ jobs:
         run: brew install xcbeautify
       - name: run tests
         run: bash scripts/ci-notesapp-ios-maestro.sh
+      - name: Upload Maestro diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: notesapp-ios-maestro-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          # Maestro writes its screenshots/logs under a hidden .maestro/ directory
+          include-hidden-files: true
+          path: maestro-debug
   perf-comment:
     needs: [notesapp-android]
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
