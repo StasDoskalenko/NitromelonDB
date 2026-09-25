@@ -63,4 +63,5 @@ fi
 xcrun simctl install "$SIM_UDID" "$APP_PATH"
 xcrun simctl launch "$SIM_UDID" com.nitromelondb.example
 
-maestro test maestro/
+# Screenshots + logs of every flow step, uploaded by the workflow when a flow fails
+maestro test maestro/ --debug-output "$GITHUB_WORKSPACE/maestro-debug"

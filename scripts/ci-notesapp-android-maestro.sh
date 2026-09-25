@@ -16,7 +16,8 @@ if [ -z "$APK" ]; then
 fi
 
 adb install -r "$APK"
-maestro test examples/NotesApp/maestro/
+# Screenshots + logs of every flow step, uploaded by the workflow when a flow fails
+maestro test examples/NotesApp/maestro/ --debug-output maestro-debug
 
 # Perf measurement reuses this same build/emulator (see .github/workflows/ci.yml)
 # instead of a separate job that would rebuild the APK and boot a second
