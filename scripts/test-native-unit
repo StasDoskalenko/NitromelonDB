@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Builds and runs the standalone native unit tests (native/tests) against the vendored
+# SQLite. No JSI, React Native or device needed -- a C and C++17 compiler is enough.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+BUILD="${NATIVE_UNIT_BUILD_DIR:-$ROOT/node_modules/.cache/native-unit}"
+mkdir -p "$BUILD"
+
+CC="${CC:-cc}"
+CXX="${CXX:-c++}"
+SQLITE="$ROOT/native/vendor/sqlite"
+
+# SQLite takes a while to compile; reuse the object unless the source changed
+if [ ! -f "$BUILD/sqlite3.o" ] || [ "$SQLITE/sqlite3.c" -nt "$BUILD/sqlite3.o" ]; then
+  "$CC" -O1 -DSQLITE_THREADSAFE=1 -c "$SQLITE/sqlite3.c" -o "$BUILD/sqlite3.o"
+fi
+
+status=0
+for test in "$ROOT"/native/tests/*.cpp; do
+  name="$(basename "$test" .cpp)"
+  "$CXX" -std=c++17 -Wall -Wextra -I"$SQLITE" "$test" "$BUILD/sqlite3.o" -lpthread -ldl -lm -o "$BUILD/$name"
+  "$BUILD/$name" || status=1
+done
+exit $status
