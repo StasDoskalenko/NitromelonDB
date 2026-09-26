@@ -34,7 +34,9 @@ function openDatabase(): Promise<IncrementalDatabase> {
   return Promise.resolve(database as unknown as IncrementalDatabase)
 }
 
-export function runIncrementalSync(options: IncrementalSyncOptions): Promise<IncrementalSyncResult> {
+export function runIncrementalSync(
+  options: IncrementalSyncOptions,
+): Promise<IncrementalSyncResult> {
   return runIncrementalSyncBenchmark(
     openDatabase,
     synchronize as unknown as IncrementalSynchronizeFn,

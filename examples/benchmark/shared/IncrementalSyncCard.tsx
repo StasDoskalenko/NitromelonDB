@@ -58,9 +58,9 @@ export function IncrementalSyncCard({ theme, run }: Props) {
     <View style={styles.card}>
       <Text style={styles.cardTitle}>Incremental sync</Text>
       <Text style={styles.hint}>
-        Seeds 12 tables, then runs 67 synchronize() calls that are mostly empty or small, first
-        with no observers, then with 3 observed queries per table. Cells are the median ms per
-        call by records pulled (0 / 1–99 / 100–999 / 1,000+).
+        Seeds 12 tables, then runs 67 synchronize() calls that are mostly empty or small, first with
+        no observers, then with 3 observed queries per table. Cells are the median ms per call by
+        records pulled (0 / 1–99 / 100–999 / 1,000+).
       </Text>
 
       <View style={styles.sizeRow}>

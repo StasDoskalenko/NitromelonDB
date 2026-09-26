@@ -15,8 +15,10 @@
 //                   screen would: a simple where() (matched in JS), a sorted + limited list
 //                   (re-queried on every change), and a count
 //
-// Every pull is timed until synchronize() resolves plus one macrotask, so re-queries triggered by
-// that pull land in its own number instead of the next one's.
+// Every pull is timed twice: until synchronize() resolves (`syncMs`), and until the JS queue has
+// also drained once more (setImmediate), so re-queries triggered by that pull land in its own
+// number instead of the next one's. Not setTimeout(0): on Android, React Native fires timers on
+// the next display frame, so it alone adds up to ~16ms and hides the sync's own cost.
 
 import { SYNC_COLUMNS } from './syncBenchmark'
 
@@ -26,22 +28,33 @@ export { SYNC_COLUMNS as INCREMENTAL_COLUMNS }
 
 // Records changed per pull, in call order. Sizes cycle through the tables.
 const PULL_PLAN: number[] = [
-  0, 12, 7, 0, 350, 0, 40, 0, 1500, 65, 0, 5, 0, 80, 0, 0, 20, 0, 200, 450, 0, 60, 0, 3,
-  1200, 0, 0, 30, 0, 0, 90, 0, 1, 0, 600, 0, 15, 0, 0, 45, 0, 2000, 0, 8, 1300, 0, 70, 0,
-  25, 0, 150, 0, 0, 1000, 0, 50, 0, 0, 10, 0, 1800, 0, 35, 0, 0, 99, 0, 0,
+  0, 12, 7, 0, 350, 0, 40, 0, 1500, 65, 0, 5, 0, 80, 0, 0, 20, 0, 200, 450, 0, 60, 0, 3, 1200, 0, 0,
+  30, 0, 0, 90, 0, 1, 0, 600, 0, 15, 0, 0, 45, 0, 2000, 0, 8, 1300, 0, 70, 0, 25, 0, 150, 0, 0,
+  1000, 0, 50, 0, 0, 10, 0, 1800, 0, 35, 0, 0, 99, 0, 0,
 ]
 
 type RawRow = Record<string, string | number | boolean | null>
 type TableChanges = { created: RawRow[]; updated: RawRow[]; deleted: string[] }
 
 type Subscription = { unsubscribe(): void }
-type Observable = { subscribe(observer: { next(value: unknown): void; error(e: unknown): void }): Subscription }
+type Observable = {
+  subscribe(observer: { next(value: unknown): void; error(e: unknown): void }): Subscription
+}
 type ObservableQuery = { observe(): Observable; observeCount(isThrottled?: boolean): Observable }
-type IncrementalCollection = { query(...clauses: unknown[]): ObservableQuery }
+type IncrementalCollection = {
+  query(...clauses: unknown[]): ObservableQuery & { fetch(): Promise<unknown[]> }
+}
 
 export type IncrementalDatabase = {
   get(table: string): unknown
   write<T>(action: () => Promise<T>): Promise<T>
+  read<T>(action: () => Promise<T>): Promise<T>
+  batch(records: unknown[]): Promise<void>
+  adapter: {
+    getLocal(key: string): Promise<string | null | undefined>
+    setLocal(key: string, value: string): Promise<void>
+    getDeletedRecords(table: string): Promise<string[]>
+  }
   unsafeResetDatabase(): Promise<void>
 }
 
@@ -68,6 +81,8 @@ export type BucketStats = { count: number; medianMs: number; totalMs: number }
 
 export type IncrementalPhaseResult = {
   totalMs: number
+  // Same buckets, but only until synchronize() resolves
+  syncOnly: { totalMs: number; emptyMedianMs: number; smallMedianMs: number }
   empty: BucketStats
   small: BucketStats // 1-99
   medium: BucketStats // 100-999
@@ -83,13 +98,43 @@ export type IncrementalSyncResult = IncrementalSyncOptions & {
   plain: IncrementalPhaseResult
   observed: IncrementalPhaseResult
   observerErrors: number
+  timerLatencyMs: number
+  // Building blocks of a synchronize() call, median of 200 each: a query that matches nothing
+  // (what looking for local changes costs per table when there are none), an empty read() and
+  // write(), an empty batch() inside a write(), getDeletedRecords(), and reading / writing one
+  // local storage value (every sync writes lastPulledAt -- a commit of its own)
+  micro: {
+    emptyQueryMs: number
+    emptyReadMs: number
+    emptyWriteMs: number
+    emptyBatchMs: number
+    getDeletedMs: number
+    getLocalMs: number
+    setLocalMs: number
+  }
 }
 
 function now(): number {
   return globalThis.performance?.now?.() ?? Date.now()
 }
 
-const nextMacrotask = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+const settle = () =>
+  new Promise<void>((resolve) =>
+    typeof setImmediate === 'function' ? setImmediate(resolve) : setTimeout(resolve, 0),
+  )
+
+// How long `setTimeout(fn, 0)` actually takes here -- reported so it can be told apart from sync
+// cost when comparing platforms
+async function timerLatencyMs(): Promise<number> {
+  const samples: number[] = []
+  for (let i = 0; i < 20; i += 1) {
+    const started = now()
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    samples.push(now() - started)
+  }
+  return median(samples)
+}
 
 function makeRow(index: number, revision: number): RawRow {
   return {
@@ -140,6 +185,7 @@ async function runPulls(
   revisionBase: number,
 ): Promise<IncrementalPhaseResult> {
   const times: number[] = []
+  const syncTimes: number[] = []
   let timestamp = revisionBase * 1_000_000
   for (let pull = 0; pull < PULL_PLAN.length; pull += 1) {
     const size = Math.min(PULL_PLAN[pull]!, seedPerTable)
@@ -160,19 +206,36 @@ async function runPulls(
       pullChanges: async () => ({ changes, timestamp: pulledAt }),
       pushChanges: async () => {},
     })
+    syncTimes.push(now() - started)
     // eslint-disable-next-line no-await-in-loop
-    await nextMacrotask()
+    await settle()
     times.push(now() - started)
   }
   const plan = PULL_PLAN.map((size) => Math.min(size, seedPerTable))
   return {
     totalMs: times.reduce((sum, value) => sum + value, 0),
+    syncOnly: {
+      totalMs: syncTimes.reduce((sum, value) => sum + value, 0),
+      emptyMedianMs: bucket(plan, syncTimes, (size) => size === 0).medianMs,
+      smallMedianMs: bucket(plan, syncTimes, (size) => size > 0 && size < 100).medianMs,
+    },
     empty: bucket(plan, times, (size) => size === 0),
     small: bucket(plan, times, (size) => size > 0 && size < 100),
     medium: bucket(plan, times, (size) => size >= 100 && size < 1000),
     large: bucket(plan, times, (size) => size >= 1000),
     pullsMs: times.map((value) => Math.round(value * 10) / 10),
   }
+}
+
+async function medianOf(runs: number, action: () => Promise<unknown>): Promise<number> {
+  const samples: number[] = []
+  for (let i = 0; i < runs; i += 1) {
+    const started = now()
+    // eslint-disable-next-line no-await-in-loop
+    await action()
+    samples.push(now() - started)
+  }
+  return median(samples)
 }
 
 export async function runIncrementalSyncBenchmark(
@@ -217,10 +280,24 @@ export async function runIncrementalSyncBenchmark(
     subscriptions.push(collection.query().observeCount(false).subscribe(observer))
   }
   // Let every observer finish its initial query before timing starts
-  await nextMacrotask()
-  await nextMacrotask()
+  await new Promise<void>((resolve) => setTimeout(resolve, 50))
   const observed = await runPulls(database, synchronize, options, 2_000)
   subscriptions.forEach((subscription) => subscription.unsubscribe())
+
+  const probeCollection = database.get(INCREMENTAL_TABLES[0]!) as IncrementalCollection
+  const micro = {
+    emptyQueryMs: await medianOf(200, () =>
+      probeCollection.query(Q.where('_status', 'created')).fetch(),
+    ),
+    emptyReadMs: await medianOf(200, () => database.read(async () => {})),
+    emptyWriteMs: await medianOf(200, () => database.write(async () => {})),
+    emptyBatchMs: await medianOf(200, () => database.write(() => database.batch([]))),
+    getDeletedMs: await medianOf(200, () =>
+      database.adapter.getDeletedRecords(INCREMENTAL_TABLES[0]!),
+    ),
+    getLocalMs: await medianOf(200, () => database.adapter.getLocal('__probe')),
+    setLocalMs: await medianOf(200, () => database.adapter.setLocal('__probe', String(now()))),
+  }
 
   return {
     kind: 'incremental',
@@ -231,5 +308,7 @@ export async function runIncrementalSyncBenchmark(
     plain,
     observed,
     observerErrors,
+    timerLatencyMs: await timerLatencyMs(),
+    micro,
   }
 }

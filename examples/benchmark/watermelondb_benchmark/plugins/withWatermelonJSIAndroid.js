@@ -2,7 +2,11 @@
 // `watermelondb-jsi` Gradle project and register WatermelonDBJSIPackage by hand. Without it,
 // `jsi: true` quietly falls back to the asynchronous bridge adapter, so this plugin does both on
 // prebuild. The engine line at the top of the app shows which adapter actually runs.
-const { withAppBuildGradle, withMainApplication, withSettingsGradle } = require('expo/config-plugins')
+const {
+  withAppBuildGradle,
+  withMainApplication,
+  withSettingsGradle,
+} = require('expo/config-plugins')
 
 const PROJECT = ':watermelondb-jsi'
 
@@ -29,8 +33,14 @@ project('${PROJECT}').projectDir = new File(rootProject.projectDir, '../node_mod
     let contents = mod.modResults.contents
     if (!contents.includes('WatermelonDBJSIPackage')) {
       contents = contents
-        .replace(/^(package .*\n)/m, '$1\nimport com.nozbe.watermelondb.jsi.WatermelonDBJSIPackage\n')
-        .replace(/PackageList\(this\)\.packages\.apply \{/, (match) => `${match}\n          add(WatermelonDBJSIPackage())`)
+        .replace(
+          /^(package .*\n)/m,
+          '$1\nimport com.nozbe.watermelondb.jsi.WatermelonDBJSIPackage\n',
+        )
+        .replace(
+          /PackageList\(this\)\.packages\.apply \{/,
+          (match) => `${match}\n          add(WatermelonDBJSIPackage())`,
+        )
     }
     mod.modResults.contents = contents
     return mod

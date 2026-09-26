@@ -10,7 +10,8 @@
 //      whose CI includes 0 (or p > 0.05) is not distinguishable from noise with this many runs.
 //
 // Incremental sync rows (--card incr) are grouped by records per table instead, with per-pull
-// medians by pull size and the total of all pulls, without and with observers.
+// medians by pull size and the total of all pulls, without and with observers. run-flashlight.mjs's
+// summary.jsonl works too: CPU time, JS thread CPU time, peak CPU / RAM and FPS per iteration.
 //
 // Timings are wall clock, so they include GC pauses. "Total − GC" subtracts the Hermes GC time
 // recorded in the same run. It's a rough view of the work itself, since some GC runs concurrently
@@ -103,6 +104,7 @@ const mb = (value) => `${(value / 1048576).toFixed(0)}`
 const mb1 = (value) => `${(value / 1048576).toFixed(1)}`
 
 const incremental = rows.some((r) => r.kind === 'incremental')
+const flashlight = rows.some((r) => typeof r.cpuSeconds === 'number')
 
 const syncMetrics = [
   ['Initial ms', (r) => r.initialPullMs, ms],
@@ -129,19 +131,49 @@ const incrementalMetrics = [
   ['Observed: 1–99 ms', (r) => r.observed.small.medianMs, ms1],
   ['Observed: 100–999 ms', (r) => r.observed.medium.medianMs, ms1],
   ['Observed: 1,000+ ms', (r) => r.observed.large.medianMs, ms],
+  ['Sync-only: all pulls ms', (r) => r.plain.syncOnly?.totalMs, ms],
+  ['Sync-only: empty ms', (r) => r.plain.syncOnly?.emptyMedianMs, ms1],
+  ['Sync-only: 1–99 ms', (r) => r.plain.syncOnly?.smallMedianMs, ms1],
+  ['Empty query ms', (r) => r.micro?.emptyQueryMs, (v) => v.toFixed(2)],
+  ['Empty read() ms', (r) => r.micro?.emptyReadMs, (v) => v.toFixed(2)],
+  ['Empty write() ms', (r) => r.micro?.emptyWriteMs, (v) => v.toFixed(2)],
+  ['Empty batch() ms', (r) => r.micro?.emptyBatchMs, (v) => v.toFixed(2)],
+  ['getDeletedRecords ms', (r) => r.micro?.getDeletedMs, (v) => v.toFixed(2)],
+  ['getLocal ms', (r) => r.micro?.getLocalMs, (v) => v.toFixed(2)],
+  ['setLocal ms', (r) => r.micro?.setLocalMs, (v) => v.toFixed(2)],
+  ['setTimeout(0) ms', (r) => r.timerLatencyMs, ms1],
   ['Seed ms', (r) => r.seedMs, ms],
   ['RSS peak MB', (r) => r.rssPeakBytes, mb],
 ]
 
-const metrics = incremental ? incrementalMetrics : syncMetrics
-const compared = incremental ? incrementalMetrics.map(([name]) => name) : syncCompared
-const sizeOf = (r) => (incremental ? r.seedPerTable : r.records)
+const s2 = (value) => value.toFixed(2)
+const flashlightMetrics = [
+  ['CPU time s', (r) => r.cpuSeconds, s2],
+  ['JS thread CPU s', (r) => r.jsThreadCpuSeconds, s2],
+  ['CPU peak %', (r) => r.cpuPeak, ms],
+  ['RAM peak MB', (r) => r.ramPeakMb, ms],
+  ['FPS mean', (r) => r.fpsMean, ms1],
+  ['Iteration s', (r) => r.durationMs / 1000, ms1],
+]
+
+const metrics = flashlight ? flashlightMetrics : incremental ? incrementalMetrics : syncMetrics
+const compared = flashlight
+  ? flashlightMetrics.map(([name]) => name)
+  : incremental
+    ? incrementalMetrics.map(([name]) => name)
+    : syncCompared
+const sizeOf = (r) => (flashlight ? r.size : incremental ? r.seedPerTable : r.records)
 
 const labels = [...new Set(rows.map((r) => r.label))]
 const sizes = [...new Set(rows.map(sizeOf))].sort((a, b) => a - b)
 
 for (const size of sizes) {
-  console.log(`\n### ${size.toLocaleString('en-US')} ${incremental ? 'records per table' : 'records'}\n`)
+  const unit = flashlight
+    ? `(${rows[0].card === 'incr' ? 'Incremental sync, records per table' : 'Sync, records'})`
+    : incremental
+      ? 'records per table'
+      : 'records'
+  console.log(`\n### ${size.toLocaleString('en-US')} ${unit}\n`)
   console.log(`| | runs | ${metrics.map(([name]) => name).join(' | ')} |`)
   console.log(`|---|---|${metrics.map(() => '---').join('|')}|`)
   for (const label of labels) {

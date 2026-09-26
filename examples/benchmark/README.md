@@ -74,8 +74,10 @@ records, 5 with 100–999 and 6 with 1,000+. Every call pulls all 12 tables and 
 `pushChanges`, so it pays the fixed per-sync cost a real app does (reading and writing the
 last-pulled timestamp, looking for local changes in each table). The sequence runs twice: with no
 observers, then with 3 observed queries per table (a simple `where`, a sorted + limited list and a
-count). Each call is timed until it resolves plus one macrotask, so re-queries it triggers count
-towards it.
+count). Each call is timed until it resolves (sync only), and again until the JS queue has drained
+once more (`setImmediate`), so re-queries it triggers count towards it. Below that, the card
+measures the pieces a sync is made of: an empty query, an empty `read()` / `write()` / `batch()`,
+`getDeletedRecords()`, and one local storage read and write.
 
 #### Scripted runs
 
@@ -111,6 +113,32 @@ JSON line to `--out`. The runner also samples the app process's RSS from the hos
 which works because a simulator app is a normal macOS process. It approximates native memory use,
 but it isn't the `phys_footprint` iOS uses for memory limits on a device. The summary prints the
 median of each column, with min–max underneath.
+
+#### Flashlight (Android)
+
+`scripts/run-flashlight.mjs` drives the same cards under [Flashlight](https://github.com/bamlab/flashlight),
+which samples CPU per thread, RAM and FPS from the device. Flashlight runs one app's iterations
+back to back, so the script interleaves apps in rounds (`--per-round` iterations of each app per
+round, in random order) and clears app data before every iteration:
+
+```sh
+node scripts/run-flashlight.mjs --device emulator-5554 --card incr --size 2000 \
+  --apps 'NitromelonDB=com.nitromelondb.benchmark;WatermelonDB=com.watermelondb.benchmark' \
+  --rounds 8 --per-round 4 --out-dir flashlight-incr
+node scripts/summarize-sync.mjs flashlight-incr/summary.jsonl --baseline WatermelonDB
+flashlight report flashlight-incr/nitromelondb.json flashlight-incr/watermelondb.json
+```
+
+The summary's main number is **CPU time**: CPU seconds used during the iteration, summed over
+threads. Unlike mean CPU %, it doesn't change with how long the flow spends launching the app or
+waiting around the benchmark itself.
+
+### Timers on Android
+
+React Native on Android runs `setTimeout` callbacks on the next display frame, so even
+`setTimeout(fn, 0)` waits up to ~16ms. The Incremental sync card reports that latency
+(`timerLatencyMs`) and times each pull without it. When timing small operations in your own app,
+don't put a `setTimeout` inside the measured span.
 
 ## WatermelonDB
 
