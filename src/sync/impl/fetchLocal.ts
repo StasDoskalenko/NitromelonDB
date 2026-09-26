@@ -1,6 +1,6 @@
 import { values, identity, unnest, allPromises, mapObj } from '../../utils/fp'
 import allPromisesObj from '../../utils/fp/allPromisesObj'
-import type { Database, Collection, Model } from '../..'
+import type { Database, Collection, Model, TableName } from '../..'
 import * as Q from '../../QueryDescription'
 import { columnName } from '../../Schema'
 
@@ -38,11 +38,30 @@ async function fetchLocalChangesForCollection<T extends Model>(
   return [changeSet, changedRecords]
 }
 
+const noLocalChanges = (): [SyncTableChangeSet, Model[]] => [
+  { created: [], updated: [], deleted: [] },
+  [],
+]
+
+// Tables that may have local changes: all of them, unless the adapter can tell in one query
+// (SQLite can). Most syncs push nothing, and checking each table costs three adapter calls, which
+// adds up with many tables.
+async function tablesToCheck(db: Database): Promise<Set<string> | null> {
+  const found = db.adapter.tablesWithLocalChanges(
+    Object.keys(db.collections.map) as TableName<Model>[],
+  )
+  return found ? new Set(await found) : null
+}
+
 export default function fetchLocalChanges(db: Database): Promise<SyncLocalChanges> {
   return db.read(async () => {
+    const tables = await tablesToCheck(db)
     const collectionChanges = (await allPromisesObj(
       mapObj(
-        (collection: Collection<Model>) => fetchLocalChangesForCollection(collection),
+        (collection: Collection<Model>) =>
+          !tables || tables.has(collection.table)
+            ? fetchLocalChangesForCollection(collection)
+            : Promise.resolve(noLocalChanges()),
         db.collections.map,
       ) as Record<string, Promise<[SyncTableChangeSet, Model[]]>>,
     )) as Record<string, [SyncTableChangeSet, Model[]]>
@@ -60,6 +79,10 @@ export default function fetchLocalChanges(db: Database): Promise<SyncLocalChange
 export function hasUnsyncedChanges(db: Database): Promise<boolean> {
   // action is necessary to ensure other code doesn't make changes under our nose
   return db.read(async () => {
+    const tables = await tablesToCheck(db)
+    if (tables) {
+      return tables.size > 0
+    }
     const collections = values(db.collections.map)
     const hasUnsynced = async (collection: Collection<Model>) => {
       const created = await collection.query(createdQuery).fetchCount()

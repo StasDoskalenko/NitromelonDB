@@ -61,6 +61,9 @@ if (process.env.NODE_ENV !== 'production') {
 
 const IGNORE_CACHE = 0
 
+// SQLite's default SQLITE_MAX_COMPOUND_SELECT is 500
+const TABLES_PER_LOCAL_CHANGES_QUERY = 400
+
 export default class SQLiteAdapter implements DatabaseAdapter {
   static adapterType: string = 'sqlite'
 
@@ -356,6 +359,48 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       [table, ...encodeQuery(query), permanently, isUnconditional],
       callback,
     )
+  }
+
+  // One statement for all tables: `select 'a' as id where exists (…a…) union all …`. The EXISTS
+  // subqueries stop at the first match and use the _status index. Chunked below SQLite's default
+  // limit of 500 terms per compound select. The SQL only depends on the table list, so it stays
+  // in the native statement cache.
+  tablesWithLocalChanges(tables: TableName[], callback: ResultCallback<TableName[]>): void {
+    tables.forEach((table) => validateTable(table, this.schema))
+    const chunks: TableName[][] = []
+    for (let i = 0; i < tables.length; i += TABLES_PER_LOCAL_CHANGES_QUERY) {
+      chunks.push(tables.slice(i, i + TABLES_PER_LOCAL_CHANGES_QUERY))
+    }
+    if (!chunks.length) {
+      callback({ value: [] })
+      return
+    }
+    const found: TableName[] = []
+    let pending = chunks.length
+    let failed = false
+    chunks.forEach((chunk) => {
+      const sql = chunk
+        .map(
+          (table) =>
+            `select '${table}' as id where exists (select 1 from "${table}" where "_status" in ('created', 'updated', 'deleted'))`,
+        )
+        .join(' union all ')
+      this._dispatcher.call<TableName[]>('queryIds', [sql, []], (result) => {
+        if (failed) {
+          return
+        }
+        if (result.error) {
+          failed = true
+          callback(result)
+          return
+        }
+        found.push(...result.value)
+        pending -= 1
+        if (!pending) {
+          callback({ value: found })
+        }
+      })
+    })
   }
 
   getDeletedRecords(table: TableName, callback: ResultCallback<RecordId[]>): void {

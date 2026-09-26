@@ -58,6 +58,9 @@ const unsafeFetchAsRaws = async <T extends Model>(query: Query<T>): Promise<RawR
 
 const dirtyRawId = (record: DirtyRaw): RecordId => record.id as RecordId
 
+const isEmptyTableChangeSet = ({ created, updated, deleted }: SyncTableChangeSet): boolean =>
+  !created.length && !updated.length && !deleted.length
+
 const idsForChanges = ({ created, updated, deleted }: SyncTableChangeSet): RecordId[] => {
   const ids: RecordId[] = []
   created.forEach((record) => {
@@ -241,6 +244,16 @@ const getAllRecordsToApply = (
     return !!collection
   }, remoteChanges) as SyncDatabaseChangeSet
 
+  // Servers often list every table, most with nothing in them. With the incremental strategy an
+  // empty changeset changes nothing, so skip the table instead of reading its records and
+  // deleted ids for nothing. (Replacement can delete local records even with an empty changeset.)
+  const changesToApply = filterObj(
+    (changes, tableName) =>
+      !isEmptyTableChangeSet(changes as SyncTableChangeSet) ||
+      strategyForCollection(db.get(tableName as TableName), context.strategy) !== 'incremental',
+    knownChanges,
+  ) as SyncDatabaseChangeSet
+
   return allPromisesObj(
     mapObj(
       (changes, tableName) =>
@@ -249,7 +262,7 @@ const getAllRecordsToApply = (
           changes as SyncTableChangeSet,
           context,
         ),
-      knownChanges,
+      changesToApply,
     ) as Record<string, Promise<RecordsToApplyRemoteChangesTo<Model>>>,
   ) as Promise<AllRecordsToApply>
 }
@@ -364,7 +377,9 @@ const applyAllRemoteChanges = async (
       },
     )
   })
-  await db.batch(allRecords)
+  if (allRecords.length) {
+    await db.batch(allRecords)
+  }
 }
 
 // See _unsafeBatchPerCollection - temporary fix
