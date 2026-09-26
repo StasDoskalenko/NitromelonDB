@@ -4,6 +4,8 @@ import { createWatermelonAdapter } from './database'
 import { MassDeleteBenchmarkCard } from './MassDeleteBenchmarkCard'
 import { SyncBenchmarkCard } from '../shared/SyncBenchmarkCard'
 import { runSync } from './syncBenchmark'
+import { IncrementalSyncCard } from '../shared/IncrementalSyncCard'
+import { runIncrementalSync } from './incrementalSyncBenchmark'
 
 const theme = {
   background: '#0b1210',
@@ -36,6 +38,7 @@ export default function App() {
       theme={theme}
     >
       <SyncBenchmarkCard theme={theme} run={runSync} />
+      <IncrementalSyncCard theme={theme} run={runIncrementalSync} />
       <MassDeleteBenchmarkCard theme={theme} />
     </BenchmarkScreen>
   )

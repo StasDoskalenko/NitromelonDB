@@ -9,6 +9,9 @@
 //      its bootstrap 95% confidence interval, and a two-sided Mann-Whitney U p-value. A difference
 //      whose CI includes 0 (or p > 0.05) is not distinguishable from noise with this many runs.
 //
+// Incremental sync rows (--card incr) are grouped by records per table instead, with per-pull
+// medians by pull size and the total of all pulls, without and with observers.
+//
 // Timings are wall clock, so they include GC pauses. "Total − GC" subtracts the Hermes GC time
 // recorded in the same run. It's a rough view of the work itself, since some GC runs concurrently
 // and doesn't block JS.
@@ -95,10 +98,13 @@ function normalCdf(z) {
 }
 
 const ms = (value) => `${Math.round(value)}`
+const ms1 = (value) => `${value.toFixed(1)}`
 const mb = (value) => `${(value / 1048576).toFixed(0)}`
 const mb1 = (value) => `${(value / 1048576).toFixed(1)}`
 
-const metrics = [
+const incremental = rows.some((r) => r.kind === 'incremental')
+
+const syncMetrics = [
   ['Initial ms', (r) => r.initialPullMs, ms],
   ['Update ms', (r) => r.updatePullMs, ms],
   ['Fetch ms', (r) => r.fetchAllMs, ms],
@@ -110,17 +116,36 @@ const metrics = [
   ['JS allocated peak MB', (r) => r.memory?.allocatedPeakBytes, mb1],
   ['RSS peak MB', (r) => r.rssPeakBytes, mb],
 ]
-const compared = ['Initial ms', 'Update ms', 'Fetch ms', 'Total ms', 'GC ms', 'Total − GC ms', 'JS allocated peak MB', 'RSS peak MB']
+const syncCompared = ['Initial ms', 'Update ms', 'Fetch ms', 'Total ms', 'GC ms', 'Total − GC ms', 'JS allocated peak MB', 'RSS peak MB']
+
+const incrementalMetrics = [
+  ['All pulls ms', (r) => r.plain.totalMs, ms],
+  ['Empty pull ms', (r) => r.plain.empty.medianMs, ms1],
+  ['1–99 ms', (r) => r.plain.small.medianMs, ms1],
+  ['100–999 ms', (r) => r.plain.medium.medianMs, ms1],
+  ['1,000+ ms', (r) => r.plain.large.medianMs, ms],
+  ['Observed: all pulls ms', (r) => r.observed.totalMs, ms],
+  ['Observed: empty ms', (r) => r.observed.empty.medianMs, ms1],
+  ['Observed: 1–99 ms', (r) => r.observed.small.medianMs, ms1],
+  ['Observed: 100–999 ms', (r) => r.observed.medium.medianMs, ms1],
+  ['Observed: 1,000+ ms', (r) => r.observed.large.medianMs, ms],
+  ['Seed ms', (r) => r.seedMs, ms],
+  ['RSS peak MB', (r) => r.rssPeakBytes, mb],
+]
+
+const metrics = incremental ? incrementalMetrics : syncMetrics
+const compared = incremental ? incrementalMetrics.map(([name]) => name) : syncCompared
+const sizeOf = (r) => (incremental ? r.seedPerTable : r.records)
 
 const labels = [...new Set(rows.map((r) => r.label))]
-const sizes = [...new Set(rows.map((r) => r.records))].sort((a, b) => a - b)
+const sizes = [...new Set(rows.map(sizeOf))].sort((a, b) => a - b)
 
 for (const size of sizes) {
-  console.log(`\n### ${size.toLocaleString('en-US')} records\n`)
+  console.log(`\n### ${size.toLocaleString('en-US')} ${incremental ? 'records per table' : 'records'}\n`)
   console.log(`| | runs | ${metrics.map(([name]) => name).join(' | ')} |`)
   console.log(`|---|---|${metrics.map(() => '---').join('|')}|`)
   for (const label of labels) {
-    const group = rows.filter((r) => r.label === label && r.records === size)
+    const group = rows.filter((r) => r.label === label && sizeOf(r) === size)
     if (!group.length) {
       continue
     }
@@ -139,7 +164,7 @@ for (const size of sizes) {
   if (!baseline) {
     continue
   }
-  const base = rows.filter((r) => r.label === baseline && r.records === size)
+  const base = rows.filter((r) => r.label === baseline && sizeOf(r) === size)
   if (!base.length) {
     continue
   }
@@ -150,7 +175,7 @@ for (const size of sizes) {
     if (label === baseline) {
       continue
     }
-    const group = rows.filter((r) => r.label === label && r.records === size)
+    const group = rows.filter((r) => r.label === label && sizeOf(r) === size)
     if (!group.length) {
       continue
     }

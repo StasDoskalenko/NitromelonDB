@@ -65,6 +65,18 @@ Under the table, the card shows the latest run's JS heap peak and GC count/time.
 Hermes' `HermesInternal.getInstrumentedStats()`, so no native code is involved. Heap size is
 reported in whole heap segments, so small differences don't show up.
 
+### Incremental sync
+
+The "Incremental sync" card (`shared/incrementalSyncBenchmark.ts`) covers what the Sync card
+doesn't: many small `synchronize()` calls into a database that already has data. It seeds 12
+tables, then runs 67 calls in the size mix reported in discussion #109: 35 empty, 21 with 1–99
+records, 5 with 100–999 and 6 with 1,000+. Every call pulls all 12 tables and has a
+`pushChanges`, so it pays the fixed per-sync cost a real app does (reading and writing the
+last-pulled timestamp, looking for local changes in each table). The sequence runs twice: with no
+observers, then with 3 observed queries per table (a simple `where`, a sorted + limited list and a
+count). Each call is timed until it resolves plus one macrotask, so re-queries it triggers count
+towards it.
+
 #### Scripted runs
 
 To collect many runs and compare them, install a Release build of each app on a simulator
@@ -78,6 +90,21 @@ node scripts/run-sync-trials.mjs --app com.watermelondb.benchmark --label Waterm
   --sizes 5000,20000,50000 --runs 10 --device <simulator udid> --out results.jsonl
 node scripts/summarize-sync.mjs results.jsonl
 ```
+
+On Android, install Release APKs (`cd android && ./gradlew assembleRelease`, then
+`adb install -r app/build/outputs/apk/release/app-release.apk`) and pass `--platform android` with
+the adb serial as `--device`. `--card incr` drives the Incremental sync card instead, with
+`--sizes` as records per table:
+
+```sh
+node scripts/run-sync-trials.mjs --platform android --device emulator-5554 --card incr \
+  --apps 'NitromelonDB=com.nitromelondb.benchmark;WatermelonDB=com.watermelondb.benchmark' \
+  --sizes 2000,10000 --runs 15 --out incremental.jsonl
+node scripts/summarize-sync.mjs incremental.jsonl --baseline WatermelonDB
+```
+
+Android Release builds can't be `run-as`, so the runner clears the app's data (`pm clear`) before
+each run instead of deleting just the database file, and reads RSS from `/proc/<pid>/status`.
 
 Each run relaunches the app, drives the card with [Maestro](https://maestro.dev), and appends one
 JSON line to `--out`. The runner also samples the app process's RSS from the host every 100ms,
@@ -96,7 +123,7 @@ npx expo run:ios
 npx expo run:android
 ```
 
-Uses `@nozbe/watermelondb@0.28.0` (the last upstream line this fork started from) with the JSI SQLite adapter. iOS needs the vendored `@nozbe/simdjson` pod (`expo-build-properties` `extraPods`); autolinking that package is disabled so CocoaPods does not see two simdjson sources.
+Uses `@nozbe/watermelondb@0.28.0` (the last upstream line this fork started from) with the JSI SQLite adapter. iOS needs the vendored `@nozbe/simdjson` pod (`expo-build-properties` `extraPods`); autolinking that package is disabled so CocoaPods does not see two simdjson sources. On Android the JSI adapter isn't autolinked; `plugins/withWatermelonJSIAndroid.js` adds the `watermelondb-jsi` Gradle project and registers its package on prebuild. Without it, `jsi: true` silently falls back to the bridge adapter. The engine line at the top of the screen shows which one runs.
 
 ## Comparing results
 
