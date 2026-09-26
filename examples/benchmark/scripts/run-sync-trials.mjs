@@ -13,7 +13,8 @@
 //
 // --sizes picks the card's size chip: records for Sync, records per table for Incremental sync,
 // pulls for Realistic sync (--card real; needs mock-server/server.mjs running, and on Android
-// `adb reverse tcp:8787 tcp:8787`).
+// `adb reverse tcp:8787 tcp:8787`), records per round for the stress test at the top of the screen
+// (--card stress: 100000 = Quick, 1000000 = Full), records for the mass-delete card (--card mass).
 //
 // With several apps, runs are interleaved: every round runs each app once per size, in a random
 // order, so drift over the session (thermals, simulator background work) hits all apps equally
@@ -48,8 +49,8 @@ function parseArgs(argv) {
     throw new Error('--platform must be ios or android')
   }
   const card = args.card ?? 'sync'
-  if (!['sync', 'incr', 'real'].includes(card)) {
-    throw new Error('--card must be sync, incr or real')
+  if (!['sync', 'incr', 'real', 'stress', 'mass'].includes(card)) {
+    throw new Error('--card must be sync, incr, real, stress or mass')
   }
   for (const required of ['device', 'out']) {
     if (!args[required]) {
@@ -62,7 +63,9 @@ function parseArgs(argv) {
     card,
     device: args.device,
     out: args.out,
-    sizes: (args.sizes ?? { sync: '20000', incr: '2000', real: '300' }[card]).split(',').map(Number),
+    sizes: (args.sizes ?? { sync: '20000', incr: '2000', real: '300', stress: '100000', mass: '5000' }[card])
+      .split(',')
+      .map(Number),
     runs: Number(args.runs ?? 5),
   }
 }
@@ -289,6 +292,15 @@ async function main() {
         const { result, rssPeakBytes, rssEndBytes } = outcome
         const row = { label, app, run, platform: options.platform, ...result, rssPeakBytes, rssEndBytes }
         appendFileSync(options.out, `${JSON.stringify(row)}\n`)
+        if (result.kind === 'stress' || result.kind === 'mass') {
+          console.log(
+            result.kind === 'stress'
+              ? `${label} ${size} #${run}: score ${Math.round(result.score)}, total ${Math.round(result.totalMs)}ms ` +
+                  `(write ${Math.round(result.writeMs)}, query ${Math.round(result.queryMs)}, delete ${Math.round(result.deleteMs)})`
+              : `${label} ${size} #${run}: ${result.newMs !== undefined ? `new ${result.newMs.toFixed(1)}ms, old ${result.oldMs.toFixed(1)}ms` : `${result.ms.toFixed(1)}ms`}`,
+          )
+          continue
+        }
         if (result.kind === 'realistic') {
           console.log(
             `${label} ${size} pulls #${run}: total ${Math.round(result.totalMs)}ms, ` +
