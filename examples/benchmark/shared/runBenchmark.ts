@@ -59,7 +59,7 @@ function summarize(
     score: Math.round(rate(written + deleted, totalMs)),
     fastestRoundMs: totals.length ? Math.min(...totals) : 0,
     slowestRoundMs: totals.length ? Math.max(...totals) : 0,
-    rounds,
+    roundResults: rounds,
   }
 }
 
