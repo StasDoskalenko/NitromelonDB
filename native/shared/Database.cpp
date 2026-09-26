@@ -77,8 +77,24 @@ void Database::releaseMemory() {
     // (SQLITE_OK) in this vendored build, not a byte count -- unlike some
     // other memory-management APIs, it doesn't report how much it freed, so
     // this log can only say the call was made, not its effect.
-    consoleLog("Releasing SQLite's internal memory (page cache, etc.) due to a memory-pressure signal");
+    consoleLog("Releasing SQLite's internal memory (page cache, prepared statements) due to a memory-pressure signal");
+    // Cached prepared statements hold memory too, and are cheap to prepare again. Safe here: every
+    // use of a cached statement happens under mutex_, which we hold, so none is in use (the one
+    // unlocked caller, getUserVersion(), doesn't use the cache). The capacity stays.
+    cachedStatements_.clear();
     sqlite3_db_release_memory(db_->sqlite);
+}
+
+void Database::fitStatementCacheToSchema() {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    fitStatementCacheToSchemaLocked();
+}
+
+void Database::fitStatementCacheToSchemaLocked() {
+    if (isDestroyed_ || !db_) {
+        return;
+    }
+    cachedStatements_.setCapacity(StatementCache::capacityForTables(StatementCache::countTables(db_->sqlite)));
 }
 
 bool Database::isCached(std::string cacheKey) {
@@ -122,6 +138,7 @@ void Database::unsafeResetDatabase(const std::string &schema, int schemaVersion)
         rollback();
         throw;
     }
+    fitStatementCacheToSchemaLocked();
 }
 
 void Database::unsafeResetDatabase(jsi::String &schema, int schemaVersion) {
@@ -143,6 +160,7 @@ void Database::migrate(const std::string &migrationSql, int fromVersion, int toV
         rollback();
         throw;
     }
+    fitStatementCacheToSchemaLocked();
 }
 
 void Database::migrate(jsi::String &migrationSql, int fromVersion, int toVersion) {

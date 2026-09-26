@@ -65,6 +65,7 @@ jobs:
           key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
       - run: yarn install --immutable
       - run: yarn test
+      - run: yarn test:native-unit
       - run: yarn test:metro-transform
       - run: node scripts/published-package.mjs --self-test
       - run: node scripts/next-version.mjs --self-test
