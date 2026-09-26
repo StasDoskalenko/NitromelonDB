@@ -34,7 +34,7 @@ function parseArgs(argv) {
       return { label: entry.slice(0, at).trim(), app: entry.slice(at + 1).trim() }
     }),
     card,
-    size: Number(args.size ?? (card === 'incr' ? 2000 : 20000)),
+    size: Number(args.size ?? { sync: 20000, incr: 2000, real: 300 }[card]),
     device: args.device,
     outDir: args['out-dir'],
     rounds: Number(args.rounds ?? 6),

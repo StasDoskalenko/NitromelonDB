@@ -11,7 +11,9 @@
 //   node scripts/run-sync-trials.mjs --platform android --device emulator-5554 --card incr \
 //     --apps '…' --sizes 2000 --runs 10 --out incremental.jsonl
 //
-// --sizes picks the card's size chip: records for Sync, records per table for Incremental sync.
+// --sizes picks the card's size chip: records for Sync, records per table for Incremental sync,
+// pulls for Realistic sync (--card real; needs mock-server/server.mjs running, and on Android
+// `adb reverse tcp:8787 tcp:8787`).
 //
 // With several apps, runs are interleaved: every round runs each app once per size, in a random
 // order, so drift over the session (thermals, simulator background work) hits all apps equally
@@ -46,8 +48,8 @@ function parseArgs(argv) {
     throw new Error('--platform must be ios or android')
   }
   const card = args.card ?? 'sync'
-  if (!['sync', 'incr'].includes(card)) {
-    throw new Error('--card must be sync or incr')
+  if (!['sync', 'incr', 'real'].includes(card)) {
+    throw new Error('--card must be sync, incr or real')
   }
   for (const required of ['device', 'out']) {
     if (!args[required]) {
@@ -60,7 +62,7 @@ function parseArgs(argv) {
     card,
     device: args.device,
     out: args.out,
-    sizes: (args.sizes ?? (card === 'incr' ? '2000' : '20000')).split(',').map(Number),
+    sizes: (args.sizes ?? { sync: '20000', incr: '2000', real: '300' }[card]).split(',').map(Number),
     runs: Number(args.runs ?? 5),
   }
 }
@@ -226,7 +228,7 @@ function deleteSyncDatabases(platform, device, app) {
   }).trim()
   const documents = path.join(container, 'Documents')
   for (const file of existsSync(documents) ? readdirSync(documents) : []) {
-    if (/-(sync|incr)\.db(-wal|-shm|-journal)?$/.test(file)) {
+    if (/(-(sync|incr)|^realistic-\d+)\.db(-wal|-shm|-journal)?$/.test(file)) {
       rmSync(path.join(documents, file))
     }
   }
@@ -287,6 +289,15 @@ async function main() {
         const { result, rssPeakBytes, rssEndBytes } = outcome
         const row = { label, app, run, platform: options.platform, ...result, rssPeakBytes, rssEndBytes }
         appendFileSync(options.out, `${JSON.stringify(row)}\n`)
+        if (result.kind === 'realistic') {
+          console.log(
+            `${label} ${size} pulls #${run}: total ${Math.round(result.totalMs)}ms, ` +
+              `library ${Math.round(result.libraryMs)}ms, network ${Math.round(result.networkMs)}ms, ` +
+              `parse ${Math.round(result.parseMs)}ms, open ${Math.round(result.openMs)}ms, ` +
+              `rss peak ${Math.round(rssPeakBytes / 1048576)}MB`,
+          )
+          continue
+        }
         if (result.kind === 'incremental') {
           console.log(
             `${label} ${size}/table #${run}: pulls ${Math.round(result.plain.totalMs)}ms ` +

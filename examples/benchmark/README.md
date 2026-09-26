@@ -79,6 +79,36 @@ once more (`setImmediate`), so re-queries it triggers count towards it. Below th
 measures the pieces a sync is made of: an empty query, an empty `read()` / `write()` / `batch()`,
 `getDeletedRecords()`, and one local storage read and write.
 
+### Realistic sync
+
+The "Realistic sync" card (`shared/realisticSyncBenchmark.ts`) is an initial sync of a fresh
+install from a local mock server, the way a production app runs one: `fetch()` a page,
+`JSON.parse` it, `synchronize()`, repeat until the server says it's done. It uses 80 tables with
+4–23 columns each, and every response lists all of them, including the tables with no changes
+(the shape reported in discussion #109). The server's changelog (`mock-server/server.mjs`) has:
+
+- 10 pulls of initial data
+- then mostly tiny pulls: ~35% empty, the rest touching 1–4 tables with 1–30 created, updated or
+  deleted records each
+- every 25th pull, one table dump of 500 records
+
+The chips pick 100, 300 or 1,000 pulls.
+
+The result splits wall time into **library** (inside `synchronize()`, minus network and parse),
+**network**, **parse** and **open** (creating the fresh database), so a difference can be pinned
+on the library or ruled out.
+
+```sh
+cd examples/benchmark
+node mock-server/server.mjs            # port 8787
+adb reverse tcp:8787 tcp:8787          # Android; the iOS simulator reaches localhost directly
+```
+
+Table shapes live in `mock-server/shape.mjs`. After changing them, run
+`node mock-server/shape.mjs` to regenerate `shared/realisticSyncShape.json`, which the apps
+import, then rebuild the apps. The apps allow cleartext HTTP
+(`shared/plugins/withCleartextLocalhost.js`) because Android Release builds block it by default.
+
 #### Scripted runs
 
 To collect many runs and compare them, install a Release build of each app on a simulator
@@ -96,7 +126,8 @@ node scripts/summarize-sync.mjs results.jsonl
 On Android, install Release APKs (`cd android && ./gradlew assembleRelease`, then
 `adb install -r app/build/outputs/apk/release/app-release.apk`) and pass `--platform android` with
 the adb serial as `--device`. `--card incr` drives the Incremental sync card instead, with
-`--sizes` as records per table:
+`--sizes` as records per table, and `--card real` the Realistic sync card, with `--sizes` as pull
+counts:
 
 ```sh
 node scripts/run-sync-trials.mjs --platform android --device emulator-5554 --card incr \

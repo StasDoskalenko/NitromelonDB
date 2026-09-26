@@ -29,7 +29,8 @@
           }
         }
       ],
-      "./plugins/withWatermelonJSIAndroid"
+      "./plugins/withWatermelonJSIAndroid",
+      "../shared/plugins/withCleartextLocalhost"
     ],
     "ios": {
       "supportsTablet": true,

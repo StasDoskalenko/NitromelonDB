@@ -105,6 +105,19 @@ const mb1 = (value) => `${(value / 1048576).toFixed(1)}`
 
 const incremental = rows.some((r) => r.kind === 'incremental')
 const flashlight = rows.some((r) => typeof r.cpuSeconds === 'number')
+const realistic = rows.some((r) => r.kind === 'realistic')
+
+const realisticMetrics = [
+  ['Total ms', (r) => r.totalMs, ms],
+  ['Library ms', (r) => r.libraryMs, ms],
+  ['Network ms', (r) => r.networkMs, ms],
+  ['Parse ms', (r) => r.parseMs, ms],
+  ['Open ms', (r) => r.openMs, ms],
+  ['Library/empty pull ms', (r) => r.libraryEmptyMedianMs, ms1],
+  ['Library/1–99 pull ms', (r) => r.librarySmallMedianMs, ms1],
+  ['GC ms', (r) => r.gcMs, ms],
+  ['RSS peak MB', (r) => r.rssPeakBytes, mb],
+]
 
 const syncMetrics = [
   ['Initial ms', (r) => r.initialPullMs, ms],
@@ -156,21 +169,26 @@ const flashlightMetrics = [
   ['Iteration s', (r) => r.durationMs / 1000, ms1],
 ]
 
-const metrics = flashlight ? flashlightMetrics : incremental ? incrementalMetrics : syncMetrics
-const compared = flashlight
-  ? flashlightMetrics.map(([name]) => name)
-  : incremental
-    ? incrementalMetrics.map(([name]) => name)
-    : syncCompared
-const sizeOf = (r) => (flashlight ? r.size : incremental ? r.seedPerTable : r.records)
+const metrics = flashlight
+  ? flashlightMetrics
+  : realistic
+    ? realisticMetrics
+    : incremental
+      ? incrementalMetrics
+      : syncMetrics
+const compared = metrics === syncMetrics ? syncCompared : metrics.map(([name]) => name)
+const sizeOf = (r) =>
+  flashlight ? r.size : realistic ? r.pulls : incremental ? r.seedPerTable : r.records
 
 const labels = [...new Set(rows.map((r) => r.label))]
 const sizes = [...new Set(rows.map(sizeOf))].sort((a, b) => a - b)
 
 for (const size of sizes) {
   const unit = flashlight
-    ? `(${rows[0].card === 'incr' ? 'Incremental sync, records per table' : 'Sync, records'})`
-    : incremental
+    ? `(${{ incr: 'Incremental sync, records per table', real: 'Realistic sync, pulls' }[rows[0].card] ?? 'Sync, records'})`
+    : realistic
+      ? 'pulls (Realistic sync)'
+      : incremental
       ? 'records per table'
       : 'records'
   console.log(`\n### ${size.toLocaleString('en-US')} ${unit}\n`)

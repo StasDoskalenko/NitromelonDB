@@ -6,6 +6,8 @@ import { SyncBenchmarkCard } from '../shared/SyncBenchmarkCard'
 import { runSync } from './syncBenchmark'
 import { IncrementalSyncCard } from '../shared/IncrementalSyncCard'
 import { runIncrementalSync } from './incrementalSyncBenchmark'
+import { RealisticSyncCard } from '../shared/RealisticSyncCard'
+import { runRealisticSync } from './realisticSyncBenchmark'
 
 const theme = {
   background: '#09090b',
@@ -39,6 +41,7 @@ export default function App() {
     >
       <SyncBenchmarkCard theme={theme} run={runSync} />
       <IncrementalSyncCard theme={theme} run={runIncrementalSync} />
+      <RealisticSyncCard theme={theme} run={runRealisticSync} />
       <MassDeleteBenchmarkCard theme={theme} />
     </BenchmarkScreen>
   )
