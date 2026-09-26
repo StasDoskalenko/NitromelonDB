@@ -65,6 +65,50 @@ Under the table, the card shows the latest run's JS heap peak and GC count/time.
 Hermes' `HermesInternal.getInstrumentedStats()`, so no native code is involved. Heap size is
 reported in whole heap segments, so small differences don't show up.
 
+### Incremental sync
+
+The "Incremental sync" card (`shared/incrementalSyncBenchmark.ts`) covers what the Sync card
+doesn't: many small `synchronize()` calls into a database that already has data. It seeds 12
+tables, then runs 67 calls in the size mix reported in discussion #109: 35 empty, 21 with 1–99
+records, 5 with 100–999 and 6 with 1,000+. Every call pulls all 12 tables and has a
+`pushChanges`, so it pays the fixed per-sync cost a real app does (reading and writing the
+last-pulled timestamp, looking for local changes in each table). The sequence runs twice: with no
+observers, then with 3 observed queries per table (a simple `where`, a sorted + limited list and a
+count). Each call is timed until it resolves (sync only), and again until the JS queue has drained
+once more (`setImmediate`), so re-queries it triggers count towards it. Below that, the card
+measures the pieces a sync is made of: an empty query, an empty `read()` / `write()` / `batch()`,
+`getDeletedRecords()`, and one local storage read and write.
+
+### Realistic sync
+
+The "Realistic sync" card (`shared/realisticSyncBenchmark.ts`) is an initial sync of a fresh
+install from a local mock server, the way a production app runs one: `fetch()` a page,
+`JSON.parse` it, `synchronize()`, repeat until the server says it's done. It uses 80 tables with
+4–23 columns each, and every response lists all of them, including the tables with no changes
+(the shape reported in discussion #109). The server's changelog (`mock-server/server.mjs`) has:
+
+- 10 pulls of initial data
+- then mostly tiny pulls: ~35% empty, the rest touching 1–4 tables with 1–30 created, updated or
+  deleted records each
+- every 25th pull, one table dump of 500 records
+
+The chips pick 100, 300 or 1,000 pulls.
+
+The result splits wall time into **library** (inside `synchronize()`, minus network and parse),
+**network**, **parse** and **open** (creating the fresh database), so a difference can be pinned
+on the library or ruled out.
+
+```sh
+cd examples/benchmark
+node mock-server/server.mjs            # port 8787
+adb reverse tcp:8787 tcp:8787          # Android; the iOS simulator reaches localhost directly
+```
+
+Table shapes live in `mock-server/shape.mjs`. After changing them, run
+`node mock-server/shape.mjs` to regenerate `shared/realisticSyncShape.json`, which the apps
+import, then rebuild the apps. The apps allow cleartext HTTP
+(`shared/plugins/withCleartextLocalhost.js`) because Android Release builds block it by default.
+
 #### Scripted runs
 
 To collect many runs and compare them, install a Release build of each app on a simulator
@@ -79,11 +123,53 @@ node scripts/run-sync-trials.mjs --app com.watermelondb.benchmark --label Waterm
 node scripts/summarize-sync.mjs results.jsonl
 ```
 
+On Android, install Release APKs (`cd android && ./gradlew assembleRelease`, then
+`adb install -r app/build/outputs/apk/release/app-release.apk`) and pass `--platform android` with
+the adb serial as `--device`. `--card incr` drives the Incremental sync card instead, with
+`--sizes` as records per table, and `--card real` the Realistic sync card, with `--sizes` as pull
+counts:
+
+```sh
+node scripts/run-sync-trials.mjs --platform android --device emulator-5554 --card incr \
+  --apps 'NitromelonDB=com.nitromelondb.benchmark;WatermelonDB=com.watermelondb.benchmark' \
+  --sizes 2000,10000 --runs 15 --out incremental.jsonl
+node scripts/summarize-sync.mjs incremental.jsonl --baseline WatermelonDB
+```
+
+Android Release builds can't be `run-as`, so the runner clears the app's data (`pm clear`) before
+each run instead of deleting just the database file, and reads RSS from `/proc/<pid>/status`.
+
 Each run relaunches the app, drives the card with [Maestro](https://maestro.dev), and appends one
 JSON line to `--out`. The runner also samples the app process's RSS from the host every 100ms,
 which works because a simulator app is a normal macOS process. It approximates native memory use,
 but it isn't the `phys_footprint` iOS uses for memory limits on a device. The summary prints the
 median of each column, with min–max underneath.
+
+#### Flashlight (Android)
+
+`scripts/run-flashlight.mjs` drives the same cards under [Flashlight](https://github.com/bamlab/flashlight),
+which samples CPU per thread, RAM and FPS from the device. Flashlight runs one app's iterations
+back to back, so the script interleaves apps in rounds (`--per-round` iterations of each app per
+round, in random order) and clears app data before every iteration:
+
+```sh
+node scripts/run-flashlight.mjs --device emulator-5554 --card incr --size 2000 \
+  --apps 'NitromelonDB=com.nitromelondb.benchmark;WatermelonDB=com.watermelondb.benchmark' \
+  --rounds 8 --per-round 4 --out-dir flashlight-incr
+node scripts/summarize-sync.mjs flashlight-incr/summary.jsonl --baseline WatermelonDB
+flashlight report flashlight-incr/nitromelondb.json flashlight-incr/watermelondb.json
+```
+
+The summary's main number is **CPU time**: CPU seconds used during the iteration, summed over
+threads. Unlike mean CPU %, it doesn't change with how long the flow spends launching the app or
+waiting around the benchmark itself.
+
+### Timers on Android
+
+React Native on Android runs `setTimeout` callbacks on the next display frame, so even
+`setTimeout(fn, 0)` waits up to ~16ms. The Incremental sync card reports that latency
+(`timerLatencyMs`) and times each pull without it. When timing small operations in your own app,
+don't put a `setTimeout` inside the measured span.
 
 ## WatermelonDB
 
@@ -96,7 +182,7 @@ npx expo run:ios
 npx expo run:android
 ```
 
-Uses `@nozbe/watermelondb@0.28.0` (the last upstream line this fork started from) with the JSI SQLite adapter. iOS needs the vendored `@nozbe/simdjson` pod (`expo-build-properties` `extraPods`); autolinking that package is disabled so CocoaPods does not see two simdjson sources.
+Uses `@nozbe/watermelondb@0.28.0` (the last upstream line this fork started from) with the JSI SQLite adapter. iOS needs the vendored `@nozbe/simdjson` pod (`expo-build-properties` `extraPods`); autolinking that package is disabled so CocoaPods does not see two simdjson sources. On Android the JSI adapter isn't autolinked; `plugins/withWatermelonJSIAndroid.js` adds the `watermelondb-jsi` Gradle project and registers its package on prebuild. Without it, `jsi: true` silently falls back to the bridge adapter. The engine line at the top of the screen shows which one runs.
 
 ## Comparing results
 
