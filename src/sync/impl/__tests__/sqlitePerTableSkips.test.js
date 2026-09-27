@@ -19,6 +19,12 @@ const changeSet = (partial = {}) =>
 // reports (tablesWithLocalChanges), and doesn't read tables whose remote changeset is empty. These
 // tests run the real Node SQLite adapter and compare against the per-table path.
 
+// Database files go in .tmp, like the other Node SQLite tests. Create it here instead of relying on
+// another test file having run first.
+beforeAll(() => {
+  require('fs').mkdirSync('.tmp', { recursive: true })
+})
+
 let counter = 0
 function makeSqliteDatabase() {
   counter += 1
