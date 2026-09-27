@@ -106,6 +106,25 @@ const mb1 = (value) => `${(value / 1048576).toFixed(1)}`
 const incremental = rows.some((r) => r.kind === 'incremental')
 const flashlight = rows.some((r) => typeof r.cpuSeconds === 'number')
 const realistic = rows.some((r) => r.kind === 'realistic')
+const stress = rows.some((r) => r.kind === 'stress')
+const mass = rows.some((r) => r.kind === 'mass')
+
+const stressMetrics = [
+  ['Score (ops/s)', (r) => r.score, ms],
+  ['Total ms', (r) => r.totalMs, ms],
+  ['Write ms', (r) => r.writeMs, ms],
+  ['Query ms', (r) => r.queryMs, ms],
+  ['Delete ms', (r) => r.deleteMs, ms],
+  ['Fastest round ms', (r) => r.fastestRoundMs, ms],
+  ['Slowest round ms', (r) => r.slowestRoundMs, ms],
+  ['RSS peak MB', (r) => r.rssPeakBytes, mb],
+]
+// NitromelonDB's card times destroyAllPermanently() both ways (oldMs: one transaction per record,
+// newMs: destroyMatching()); WatermelonDB's reference card only has the one way (ms)
+const massMetrics = [
+  ['Delete ms', (r) => r.newMs ?? r.ms, ms1],
+  ['Old path ms', (r) => r.oldMs, ms1],
+]
 
 const realisticMetrics = [
   ['Total ms', (r) => r.totalMs, ms],
@@ -171,14 +190,26 @@ const flashlightMetrics = [
 
 const metrics = flashlight
   ? flashlightMetrics
-  : realistic
+  : stress
+    ? stressMetrics
+    : mass
+      ? massMetrics
+      : realistic
     ? realisticMetrics
     : incremental
       ? incrementalMetrics
       : syncMetrics
 const compared = metrics === syncMetrics ? syncCompared : metrics.map(([name]) => name)
 const sizeOf = (r) =>
-  flashlight ? r.size : realistic ? r.pulls : incremental ? r.seedPerTable : r.records
+  flashlight
+    ? r.size
+    : mass
+      ? r.count
+      : realistic
+        ? r.pulls
+        : incremental
+          ? r.seedPerTable
+          : r.records
 
 const labels = [...new Set(rows.map((r) => r.label))]
 const sizes = [...new Set(rows.map(sizeOf))].sort((a, b) => a - b)
@@ -186,11 +217,15 @@ const sizes = [...new Set(rows.map(sizeOf))].sort((a, b) => a - b)
 for (const size of sizes) {
   const unit = flashlight
     ? `(${{ incr: 'Incremental sync, records per table', real: 'Realistic sync, pulls' }[rows[0].card] ?? 'Sync, records'})`
-    : realistic
-      ? 'pulls (Realistic sync)'
-      : incremental
-      ? 'records per table'
-      : 'records'
+    : stress
+      ? 'records per round (stress test)'
+      : mass
+        ? 'records (mass delete)'
+        : realistic
+          ? 'pulls (Realistic sync)'
+          : incremental
+            ? 'records per table'
+            : 'records'
   console.log(`\n### ${size.toLocaleString('en-US')} ${unit}\n`)
   console.log(`| | runs | ${metrics.map(([name]) => name).join(' | ')} |`)
   console.log(`|---|---|${metrics.map(() => '---').join('|')}|`)

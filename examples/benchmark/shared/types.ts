@@ -48,7 +48,8 @@ export type BenchmarkSummary = {
   score: number
   fastestRoundMs: number
   slowestRoundMs: number
-  rounds: RoundResult[]
+  // Per-round detail. (Was a second `rounds` key, which overwrote the round count above.)
+  roundResults: RoundResult[]
 }
 
 export type BenchmarkAdapter = {
