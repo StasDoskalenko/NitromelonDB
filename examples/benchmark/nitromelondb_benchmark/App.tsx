@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { BenchmarkScreen } from '../shared/BenchmarkScreen'
-import { createNitromelonAdapter } from './database'
-import { MassDeleteBenchmarkCard } from './MassDeleteBenchmarkCard'
+import { CompetingWorkBenchmarkCard } from '../shared/CompetingWorkBenchmarkCard'
+import { Home, type BenchmarkTile } from '../shared/Home'
+import { Screen } from '../shared/Screen'
 import { SyncBenchmarkCard } from '../shared/SyncBenchmarkCard'
+import { createNitromelonAdapter } from './database'
+import { runCompeting } from './competingWorkBenchmark'
+import { MassDeleteBenchmarkCard } from './MassDeleteBenchmarkCard'
 import { runSync } from './syncBenchmark'
 
 const theme = {
@@ -15,6 +19,31 @@ const theme = {
   danger: '#f87171',
 }
 
+const TILES: BenchmarkTile[] = [
+  {
+    key: 'main',
+    label: 'Write / query / delete',
+    description: '1,000,000 writes, queries, and permanent deletes, repeated 20 times.',
+  },
+  {
+    key: 'sync',
+    label: 'Sync',
+    description: 'Real synchronize() against a 12-column table: create, update, fetch, push.',
+  },
+  {
+    key: 'competing',
+    label: 'Competing writers/readers',
+    description: 'Several uncoordinated writer/reader callers at once -- counts queue warnings.',
+  },
+  {
+    key: 'massDelete',
+    label: 'Mass delete: old vs new',
+    description: 'destroyAllPermanently() (old, per-record) vs destroyMatching() (new, one call).',
+  },
+]
+
+type ScreenKey = (typeof TILES)[number]['key'] | null
+
 export default function App() {
   const [session] = useState(() => {
     try {
@@ -26,17 +55,52 @@ export default function App() {
       }
     }
   })
+  const [screen, setScreen] = useState<ScreenKey>(null)
+  const home = () => setScreen(null)
+
+  if (screen === 'main') {
+    return (
+      <BenchmarkScreen
+        title="NitromelonDB"
+        subtitle="Push the Nitro SQLite adapter through 1,000,000 writes, queries, and removals."
+        adapter={session.ok ? session.adapter : null}
+        setupError={session.ok ? null : session.message}
+        theme={theme}
+        onBack={home}
+      />
+    )
+  }
+  if (screen === 'sync') {
+    return (
+      <Screen title="Sync" theme={theme} onBack={home}>
+        <SyncBenchmarkCard theme={theme} run={runSync} />
+      </Screen>
+    )
+  }
+  if (screen === 'competing') {
+    return (
+      <Screen title="Competing writers/readers" theme={theme} onBack={home}>
+        <CompetingWorkBenchmarkCard theme={theme} run={runCompeting} />
+      </Screen>
+    )
+  }
+  if (screen === 'massDelete') {
+    return (
+      <Screen title="Mass delete: old vs new" theme={theme} onBack={home}>
+        <MassDeleteBenchmarkCard theme={theme} />
+      </Screen>
+    )
+  }
 
   return (
-    <BenchmarkScreen
+    <Home
       title="NitromelonDB"
       subtitle="Push the Nitro SQLite adapter through 1,000,000 writes, queries, and removals."
-      adapter={session.ok ? session.adapter : null}
+      engine={session.ok ? session.adapter.engine : null}
       setupError={session.ok ? null : session.message}
       theme={theme}
-    >
-      <SyncBenchmarkCard theme={theme} run={runSync} />
-      <MassDeleteBenchmarkCard theme={theme} />
-    </BenchmarkScreen>
+      tiles={TILES}
+      onSelect={(key) => setScreen(key as ScreenKey)}
+    />
   )
 }

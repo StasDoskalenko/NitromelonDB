@@ -56,6 +56,8 @@ type WorkQueueItem = {
   resolve: (value: unknown) => void
   reject: (reason: unknown) => void
   description?: string | undefined
+  // dev-only: where an undescribed, unnamed item was enqueued from -- see describeWork()
+  _stack?: string | undefined
 }
 
 class ReaderInterfaceImpl implements ReaderInterface {
@@ -102,6 +104,39 @@ class WriterInterfaceImpl extends ReaderInterfaceImpl implements WriterInterface
 
 const actionInterface = (queue: WorkQueue, item: WorkQueueItem) =>
   item.isWriter ? new WriterInterfaceImpl(queue, item) : new ReaderInterfaceImpl(queue, item)
+
+// Handoff between queued items still goes through a macrotask (not a microtask) -- on purpose,
+// so a writer/reader's own continuation code gets a full turn before the next queued item starts
+// (see the 'queues writers/readers' test). But `setTimeout(fn, 0)` on React Native is a native
+// timer round-trip (~1 frame); `setImmediate` (available on Hermes/Node) is a plain macrotask
+// with none of that native cost, so N small queued writes no longer cost N frames of dead time
+// waiting for their turn -- which is exactly what used to build the queue that triggers the
+// warning below. Falls back to setTimeout on environments without setImmediate (web).
+// Checked on every call, not resolved once at module load -- resolving it once would permanently
+// capture the *original* global (e.g. Node's real setImmediate), even under fake timers installed
+// later (`jest.useFakeTimers()` swaps the global, which a stale reference never sees).
+function scheduleNext(fn: () => void): void {
+  if (typeof setImmediate === 'function') {
+    setImmediate(fn)
+  } else {
+    setTimeout(fn, 0)
+  }
+}
+
+// How long a running writer/reader can hold the front of the queue, with something else
+// waiting, before we warn it might be stuck (dev only).
+const STUCK_WARNING_MS = 1500
+
+// Best-effort human-readable name for a queue item, for warnings/logs. Most items have an
+// explicit `description` (sync's internal writers, `@writer`/`@reader`-decorated methods). A
+// plain `database.write(async () => {...})` with no description has neither -- fall back to the
+// function's own name (a named function expression at least reads better than "unnamed"), and
+// as a last resort say where it was enqueued from, so "(unnamed)" spam is actually actionable.
+function describeWork(item: WorkQueueItem): string {
+  if (item.description) return item.description
+  const { name } = item.work
+  return name ? `${name} (unnamed ${item.isWriter ? 'writer' : 'reader'})` : 'unnamed'
+}
 
 export default class WorkQueue {
   _db: Database
@@ -207,28 +242,10 @@ export default class WorkQueue {
         description,
       }
 
-      if (process.env.NODE_ENV !== 'production' && this._queue.length) {
-        setTimeout(() => {
-          const queue = this._queue
-          const current = queue[0]
-          if (current === workItem || !queue.includes(workItem)) {
-            return
-          }
-
-          const enqueuedKind = isWriter ? 'writer' : 'reader'
-          const currentKind = current.isWriter ? 'writer' : 'reader'
-          logger.warn(
-            `The ${enqueuedKind} you're trying to run (${
-              description || 'unnamed'
-            }) can't be performed yet, because there are ${
-              queue.length
-            } other readers/writers in the queue.\n\nCurrent ${currentKind}: ${
-              current.description || 'unnamed'
-            }.\n\nIf everything is working fine, you can safely ignore this message (queueing is working as expected). But if your readers/writers are not running, it's because the current ${currentKind} is stuck.\nRemember that if you're calling a reader/writer from another reader/writer, you must use callReader()/callWriter(). See docs for more details.`,
-          )
-          logger.log(`Enqueued ${enqueuedKind}:`, work)
-          logger.log(`Running ${currentKind}:`, current.work)
-        }, 1500)
+      if (process.env.NODE_ENV !== 'production' && !description && !work.name) {
+        // Only pay for a stack capture when we'd otherwise have nothing to call this item by --
+        // named/described items skip this.
+        workItem._stack = new Error().stack
       }
 
       this._queue.push(workItem)
@@ -258,6 +275,33 @@ export default class WorkQueue {
     const workItem = this._queue[0]
     const { work, resolve, reject, isWriter } = workItem
 
+    // Dev-only stuck detector: one watchdog for the item that's actually running, not one per
+    // waiter -- a long-but-progressing writer/reader now warns at most once (about itself, by
+    // name), instead of once per thing that piled up behind it in the meantime.
+    let watchdog: ReturnType<typeof setTimeout> | undefined
+    if (process.env.NODE_ENV !== 'production') {
+      watchdog = setTimeout(() => {
+        const waitingCount = this._queue.length - 1
+        if (waitingCount <= 0) {
+          return // queue drained (or moved on) before the watchdog fired -- nothing to warn about
+        }
+        const kind = isWriter ? 'writer' : 'reader'
+        const next = this._queue[1]
+        const nextKind = next.isWriter ? 'writer' : 'reader'
+        logger.warn(
+          `The ${kind} "${describeWork(workItem)}" has been running for ${STUCK_WARNING_MS}ms with ${waitingCount} other reader(s)/writer(s) waiting (next up: ${nextKind} "${describeWork(next)}").\n\nIf it's just doing legitimately slow work, you can ignore this -- queueing is working as expected. But if nothing is progressing, the ${kind} above is stuck. A common cause: calling a reader/writer from inside another reader/writer without callReader()/callWriter() (see experimentalDetectNestedWriters). See docs for more details.`,
+        )
+        if (workItem._stack) {
+          logger.log(`"${describeWork(workItem)}" was enqueued from:`, workItem._stack)
+        }
+        logger.log(`Running ${kind}:`, work)
+        logger.log(
+          `Waiting:`,
+          this._queue.slice(1).map((item) => item.work),
+        )
+      }, STUCK_WARNING_MS)
+    }
+
     try {
       this._inWorkTurn = this._db.experimentalDetectNestedWriters
       let workPromise: Promise<unknown>
@@ -274,21 +318,23 @@ export default class WorkQueue {
             isWriter ? 'write' : 'read'
           }() or a method marked as @${
             isWriter ? 'writer' : 'reader'
-          } must be asynchronous (marked as 'async' or always returning a promise) (in: ${
-            workItem.description || 'unnamed'
-          })`,
+          } must be asynchronous (marked as 'async' or always returning a promise) (in: ${describeWork(
+            workItem,
+          )})`,
         )
       }
 
       resolve(await workPromise)
     } catch (error) {
       reject(error)
+    } finally {
+      if (watchdog) clearTimeout(watchdog)
     }
 
     this._queue.shift()
 
     if (this._queue.length) {
-      setTimeout(() => this._executeNext(), 0)
+      scheduleNext(() => this._executeNext())
     }
   }
 

@@ -742,6 +742,81 @@ describe('Database', () => {
       })
       expect(called).toBe(0)
     })
+    describe('stuck writer/reader detection (dev only)', () => {
+      afterEach(() => {
+        jest.useRealTimers()
+      })
+
+      it('warns once (not once per waiter) about the writer actually running, by name', async () => {
+        // mockDatabase() itself may arm real, unrelated timers (e.g. a LokiJS autosave
+        // interval) -- construct it under real timers, and only fake them afterwards, so
+        // jest's fake-timer bookkeeping only ever sees the watchdog timers this test cares about
+        const { database } = mockDatabase()
+        jest.useFakeTimers()
+        jest.spyOn(logger, 'warn').mockImplementation(noop)
+        jest.spyOn(logger, 'log').mockImplementation(noop)
+
+        let resolveStuck
+        const stuckPromise = database.write(
+          () => new Promise((resolve) => (resolveStuck = resolve)),
+          'the stuck one',
+        )
+        // five things pile up behind it while it's stuck
+        const waiters = [1, 2, 3, 4, 5].map(() => database.read(async () => 1))
+
+        await jest.advanceTimersByTimeAsync(1500)
+
+        expect(logger.warn).toHaveBeenCalledTimes(1)
+        expect(logger.warn.mock.calls[0][0]).toContain('the stuck one')
+        expect(logger.warn.mock.calls[0][0]).toContain('5 other reader(s)/writer(s) waiting')
+
+        resolveStuck()
+        await stuckPromise
+        // the 5 queued readers still need their own (fake) macrotask turn to actually run --
+        // advance by a bounded amount (not jest.runAllTimersAsync(), which aborts on the
+        // unrelated, always-recurring LokiJS autosave interval mockDatabase() may have armed)
+        await jest.advanceTimersByTimeAsync(100)
+        await Promise.all(waiters)
+      })
+
+      it('does not warn when the running writer finishes before the threshold', async () => {
+        const { database } = mockDatabase()
+        jest.useFakeTimers()
+        jest.spyOn(logger, 'warn').mockImplementation(noop)
+
+        const first = database.write(delayPromise, 'quick one')
+        database.read(async () => 1) // queues behind it, but first finishes quickly
+
+        await jest.advanceTimersByTimeAsync(100) // delayPromise's own 100ms timeout
+        await first
+        await jest.advanceTimersByTimeAsync(1500) // long past the watchdog threshold
+
+        expect(logger.warn).not.toHaveBeenCalled()
+      })
+
+      it('falls back to the work function name, then to the enqueue call site, when unnamed', async () => {
+        const { database } = mockDatabase()
+        jest.useFakeTimers()
+        jest.spyOn(logger, 'warn').mockImplementation(noop)
+        jest.spyOn(logger, 'log').mockImplementation(noop)
+
+        let resolveStuck
+        async function myNamedWriter() {
+          return new Promise((resolve) => (resolveStuck = resolve))
+        }
+        const stuckPromise = database.write(myNamedWriter) // no description
+        const waiter = database.read(async () => 1)
+
+        await jest.advanceTimersByTimeAsync(1500)
+
+        expect(logger.warn.mock.calls[0][0]).toContain('myNamedWriter')
+
+        resolveStuck()
+        await stuckPromise
+        await jest.advanceTimersByTimeAsync(100)
+        await waiter
+      })
+    })
     it('experimentalDetectNestedWriters throws instead of deadlocking on nested writers', async () => {
       const { database } = mockDatabase({ experimentalDetectNestedWriters: true })
 

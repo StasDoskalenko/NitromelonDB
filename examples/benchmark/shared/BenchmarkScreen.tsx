@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar'
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   Pressable,
   ScrollView,
@@ -33,10 +33,9 @@ type Props = {
   adapter: BenchmarkAdapter | null
   setupError: string | null
   theme: BenchmarkTheme
-  // Rendered below the main write/query/delete comparison, for engine-specific extra
-  // benchmarks (e.g. NitromelonDB's mass-delete-implementation comparison) that don't belong
-  // in this shared, engine-agnostic screen.
-  children?: ReactNode
+  // Present when this screen was opened from the Home tile grid (see Home.tsx) rather than
+  // being the app's only screen -- renders a back button at the top when given.
+  onBack?: () => void
 }
 
 const idleProgress = (workload: BenchmarkWorkload): BenchmarkProgress => ({
@@ -50,7 +49,7 @@ const idleProgress = (workload: BenchmarkWorkload): BenchmarkProgress => ({
   roundsCompleted: [],
 })
 
-export function BenchmarkScreen({ title, subtitle, adapter, setupError, theme, children }: Props) {
+export function BenchmarkScreen({ title, subtitle, adapter, setupError, theme, onBack }: Props) {
   const [workload, setWorkload] = useState<BenchmarkWorkload>(FULL_WORKLOAD)
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState<BenchmarkProgress>(() => idleProgress(FULL_WORKLOAD))
@@ -91,6 +90,11 @@ export function BenchmarkScreen({ title, subtitle, adapter, setupError, theme, c
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {onBack ? (
+          <Pressable testID="screen-back" style={styles.backButton} onPress={onBack}>
+            <Text style={styles.backLabel}>‹ Back</Text>
+          </Pressable>
+        ) : null}
         <Text style={styles.kicker}>DATABASE STRESS TEST</Text>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.subtitle}>{subtitle}</Text>
@@ -189,8 +193,6 @@ export function BenchmarkScreen({ title, subtitle, adapter, setupError, theme, c
             ))}
           </View>
         ) : null}
-
-        {children}
       </ScrollView>
       <StatusBar style="light" />
     </View>
@@ -283,6 +285,15 @@ function createStyles(theme: BenchmarkTheme) {
       paddingTop: 64,
       paddingHorizontal: 20,
       paddingBottom: 40,
+    },
+    backButton: {
+      alignSelf: 'flex-start',
+      marginBottom: 12,
+    },
+    backLabel: {
+      color: theme.accent,
+      fontSize: 15,
+      fontWeight: '700',
     },
     kicker: {
       color: theme.accent,
