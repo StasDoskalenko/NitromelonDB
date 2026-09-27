@@ -99,11 +99,14 @@ function flowFor(app, card, size) {
 - tapOn:
     text: "Cancel"
     optional: true
+# Optional: on iOS, Maestro never counts the bottom of the last card (mass delete) as visible,
+# even once it's scrolled all the way down and on screen. tapOn below only needs it on screen.
 - scrollUntilVisible:
     element:
       id: "${card}-run"
     direction: DOWN
-    timeout: 20000
+    timeout: 12000
+    optional: true
 - tapOn:
     id: "${card}-size-${size}"
 - tapOn:
