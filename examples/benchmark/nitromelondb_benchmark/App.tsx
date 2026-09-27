@@ -2,11 +2,15 @@ import { useState } from 'react'
 import { BenchmarkScreen } from '../shared/BenchmarkScreen'
 import { CompetingWorkBenchmarkCard } from '../shared/CompetingWorkBenchmarkCard'
 import { Home, type BenchmarkTile } from '../shared/Home'
+import { IncrementalSyncCard } from '../shared/IncrementalSyncCard'
+import { RealisticSyncCard } from '../shared/RealisticSyncCard'
 import { Screen } from '../shared/Screen'
 import { SyncBenchmarkCard } from '../shared/SyncBenchmarkCard'
 import { createNitromelonAdapter } from './database'
 import { runCompeting } from './competingWorkBenchmark'
+import { runIncrementalSync } from './incrementalSyncBenchmark'
 import { MassDeleteBenchmarkCard } from './MassDeleteBenchmarkCard'
+import { runRealisticSync } from './realisticSyncBenchmark'
 import { runSync } from './syncBenchmark'
 
 const theme = {
@@ -29,6 +33,16 @@ const TILES: BenchmarkTile[] = [
     key: 'sync',
     label: 'Sync',
     description: 'Real synchronize() against a 12-column table: create, update, fetch, push.',
+  },
+  {
+    key: 'incrementalSync',
+    label: 'Incremental sync',
+    description: 'Many small synchronize() calls into a database that already has data.',
+  },
+  {
+    key: 'realisticSync',
+    label: 'Realistic sync',
+    description: 'Initial sync of a fresh install from a local mock server, page by page.',
   },
   {
     key: 'competing',
@@ -74,6 +88,20 @@ export default function App() {
     return (
       <Screen title="Sync" theme={theme} onBack={home}>
         <SyncBenchmarkCard theme={theme} run={runSync} />
+      </Screen>
+    )
+  }
+  if (screen === 'incrementalSync') {
+    return (
+      <Screen title="Incremental sync" theme={theme} onBack={home}>
+        <IncrementalSyncCard theme={theme} run={runIncrementalSync} />
+      </Screen>
+    )
+  }
+  if (screen === 'realisticSync') {
+    return (
+      <Screen title="Realistic sync" theme={theme} onBack={home}>
+        <RealisticSyncCard theme={theme} run={runRealisticSync} />
       </Screen>
     )
   }

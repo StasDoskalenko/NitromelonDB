@@ -45,9 +45,16 @@ export type On = Readonly<{
   conditions: Where[]
 }>
 export type SortOrder = 'asc' | 'desc'
-export type SortBy = Readonly<{
+export type SortBy = ColumnSortBy | SqlSortBy
+export type ColumnSortBy = Readonly<{
   type: 'sortBy'
   sortColumn: ColumnName
+  sortOrder: SortOrder
+}>
+// Q.sortBy(Q.unsafeSqlExpr(...)) -- SQLite adapters only
+export type SqlSortBy = Readonly<{
+  type: 'sortBy'
+  sortExpr: string
   sortOrder: SortOrder
 }>
 export type Take = Readonly<{

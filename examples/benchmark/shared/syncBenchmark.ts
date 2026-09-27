@@ -85,9 +85,13 @@ export type SyncBenchmarkResult = SyncBenchmarkOptions & {
 
 export type PhaseMemory = {
   // JS heap size (bytes the Hermes GC has reserved) at the end of the phase, and the highest value
-  // seen while it ran (sampled after every synchronize() chunk)
+  // seen while it ran (sampled after every synchronize() chunk). Hermes reserves the heap in 4 MB
+  // segments, so this moves in 4 MB steps.
   heapEndBytes: number
   heapPeakBytes: number
+  // Bytes actually allocated in the JS heap -- byte-accurate, unlike heap size
+  allocatedEndBytes: number
+  allocatedPeakBytes: number
   gcCount: number
   gcMs: number
 }
@@ -95,6 +99,8 @@ export type PhaseMemory = {
 export type SyncMemory = {
   heapStartBytes: number
   heapPeakBytes: number
+  allocatedStartBytes: number
+  allocatedPeakBytes: number
   gcCount: number
   gcMs: number
   initialPull: PhaseMemory
@@ -103,7 +109,7 @@ export type SyncMemory = {
   push: PhaseMemory
 }
 
-type HermesStats = { heapSize: number; numGCs: number; gcTimeMs: number }
+type HermesStats = { heapSize: number; allocated: number; numGCs: number; gcTimeMs: number }
 
 // Hermes-only, no native module needed. Field names from Hermes' getInstrumentedStats().
 // js_gcTime is in seconds.
@@ -116,6 +122,7 @@ function readHermesStats(): HermesStats | null {
   }
   return {
     heapSize: stats.js_heapSize,
+    allocated: stats.js_allocatedBytes ?? 0,
     numGCs: stats.js_numGCs ?? 0,
     gcTimeMs: (stats.js_gcTime ?? 0) * 1000,
   }
@@ -125,13 +132,17 @@ class MemoryTracker {
   _start: HermesStats | null = readHermesStats()
   _phaseStart: HermesStats | null = this._start
   _phasePeak = this._start?.heapSize ?? 0
+  _phaseAllocatedPeak = this._start?.allocated ?? 0
   _overallPeak = this._phasePeak
+  _overallAllocatedPeak = this._phaseAllocatedPeak
 
   sample(): void {
     const stats = readHermesStats()
     if (stats) {
       this._phasePeak = Math.max(this._phasePeak, stats.heapSize)
       this._overallPeak = Math.max(this._overallPeak, stats.heapSize)
+      this._phaseAllocatedPeak = Math.max(this._phaseAllocatedPeak, stats.allocated)
+      this._overallAllocatedPeak = Math.max(this._overallAllocatedPeak, stats.allocated)
     }
   }
 
@@ -145,11 +156,14 @@ class MemoryTracker {
     const phase = {
       heapEndBytes: end.heapSize,
       heapPeakBytes: this._phasePeak,
+      allocatedEndBytes: end.allocated,
+      allocatedPeakBytes: this._phaseAllocatedPeak,
       gcCount: end.numGCs - start.numGCs,
       gcMs: end.gcTimeMs - start.gcTimeMs,
     }
     this._phaseStart = end
     this._phasePeak = end.heapSize
+    this._phaseAllocatedPeak = end.allocated
     return phase
   }
 
@@ -162,6 +176,8 @@ class MemoryTracker {
     return {
       heapStartBytes: this._start.heapSize,
       heapPeakBytes: this._overallPeak,
+      allocatedStartBytes: this._start.allocated,
+      allocatedPeakBytes: this._overallAllocatedPeak,
       gcCount: end.numGCs - this._start.numGCs,
       gcMs: end.gcTimeMs - this._start.gcTimeMs,
       initialPull,

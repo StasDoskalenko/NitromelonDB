@@ -188,6 +188,9 @@ const encodeOrderBy = (table: TableName, sortBys: SortBy[]): string => {
   }
   const orderBys = sortBys
     .map((sortBy) => {
+      if ('sortExpr' in sortBy) {
+        return `${sortBy.sortExpr} ${sortBy.sortOrder}`
+      }
       return `"${table}"."${sortBy.sortColumn}" ${sortBy.sortOrder}`
     })
     .join(', ')

@@ -33,11 +33,10 @@ hide_title: true
 **On the roadmap:** [SQLCipher](https://github.com/StasDoskalenko/NitromelonDB/issues/60) (including existing databases), [VACUUM](https://github.com/StasDoskalenko/NitromelonDB/issues/59), [macOS](https://github.com/StasDoskalenko/NitromelonDB/issues/49), [wa-sqlite on the web](https://github.com/StasDoskalenko/NitromelonDB/issues/44), [paginated sync](https://github.com/StasDoskalenko/NitromelonDB/issues/50), [more reliable migrations](https://github.com/StasDoskalenko/NitromelonDB/issues/57), and [clearer critical-error handling](https://github.com/StasDoskalenko/NitromelonDB/issues/61).
 
 ```bash
-yarn add nitromelondb
-# or: npm install nitromelondb
+yarn add nitromelondb react-native-nitro-modules
 ```
 
-On Expo, add `"nitromelondb"` to the `plugins` array in `app.json` (development builds, EAS Build, and EAS Update). See [Installation](https://stasdoskalenko.github.io/NitromelonDB/docs/Installation#expo).
+Then enable Babel decorators and rebuild the native app. On Expo, also add `"nitromelondb"` to `plugins` in `app.json`. Full steps: [Installation](https://stasdoskalenko.github.io/NitromelonDB/docs/Installation). Coming from WatermelonDB: [Migrating](https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating).
 
 ```js
 import { Database } from 'nitromelondb'

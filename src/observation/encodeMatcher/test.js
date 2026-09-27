@@ -23,6 +23,15 @@ const unencodableQueries = [
   [Q.take(100)],
   [Q.unsafeLokiTransform(() => {})],
   [Q.unsafeSqlQuery('select * from tasks')],
+  // Nozbe/WatermelonDB#1679 -- a lone unsafeSqlExpr used to be treated as encodable
+  [Q.unsafeSqlExpr('1 = 1')],
+  [Q.unsafeLokiExpr({ foo: 'bar' })],
+  [Q.where('foo', 'bar'), Q.unsafeSqlExpr('1 = 1')],
+  [Q.or(Q.where('foo', 'bar'), Q.unsafeSqlExpr('1 = 1'))],
+  [Q.and(Q.where('foo', 'bar'), Q.or(Q.unsafeLokiExpr({ foo: 'bar' })))],
+  // Q.on nested in Q.and/Q.or used to reach the matcher and throw "Illegal Q.on"
+  [Q.or(Q.on('projects', 'team_id', 'abcdef'))],
+  [Q.and(Q.where('foo', 'bar'), Q.or(Q.where('foo', 'baz'), Q.on('projects', 'team_id', 'x')))],
 ]
 
 describe('SQLite encodeMatcher', () => {
@@ -61,9 +70,6 @@ describe('SQLite encodeMatcher', () => {
       // console.log(query)
       expect(() => makeMatcher(query)).toThrow(`can't be encoded into a matcher`)
     })
-    expect(() => makeMatcher([Q.or(Q.on('projects', 'team_id', 'abcdef'))])).toThrow('Illegal Q.on')
-    expect(() => makeMatcher([Q.or(Q.unsafeSqlExpr(''))])).toThrow('Illegal')
-    expect(() => makeMatcher([Q.or(Q.unsafeLokiExpr({}))])).toThrow('Illegal')
   })
 })
 

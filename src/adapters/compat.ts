@@ -69,6 +69,17 @@ export default class DatabaseAdapterCompat {
     return toPromise((callback) => this.underlyingAdapter.getDeletedRecords(tableName, callback))
   }
 
+  // null when the underlying adapter doesn't implement it: the caller checks each table instead
+  tablesWithLocalChanges(tableNames: TableName[]): Promise<TableName[]> | null {
+    const tablesWithLocalChanges = this.underlyingAdapter.tablesWithLocalChanges
+    if (typeof tablesWithLocalChanges !== 'function') {
+      return null
+    }
+    return toPromise((callback) =>
+      tablesWithLocalChanges.call(this.underlyingAdapter, tableNames, callback),
+    )
+  }
+
   destroyDeletedRecords(tableName: TableName, recordIds: RecordId[]): Promise<void> {
     return toPromise((callback) =>
       this.underlyingAdapter.destroyDeletedRecords(tableName, recordIds, callback),

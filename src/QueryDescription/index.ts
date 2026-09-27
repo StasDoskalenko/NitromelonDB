@@ -16,6 +16,8 @@ export type {
   On,
   SortOrder,
   SortBy,
+  ColumnSortBy,
+  SqlSortBy,
   Take,
   Skip,
   JoinTables,

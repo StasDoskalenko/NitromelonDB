@@ -86,6 +86,7 @@ void Database::install(jsi::Runtime *runtime) {
             jsi::Object response(rt);
 
             if (databaseVersion == expectedVersion) {
+                database->fitStatementCacheToSchema();
                 database->initialized_ = true;
                 response.setProperty(rt, "code", "ok");
             } else if (databaseVersion == 0) {

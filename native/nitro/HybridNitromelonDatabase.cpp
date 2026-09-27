@@ -330,6 +330,7 @@ NitromelonInitializeResult HybridNitromelonDatabase::initialize(const std::strin
   int expected = static_cast<int>(expectedVersion);
 
   if (databaseVersion == expected) {
+    database().fitStatementCacheToSchema();
     initialized_ = true;
     return NitromelonInitializeResult("ok", std::nullopt);
   }

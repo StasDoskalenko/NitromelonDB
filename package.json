@@ -1,7 +1,7 @@
 {
   "name": "nitromelondb",
   "description": "Reactive SQLite database for React Native and React web. A maintained fork of WatermelonDB.",
-  "version": "0.30.1-beta.1",
+  "version": "0.30.1-beta.3",
   "engines": {
     "node": ">=22"
   },
@@ -16,6 +16,7 @@
     "lint:workflows": "node scripts/lint-workflows.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "jest --config=./jest.config.js --forceExit",
+    "test:native-unit": "scripts/test-native-unit",
     "benchmark:destroy-all": "jest --config=./jest.config.js --forceExit --testMatch '**/destroyAll.benchmark.js'",
     "test:web": "yarn --cwd examples/NotesApp test:web",
     "ci": "yarn ci:check",
@@ -78,7 +79,7 @@
     "lokijs": "npm:@nozbe/lokijs@1.5.12-wmelon8",
     "rxjs": "^7.8.0",
     "sql-escape-string": "^1.1.0",
-    "wa-sqlite": "https://github.com/rhashimoto/wa-sqlite.git#commit=2bf1c59d89eb6497535a4217bc62fec68a0bb994"
+    "wa-sqlite": "https://codeload.github.com/rhashimoto/wa-sqlite/tar.gz/2bf1c59d89eb6497535a4217bc62fec68a0bb994"
   },
   "peerDependencies": {
     "react-native-nitro-modules": ">=0.35.2",

@@ -102,6 +102,7 @@ export function BenchmarkScreen({ title, subtitle, adapter, setupError, theme, o
 
         <View style={styles.workloadRow}>
           <WorkloadChip
+            testID="stress-size-1000000"
             label="Full · 1,000,000 × 20"
             active={workload === FULL_WORKLOAD}
             disabled={running}
@@ -114,6 +115,7 @@ export function BenchmarkScreen({ title, subtitle, adapter, setupError, theme, o
             }}
           />
           <WorkloadChip
+            testID="stress-size-100000"
             label="Quick · 100,000 × 10"
             active={workload === QUICK_WORKLOAD}
             disabled={running}
@@ -138,6 +140,7 @@ export function BenchmarkScreen({ title, subtitle, adapter, setupError, theme, o
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Pressable
+          testID="stress-run"
           style={[styles.primaryButton, (blocked || running) && styles.buttonDisabled]}
           onPress={() => void start(workload)}
           disabled={blocked || running}
@@ -200,12 +203,14 @@ export function BenchmarkScreen({ title, subtitle, adapter, setupError, theme, o
 }
 
 function WorkloadChip({
+  testID,
   label,
   active,
   disabled,
   styles,
   onPress,
 }: {
+  testID: string
   label: string
   active: boolean
   disabled: boolean
@@ -214,6 +219,7 @@ function WorkloadChip({
 }) {
   return (
     <Pressable
+      testID={testID}
       style={[styles.chip, active && styles.chipActive, disabled && styles.buttonDisabled]}
       onPress={onPress}
       disabled={disabled}
@@ -271,6 +277,22 @@ function ScoreCard({
         value={`${formatDuration(summary.fastestRoundMs)} – ${formatDuration(summary.slowestRoundMs)}`}
         styles={styles}
       />
+      {/* Machine-readable copy for scripted runs (maestro hierarchy); per-round detail left out */}
+      <Text testID="stress-json" style={styles.json}>
+        {JSON.stringify({
+          kind: 'stress',
+          records: summary.records,
+          completedRounds: summary.completedRounds,
+          cancelled: summary.cancelled,
+          totalMs: summary.totalMs,
+          writeMs: summary.writeMs,
+          queryMs: summary.queryMs,
+          deleteMs: summary.deleteMs,
+          score: summary.score,
+          fastestRoundMs: summary.fastestRoundMs,
+          slowestRoundMs: summary.slowestRoundMs,
+        })}
+      </Text>
     </View>
   )
 }
@@ -389,6 +411,12 @@ function createStyles(theme: BenchmarkTheme) {
       backgroundColor: theme.card,
       borderRadius: 16,
       padding: 16,
+    },
+    json: {
+      marginTop: 6,
+      color: theme.muted,
+      fontSize: 6,
+      opacity: 0.5,
     },
     scoreCard: {
       marginTop: 20,

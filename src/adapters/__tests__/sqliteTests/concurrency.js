@@ -69,6 +69,33 @@ export default (it) => {
     expect(q2).toEqual(['t1', 't2'])
   })
 
+  it('non-awaited large batches (which may count rows first) still run before later calls', async (
+    _adapter,
+    AdapterClass,
+    _extra,
+    platform,
+  ) => {
+    if (AdapterClass.name === 'LokiJSAdapter') return
+
+    const { adapter } = await createFileAdapter(platform)
+    const creates = (from, count) =>
+      Array.from({ length: count }, (_, i) => [
+        'create',
+        'tasks',
+        { id: `t${from + i}`, text1: `task ${from + i}` },
+      ])
+    // Bulk load into an empty table (the reindexing path), then a chunk into a non-empty one
+    adapter.batch(creates(0, 1500))
+    const countAfterFirst = adapter.count(taskQuery())
+    adapter.batch(creates(1500, 1000))
+    const countAfterSecond = adapter.count(taskQuery())
+    const last = adapter.find('tasks', 't2499')
+
+    expect(await countAfterFirst).toBe(1500)
+    expect(await countAfterSecond).toBe(2500)
+    expect(await last).toBeTruthy()
+  })
+
   it('two adapters on one file, both writing: no corruption', async (
     _adapter,
     AdapterClass,

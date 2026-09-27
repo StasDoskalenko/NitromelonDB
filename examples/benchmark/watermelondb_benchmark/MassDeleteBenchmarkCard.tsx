@@ -56,6 +56,7 @@ export function MassDeleteBenchmarkCard({ theme }: Props) {
         {SIZES.map((candidate) => (
           <Pressable
             key={candidate}
+            testID={`mass-size-${candidate}`}
             style={[styles.chip, size === candidate && styles.chipActive, running && styles.disabled]}
             onPress={() => setSize(candidate)}
             disabled={running}
@@ -68,6 +69,7 @@ export function MassDeleteBenchmarkCard({ theme }: Props) {
       </View>
 
       <Pressable
+        testID="mass-run"
         style={[styles.button, running && styles.disabled]}
         onPress={() => void run()}
         disabled={running}
@@ -90,6 +92,10 @@ export function MassDeleteBenchmarkCard({ theme }: Props) {
               <Text style={styles.tableCell}>{formatMs(result.ms)}</Text>
             </View>
           ))}
+          {/* Machine-readable copy of the latest result for scripted runs (maestro hierarchy) */}
+          <Text testID="mass-json" style={styles.json}>
+            {JSON.stringify({ kind: 'mass', ...results[0] })}
+          </Text>
         </View>
       ) : null}
     </View>
@@ -98,6 +104,12 @@ export function MassDeleteBenchmarkCard({ theme }: Props) {
 
 function createStyles(theme: BenchmarkTheme) {
   return StyleSheet.create({
+    json: {
+      marginTop: 6,
+      color: theme.muted,
+      fontSize: 6,
+      opacity: 0.5,
+    },
     card: {
       marginTop: 20,
       backgroundColor: theme.card,

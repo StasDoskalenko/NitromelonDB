@@ -97,3 +97,56 @@ describe('common observation tests', () => {
     )
   })
 })
+
+describe('raw expression observation', () => {
+  // Nozbe/WatermelonDB#1679: a query whose only condition is a raw expression was treated as
+  // matcher-encodable, so the first change to the table (e.g. a sync) threw "Illegal clause"
+  const observeAndCreate = async (subscribe) => {
+    const { db, tasks } = mockDatabase()
+    const observer = jest.fn()
+    const unsubscribe = subscribe(tasks, observer)
+    await tasks.query().fetch()
+    expect(observer).toHaveBeenLastCalledWith([])
+
+    const task = await db.write(() => createTask(tasks, 'task', true, 10))
+    await tasks.query().fetch()
+    expect(observer).toHaveBeenLastCalledWith([task])
+
+    await db.write(() => createTask(tasks, 'other', false, 20))
+    await tasks.query().fetch()
+    expect(observer).toHaveBeenLastCalledWith([task])
+    unsubscribe()
+  }
+
+  it('observes a query with only Q.unsafeLokiExpr', async () => {
+    await observeAndCreate((tasks, observer) =>
+      subscribeToQuery(tasks.query(Q.unsafeLokiExpr({ is_completed: { $eq: true } })), observer),
+    )
+  })
+  it('observes a query with Q.unsafeLokiExpr nested in Q.or', async () => {
+    await observeAndCreate((tasks, observer) =>
+      subscribeToQuery(
+        tasks.query(Q.or(Q.where('name', 'nope'), Q.unsafeLokiExpr({ is_completed: { $eq: true } }))),
+        observer,
+      ),
+    )
+  })
+  it('observes a query with only Q.unsafeLokiExpr, with columns', async () => {
+    await observeAndCreate((tasks, observer) =>
+      subscribeToQueryWithColumns(
+        tasks.query(Q.unsafeLokiExpr({ is_completed: { $eq: true } })),
+        ['position'],
+        observer,
+      ),
+    )
+  })
+})
+
+describe('Q.sortBy(Q.unsafeSqlExpr())', () => {
+  it('is rejected with a clear error on LokiJS', async () => {
+    const { tasks } = mockDatabase()
+    await expect(
+      tasks.query(Q.sortBy(Q.unsafeSqlExpr('CAST(position AS INTEGER)'))).fetch(),
+    ).rejects.toThrow('not supported on LokiJSAdapter')
+  })
+})

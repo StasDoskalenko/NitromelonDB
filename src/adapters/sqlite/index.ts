@@ -2,7 +2,7 @@
 
 import { connectionTag, type ConnectionTag, logger, invariant } from '../../utils/common'
 import { type ResultCallback, mapValue, toPromise } from '../../utils/fp/Result'
-import { mapObj } from '../../utils/fp'
+import { mapObj, unnest } from '../../utils/fp'
 
 import type { RecordId } from '../../Model'
 import type { SerializedQuery } from '../../Query'
@@ -37,6 +37,7 @@ import type {
 } from './type'
 
 import encodeQuery from './encodeQuery'
+import encodeLocalChangesQueries from './encodeLocalChangesQuery'
 
 import { makeDispatcher, getDispatcherType } from './makeDispatcher'
 
@@ -52,6 +53,7 @@ type EncodeSchemaModule = {
 type EncodeBatchFn = (
   operations: BatchOperation[],
   schema: AppSchema,
+  tablesToReindex?: TableName[],
 ) => NativeBridgeBatchOperation[]
 
 if (process.env.NODE_ENV !== 'production') {
@@ -273,17 +275,66 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   }
 
   batch(operations: BatchOperation[], callback: ResultCallback<void>): void {
-    this._dispatcher.call(
-      'batch',
-      [
-        (require('./encodeBatch') as { default: EncodeBatchFn }).default(
-          operations,
-          this.schema,
-        ),
-      ],
-      callback,
-    )
+    const encodeBatch = require('./encodeBatch') as {
+      default: EncodeBatchFn
+      largeBatchTables: (operations: BatchOperation[]) => Map<TableName, number>
+    }
+    const send = (tablesToReindex: TableName[]) =>
+      this._dispatcher.call(
+        'batch',
+        [encodeBatch.default(operations, this.schema, tablesToReindex)],
+        callback,
+      )
+
+    const candidates = encodeBatch.largeBatchTables(operations)
+    if (!candidates.size) {
+      send([])
+      return
+    }
+    this._tablesToReindex(candidates, send)
   }
+
+  // Dropping a table's indices before a large batch and recreating them after is faster than
+  // updating them row by row -- but only if the batch writes about as many rows as the table
+  // already has. Recreating scans and sorts the whole table, so doing it for every chunk of a
+  // chunked sync into a big table made each chunk cost O(table size) (3-7x slower at 100k rows).
+  // Reindex only tables where the batch has at least as many operations as the table has rows.
+  //
+  // Deciding needs row counts, and the batch must still reach the database in call order: a read
+  // issued right after batch() must not run before it. So `done` is always called before this
+  // returns. Counts are used only if the dispatcher answers them synchronously (Nitro, and Node
+  // once open). Otherwise the batch goes out now without reindexing. The web dispatcher is
+  // always async, so it doesn't ask at all.
+  _tablesToReindex(candidates: Map<TableName, number>, done: (tables: TableName[]) => void): void {
+    if (this._dispatcherType === 'wa-sqlite') {
+      done([])
+      return
+    }
+    const tables: TableName[] = []
+    let decided = false
+    for (const [table, operationCount] of candidates) {
+      let answered = false
+      this._dispatcher.call<number>(
+        'count',
+        [`select count(*) as "count" from "${table}"`, []],
+        (result) => {
+          answered = true
+          // A failed count (or one answered too late) only costs the optimization
+          if (!decided && typeof result.value === 'number' && operationCount >= result.value) {
+            tables.push(table)
+          }
+        },
+      )
+      if (!answered) {
+        decided = true
+        done([])
+        return
+      }
+    }
+    decided = true
+    done(tables)
+  }
+
 
   destroyMatching(
     query: SerializedQuery,
@@ -306,6 +357,46 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       [table, ...encodeQuery(query), permanently, isUnconditional],
       callback,
     )
+  }
+
+  // See encodeLocalChangesQueries(). Like every other method here, answers through the callback as
+  // soon as the dispatcher does -- synchronously on Nitro.
+  tablesWithLocalChanges(tables: TableName[], callback: ResultCallback<TableName[]>): void {
+    tables.forEach((table) => validateTable(table, this.schema))
+    const queries = encodeLocalChangesQueries(tables)
+
+    // Up to 400 tables -- practically every app: one query, answered directly
+    if (queries.length <= 1) {
+      if (queries.length) {
+        this._dispatcher.call('queryIds', [queries[0], []], callback)
+      } else {
+        callback({ value: [] })
+      }
+      return
+    }
+
+    // More: send every chunk back to back, so no later adapter call gets between them, and answer
+    // once -- with all chunks' tables, or with the first error
+    const answers: TableName[][] = []
+    let unanswered = queries.length
+    let failed = false
+    queries.forEach((sql, index) => {
+      this._dispatcher.call<TableName[]>('queryIds', [sql, []], (result) => {
+        if (failed) {
+          return
+        }
+        if (result.error) {
+          failed = true
+          callback(result)
+          return
+        }
+        answers[index] = result.value
+        unanswered -= 1
+        if (!unanswered) {
+          callback({ value: unnest(answers) })
+        }
+      })
+    })
   }
 
   getDeletedRecords(table: TableName, callback: ResultCallback<RecordId[]>): void {

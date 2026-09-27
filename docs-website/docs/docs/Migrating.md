@@ -5,176 +5,65 @@ hide_title: true
 
 # Migrating from WatermelonDB
 
-NitromelonDB is a maintained fork of [WatermelonDB](https://github.com/Nozbe/WatermelonDB) (`@nozbe/watermelondb`). Models, schema, queries, writers, sync, LokiJS, and the web adapters are the same API. What changed is the **npm package name**, **native linking**, and a few **React Native SQLite** requirements.
+NitromelonDB is a maintained fork of [WatermelonDB](https://github.com/Nozbe/WatermelonDB). Models, schema, queries, writers, and sync work the same way. What changes is the package name and how the native code is linked.
 
-If you are starting a new app, skip this page and go to [Installation](./Installation.mdx).
+Your existing SQLite files, schema version, migrations, and models keep working. You swap a library. Your data isn't migrated or touched.
 
-:::info What you keep
-Your existing SQLite files, schema version, migrations, and model classes keep working. This is a library swap, not a data migration.
-:::
+**Before you start:** the app must be on the React Native **New Architecture**, React Native **0.83+**, iOS **15.1+**, and Android **minSdk 24**. The old architecture is not supported.
 
-:::warning If you're also adding `seed`
-NitromelonDB's `seed` option (see [Database seeding](./Advanced/Seeding.md)) tracks "did this
-already run" with a marker that's new in NitromelonDB and never existed under WatermelonDB. On a
-database carried over from WatermelonDB, every configured step looks unapplied and **will run** --
-even though the table may already have real user data. If you add `seed` as part of this swap,
-read the "Where to be careful in production" section there first.
-:::
-
-## 1. Swap the npm package
+## 1. Swap the packages
 
 ```bash
-yarn remove @nozbe/watermelondb
-yarn add nitromelondb
-
-# (or with npm:)
-npm uninstall @nozbe/watermelondb
-npm install nitromelondb
+yarn remove @nozbe/watermelondb @morrowdigital/watermelondb-expo-plugin
+yarn add nitromelondb react-native-nitro-modules
 ```
 
-`rxjs` `^7.8.0` is both a **dependency** and a **peer**. The dependency is what `yarn add nitromelondb` / `npm install nitromelondb` installs for you. The peer is so Yarn/npm hoist a single copy if the app already has RxJS (two copies break `Observable` / `Subscription` types). You do not add it yourself.
+- Leave out `react-native-nitro-modules` if the app already has it. You need **0.35.2 or newer**.
+- If you don't use `@morrowdigital/watermelondb-expo-plugin`, just remove `@nozbe/watermelondb`.
+- You don't need to add `rxjs`. NitromelonDB brings it.
 
-On React Native (iOS, Android, and Windows), also add the Nitro peer and rebuild native code — **skip this if `react-native-nitro-modules` is already in the app** (do not double-install it):
+## 2. Replace imports
 
-```bash
-yarn add react-native-nitro-modules
-```
-
-Use `react-native-nitro-modules` **0.35.2 or newer**. NitromelonDB is built against 0.36.x; a `*` peer range used to hide ABI mismatches that only show up in Xcode or Gradle.
-
-`react-native-nitro-modules` is optional for web / Node / Electron. It is **required** for SQLite on iOS, Android, and Windows.
-
-After the JS swap you still need **`pod install` and a full native rebuild**. Metro reload is not enough.
-
-## 2. Rewrite imports
-
-Replace the old scope in **JavaScript/TypeScript source, tests, and Jest mocks** — not in leftover native project files (see [iOS](#3-ios), [Android](#4-android), and [Windows](#5-windows)):
-
-| From | To |
-| --- | --- |
-| `@nozbe/watermelondb` | `nitromelondb` |
-| `@nozbe/watermelondb/adapters/sqlite` | `nitromelondb/adapters/sqlite` |
-| `@nozbe/watermelondb/adapters/lokijs` | `nitromelondb/adapters/lokijs` |
-| `@nozbe/watermelondb/decorators` | `nitromelondb/decorators` |
-| `@nozbe/watermelondb/react` | `nitromelondb/react` |
-| `@nozbe/watermelondb/sync` | `nitromelondb/sync` |
-| `@nozbe/watermelondb/Schema/migrations` | `nitromelondb/Schema/migrations` |
-| `@nozbe/watermelondb/utils/common/randomId` | `nitromelondb/utils/common/randomId` |
-| `@nozbe/watermelondb/utils/common/logger` | `nitromelondb/utils/common/logger` |
-
-A project-wide replace of `@nozbe/watermelondb` → `nitromelondb` is enough for **JS/TS imports**. It is **not** enough for native files.
-
-Leave **other** `@nozbe/*` packages alone. `simdjson` and SQLite are vendored inside NitromelonDB (`native/vendor/`).
+Find and replace `@nozbe/watermelondb` → `nitromelondb` in your **JS/TS source, tests, and Jest mocks**. Every subpath keeps its name:
 
 ```js
 // before
 import { Database, Q } from '@nozbe/watermelondb'
 import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite'
-import { field, writer } from '@nozbe/watermelondb/decorators'
 import { withObservables } from '@nozbe/watermelondb/react'
-import { synchronize } from '@nozbe/watermelondb/sync'
 
 // after
 import { Database, Q } from 'nitromelondb'
 import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
-import { field, writer } from 'nitromelondb/decorators'
 import { withObservables } from 'nitromelondb/react'
-import { synchronize } from 'nitromelondb/sync'
 ```
 
-## 3. iOS
+Also move `__mocks__/@nozbe/watermelondb` to `__mocks__/nitromelondb`.
 
-Autolinking picks up the `NitromelonDB` pod. **Remove** any WatermelonDB / simdjson / FMDB lines you added by hand — simdjson is compiled into NitromelonDB from vendored sources. You do not add a `pod 'simdjson'`, `pod 'FMDB'`, or `pod 'NitromelonDB'` line. FMDB is not used.
-
-```ruby
-# Remove these lines if they are in your Podfile.
-# Autolinking provides NitromelonDB. simdjson is compiled into that pod —
-# there is no separate simdjson (or FMDB) pod to add.
-#
-# pod 'WatermelonDB', path: '../node_modules/@nozbe/watermelondb'
-# pod 'NitromelonDB', path: '../node_modules/nitromelondb'
-# pod 'simdjson', path: '../node_modules/@nozbe/simdjson', modular_headers: true
-```
-
-Then `pod install` (Expo: `npx expo prebuild`).
-
-`use_frameworks! :linkage => :static` (common in RN Firebase apps) is supported. Prefer static linkage if you must use frameworks. See [Installation — Bare React Native](./Installation.mdx#bare-react-native).
-
-**Bridging header** (only if you import the native header yourself):
-
-```objc
-// before
-#import <WatermelonDB/WatermelonDB.h>
-#import <NitromelonDB/WatermelonDB.h>
-
-// after
-#import <NitromelonDB/NitromelonDB.h>
-```
-
-:::warning Do not retarget old header search paths
-A project-wide path replace will turn `node_modules/@nozbe/watermelondb/native/ios/.../SupportingFiles` into `node_modules/nitromelondb/native/ios/.../SupportingFiles`, which is not a public include path. **Delete** those `HEADER_SEARCH_PATHS` / `SupportingFiles` entries from the pbxproj. Autolinking and the podspec set the headers.
+:::danger Don't run that replace on native files
+In the Podfile, Xcode project, or Gradle files it produces paths that don't exist. Step 3 **deletes** those lines instead.
 :::
 
-Minimum iOS deployment target is **15.1**.
+## 3. Delete the old native setup
 
-## 4. Android
+Autolinking does all the native linking now. Delete everything you added by hand for WatermelonDB. Don't point it at the new package.
 
-Nitro autolinks. **Delete** the old JSI Gradle module — do not retarget it:
+**iOS**
 
-- `include ':watermelondb-jsi'` from `android/settings.gradle`
-- `implementation project(':watermelondb-jsi')` from `android/app/build.gradle`
-- `WatermelonDBJSIPackage` from `MainApplication`
+- Podfile: delete `pod 'WatermelonDB'`, `pod 'simdjson'`, and `pod 'FMDB'`. Don't add `pod 'NitromelonDB'`.
+- Xcode project: delete `HEADER_SEARCH_PATHS` entries that point into `@nozbe/watermelondb/.../SupportingFiles`.
+- Bridging header, if it imports WatermelonDB: change it to `#import <NitromelonDB/NitromelonDB.h>`.
 
-:::danger There is no `native/android-jsi`
-A string replace of `@nozbe/watermelondb` → `nitromelondb` will produce:
+**Android**
 
-```gradle
-project(':watermelondb-jsi').projectDir =
-    new File(rootProject.projectDir, '../node_modules/nitromelondb/native/android-jsi')
-```
+- `android/settings.gradle`: delete the `:watermelondb-jsi` include and its `projectDir` line.
+- `android/app/build.gradle`: delete `implementation project(':watermelondb-jsi')`.
+- `MainApplication`: delete `WatermelonDBJSIPackage` and `WatermelonDBPackage`.
+- R8 / Proguard: change the keep rule to `-keep class com.nitromelondb.** { *; }`.
 
-That path **does not exist**. Remove the whole JSI block. Do not point it at `native/android` either — that module autolinks.
-:::
+**Expo**
 
-Do not register `WatermelonDBPackage` by hand — that is the old architecture. Autolinking is required.
-
-The Android Java package is `com.nitromelondb` (it used to be `com.nozbe.watermelondb`). Update any R8 / Proguard keep rule:
-
-```
--keep class com.nitromelondb.** { *; }
-```
-
-Turbo-sync JSON injection now goes through `com.nitromelondb.NitromelonNative.provideSyncJson`.
-
-Minimum Android SDK is **24**.
-
-## 5. Windows
-
-RNW **New Architecture** (0.84 / WinAppSDK) uses Nitro, not the old UWP `WMDatabaseBridge` JSI installer. Autolinking picks up `native/windows`.
-
-Add this to the app `react-native.config.js` so RNW does not look for a `react-native-nitro-modules` Windows project ([nitro#168](https://github.com/mrousavy/nitro/issues/168)):
-
-```js
-const { windowsAppDependencies } = require('nitromelondb/windows-autolink')
-
-module.exports = {
-  dependencies: windowsAppDependencies(),
-}
-```
-
-See [Installation — Windows](./Installation.mdx#windows-react-native).
-
-## 6. Expo
-
-The config plugin is **optional for bare React Native**. Autolinking is what actually links SQLite. On Expo, add the plugin so prebuild keeps the New Architecture on (it **rejects** `"newArchEnabled": false`).
-
-You do **not** need `@morrowdigital/watermelondb-expo-plugin` (that package wired the old Android JSI module).
-
-```bash
-yarn remove @morrowdigital/watermelondb-expo-plugin
-```
-
-In `app.json` / `app.config.js`, replace it with `"nitromelondb"`:
+In `app.json`, replace `@morrowdigital/watermelondb-expo-plugin` with `"nitromelondb"`:
 
 ```json
 {
@@ -184,98 +73,91 @@ In `app.json` / `app.config.js`, replace it with `"nitromelondb"`:
 }
 ```
 
-Then `npx expo prebuild` (or let EAS Build do it). Development builds, EAS Build, and EAS Update are supported. Expo Go is not. See [Installation — Expo](./Installation.mdx#expo).
+**Windows**
 
-## 7. SQLiteAdapter on React Native
+Remove the old UWP `WatermelonDB.vcxproj` / `WMDatabaseBridge` linking, then follow [Installation — Windows](./Installation.mdx#windows).
 
-iOS and Android SQLite is **Nitro-only**. NativeModules interop is gone. The **old React Native architecture** (Paper / the legacy bridge) is **not supported** — enable the New Architecture (on by default in React Native 0.87; required on 0.83+ as well).
+## 4. Update the adapter
+
+Remove `jsi: false` if you pass it. It throws on iOS and Android now. `jsi: true` is fine but no longer does anything.
 
 ```js
 const adapter = new SQLiteAdapter({
   schema,
   migrations,
-  // `{ jsi: false }` throws on iOS/Android. Omit it, or leave `jsi: true`.
   onSetUpError: error => {},
 })
 ```
 
-- **Do not** pass `{ jsi: false }` on React Native.
-- Web still uses LokiJS (or Node SQLite in Electron/Node).
-- Windows New Architecture uses Nitro (same HybridObject as iOS/Android). The UWP JSI installer is removed.
+## 5. Rebuild
 
-If SQLiteAdapter cannot create a native database, install `react-native-nitro-modules` and rebuild the app — Metro reload is not enough.
+Metro reload is not enough. Do a full native build:
 
-## 8. TypeScript (Flow and hand-written `.d.ts` are gone)
+```bash
+cd ios && pod install && cd ..
+npx react-native run-ios
+npx react-native run-android
 
-The library implementation is TypeScript. The **published** package ships `index.d.ts` next to compiled JS. Do **not** add `tsconfig` path aliases to `node_modules/nitromelondb/src/*.ts` or to a `.d.ts` file in isolation — those files are not what npm installs, and mapping the package onto them breaks Metro and Jest.
-
-- Delete `@nozbe/watermelondb` from Flow `[libs]` / `.flowconfig` if you had them.
-- Let TypeScript resolve `nitromelondb` from the package (no `paths` workaround).
-
-App model code can stay JavaScript.
-
-### Flow / `@nozbe/watermelondb/types` → TypeScript
-
-`@nozbe/watermelondb/types` is gone. Import replacements from `nitromelondb`:
-
-| Flow / old import | TypeScript |
-| --- | --- |
-| `RecordId` | `import type { RecordId } from 'nitromelondb'` |
-| `TableName<T>` / `ColumnName` | `import type { TableName, ColumnName } from 'nitromelondb'` |
-| `RelationId<T>` or `$Call<…>` extractors (e.g. a `NonNullableRelation` helper) | `import type { RelationId } from 'nitromelondb'` — `RelationId<Model>` is `string`; `RelationId<Model \| null>` is `string \| null` |
-| `Associations`, `RawRecord`, `DirtyRaw` | `import type { Associations } from 'nitromelondb/Model'` and `import type { RawRecord, DirtyRaw } from 'nitromelondb'` |
-| `$Diff`, `$Rest`, `$Shape` | TypeScript `Omit`, `Partial`, `Pick` |
-
-See [Flow support removed](./Advanced/Flow.md) and the [TypeScript example](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/typescript).
-
-### `@json` sanitizers
-
-`json()` is generic: `json<TInput, TOutput>(column, (source: TInput) => TOutput)`. Typed sanitizers from WatermelonDB apps type-check, including ones that change the type (`(source: string) => string[]`). `memo` on the options object is optional (default `false`).
-
-### Custom `Model.id`
-
-`Model.id` is assignable **only** inside `collection.create()` / `prepareCreate()`:
-
-```js
-await collection.create(record => {
-  record.id = serverId
-})
+# Expo:
+npx expo prebuild --clean
+npx expo run:ios
 ```
 
-Assigning `record.id` anywhere else throws. `_raw.id` and `prepareCreateFromDirtyRaw` still work.
+## Things that may need attention
 
-## 9. Jest / Metro
+<details>
+  <summary>Yarn Classic fails with <code>fatal: not a git repository</code></summary>
 
-- Move `__mocks__/@nozbe/watermelondb` to `__mocks__/nitromelondb` (and the same for any subpath mocks).
-- Do **not** path-map `nitromelondb` to unpublished `.ts` sources or to a `.d.ts` file. The published package is compiled JS at the package root.
-- That compiled JS does **not** need `transformIgnorePatterns` for `nitromelondb`.
-- If a release bundle loads `nitro.json` and SQLite never opens, you are on `0.30.0-beta.1`. Upgrade; do not patch `require('.../nitro')` yourself after that.
+`0.30.1-beta.1` and earlier installed `wa-sqlite` from a git URL. Upgrade, or see the [Installation troubleshooting](./Installation.mdx#troubleshooting) for a `resolutions` workaround.
 
-## 10. Platform floor
+</details>
 
-| Requirement | WatermelonDB 0.28 | NitromelonDB |
-| --- | --- | --- |
-| Node.js | 18+ (typical) | App Node version follows your React Native release. This repo's example/CI uses **22+**. |
-| React Native | 0.74+ in 0.28 | **New Architecture required.** Tested on **0.83+**. [`examples/NotesApp`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp) uses Expo SDK 57 (RN 0.86). [`examples/NotesApp_windows`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp_windows) uses RN 0.84.1 to match RNW 0.84. Old / Paper architecture is not supported. |
-| iOS | 12+ | **15.1** |
-| Android minSdk | 21 (typical) | **24** |
-| React Native Windows | experimental UWP / JSI | **RNW 0.84** New Architecture (WinAppSDK). See [Windows](#5-windows). |
-| `react-native-nitro-modules` | n/a | **≥ 0.35.2** (optional peer on web) |
-| `rxjs` | transitive | **dependency + peer `^7.8.0`** (installed with the package) |
+<details>
+  <summary>Flow types and <code>@nozbe/watermelondb/types</code></summary>
+
+The package is written in TypeScript and ships its own `.d.ts` files. Remove `@nozbe/watermelondb` from `.flowconfig`. Don't add `tsconfig` `paths` that point into `node_modules/nitromelondb/src`, because that breaks Metro and Jest.
+
+Type replacements, all from `nitromelondb`:
+
+| Old | New |
+| --- | --- |
+| `RecordId`, `TableName<T>`, `ColumnName` | same names |
+| `RelationId<T>` / `$Call<…>` helpers | `RelationId<Model>` (`string`) or `RelationId<Model \| null>` (`string \| null`) |
+| `RawRecord`, `DirtyRaw` | same names. `Associations` comes from `nitromelondb/Model` |
+| `$Diff`, `$Rest`, `$Shape` | `Omit`, `Partial`, `Pick` |
+
+`json()` is generic: `json<TInput, TOutput>(column, sanitizer)`. See [Flow support removed](./Advanced/Flow.md).
+
+</details>
+
+<details>
+  <summary>Assigning <code>record.id</code></summary>
+
+You can set `record.id` only inside `collection.create()` / `prepareCreate()`. Anywhere else it throws. `_raw.id` and `prepareCreateFromDirtyRaw` still work.
+
+</details>
+
+<details>
+  <summary>Adding <code>seed</code> during the migration</summary>
+
+[Database seeding](./Advanced/Seeding.md) records which steps have already run, and WatermelonDB never wrote that record. On a database carried over from WatermelonDB, every seed step **will run**, even if the tables already have user data. Read "Where to be careful in production" on that page first.
+
+</details>
+
+<details>
+  <summary>Android Studio Database Inspector no longer shows the database</summary>
+
+NitromelonDB ships its own SQLite build, and the Inspector only sees databases opened through Android's `android.database.sqlite` API. See [Pro Tips — Database viewer](./Advanced/ProTips.md#database-viewer) for how to open it instead.
+
+</details>
 
 ## Checklist
 
-- [ ] `yarn remove @nozbe/watermelondb && yarn add nitromelondb`
-- [ ] `yarn add react-native-nitro-modules` if it is not already a dependency (`>=0.35.2`)
-- [ ] Replace `@nozbe/watermelondb` → `nitromelondb` in **JS/TS imports**, Jest mocks, and path aliases — not in native JSI / SupportingFiles paths
-- [ ] Remove hand-copied `pod 'WatermelonDB'` / `pod 'NitromelonDB'` / `pod 'simdjson'` / `pod 'FMDB'` lines from the Podfile
-- [ ] Delete pbxproj `SupportingFiles` / old Watermelon header search paths; do not retarget them
-- [ ] Bridging header, if you import it: `#import <NitromelonDB/NitromelonDB.h>`
-- [ ] **Delete** `watermelondb-jsi` / `WatermelonDBJSIPackage` from Android. Do not retarget `native/android-jsi`
-- [ ] Windows: spread `windowsAppDependencies()` from `nitromelondb/windows-autolink`; remove UWP `WatermelonDB.vcxproj` / `WMDatabaseBridge` linking
-- [ ] Enable the New Architecture (old / Paper architecture is not supported)
-- [ ] Remove `{ jsi: false }` from `SQLiteAdapter` on React Native
-- [ ] Expo: add `"nitromelondb"` to `app.json` `plugins` and remove `@morrowdigital/watermelondb-expo-plugin`. Bare apps can skip the plugin.
-- [ ] `pod install` and a full native rebuild (`npx react-native run-ios` / `run-android` / `run-windows`, or `npx expo run:ios` / `run:android`) — not a Metro reload
+- [ ] `@nozbe/watermelondb` removed, `nitromelondb` and `react-native-nitro-modules` (0.35.2+) installed
+- [ ] `@nozbe/watermelondb` → `nitromelondb` in JS/TS imports and Jest mocks
+- [ ] Old Podfile, Xcode header path, Gradle, and `MainApplication` entries deleted
+- [ ] Expo: `"nitromelondb"` plugin instead of `@morrowdigital/watermelondb-expo-plugin`
+- [ ] New Architecture on, `jsi: false` removed
+- [ ] Full native rebuild
 
-Then continue with [Installation](./Installation.mdx) and [Setup](./Setup.md) if anything in native linking is still missing.
+Next: [Setup](./Setup.md) covers the `Database` options added since WatermelonDB, such as `seed` and `useDatabaseReady`.

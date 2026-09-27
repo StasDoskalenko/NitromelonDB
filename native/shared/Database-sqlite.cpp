@@ -12,40 +12,6 @@ namespace watermelondb {
 using platform::consoleError;
 using platform::consoleLog;
 
-sqlite3_stmt *StatementCache::get(const std::string &sql) {
-    auto it = map_.find(sql);
-    if (it == map_.end()) {
-        return nullptr;
-    }
-    // Touch: move to front (most-recently-used).
-    lru_.splice(lru_.begin(), lru_, lruPos_.at(sql));
-    return it->second;
-}
-
-void StatementCache::insert(const std::string &sql, sqlite3_stmt *statement) {
-    assert(map_.find(sql) == map_.end());
-    map_[sql] = statement;
-    lru_.push_front(sql);
-    lruPos_[sql] = lru_.begin();
-
-    if (map_.size() > kCapacity) {
-        const std::string &lruKey = lru_.back();
-        sqlite3_finalize(map_.at(lruKey));
-        map_.erase(lruKey);
-        lruPos_.erase(lruKey);
-        lru_.pop_back();
-    }
-}
-
-void StatementCache::clear() {
-    for (auto const &entry : map_) {
-        sqlite3_finalize(entry.second);
-    }
-    map_.clear();
-    lru_.clear();
-    lruPos_.clear();
-}
-
 sqlite3_stmt* Database::prepareQuery(std::string sql) {
     sqlite3_stmt *statement = cachedStatements_.get(sql);
 
@@ -387,13 +353,24 @@ void Database::rollback() {
     }
 }
 
+// A one-off statement, not from cachedStatements_: initialize() calls this without holding mutex_,
+// and releaseMemory() may clear the cache from another thread at any time (it only guarantees
+// that cached statements aren't in use under mutex_)
 int Database::getUserVersion() {
-    auto statement = executeQuery("pragma user_version", std::vector<SqliteValue>{});
-    getRow(statement.stmt);
-
-    assert(sqlite3_data_count(statement.stmt) == 1);
-
-    int version = sqlite3_column_int(statement.stmt, 0);
+    sqlite3_stmt *statement = nullptr;
+    if (sqlite3_prepare_v2(db_->sqlite, "pragma user_version", -1, &statement, nullptr) != SQLITE_OK) {
+        sqlite3_finalize(statement);
+        throwSqliteError("Failed to prepare query statement");
+    }
+    int version = 0;
+    int resultStep = sqlite3_step(statement);
+    if (resultStep == SQLITE_ROW) {
+        version = sqlite3_column_int(statement, 0);
+    }
+    sqlite3_finalize(statement);
+    if (resultStep != SQLITE_ROW) {
+        throwSqliteError("Failed to read user_version");
+    }
     return version;
 }
 

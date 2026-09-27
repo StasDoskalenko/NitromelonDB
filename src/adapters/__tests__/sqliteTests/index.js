@@ -4,6 +4,7 @@ import batches from './batches'
 import concurrency from './concurrency'
 import cleanup from './cleanup'
 import databaseLevel from './databaseLevel'
+import localChanges from './localChanges'
 
 /**
  * SQLite-specific tests that require a file-backed database.
@@ -21,6 +22,7 @@ export default () => {
   concurrency(it)
   cleanup(it)
   databaseLevel(it)
+  localChanges(it)
 
   return tests
 }

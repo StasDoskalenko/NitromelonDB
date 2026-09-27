@@ -1,4 +1,12 @@
-import { Observable, Subject, type Observer } from '../utils/rx'
+import {
+  Observable,
+  Subject,
+  of,
+  map,
+  switchMap,
+  distinctUntilChanged,
+  type Observer,
+} from '../utils/rx'
 import invariant from '../utils/common/invariant'
 import deprecated from '../utils/common/deprecated'
 import { noop, fromArrayOrSpread } from '../utils/fp'
@@ -139,6 +147,32 @@ export default class Collection<Record extends Model> {
         unsubscribe && unsubscribe()
       }
     })
+  }
+
+  /**
+   * Like `findAndObserve()`, but emits `null` instead of erroring when the record doesn't exist.
+   *
+   * Emits the record whenever it changes. If the record doesn't exist yet and is created later
+   * (e.g. by sync), emits it then. If it's deleted, emits `null` instead of completing. `id` may
+   * be `null`/`undefined`, which emits `null`.
+   *
+   * ```js
+   * withObservables(['commentId'], ({ commentId }) => ({
+   *   comment: comments.findAndObserveOrNull(commentId),
+   * }))
+   * ```
+   */
+  findAndObserveOrNull(id: RecordId | null | undefined): Observable<Record | null> {
+    if (id === null || id === undefined) {
+      return of(null)
+    }
+    return this.query(Q.where('id', id)).observe().pipe(
+      map((records) => records[0] ?? null),
+      distinctUntilChanged(),
+      // record.observe() emits on every change and completes on deletion -- the query above then
+      // emits [] and we switch to null
+      switchMap((record) => (record ? record.observe() : of(null))),
+    )
   }
 
   /**
