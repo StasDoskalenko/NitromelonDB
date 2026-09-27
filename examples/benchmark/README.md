@@ -123,6 +123,9 @@ node scripts/run-sync-trials.mjs --app com.watermelondb.benchmark --label Waterm
 node scripts/summarize-sync.mjs results.jsonl
 ```
 
+`--card stress` runs the stress test at the top of the screen (`--sizes 100000` for Quick,
+`1000000` for Full) and `--card mass` the mass-delete card (`--sizes` = records).
+
 On Android, install Release APKs (`cd android && ./gradlew assembleRelease`, then
 `adb install -r app/build/outputs/apk/release/app-release.apk`) and pass `--platform android` with
 the adb serial as `--device`. `--card incr` drives the Incremental sync card instead, with
