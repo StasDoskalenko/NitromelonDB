@@ -8,7 +8,11 @@
 
 ### Fixes
 
+- The dev-mode "The writer/reader you're trying to run (unnamed) can't be performed yet..." warning is less noisy and more useful: a single slow writer/reader with several things queued behind it used to print one warning per queued item (each armed its own 1500ms timer); now there's one watchdog for whichever item is actually running, which warns at most once, naming itself. Undescribed `database.write(fn)`/`database.read(fn)` calls now fall back to the function's own name instead of always saying "unnamed", and `useWriter`/`useAtomicWriter` now pass a description too. Measured on a workload of 3 slow writers + 30 uncoordinated writer/reader callers: 3 warnings now vs 32 before (and 32 on upstream WatermelonDB) for the identical workload -- see the new "Competing writers/readers" card in `examples/benchmark`.
+
 ### Performance
+
+- React Native: handoff between queued Writers/Readers now uses `setImmediate` instead of `setTimeout(fn, 0)`, avoiding a native-timer round-trip (~1 frame) between queued writes/reads.
 
 - iOS/Android/Windows: record queries (`fetch()`, `observe()`, and the reads `synchronize()` does before applying remote changes) no longer copy every row through Nitro's `AnyMap` on the way to JS. Rows are now read into compact positional vectors and turned into JS objects in one pass, with one property key per column instead of one per cell. In the new sync benchmark (`examples/benchmark`: 12-column records, 2,000 per `synchronize()` call, Release build, 10–20 interleaved runs per size), `synchronize()` + fetch is 14–23% faster, `fetch()` is 37–61% faster, and peak process memory is 56–154 MB (14–27%) lower. That's level with WatermelonDB's JSI adapter, and ahead of it for fetches. `Q.unsafeSqlQuery(...).unsafeFetchRaw()` gets the same path.
 
