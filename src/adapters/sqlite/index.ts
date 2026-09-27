@@ -2,7 +2,7 @@
 
 import { connectionTag, type ConnectionTag, logger, invariant } from '../../utils/common'
 import { type ResultCallback, mapValue, toPromise } from '../../utils/fp/Result'
-import { mapObj } from '../../utils/fp'
+import { mapObj, unnest } from '../../utils/fp'
 
 import type { RecordId } from '../../Model'
 import type { SerializedQuery } from '../../Query'
@@ -37,6 +37,7 @@ import type {
 } from './type'
 
 import encodeQuery from './encodeQuery'
+import encodeLocalChangesQueries from './encodeLocalChangesQuery'
 
 import { makeDispatcher, getDispatcherType } from './makeDispatcher'
 
@@ -356,6 +357,46 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       [table, ...encodeQuery(query), permanently, isUnconditional],
       callback,
     )
+  }
+
+  // See encodeLocalChangesQueries(). Like every other method here, answers through the callback as
+  // soon as the dispatcher does -- synchronously on Nitro.
+  tablesWithLocalChanges(tables: TableName[], callback: ResultCallback<TableName[]>): void {
+    tables.forEach((table) => validateTable(table, this.schema))
+    const queries = encodeLocalChangesQueries(tables)
+
+    // Up to 400 tables -- practically every app: one query, answered directly
+    if (queries.length <= 1) {
+      if (queries.length) {
+        this._dispatcher.call('queryIds', [queries[0], []], callback)
+      } else {
+        callback({ value: [] })
+      }
+      return
+    }
+
+    // More: send every chunk back to back, so no later adapter call gets between them, and answer
+    // once -- with all chunks' tables, or with the first error
+    const answers: TableName[][] = []
+    let unanswered = queries.length
+    let failed = false
+    queries.forEach((sql, index) => {
+      this._dispatcher.call<TableName[]>('queryIds', [sql, []], (result) => {
+        if (failed) {
+          return
+        }
+        if (result.error) {
+          failed = true
+          callback(result)
+          return
+        }
+        answers[index] = result.value
+        unanswered -= 1
+        if (!unanswered) {
+          callback({ value: unnest(answers) })
+        }
+      })
+    })
   }
 
   getDeletedRecords(table: TableName, callback: ResultCallback<RecordId[]>): void {

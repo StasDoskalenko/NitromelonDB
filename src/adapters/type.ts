@@ -67,6 +67,11 @@ export interface DatabaseAdapter {
   // Return marked as deleted records
   getDeletedRecords(tableName: TableName, callback: ResultCallback<RecordId[]>): void
 
+  // Optional. Of `tableNames`, the ones with at least one record that isn't synced (created,
+  // updated or marked as deleted locally), in one round trip. Sync uses it to skip looking for
+  // local changes in every other table; without it, sync checks every table one by one.
+  tablesWithLocalChanges?(tableNames: TableName[], callback: ResultCallback<TableName[]>): void
+
   // Destroy deleted records from sync
   destroyDeletedRecords(
     tableName: TableName,

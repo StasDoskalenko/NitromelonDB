@@ -1,7 +1,8 @@
 import { values, identity, unnest, allPromises, mapObj } from '../../utils/fp'
 import allPromisesObj from '../../utils/fp/allPromisesObj'
-import type { Database, Collection, Model } from '../..'
+import type { Database, Collection, Model, TableName } from '../..'
 import * as Q from '../../QueryDescription'
+import { logError } from '../../utils/common'
 import { columnName } from '../../Schema'
 
 import type { SyncTableChangeSet, SyncLocalChanges } from '../index'
@@ -38,11 +39,40 @@ async function fetchLocalChangesForCollection<T extends Model>(
   return [changeSet, changedRecords]
 }
 
+const noLocalChanges = (): [SyncTableChangeSet, Model[]] => [
+  { created: [], updated: [], deleted: [] },
+  [],
+]
+
+// The tables with local changes, if the adapter can tell in one query (SQLite can); null if it
+// can't, or if asking fails -- then every table is read, exactly as without this. Most syncs push
+// nothing, and reading a table costs three adapter calls, which adds up with many tables. This only
+// narrows down which tables get the usual reads; it never replaces them.
+async function knownTablesWithLocalChanges(db: Database): Promise<Set<string> | null> {
+  try {
+    const found = db.adapter.tablesWithLocalChanges(
+      Object.keys(db.collections.map) as TableName<Model>[],
+    )
+    return found ? new Set(await found) : null
+  } catch (error) {
+    logError(
+      `[Sync] Couldn't tell which tables have local changes, so checking every table: ${String(error)}`,
+    )
+    return null
+  }
+}
+
 export default function fetchLocalChanges(db: Database): Promise<SyncLocalChanges> {
   return db.read(async () => {
+    const tables = await knownTablesWithLocalChanges(db)
+    const mayHaveLocalChanges = (collection: Collection<Model>): boolean =>
+      !tables || tables.has(collection.table)
     const collectionChanges = (await allPromisesObj(
       mapObj(
-        (collection: Collection<Model>) => fetchLocalChangesForCollection(collection),
+        (collection: Collection<Model>) =>
+          mayHaveLocalChanges(collection)
+            ? fetchLocalChangesForCollection(collection)
+            : Promise.resolve(noLocalChanges()),
         db.collections.map,
       ) as Record<string, Promise<[SyncTableChangeSet, Model[]]>>,
     )) as Record<string, [SyncTableChangeSet, Model[]]>
@@ -60,6 +90,10 @@ export default function fetchLocalChanges(db: Database): Promise<SyncLocalChange
 export function hasUnsyncedChanges(db: Database): Promise<boolean> {
   // action is necessary to ensure other code doesn't make changes under our nose
   return db.read(async () => {
+    const tables = await knownTablesWithLocalChanges(db)
+    if (tables) {
+      return tables.size > 0
+    }
     const collections = values(db.collections.map)
     const hasUnsynced = async (collection: Collection<Model>) => {
       const created = await collection.query(createdQuery).fetchCount()
