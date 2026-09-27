@@ -114,10 +114,15 @@ const actionInterface = (queue: WorkQueue, item: WorkQueueItem) =>
 // warning below. Falls back to setTimeout on environments without setImmediate (web).
 // Checked on every call, not resolved once at module load -- resolving it once would permanently
 // capture the *original* global (e.g. Node's real setImmediate), even under fake timers installed
-// later (`jest.useFakeTimers()` swaps the global, which a stale reference never sees).
+// later (`jest.useFakeTimers()` swaps the global, which a stale reference never sees). Accessed
+// via `globalThis` rather than the bare identifier -- `setImmediate` isn't part of any standard
+// lib (it's Node/Hermes-specific), so referencing it directly fails to compile in a plain
+// ESNext+DOM environment (e.g. examples/typescript's tsconfig, which has neither).
 function scheduleNext(fn: () => void): void {
-  if (typeof setImmediate === 'function') {
-    setImmediate(fn)
+  const globalSetImmediate = (globalThis as { setImmediate?: (fn: () => void) => unknown })
+    .setImmediate
+  if (typeof globalSetImmediate === 'function') {
+    globalSetImmediate(fn)
   } else {
     setTimeout(fn, 0)
   }
