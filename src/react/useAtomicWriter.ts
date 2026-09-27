@@ -92,10 +92,12 @@ export default function useAtomicWriter<T extends Model>(
     isMountedRef.current && setIsPending(true)
     isMountedRef.current && setError(undefined)
     try {
-      const result = await database.write(() =>
-        record
-          ? record.update((r) => builderRef.current(r))
-          : database.get(modelClass).create((r) => builderRef.current(r)),
+      const result = await database.write(
+        () =>
+          record
+            ? record.update((r) => builderRef.current(r))
+            : database.get(modelClass).create((r) => builderRef.current(r)),
+        `useAtomicWriter(${record ? record.table : modelClass.table})`,
       )
       return result
     } catch (thrownError) {

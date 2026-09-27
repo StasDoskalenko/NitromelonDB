@@ -16,6 +16,10 @@ Use **Quick · 100,000 × 10** for day-to-day comparisons. The full 1,000,000 ×
 
 These apps will not run in Expo Go. New Architecture is required.
 
+Each app opens on a **Home** tile grid -- one tile per benchmark below -- instead of stacking
+every card into a single long scroll. Tapping a tile opens that benchmark on its own screen with
+a back button.
+
 ## NitromelonDB
 
 ```sh
@@ -108,6 +112,22 @@ Table shapes live in `mock-server/shape.mjs`. After changing them, run
 `node mock-server/shape.mjs` to regenerate `shared/realisticSyncShape.json`, which the apps
 import, then rebuild the apps. The apps allow cleartext HTTP
 (`shared/plugins/withCleartextLocalhost.js`) because Android Release builds block it by default.
+
+### Competing writers/readers
+
+Both apps have the same "Competing writers/readers" card (`shared/competingWorkBenchmark.ts`).
+It fires several independent writer/reader "callers" at the same `Database` at once -- a Light,
+Heavy or Extreme preset -- none aware of the others, most left unnamed like a real
+`database.write(fn)` call site would be. That's the shape that used to spam WorkQueue's dev-mode
+"can't be performed yet" warning: several unrelated call sites (a periodic sync, a realtime push
+handler, an on-screen query) all competing for the same Writer/Reader queue.
+
+The card counts real warnings from the running library, not a simulated count -- it spies on
+`console.warn` for the duration of the run (both libraries' `logger.warn()` call it internally,
+so this works for either app without reaching into either library's private exports). The number
+that matters here is **warnings**, not
+wall time: a healthy queue produces few or none even under heavy contention; a stuck writer/reader
+produces one warning naming itself, not one per thing waiting behind it.
 
 #### Scripted runs
 

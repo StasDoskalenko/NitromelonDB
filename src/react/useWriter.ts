@@ -90,7 +90,10 @@ export default function useWriter<T extends Model, Args extends unknown[] = []>(
       isMountedRef.current && setIsPending(true)
       isMountedRef.current && setError(undefined)
       try {
-        await model.database.write(() => Promise.resolve(writerRef.current(model, ...args)))
+        await model.database.write(
+          () => Promise.resolve(writerRef.current(model, ...args)),
+          `useWriter(${model.table})`,
+        )
       } catch (thrownError) {
         isMountedRef.current && setError(thrownError)
         throw thrownError

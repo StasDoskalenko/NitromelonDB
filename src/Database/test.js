@@ -7,6 +7,7 @@ import { appSchema } from '../Schema'
 import { schemaMigrations } from '../Schema/migrations'
 import Database from '.'
 import { databaseSeed } from './seed'
+import { callerNameFromStack } from './WorkQueue'
 
 describe('Database', () => {
   it(`implements get()`, () => {
@@ -741,6 +742,175 @@ describe('Database', () => {
         return delayPromise() // don't await subaction, just see it will never be called
       })
       expect(called).toBe(0)
+    })
+    describe('stuck writer/reader detection (dev only)', () => {
+      afterEach(() => {
+        jest.useRealTimers()
+      })
+
+      it('warns once (not once per waiter) about the writer actually running, by name', async () => {
+        // mockDatabase() itself may arm real, unrelated timers (e.g. a LokiJS autosave
+        // interval) -- construct it under real timers, and only fake them afterwards, so
+        // jest's fake-timer bookkeeping only ever sees the watchdog timers this test cares about
+        const { database } = mockDatabase()
+        jest.useFakeTimers()
+        jest.spyOn(logger, 'warn').mockImplementation(noop)
+        jest.spyOn(logger, 'log').mockImplementation(noop)
+
+        let resolveStuck
+        const stuckPromise = database.write(
+          () => new Promise((resolve) => (resolveStuck = resolve)),
+          'the stuck one',
+        )
+        // five things pile up behind it while it's stuck
+        const waiters = [1, 2, 3, 4, 5].map(() => database.read(async () => 1))
+
+        await jest.advanceTimersByTimeAsync(1500)
+
+        expect(logger.warn).toHaveBeenCalledTimes(1)
+        expect(logger.warn.mock.calls[0][0]).toContain('the stuck one')
+        expect(logger.warn.mock.calls[0][0]).toContain('5 other reader(s)/writer(s) waiting')
+
+        resolveStuck()
+        await stuckPromise
+        // the 5 queued readers still need their own (fake) macrotask turn to actually run --
+        // advance by a bounded amount (not jest.runAllTimersAsync(), which aborts on the
+        // unrelated, always-recurring LokiJS autosave interval mockDatabase() may have armed)
+        await jest.advanceTimersByTimeAsync(100)
+        await Promise.all(waiters)
+      })
+
+      it('does not warn when the running writer finishes before the threshold', async () => {
+        const { database } = mockDatabase()
+        jest.useFakeTimers()
+        jest.spyOn(logger, 'warn').mockImplementation(noop)
+
+        const first = database.write(delayPromise, 'quick one')
+        database.read(async () => 1) // queues behind it, but first finishes quickly
+
+        await jest.advanceTimersByTimeAsync(100) // delayPromise's own 100ms timeout
+        await first
+        await jest.advanceTimersByTimeAsync(1500) // long past the watchdog threshold
+
+        expect(logger.warn).not.toHaveBeenCalled()
+      })
+
+      it('falls back to the work function name, then to the enqueue call site, when unnamed', async () => {
+        const { database } = mockDatabase()
+        jest.useFakeTimers()
+        jest.spyOn(logger, 'warn').mockImplementation(noop)
+        jest.spyOn(logger, 'log').mockImplementation(noop)
+
+        let resolveStuck
+        async function myNamedWriter() {
+          return new Promise((resolve) => (resolveStuck = resolve))
+        }
+        const stuckPromise = database.write(myNamedWriter) // no description
+        const waiter = database.read(async () => 1)
+
+        await jest.advanceTimersByTimeAsync(1500)
+
+        expect(logger.warn.mock.calls[0][0]).toContain('myNamedWriter')
+
+        resolveStuck()
+        await stuckPromise
+        await jest.advanceTimersByTimeAsync(100)
+        await waiter
+      })
+
+      it('still warns when the running writer only gets stuck late (nothing waiting at first)', async () => {
+        const { database } = mockDatabase()
+        jest.useFakeTimers()
+        jest.spyOn(logger, 'warn').mockImplementation(noop)
+        jest.spyOn(logger, 'log').mockImplementation(noop)
+
+        let resolveStuck
+        const stuckPromise = database.write(
+          () => new Promise((resolve) => (resolveStuck = resolve)),
+          'slow then stuck',
+        )
+        // nothing is waiting for the first 2s (e.g. the writer awaits a slow network call)...
+        await jest.advanceTimersByTimeAsync(2000)
+        expect(logger.warn).not.toHaveBeenCalled()
+
+        // ...then something queues behind it (e.g. a nested write() without callWriter())
+        const waiter = database.read(async () => 1)
+        await jest.advanceTimersByTimeAsync(1500)
+
+        expect(logger.warn).toHaveBeenCalledTimes(1)
+        expect(logger.warn.mock.calls[0][0]).toContain('slow then stuck')
+        expect(logger.warn.mock.calls[0][0]).toContain('running for 3500ms')
+
+        resolveStuck()
+        await stuckPromise
+        await jest.advanceTimersByTimeAsync(100)
+        await waiter
+      })
+
+      it('names the calling function when the work function itself is anonymous', async () => {
+        const { database } = mockDatabase()
+        jest.useFakeTimers()
+        jest.spyOn(logger, 'warn').mockImplementation(noop)
+        jest.spyOn(logger, 'log').mockImplementation(noop)
+
+        let resolveStuck
+        function saveNoteFromScreen() {
+          return database.write(() => new Promise((resolve) => (resolveStuck = resolve)))
+        }
+        const stuckPromise = saveNoteFromScreen()
+        const waiter = database.read(async () => 1)
+
+        await jest.advanceTimersByTimeAsync(1500)
+
+        expect(logger.warn.mock.calls[0][0]).toContain(
+          'unnamed writer called from saveNoteFromScreen',
+        )
+
+        resolveStuck()
+        await stuckPromise
+        await jest.advanceTimersByTimeAsync(100)
+        await waiter
+      })
+    })
+    describe('callerNameFromStack', () => {
+      it('skips library/async plumbing frames in V8/Hermes stacks', () => {
+        const stack = [
+          'Error',
+          '    at http://localhost:8081/index.bundle:1:2',
+          '    at new Promise (<anonymous>)',
+          '    at WorkQueue.enqueue (http://localhost:8081/index.bundle:3:4)',
+          '    at enqueue (address at index.android.bundle:1:5)',
+          '    at Database.write (http://localhost:8081/index.bundle:5:6)',
+          '    at write (address at index.android.bundle:1:7)',
+          '    at ?anon_0_ (address at index.android.bundle:1:8)',
+          '    at _callee$ (http://localhost:8081/index.bundle:7:8)',
+          '    at tryCatch (http://localhost:8081/index.bundle:9:10)',
+          '    at onSavePressed (http://localhost:8081/index.bundle:11:12)',
+        ].join('\n')
+        expect(callerNameFromStack(stack)).toBe('onSavePressed')
+      })
+      it('handles JSC/SpiderMonkey stacks and method aliases', () => {
+        expect(
+          callerNameFromStack(
+            [
+              'enqueue@file.js:1:2',
+              'write@file.js:3:4',
+              '@file.js:5:6',
+              'writeNote@app.js:7:8',
+            ].join('\n'),
+          ),
+        ).toBe('writeNote')
+        expect(callerNameFromStack('Error\n    at Object.save [as onPress] (app.js:1:2)')).toBe(
+          'Object.save',
+        )
+      })
+      it('returns undefined when there is nothing usable', () => {
+        expect(callerNameFromStack(undefined)).toBe(undefined)
+        expect(callerNameFromStack('Error\n    at new Promise (<anonymous>)')).toBe(undefined)
+        expect(callerNameFromStack('Error\n    at foo (/app/node_modules/lib/index.js:1:2)')).toBe(
+          undefined,
+        )
+      })
     })
     it('experimentalDetectNestedWriters throws instead of deadlocking on nested writers', async () => {
       const { database } = mockDatabase({ experimentalDetectNestedWriters: true })
@@ -1775,7 +1945,8 @@ describe('Database', () => {
 
         const [operations] = batchSpy.mock.calls[0]
         expect(operations).toHaveLength(2)
-        const expectedType = methodName === 'destroyAllPermanently' ? 'destroyPermanently' : 'markAsDeleted'
+        const expectedType =
+          methodName === 'destroyAllPermanently' ? 'destroyPermanently' : 'markAsDeleted'
         operations.forEach(([opType, opTable, id]) => {
           expect(opType).toBe(expectedType)
           expect(opTable).toBe('mock_tasks')
