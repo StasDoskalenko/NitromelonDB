@@ -3,7 +3,9 @@ import SQLiteAdapter from '../../../adapters/sqlite'
 import { testSchema, modelClasses } from '../../../__tests__/testModels'
 import { synchronize } from '../../index'
 import { fetchLocalChanges } from '../index'
-import { sorted } from './helpers'
+import { sorted, prepareCreateFromRaw } from './helpers'
+import { localChangeStatuses } from '../../../RawRecord'
+import { logger } from '../../../utils/common'
 
 const TABLES = ['mock_projects', 'mock_project_sections', 'mock_tasks', 'mock_comments']
 
@@ -50,7 +52,130 @@ const summarize = ({ changes, affectedRecords }) => ({
   affectedIds: sorted(affectedRecords).map((record) => record.id),
 })
 
+// Deterministic PRNG, so a failing randomized run can be replayed
+function mulberry32(seed) {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
 describe('sync on SQLite: per-table skips', () => {
+  it('classifies exactly the statuses that sync reads as local changes', () => {
+    // fetchLocalChanges() reads `created` and `updated` records and getDeletedRecords() reads
+    // `deleted` ones; tablesWithLocalChanges() looks for localChangeStatuses. If this fails because
+    // a status was added to localChangeStatuses, make sync's per-table reads pick it up too.
+    expect([...localChangeStatuses].sort()).toEqual(['created', 'deleted', 'updated'])
+  })
+
+  it('reports a table for each local-change status, and not for synced records', async () => {
+    const { database } = makeSqliteDatabase()
+    const tables = ['mock_projects', 'mock_tasks', 'mock_comments', 'mock_project_sections']
+    const statuses = [...localChangeStatuses, 'synced']
+    await database.write(() =>
+      database.batch(
+        statuses.map((status, i) =>
+          prepareCreateFromRaw(database.get(tables[i]), { id: `r${i}`, _status: status }),
+        ),
+      ),
+    )
+    const expected = tables.slice(0, localChangeStatuses.length)
+    expect(sorted(await database.adapter.tablesWithLocalChanges(tables))).toEqual(sorted(expected))
+    const fast = summarize(await fetchLocalChanges(database))
+    expect(fast).toEqual(summarize(await fetchLocalChangesTableByTable(database)))
+    expect(fast.affectedIds.length + fast.changes.mock_comments.deleted.length).toBe(
+      localChangeStatuses.length,
+    )
+  })
+
+  it('reads every table if the check fails', async () => {
+    const { database, tasks } = makeSqliteDatabase()
+    await database.write(() =>
+      tasks.create((task) => {
+        task.name = 'local'
+      }),
+    )
+    const expected = summarize(await fetchLocalChangesTableByTable(database))
+    const underlying = database.adapter.underlyingAdapter
+    const original = underlying.tablesWithLocalChanges
+    underlying.tablesWithLocalChanges = (_tables, callback) =>
+      callback({ error: new Error('check failed') })
+    const logged = jest.spyOn(logger, 'error').mockImplementation(() => {})
+    try {
+      expect(summarize(await fetchLocalChanges(database))).toEqual(expected)
+      expect(expected.changes.mock_tasks.created).toHaveLength(1)
+      expect(logged).toHaveBeenCalledTimes(1)
+      expect(String(logged.mock.calls[0][0])).toContain('check failed')
+    } finally {
+      logged.mockRestore()
+      underlying.tablesWithLocalChanges = original
+    }
+  })
+
+  // The one way this optimization could lose data: skipping a table that has local changes, so
+  // they're never pushed. Random local creates/updates/deletes/destroys, remote pulls and pushes
+  // across all tables; after every step, the fast path must find exactly what reading every table
+  // finds.
+  it('matches reading every table through random local changes, pulls and pushes', async () => {
+    const random = mulberry32(109)
+    const pick = (items) => items[Math.floor(random() * items.length)]
+    const { database } = makeSqliteDatabase()
+    const collections = TABLES.map((table) => database.get(table))
+    let timestamp = 1000
+    let remoteId = 0
+
+    for (let step = 0; step < 150; step += 1) {
+      const roll = random()
+      const collection = pick(collections)
+      // eslint-disable-next-line no-await-in-loop
+      const existing = await collection.query().fetch()
+      if (roll < 0.3 || !existing.length) {
+        // eslint-disable-next-line no-await-in-loop
+        await database.write(() => collection.create(() => {}))
+      } else if (roll < 0.5) {
+        // eslint-disable-next-line no-await-in-loop
+        await database.write(() => pick(existing).update(() => {}))
+      } else if (roll < 0.6) {
+        // eslint-disable-next-line no-await-in-loop
+        await database.write(() => pick(existing).markAsDeleted())
+      } else if (roll < 0.65) {
+        // eslint-disable-next-line no-await-in-loop
+        await database.write(() => pick(existing).destroyPermanently())
+      } else if (roll < 0.8) {
+        timestamp += 1
+        remoteId += 1
+        const pulledAt = timestamp
+        const table = pick(TABLES)
+        // eslint-disable-next-line no-await-in-loop
+        await synchronize({
+          database,
+          pullChanges: async () => ({
+            changes: changeSet({ [table]: { created: [{ id: `remote${remoteId}` }] } }),
+            timestamp: pulledAt,
+          }),
+        })
+      } else {
+        timestamp += 1
+        const pulledAt = timestamp
+        // eslint-disable-next-line no-await-in-loop
+        await synchronize({
+          database,
+          pullChanges: async () => ({ changes: changeSet(), timestamp: pulledAt }),
+          pushChanges: async () => {},
+        })
+      }
+
+      // eslint-disable-next-line no-await-in-loop
+      const fast = summarize(await fetchLocalChanges(database))
+      // eslint-disable-next-line no-await-in-loop
+      expect(fast).toEqual(summarize(await fetchLocalChangesTableByTable(database)))
+    }
+  })
+
   it('finds the same local changes as checking every table', async () => {
     const { database, projects, tasks, comments } = makeSqliteDatabase()
     const empty = summarize(await fetchLocalChangesTableByTable(database))

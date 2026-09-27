@@ -68,6 +68,22 @@ function _setRaw(
   }
 }
 
+// Every SyncStatus, classified: does a record in this status hold a local change that sync has
+// to push? Keyed by SyncStatus, so adding a status fails typechecking here until it's classified.
+// Sync's local-changes reads (sync/impl/fetchLocal.ts, getDeletedRecords) and the adapters'
+// tablesWithLocalChanges() must agree with this -- see sync/impl/__tests__/sqlitePerTableSkips.test.js.
+const isLocalChangeStatus: { [Status in SyncStatus]: boolean } = {
+  created: true,
+  updated: true,
+  deleted: true,
+  synced: false,
+  disposable: false, // never persisted
+}
+
+export const localChangeStatuses: SyncStatus[] = (
+  Object.keys(isLocalChangeStatus) as SyncStatus[]
+).filter((status) => isLocalChangeStatus[status])
+
 function isValidStatus(value: unknown): value is SyncStatus {
   return value === 'created' || value === 'updated' || value === 'deleted' || value === 'synced'
 }

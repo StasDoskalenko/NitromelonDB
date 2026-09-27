@@ -37,6 +37,8 @@ import type {
 } from './type'
 
 import encodeQuery from './encodeQuery'
+import encodeValue from './encodeValue'
+import { localChangeStatuses } from '../../RawRecord'
 
 import { makeDispatcher, getDispatcherType } from './makeDispatcher'
 
@@ -361,12 +363,15 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     )
   }
 
-  // One statement for all tables: `select 'a' as id where exists (…a…) union all …`. The EXISTS
-  // subqueries stop at the first match and use the _status index. Chunked below SQLite's default
-  // limit of 500 terms per compound select. The SQL only depends on the table list, so it stays
-  // in the native statement cache.
+  // One statement for all tables: `select 'a' as id where exists (…a…) union all …` (named `id`
+  // because that's the column queryIds reads). The EXISTS subqueries stop at the first match and use
+  // the _status index. Statuses come from localChangeStatuses -- the same definition sync's
+  // per-table reads follow -- and literals go through encodeValue like every other query value.
+  // Chunked below SQLite's default limit of 500 terms per compound select. The SQL only depends on
+  // the table list, so it stays in the native statement cache.
   tablesWithLocalChanges(tables: TableName[], callback: ResultCallback<TableName[]>): void {
     tables.forEach((table) => validateTable(table, this.schema))
+    const statuses = localChangeStatuses.map(encodeValue).join(', ')
     const chunks: TableName[][] = []
     for (let i = 0; i < tables.length; i += TABLES_PER_LOCAL_CHANGES_QUERY) {
       chunks.push(tables.slice(i, i + TABLES_PER_LOCAL_CHANGES_QUERY))
@@ -382,7 +387,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       const sql = chunk
         .map(
           (table) =>
-            `select '${table}' as id where exists (select 1 from "${table}" where "_status" in ('created', 'updated', 'deleted'))`,
+            `select ${encodeValue(table)} as id where exists (select 1 from "${table}" where "_status" in (${statuses}))`,
         )
         .join(' union all ')
       this._dispatcher.call<TableName[]>('queryIds', [sql, []], (result) => {

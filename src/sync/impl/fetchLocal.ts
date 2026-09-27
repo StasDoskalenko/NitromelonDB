@@ -2,6 +2,7 @@ import { values, identity, unnest, allPromises, mapObj } from '../../utils/fp'
 import allPromisesObj from '../../utils/fp/allPromisesObj'
 import type { Database, Collection, Model, TableName } from '../..'
 import * as Q from '../../QueryDescription'
+import { logError } from '../../utils/common'
 import { columnName } from '../../Schema'
 
 import type { SyncTableChangeSet, SyncLocalChanges } from '../index'
@@ -43,14 +44,22 @@ const noLocalChanges = (): [SyncTableChangeSet, Model[]] => [
   [],
 ]
 
-// Tables that may have local changes: all of them, unless the adapter can tell in one query
+// Tables that may have local changes: all of them (null), unless the adapter can tell in one query
 // (SQLite can). Most syncs push nothing, and checking each table costs three adapter calls, which
-// adds up with many tables.
+// adds up with many tables. It only narrows down which tables get the usual per-table reads below;
+// if the check fails for any reason, every table is read, exactly as without it.
 async function tablesToCheck(db: Database): Promise<Set<string> | null> {
-  const found = db.adapter.tablesWithLocalChanges(
-    Object.keys(db.collections.map) as TableName<Model>[],
-  )
-  return found ? new Set(await found) : null
+  try {
+    const found = db.adapter.tablesWithLocalChanges(
+      Object.keys(db.collections.map) as TableName<Model>[],
+    )
+    return found ? new Set(await found) : null
+  } catch (error) {
+    logError(
+      `[Sync] Couldn't tell which tables have local changes, so checking every table: ${String(error)}`,
+    )
+    return null
+  }
 }
 
 export default function fetchLocalChanges(db: Database): Promise<SyncLocalChanges> {
