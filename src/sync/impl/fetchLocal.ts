@@ -44,11 +44,11 @@ const noLocalChanges = (): [SyncTableChangeSet, Model[]] => [
   [],
 ]
 
-// Tables that may have local changes: all of them (null), unless the adapter can tell in one query
-// (SQLite can). Most syncs push nothing, and checking each table costs three adapter calls, which
-// adds up with many tables. It only narrows down which tables get the usual per-table reads below;
-// if the check fails for any reason, every table is read, exactly as without it.
-async function tablesToCheck(db: Database): Promise<Set<string> | null> {
+// The tables with local changes, if the adapter can tell in one query (SQLite can); null if it
+// can't, or if asking fails -- then every table is read, exactly as without this. Most syncs push
+// nothing, and reading a table costs three adapter calls, which adds up with many tables. This only
+// narrows down which tables get the usual reads; it never replaces them.
+async function knownTablesWithLocalChanges(db: Database): Promise<Set<string> | null> {
   try {
     const found = db.adapter.tablesWithLocalChanges(
       Object.keys(db.collections.map) as TableName<Model>[],
@@ -64,11 +64,13 @@ async function tablesToCheck(db: Database): Promise<Set<string> | null> {
 
 export default function fetchLocalChanges(db: Database): Promise<SyncLocalChanges> {
   return db.read(async () => {
-    const tables = await tablesToCheck(db)
+    const tables = await knownTablesWithLocalChanges(db)
+    const mayHaveLocalChanges = (collection: Collection<Model>): boolean =>
+      !tables || tables.has(collection.table)
     const collectionChanges = (await allPromisesObj(
       mapObj(
         (collection: Collection<Model>) =>
-          !tables || tables.has(collection.table)
+          mayHaveLocalChanges(collection)
             ? fetchLocalChangesForCollection(collection)
             : Promise.resolve(noLocalChanges()),
         db.collections.map,
@@ -88,7 +90,7 @@ export default function fetchLocalChanges(db: Database): Promise<SyncLocalChange
 export function hasUnsyncedChanges(db: Database): Promise<boolean> {
   // action is necessary to ensure other code doesn't make changes under our nose
   return db.read(async () => {
-    const tables = await tablesToCheck(db)
+    const tables = await knownTablesWithLocalChanges(db)
     if (tables) {
       return tables.size > 0
     }

@@ -1,9 +1,9 @@
 import { appSchema, tableSchema } from '../../Schema'
 import SQLiteAdapter from './index'
 
-// tablesWithLocalChanges() asks about many tables in one compound select, split into chunks that
-// stay under SQLite's 500-term limit. Real-database behavior is covered in
-// ../__tests__/sqliteTests/localChanges.js; this covers chunking and error handling.
+// tablesWithLocalChanges() sends one query per chunk of tables (see encodeLocalChangesQuery) and
+// combines the answers. Real-database behavior is covered in ../__tests__/sqliteTests/localChanges.js;
+// this covers combining the answers and error handling.
 
 const tableNames = (count) => Array.from({ length: count }, (_, i) => `table_${i}`)
 
@@ -72,7 +72,15 @@ describe('SQLiteAdapter.tablesWithLocalChanges', () => {
     const adapter = await adapterFor(tables, dispatcher)
     const callback = jest.fn()
     adapter.tablesWithLocalChanges(tables, callback)
+    await new Promise((resolve) => setTimeout(resolve, 0))
     expect(callback).toHaveBeenCalledTimes(1)
     expect(callback.mock.calls[0][0].error.message).toBe('boom')
+  })
+
+  it('throws for a table that is not in the schema, before querying', async () => {
+    const dispatcher = fakeDispatcher([])
+    const adapter = await adapterFor(tableNames(2), dispatcher)
+    expect(() => adapter.tablesWithLocalChanges(['table_0', 'nope'], () => {})).toThrow()
+    expect(dispatcher.calls).toEqual([])
   })
 })

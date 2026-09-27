@@ -2,7 +2,7 @@
 
 import { connectionTag, type ConnectionTag, logger, invariant } from '../../utils/common'
 import { type ResultCallback, mapValue, toPromise } from '../../utils/fp/Result'
-import { mapObj } from '../../utils/fp'
+import { mapObj, unnest } from '../../utils/fp'
 
 import type { RecordId } from '../../Model'
 import type { SerializedQuery } from '../../Query'
@@ -37,8 +37,7 @@ import type {
 } from './type'
 
 import encodeQuery from './encodeQuery'
-import encodeValue from './encodeValue'
-import { localChangeStatuses } from '../../RawRecord'
+import encodeLocalChangesQueries from './encodeLocalChangesQuery'
 
 import { makeDispatcher, getDispatcherType } from './makeDispatcher'
 
@@ -62,9 +61,6 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const IGNORE_CACHE = 0
-
-// SQLite's default SQLITE_MAX_COMPOUND_SELECT is 500
-const TABLES_PER_LOCAL_CHANGES_QUERY = 400
 
 export default class SQLiteAdapter implements DatabaseAdapter {
   static adapterType: string = 'sqlite'
@@ -363,49 +359,18 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     )
   }
 
-  // One statement for all tables: `select 'a' as id where exists (…a…) union all …` (named `id`
-  // because that's the column queryIds reads). The EXISTS subqueries stop at the first match and use
-  // the _status index. Statuses come from localChangeStatuses -- the same definition sync's
-  // per-table reads follow -- and literals go through encodeValue like every other query value.
-  // Chunked below SQLite's default limit of 500 terms per compound select. The SQL only depends on
-  // the table list, so it stays in the native statement cache.
+  // See encodeLocalChangesQueries(): one query per 400 tables, answered by queryIds()
   tablesWithLocalChanges(tables: TableName[], callback: ResultCallback<TableName[]>): void {
     tables.forEach((table) => validateTable(table, this.schema))
-    const statuses = localChangeStatuses.map(encodeValue).join(', ')
-    const chunks: TableName[][] = []
-    for (let i = 0; i < tables.length; i += TABLES_PER_LOCAL_CHANGES_QUERY) {
-      chunks.push(tables.slice(i, i + TABLES_PER_LOCAL_CHANGES_QUERY))
-    }
-    if (!chunks.length) {
-      callback({ value: [] })
-      return
-    }
-    const found: TableName[] = []
-    let pending = chunks.length
-    let failed = false
-    chunks.forEach((chunk) => {
-      const sql = chunk
-        .map(
-          (table) =>
-            `select ${encodeValue(table)} as id where exists (select 1 from "${table}" where "_status" in (${statuses}))`,
-        )
-        .join(' union all ')
-      this._dispatcher.call<TableName[]>('queryIds', [sql, []], (result) => {
-        if (failed) {
-          return
-        }
-        if (result.error) {
-          failed = true
-          callback(result)
-          return
-        }
-        found.push(...result.value)
-        pending -= 1
-        if (!pending) {
-          callback({ value: found })
-        }
-      })
-    })
+    const queries = encodeLocalChangesQueries(tables)
+    Promise.all(
+      queries.map((sql) =>
+        toPromise<TableName[]>((done) => this._dispatcher.call('queryIds', [sql, []], done)),
+      ),
+    ).then(
+      (results) => callback({ value: unnest(results) }),
+      (error: Error) => callback({ error }),
+    )
   }
 
   getDeletedRecords(table: TableName, callback: ResultCallback<RecordId[]>): void {
