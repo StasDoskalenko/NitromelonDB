@@ -69,6 +69,7 @@ jobs:
       - run: yarn test:metro-transform
       - run: node scripts/published-package.mjs --self-test
       - run: node scripts/next-version.mjs --self-test
+      - run: node scripts/codeql-matrix.mjs --self-test
       - run: node scripts/prepare-changelog.mjs --self-test
       - name: Gradle Wrapper Validation
         uses: gradle/actions/wrapper-validation@v5
