@@ -5,6 +5,11 @@
 #
 # After this workflow has run on master, disable Default setup in
 # Settings → Code security → Code scanning to avoid duplicate scans.
+#
+# The matrix comes from scripts/codeql-matrix.mjs: on pull requests, Swift and
+# Java/Kotlin (the ones that need a native build) only run when the PR changes
+# code they analyze. Pushes to master, the schedule and manual runs analyze
+# every language.
 name: CodeQL
 
 on:
@@ -21,8 +26,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  languages:
+    name: Pick languages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          # On pull requests this is the merge commit; its first parent is the base branch
+          fetch-depth: 2
+
+      - name: Pick languages to analyze
+        id: pick
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: node scripts/codeql-matrix.mjs "$EVENT_NAME" >> "$GITHUB_OUTPUT"
+
   analyze:
     name: Analyze (${{ matrix.language }})
+    needs: languages
     runs-on: ${{ matrix.runner }}
     timeout-minutes: ${{ matrix.timeout-minutes }}
     permissions:
@@ -33,32 +59,7 @@ jobs:
 
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - language: actions
-            build-mode: none
-            runner: ubuntu-latest
-            timeout-minutes: 60
-          - language: c-cpp
-            build-mode: none
-            runner: ubuntu-latest
-            timeout-minutes: 60
-          - language: javascript-typescript
-            build-mode: none
-            runner: ubuntu-latest
-            timeout-minutes: 60
-          - language: ruby
-            build-mode: none
-            runner: ubuntu-latest
-            timeout-minutes: 60
-          - language: java-kotlin
-            build-mode: manual
-            runner: ubuntu-24.04
-            timeout-minutes: 60
-          - language: swift
-            build-mode: manual
-            runner: macos-26
-            timeout-minutes: 120
+      matrix: ${{ fromJSON(needs.languages.outputs.matrix) }}
 
     steps:
       - name: Checkout repository
