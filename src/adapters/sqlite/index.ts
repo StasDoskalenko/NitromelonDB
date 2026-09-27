@@ -359,18 +359,44 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     )
   }
 
-  // See encodeLocalChangesQueries(): one query per 400 tables, answered by queryIds()
+  // See encodeLocalChangesQueries(). Like every other method here, answers through the callback as
+  // soon as the dispatcher does -- synchronously on Nitro.
   tablesWithLocalChanges(tables: TableName[], callback: ResultCallback<TableName[]>): void {
     tables.forEach((table) => validateTable(table, this.schema))
     const queries = encodeLocalChangesQueries(tables)
-    Promise.all(
-      queries.map((sql) =>
-        toPromise<TableName[]>((done) => this._dispatcher.call('queryIds', [sql, []], done)),
-      ),
-    ).then(
-      (results) => callback({ value: unnest(results) }),
-      (error: Error) => callback({ error }),
-    )
+
+    // Up to 400 tables -- practically every app: one query, answered directly
+    if (queries.length <= 1) {
+      if (queries.length) {
+        this._dispatcher.call('queryIds', [queries[0], []], callback)
+      } else {
+        callback({ value: [] })
+      }
+      return
+    }
+
+    // More: send every chunk back to back, so no later adapter call gets between them, and answer
+    // once -- with all chunks' tables, or with the first error
+    const answers: TableName[][] = []
+    let unanswered = queries.length
+    let failed = false
+    queries.forEach((sql, index) => {
+      this._dispatcher.call<TableName[]>('queryIds', [sql, []], (result) => {
+        if (failed) {
+          return
+        }
+        if (result.error) {
+          failed = true
+          callback(result)
+          return
+        }
+        answers[index] = result.value
+        unanswered -= 1
+        if (!unanswered) {
+          callback({ value: unnest(answers) })
+        }
+      })
+    })
   }
 
   getDeletedRecords(table: TableName, callback: ResultCallback<RecordId[]>): void {
