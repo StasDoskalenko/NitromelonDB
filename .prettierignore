@@ -1,0 +1,3 @@
+# Vendored upstream code; must stay byte-identical (scripts/vendor-wa-sqlite.mjs --verify)
+src/adapters/sqlite/sqlite-wasm/vendor/
+src/adapters/sqlite/sqlite-wasm/wa-sqlite-async.mjs

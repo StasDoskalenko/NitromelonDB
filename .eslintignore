@@ -3,3 +3,6 @@ dist/
 dev/
 **/*.d.ts
 native/windowsE2E/**
+
+# Vendored upstream code; must stay byte-identical (scripts/vendor-wa-sqlite.mjs --verify)
+src/adapters/sqlite/sqlite-wasm/vendor/**

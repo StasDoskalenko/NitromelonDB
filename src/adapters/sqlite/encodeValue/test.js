@@ -10,6 +10,12 @@ describe('SQLite encodeValue', () => {
     expect(encodeValue(3.14)).toBe('3.14')
     expect(encodeValue(`foo 'bar "baz" blah' hah`)).toBe(`'foo ''bar "baz" blah'' hah'`)
   })
+  it('only doubles single quotes (SQLite has no backslash escapes)', () => {
+    expect(encodeValue('')).toBe(`''`)
+    expect(encodeValue(`''`)).toBe(`''''''`)
+    expect(encodeValue('a\\b\nc\td\0e')).toBe(`'a\\b\nc\td\0e'`)
+    expect(encodeValue(`x'); DROP TABLE t; --`)).toBe(`'x''); DROP TABLE t; --'`)
+  })
   it('catches invalid values', () => {
     const spy = jest.spyOn(logger, 'error').mockImplementation(() => {})
     expect(encodeValue(undefined)).toBe('null')

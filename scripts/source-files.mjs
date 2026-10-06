@@ -11,6 +11,8 @@ export const DO_NOT_BUILD_PATHS = [
   /__mocks__/,
   /\.DS_Store/,
   /package\.json/,
+  // Unmodified third-party ESM (see sqlite-wasm/VENDOR.md); make.mjs copies it verbatim.
+  /sqlite-wasm[\\/]vendor[\\/]/,
 ]
 
 export function isSourceFile(value) {

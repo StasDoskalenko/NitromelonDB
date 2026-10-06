@@ -49,10 +49,8 @@ function resolveDep(name) {
 // so src/ imports of rxjs fail unless those packages are watched too.
 const libraryDeps = [
   'rxjs',
-  'sql-escape-string',
   'hoist-non-react-statics',
   '@babel/runtime',
-  'wa-sqlite',
   'big-list-of-naughty-strings',
   'rambdax',
 ]
