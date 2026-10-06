@@ -14,8 +14,8 @@
     "write-heading-ids": "docusaurus write-heading-ids"
   },
   "dependencies": {
-    "@docusaurus/core": "3.7.0",
-    "@docusaurus/preset-classic": "3.7.0",
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
     "@mdx-js/react": "^3.0.0",
     "clsx": "^1.2.1",
     "prism-react-renderer": "^2.1.0",
@@ -23,12 +23,10 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@docusaurus/module-type-aliases": "3.7.0"
+    "@docusaurus/module-type-aliases": "3.10.2"
   },
-  "//resolutions": "webpackbar <7 passes name/color opts straight to webpack.ProgressPlugin, which webpack >=5.99 rejects with a schema error and breaks `docusaurus build`. v7 is what Docusaurus 3.10 ships; drop this on the next Docusaurus upgrade.",
-  "//resolutions-security": "The remaining pins clear Dependabot advisories in Docusaurus build-time transitives (none ship to the built site). minimatch: ReDoS GHSA-3ppc-4f35-3m26 / GHSA-7r86-cg39-jmmj / GHSA-23c5-xmqv-rm74 (via glob, serve-handler, fork-ts-checker-webpack-plugin, recursive-readdir). js-yaml: GHSA-2883-xcg3-v3hh (prototype pollution). ws: DoS GHSA-96hv-2xvq-fx4p. path-to-regexp: ReDoS GHSA-37ch-88jc-xwx2. serialize-javascript: XSS GHSA-5c6j-r48x-rmvq (via copy/css-minimizer/terser webpack plugins). Drop each once the dep tree ships the fixed version itself.",
+  "//resolutions-security": "The remaining pins clear Dependabot advisories in Docusaurus build-time transitives (none ship to the built site). minimatch: ReDoS GHSA-3ppc-4f35-3m26 / GHSA-7r86-cg39-jmmj / GHSA-23c5-xmqv-rm74 (via glob, serve-handler, fork-ts-checker-webpack-plugin, recursive-readdir). js-yaml: GHSA-2883-xcg3-v3hh (prototype pollution). ws: DoS GHSA-96hv-2xvq-fx4p. path-to-regexp: ReDoS GHSA-37ch-88jc-xwx2. serialize-javascript: XSS GHSA-5c6j-r48x-rmvq (via copy/css-minimizer/terser webpack plugins). postcss-selector-parser: DoS GHSA-rj75-hqrm-r3gf / GHSA-w9m9-85wc-3x92, no fixed 6.x; cssnano 6's plugins (postcss-calc, postcss-merge-rules, postcss-minify-selectors, …) are forced onto 7.x, verified to produce byte-identical minified CSS. uuid: GHSA-w5hq-g745-h8pq (sockjs only calls require('uuid').v4, which v11's CJS build still exports). Drop each once the dep tree ships the fixed version itself.",
   "resolutions": {
-    "webpackbar": "7.0.0",
     "minimatch@npm:3.1.2": "3.1.5",
     "minimatch@npm:^3.0.4": "3.1.5",
     "minimatch@npm:^3.0.5": "3.1.5",
@@ -38,7 +36,10 @@
     "path-to-regexp@npm:0.1.12": "0.1.13",
     "serialize-javascript@npm:^6.0.0": "^7.0.3",
     "serialize-javascript@npm:^6.0.1": "^7.0.3",
-    "serialize-javascript@npm:^6.0.2": "^7.0.3"
+    "serialize-javascript@npm:^6.0.2": "^7.0.3",
+    "postcss-selector-parser@npm:^6.0.11": "^7.1.6",
+    "postcss-selector-parser@npm:^6.0.16": "^7.1.6",
+    "sockjs/uuid": "^11.1.1"
   },
   "browserslist": {
     "production": [
