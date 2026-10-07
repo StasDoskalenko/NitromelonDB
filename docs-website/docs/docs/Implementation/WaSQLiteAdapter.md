@@ -69,9 +69,10 @@ SQLite adapter import:
 
 - the browser dispatcher now talks to a dedicated wa-sqlite worker instead of using the Node
   bridge or selecting LokiJS;
-- `wa-sqlite` is pinned to immutable upstream commit
-  `2bf1c59d89eb6497535a4217bc62fec68a0bb994`, and the published package contains its worker
-  bootstrap, Asyncify module, and WASM asset;
+- wa-sqlite comes from immutable upstream commit `2bf1c59d89eb6497535a4217bc62fec68a0bb994`, and
+  the published package contains everything the browser needs from it (worker bootstrap, Asyncify
+  module, WASM asset, and the vendored JS API + IndexedDB VFS), so `nitromelondb` has no
+  `wa-sqlite` dependency;
 - `wa-sqlite` is part of the public `DispatcherType` union and is exposed through
   `adapter.dispatcherType`;
 - `SQLiteAdapterOptions.web` accepts optional `wasmUrl` and `workerFactory` overrides;
@@ -143,15 +144,19 @@ continuing after a failed bind. `find` uses the conventional `id = ?` predicate.
 
 ### Dependency integrity and VFS compatibility
 
-The wa-sqlite dependency now references immutable commit
-`2bf1c59d89eb6497535a4217bc62fec68a0bb994` rather than the mutable `v1.1.2` tag. The packaged
-Emscripten glue and WASM binary have recorded upstream provenance, SHA-256 hashes, and the reason
-for the Metro-specific glue patch in `src/adapters/sqlite/sqlite-wasm/VENDOR.md`.
+Everything used from wa-sqlite is vendored from immutable commit
+`2bf1c59d89eb6497535a4217bc62fec68a0bb994` rather than the mutable `v1.1.2` tag: the Emscripten
+glue and WASM binary, plus the JS API (`sqlite-api.js`) and `IDBBatchAtomicVFS` with its imports,
+byte-for-byte under `src/adapters/sqlite/sqlite-wasm/vendor/wa-sqlite/`. `nitromelondb` therefore
+has no `wa-sqlite` dependency (earlier releases installed it from a GitHub URL).
+`src/adapters/sqlite/sqlite-wasm/VENDOR.md` records the upstream provenance, a SHA-256 hash per
+file, and the reason for the Metro-specific glue patch; CI re-downloads and verifies all of them
+with `node scripts/vendor-wa-sqlite.mjs --verify`.
 
-Importing `IDBBatchAtomicVFS` from wa-sqlite's examples directory remains an interim dependency on
-a non-public API. Worker startup now validates the expected static `create()` and instance
-`close()` functions and emits an explicit incompatibility error if the pinned shape changes. Full
-vendoring and automated upstream updates remain follow-up work; see [Future improvements](#future-improvements).
+`IDBBatchAtomicVFS` lives in wa-sqlite's examples directory, so it is not a public upstream API.
+Worker startup validates the expected static `create()` and instance `close()` functions and emits
+an explicit incompatibility error if the vendored shape changes. Automated upstream updates remain
+follow-up work; see [Future improvements](#future-improvements).
 
 ### Cache, sync JSON, and worker identity hardening
 
@@ -414,6 +419,6 @@ reconnects before navigation so it tests adapter persistence independently of th
 - Benchmark strict durability and provide documented, explicit performance profiles if a safe
   configuration surface can be designed.
 - Track newer wa-sqlite and SQLite releases while preserving migration and multi-tab compatibility.
-- Replace the commit-pinned dependency with a fully vendored wa-sqlite source subset and automated
-  weekly update workflow. The current binary hashes and Metro glue patch are recorded in
-  `src/adapters/sqlite/sqlite-wasm/VENDOR.md` as the auditable intermediate state.
+- Add an automated weekly workflow that bumps the vendored wa-sqlite subset
+  (`node scripts/vendor-wa-sqlite.mjs <commit-sha>`) and runs the Chromium suite. Vendoring itself
+  is done; see `src/adapters/sqlite/sqlite-wasm/VENDOR.md`.

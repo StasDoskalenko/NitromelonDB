@@ -9,9 +9,12 @@
  *   node scripts/prepare-changelog.mjs extract <version>
  *   node scripts/prepare-changelog.mjs --self-test
  *
- * Rolling a stable version (no -alpha / -beta) folds every same-core prerelease
- * entry (0.30.0-alpha.0, 0.30.0-alpha.1, 0.30.0-beta.0, …) into one official
- * heading and removes those prerelease sections from CHANGELOG.md.
+ * Rolling a stable version (no -alpha / -beta) folds every prerelease entry
+ * shipped since the previous stable release into one official heading and
+ * removes those prerelease sections from CHANGELOG.md. That covers same-core
+ * prereleases (0.30.0-alpha.0 … 0.30.0-beta.N → 0.30.0) as well as a
+ * prerelease line that graduates under a bigger bump (0.30.1-beta.N → 0.31.0).
+ * Prereleases of a newer core than the one being shipped are left alone.
  */
 
 import fs from 'node:fs'
@@ -93,17 +96,53 @@ function tryParseVersion(version) {
   }
 }
 
-function sameCore(left, right) {
-  return left.major === right.major && left.minor === right.minor && left.patch === right.patch
+function compareCore(left, right) {
+  return left.major - right.major || left.minor - right.minor || left.patch - right.patch
 }
 
-export function isSameCorePrerelease(entryVersion, stableVersion) {
+// Older stable headings can be `## 0.28` (no patch); read that as 0.28.0.
+function parseStableHeading(version) {
+  const match = /^(\d+)\.(\d+)(?:\.(\d+))?$/.exec(version ?? '')
+  if (!match) {
+    return null
+  }
+  return { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3] ?? 0) }
+}
+
+/**
+ * The newest stable entry older than `stableVersion`, or null when the
+ * changelog has none (every prerelease up to `stableVersion` then folds).
+ */
+export function previousStableVersion(entryVersions, stableVersion) {
+  const target = tryParseVersion(stableVersion)
+  let best = null
+  for (const version of entryVersions) {
+    const core = parseStableHeading(version)
+    if (!target || !core || compareCore(core, target) >= 0) {
+      continue
+    }
+    if (!best || compareCore(core, best.core) > 0) {
+      best = { version, core }
+    }
+  }
+  return best?.version ?? null
+}
+
+/**
+ * Whether prerelease `entryVersion` belongs to the `stableVersion` cycle:
+ * newer than `previousStable` and not past `stableVersion` itself.
+ */
+export function shouldFoldPrerelease(entryVersion, stableVersion, previousStable = null) {
   const entry = tryParseVersion(entryVersion)
   const stable = tryParseVersion(stableVersion)
   if (!entry || !stable || stable.hasPrerelease || !entry.hasPrerelease) {
     return false
   }
-  return sameCore(entry, stable)
+  if (compareCore(entry, stable) > 0) {
+    return false
+  }
+  const floor = parseStableHeading(previousStable)
+  return !floor || compareCore(entry, floor) > 0
 }
 
 function prereleaseOrder(version) {
@@ -113,6 +152,10 @@ function prereleaseOrder(version) {
 }
 
 function comparePrereleases(left, right) {
+  const coreOrder = compareCore(parseVersion(left), parseVersion(right))
+  if (coreOrder !== 0) {
+    return coreOrder
+  }
   const [leftChannel, leftNum] = prereleaseOrder(left)
   const [rightChannel, rightNum] = prereleaseOrder(right)
   if (leftChannel !== rightChannel) {
@@ -148,7 +191,8 @@ export function splitChangelog(changelog) {
 function splitItems(body) {
   const items = []
   for (const line of body.split('\n')) {
-    if (/^\s*[-*]\s+/.test(line)) {
+    // Only top-level bullets start an item; indented sub-bullets stay attached to their parent.
+    if (/^[-*]\s+/.test(line)) {
       items.push(line.trimEnd())
       continue
     }
@@ -242,9 +286,14 @@ export function foldPrereleaseEntries(changelog, version, unreleasedNotes, date)
   }
 
   const shouldFold = parsed && !parsed.hasPrerelease
-  const prereleases = shouldFold
-    ? entries.filter((entry) => entry.version && isSameCorePrerelease(entry.version, version))
-    : []
+  const floor = shouldFold
+    ? previousStableVersion(
+        entries.map((entry) => entry.version),
+        version,
+      )
+    : null
+  const folds = (entry) => entry.version && shouldFoldPrerelease(entry.version, version, floor)
+  const prereleases = shouldFold ? entries.filter(folds) : []
   prereleases.sort((left, right) => comparePrereleases(left.version, right.version))
 
   const bodies = [...prereleases.map((entry) => entry.body), unreleasedNotes].filter(
@@ -253,9 +302,7 @@ export function foldPrereleaseEntries(changelog, version, unreleasedNotes, date)
   const notes = mergeChangelogBodies(bodies) || stripEmptySections(unreleasedNotes).trim()
   const entry = formatReleaseEntry(version, date, notes)
 
-  const remaining = shouldFold
-    ? entries.filter((item) => !(item.version && isSameCorePrerelease(item.version, version)))
-    : entries
+  const remaining = shouldFold ? entries.filter((item) => !folds(item)) : entries
 
   const updated = `${preamble}${entry}\n${remaining.map((item) => item.raw).join('')}`
   return {
@@ -292,7 +339,7 @@ export function rollChangelog(version, { date = todayUtc(), root = ROOT } = {}) 
   return { notes, empty, folded }
 }
 
-function syncDocsChangelog(changelogContents, docsChangelogPath = DOCS_CHANGELOG_PATH) {
+export function syncDocsChangelog(changelogContents, docsChangelogPath = DOCS_CHANGELOG_PATH) {
   const docsDir = path.dirname(docsChangelogPath)
   if (!fs.existsSync(docsDir)) {
     return
@@ -480,23 +527,76 @@ function runSelfTest() {
       },
     ],
     [
-      'stable roll of a different core does not fold 0.30.0 prereleases',
+      'minor bump folds the unshipped patch prerelease line (0.30.1-* → 0.31.0)',
       () => {
-        const { changelog, folded } = foldPrereleaseEntries(
+        const { changelog, folded, notes } = foldPrereleaseEntries(
+          `${preamble}## 0.30.1-beta.0 - 2026-09-10\n\n### Fixes\n\n- Beta 0 fix\n\n` +
+            `## 0.30.1-alpha.1 - 2026-09-03\n\n### New features\n\n- Alpha 1 feature\n\n` +
+            `## 0.30.1-alpha.0 - 2026-09-03\n\n### Fixes\n\n- Alpha 0 fix\n\n` +
+            `## 0.30.0 - 2026-09-02\n\n### Fixes\n\n- Shipped in 0.30.0\n\n` +
+            `## 0.30.0-alpha.0 - 2026-08-15\n\n### Fixes\n\n- Leftover pre-0.30.0 alpha\n`,
+          '0.31.0',
+          '### Fixes\n\n- Unreleased fix\n',
+          '2026-10-06',
+        )
+        assertDeepEqual(folded, ['0.30.1-alpha.0', '0.30.1-alpha.1', '0.30.1-beta.0'], 'folded 0.30.1 line')
+        assertEqual(
+          notes,
+          [
+            '### New features',
+            '',
+            '- Alpha 1 feature',
+            '',
+            '### Fixes',
+            '',
+            '- Alpha 0 fix',
+            '- Beta 0 fix',
+            '- Unreleased fix',
+          ].join('\n'),
+          '0.31.0 notes',
+        )
+        if (changelog.includes('## 0.30.1-')) {
+          throw new Error('0.30.1 prerelease headings should be removed')
+        }
+        if (!changelog.includes('## 0.30.0 - 2026-09-02') || !changelog.includes('## 0.30.0-alpha.0')) {
+          throw new Error('entries at or before the previous stable release must stay')
+        }
+      },
+    ],
+    [
+      'nested sub-bullets stay under their parent bullet',
+      () => {
+        const nested = '### Internal\n\n- Parent\n  - Child one\n  - Child two\n- Sibling'
+        assertEqual(mergeChangelogBodies([nested]), nested, 'nested list preserved')
+      },
+    ],
+    [
+      'major bump with no stable in between folds the whole prerelease run',
+      () => {
+        const { folded } = foldPrereleaseEntries(
           prereleaseChangelog,
           '1.0.0',
           '### New features\n\n- Major feature\n',
           '2026-09-01',
         )
-        assertDeepEqual(folded, [], 'no fold across cores')
-        if (!changelog.includes('## 0.30.0-alpha.0 - 2026-08-15')) {
-          throw new Error('0.30.0 prereleases must remain when shipping 1.0.0')
-        }
-        assertEqual(
-          extractChangelog('1.0.0', changelog),
-          '### New features\n\n- Major feature',
-          '1.0.0 notes',
+        assertDeepEqual(folded, ['0.30.0-alpha.0', '0.30.0-alpha.1', '0.30.0-beta.0'], 'fold 0.30.0 run')
+      },
+    ],
+    [
+      'stable hotfix leaves a newer prerelease line alone',
+      () => {
+        const { changelog, folded } = foldPrereleaseEntries(
+          `${preamble}## 0.31.0-alpha.0 - 2026-10-10\n\n### New features\n\n- Next minor\n\n` +
+            `## 0.30.1-alpha.0 - 2026-10-08\n\n### Fixes\n\n- Hotfix prerelease\n\n` +
+            `## 0.30.0 - 2026-09-02\n\n### Fixes\n\n- Shipped\n`,
+          '0.30.1',
+          '',
+          '2026-10-12',
         )
+        assertDeepEqual(folded, ['0.30.1-alpha.0'], 'only the hotfix line folds')
+        if (!changelog.includes('## 0.31.0-alpha.0 - 2026-10-10')) {
+          throw new Error('0.31.0-alpha.0 must remain when shipping 0.30.1')
+        }
       },
     ],
     [

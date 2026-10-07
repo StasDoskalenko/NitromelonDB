@@ -53,10 +53,14 @@
     "react-test-renderer": "19.2.3",
     "typescript": "^5.8.3"
   },
+  "//resolutions": "Dev/build-tooling security pins; none ship in the app. uuid GHSA-w5hq-g745-h8pq: webdriverio 6's devtools only calls require('uuid').v4. fast-xml-parser GHSA-gh4j-gqv2-49f6: react-native / react-native-windows pin RN CLI 20.0.0 / 20.1.0 exactly; RN CLI 20.1.3 ships the identical config-android / platform-apple XML code on fast-xml-parser ^5, so this matches upstream. Drop each once the pinning package moves on.",
   "resolutions": {
     "@react-native-windows/cli/@xmldom/xmldom": "^0.8.15",
     "@react-native-windows/telemetry/@xmldom/xmldom": "^0.8.15",
-    "js-yaml@npm:^4.1.0": "^4.3.2"
+    "js-yaml@npm:^4.1.0": "^4.3.2",
+    "devtools/uuid": "^11.1.1",
+    "@react-native-community/cli-config-android/fast-xml-parser": "^5.7.0",
+    "@react-native-community/cli-platform-apple/fast-xml-parser": "^5.7.0"
   },
   "engines": {
     "node": ">= 22.11.0"

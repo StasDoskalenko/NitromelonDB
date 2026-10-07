@@ -1,6 +1,6 @@
 import SQLiteESMFactory from './wa-sqlite-async.mjs'
-import * as SQLite from 'wa-sqlite'
-import { IDBBatchAtomicVFS } from 'wa-sqlite/src/examples/IDBBatchAtomicVFS.js'
+import * as SQLite from './vendor/wa-sqlite/sqlite-api.js'
+import { IDBBatchAtomicVFS } from './vendor/wa-sqlite/examples/IDBBatchAtomicVFS.js'
 
 import type { NativeBridgeBatchOperation, SQLiteArg } from '../type'
 import DatabaseDriver, { type SQLiteAPI } from './DatabaseDriver'
