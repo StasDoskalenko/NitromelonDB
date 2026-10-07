@@ -574,5 +574,17 @@
       "ram": 195,
       "fps": 54.4
     }
+  },
+  {
+    "sha": "bb44db184ec4e1e502c25753ffc98bddffe3b08b",
+    "date": "2026-10-07T02:18:25.461Z",
+    "prNumber": null,
+    "android": {
+      "iterationCount": 5,
+      "score": 90,
+      "cpu": 43.1,
+      "ram": 194,
+      "fps": 50
+    }
   }
 ]
