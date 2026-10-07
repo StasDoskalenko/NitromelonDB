@@ -260,7 +260,7 @@ jobs:
             echo "- Moves \`CHANGELOG-Unreleased.md\` into \`CHANGELOG.md\`"
             echo "- Resets \`CHANGELOG-Unreleased.md\` for the next cycle"
             if [ "${{ env.IS_PRERELEASE }}" = "false" ]; then
-              echo "- Folds same-version alpha/beta changelog entries into one official release entry"
+              echo "- Folds every alpha/beta changelog entry since the previous stable release into one official release entry"
             fi
             echo ""
             echo "**Merging this PR will:**"

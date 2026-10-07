@@ -24,7 +24,7 @@ Automated releases for `nitromelondb`, modeled on the two-step process used in [
 3. Creates or recreates a `release/vX.Y.Z` branch from master (leftover branches without a tag/release are reused; already-open PRs are not)
 4. Bumps `package.json`
 5. Moves `CHANGELOG-Unreleased.md` into `CHANGELOG.md` under the new version heading, failing the run if it's empty and `allow_empty_changelog` isn't set
-6. When graduating to a stable release (`promote`, or bump `none` + prerelease `none`), folds every same-version `-alpha.N` / `-beta.N` changelog entry into that one official heading and removes the prerelease sections
+6. On any stable release (no `-alpha` / `-beta`), folds every `-alpha.N` / `-beta.N` changelog entry published since the previous stable release into that one official heading and removes the prerelease sections
 7. Records the npm dist-tag choice in `.github/publish-npm-tag` (always written, including `none`)
 8. Resets `CHANGELOG-Unreleased.md` to empty section headers
 9. Bumps `docs-website/package.json` (so the docs version badge matches, including alpha/beta)
@@ -121,7 +121,7 @@ Contributors add notes to `CHANGELOG-Unreleased.md`. Prepare Release copies non-
 
 Empty section headers are dropped. The unreleased file is then reset for the next cycle.
 
-When **bump is `promote`**, or **prerelease is `none`** on an in-progress alpha/beta (for example `0.30.0-beta.0` → `0.30.0`), Prepare Release combines every `0.30.0-alpha.*` and `0.30.0-beta.*` section with the current unreleased notes into a single `## 0.30.0` entry. Duplicate bullets are dropped. Individual alpha/beta headings are removed from `CHANGELOG.md` (GitHub Releases for those prereleases stay as-is). A major/minor/patch that starts a **different** X.Y.Z leaves the previous line's prerelease notes alone.
+Whenever the new version is stable (no `-alpha` / `-beta`), Prepare Release combines every alpha/beta section published since the previous stable release with the current unreleased notes into a single entry. That covers a plain promote (`0.30.0-beta.0` → `0.30.0` folds `0.30.0-alpha.*` / `0.30.0-beta.*`) and a prerelease line that ships under a bigger bump (`0.30.1-beta.3` + `minor` → `0.31.0` folds every `0.30.1-*`). Duplicate bullets are dropped. Individual alpha/beta headings are removed from `CHANGELOG.md` (GitHub Releases for those prereleases stay as-is). Prereleases of a **newer** X.Y.Z than the one being shipped (e.g. `0.31.0-alpha.*` while shipping a `0.30.1` hotfix) are left alone.
 
 ## npm trusted publishing (OIDC)
 

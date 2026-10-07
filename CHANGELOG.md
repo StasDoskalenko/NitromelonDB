@@ -6,89 +6,47 @@ Contributors: Please add your changes to CHANGELOG-Unreleased.md
 
 ## 0.31.0 - 2026-10-06
 
-### Fixes
-
-- The dev-mode "The writer/reader you're trying to run (unnamed) can't be performed yet..." warning is less noisy and more useful: a single slow writer/reader with several things queued behind it used to print one warning per queued item (each armed its own 1500ms timer); now it warns at most once per running writer/reader, naming it, once something has been waiting behind it for 1500ms -- including when it only gets stuck late (e.g. a nested `write()` without `callWriter()` after a slow `await`). Undescribed `database.write(fn)`/`database.read(fn)` calls now fall back to the function's own name, then (dev only) to the name of the function that called `write()`/`read()`, instead of always saying "unnamed"; `useWriter`/`useAtomicWriter` now pass a description too. Measured on a workload of 3 slow writers + 30 uncoordinated writer/reader callers: 3 warnings now vs 32 before (and 32 on upstream WatermelonDB) for the identical workload -- see the new "Competing writers/readers" card in `examples/benchmark`.
-
-## 0.30.1-beta.3 - 2026-09-27
-
 ### New features
 
-- Adapters can implement an optional `tablesWithLocalChanges(tableNames, callback)`, which sync uses to skip tables without local changes. `SQLiteAdapter` implements it; other adapters keep checking every table.
-
-### Performance
-
-- Sync in apps with many tables is no longer slower than upstream WatermelonDB. The native prepared-statement cache was capped at 50 statements; a sync runs several statements per table, in the same order every time, so apps with more than a few tables re-prepared almost every statement of every sync. With 80 tables, sync took ~45% longer in the library than on WatermelonDB (discussion #109). The cap now scales with the schema (100 + 10 per table, up to 2,000). A memory warning now also clears the cache.
-- Sync no longer pays a fixed cost per table on every call. Tables whose pulled changeset is empty are skipped instead of being read (incremental strategy; replacement still processes every table), and on SQLite one query finds the tables with local changes instead of three calls per table. With 80 tables, an empty pull takes 0.5 ms instead of 3.8 ms in Node.
-
-### Internal
-
-- `yarn test:native-unit` builds and runs standalone C++ unit tests (`native/tests`) against the vendored SQLite, now in CI. The first covers the statement cache.
-
-## 0.30.1-beta.2 - 2026-09-25
-
-### New features
-
+- [Web] `SQLiteAdapter` now uses wa-sqlite's Asyncify build in a dedicated worker, backed by `IDBBatchAtomicVFS`. The browser adapter keeps the existing `nitromelondb/adapters/sqlite` import and supports the native SQLite contract, including migrations, batches, record caching, local storage, reset, and optimized sync JSON import.
 - `Collection.findAndObserveOrNull(id)`: like `findAndObserve(id)`, but emits `null` instead of erroring when the record doesn't exist, so a missing record no longer throws out of `withObservables`. It also emits the record once it's created (e.g. by sync) and emits `null` instead of completing when it's deleted. `findAndObserve` is unchanged.
 - `Q.sortBy()` accepts `Q.unsafeSqlExpr()` on SQLite adapters, e.g. `Q.sortBy(Q.unsafeSqlExpr('CAST(image_id AS INTEGER)'), Q.desc)`. LokiJS rejects it with a clear error.
-
-### Fixes
-
-- Observing a query whose only condition is `Q.unsafeSqlExpr()` / `Q.unsafeLokiExpr()` (including inside `Q.and` / `Q.or`) no longer throws `Illegal clause sql` when the table changes, e.g. during sync. The same goes for a `Q.on` nested inside `Q.and` / `Q.or`, which used to throw `Illegal Q.on`. Such queries now re-run on change instead of being matched in JavaScript ([WatermelonDB#1679](https://github.com/Nozbe/WatermelonDB/discussions/1679), approach from [WatermelonDB#1977](https://github.com/Nozbe/WatermelonDB/pull/1977)).
-- `yarn install` no longer fails on Yarn Classic (`fatal: not a git repository`) or on Yarn 4 projects that don't allowlist git dependencies. The `wa-sqlite` dependency now points at a GitHub tarball of the same pinned commit instead of a git URL. The installed files are the same.
-
-### Performance
-
-- SQLite adapters: large batches (1,000+ operations on a table) no longer drop and recreate every index in the schema. Recreating an index scans and sorts the whole table, so for chunked sync into a table that already has data, every chunk paid for the entire table. Sync got quadratically slower as the table grew. Now only the tables the batch writes to are considered, and their indices are recreated only when the batch has at least as many operations as the table has rows, which is the case where it's still faster (e.g. a bulk load into an empty table). On web (wa-sqlite), where the adapter can't check row counts without delaying the batch behind later calls, large batches no longer recreate indices at all. That costs up to ~20% only on one-shot bulk loads into an empty table. In Node, syncing 100k records in 2,000-record chunks: initial pull 2.3s → 1.1s, update pull 3.6s → 1.3s.
-- iOS/Android/Windows: record queries (`fetch()`, `observe()`, and the reads `synchronize()` does before applying remote changes) no longer copy every row through Nitro's `AnyMap` on the way to JS. Rows are now read into compact positional vectors and turned into JS objects in one pass, with one property key per column instead of one per cell. In the new sync benchmark (`examples/benchmark`: 12-column records, 2,000 per `synchronize()` call, Release build, 10–20 interleaved runs per size), `synchronize()` + fetch is 14–23% faster, `fetch()` is 37–61% faster, and peak process memory is 56–154 MB (14–27%) lower. That's level with WatermelonDB's JSI adapter, and ahead of it for fetches. `Q.unsafeSqlQuery(...).unsafeFetchRaw()` gets the same path.
-- `Query.markAllAsDeleted()` / `Query.destroyAllPermanently()` are dramatically faster and no longer scale with how many records match: previously each matching record was deleted individually (one `database.batch()` call, i.e. one transaction, per record), then a full row fetch per matching record even after that was batched into one transaction. Now every backend (SQLite native/iOS/Android/Windows, sqlite-node, sqlite-wasm, LokiJS) resolves and deletes matching records in a single operation via a new `DatabaseAdapter#destroyMatching()` method, and clearing a whole table (`collection.query().destroyAllPermanently()`) can take SQLite's own page-truncation fast path instead of deleting row by row. Run `yarn benchmark:destroy-all` for a real, reproducible old-vs-new timing comparison against a real SQLite database (e.g. ~1.6s vs ~11ms clearing 5,000 rows on a MacBook -- see `src/adapters/__tests__/sqliteTests/destroyAll.benchmark.js`). If you maintain a fully custom `DatabaseAdapter` (not one of the three built-in ones) that doesn't implement `destroyMatching()` yet, this still works -- it transparently falls back to the previous id-resolve-then-batch approach and logs one console warning -- but implementing it (see its doc comment in `src/adapters/type.ts`) gets you the same speedup.
-
-### Changes
-
-- Docs: rewrote Installation and Migrating from WatermelonDB as one short path per platform and removed outdated steps. Pro Tips now explains how to open the database on Android now that Android Studio's Database Inspector can't see it.
-
-## 0.30.1-beta.1 - 2026-09-11
+- Adapters can implement an optional `tablesWithLocalChanges(tableNames, callback)`, which sync uses to skip tables without local changes. `SQLiteAdapter` implements it; other adapters keep checking every table.
 
 ### Fixes
 
 - [Android] `native/android/build.gradle` no longer applies `kotlin-android` unconditionally. AGP 9 registers a `kotlin` extension itself and enables built-in Kotlin support by default, so the explicit apply collided with it ("Cannot add extension with name 'kotlin'"), making the module unbuildable on AGP 9 projects with no consumer-side workaround. The plugin is now applied only when nothing has registered that extension yet, which also covers AGP 10 (where the `android.builtInKotlin` opt-out is removed).
-
-### Internal
-
-- Dependabot cleanup across the example apps and docs site — none of these ship in the published `nitromelondb` package:
-  - `examples/NotesApp_windows`: `@xmldom/xmldom` 0.7.13 → 0.8.15 (GHSA-2v35-w6hq-6mfw, uncontrolled recursion DoS) and `js-yaml` 4.x → 4.3.2 (GHSA-2883-xcg3-v3hh, uncontrolled CPU on empty merge sources), both dev-only transitives.
-  - `docs-website`: `minimatch` → 3.1.5, `js-yaml` (4.x) → 4.3.2, `ws` → 8.21.3, `path-to-regexp` (0.1.x) → 0.1.13, `serialize-javascript` 6 → 7.1.1 — all Docusaurus build-time transitives, none shipped in the generated site.
-  - Root toolchain: `tmp` 0.0.33 → 0.2.7 (GHSA-ph9p-34f9-6g65, path traversal), pulled in transitively via `inquirer` → `external-editor`.
-  - `examples/typescript`: dropped the unmaintained `tsd-check` dev dependency (its only use was a single `expectType` call, replaced with a local type-only helper), clearing its `braces`/`got`/`yargs-parser`/`decode-uri-component` advisory chain.
-
-## 0.30.1-beta.0 - 2026-09-10
-
-### New features
-
-- [Web] `SQLiteAdapter` now uses wa-sqlite's Asyncify build in a dedicated worker, backed by `IDBBatchAtomicVFS`. The browser adapter keeps the existing `nitromelondb/adapters/sqlite` import and supports the native SQLite contract, including migrations, batches, record caching, local storage, reset, and optimized sync JSON import.
-
-### Internal
-
-- Memory-pressure trimming (the WeakValueCache-based caches and the native `sqlite3_db_release_memory` call added in 0.30.1) now logs when it actually runs — `logger.debug` on the JS side (`[Memory] <cache>: pruned N dead entries (...)`, `[Memory] Low memory signal received, notifying N listener(s)`), native `consoleLog`/`Logger` on iOS/Android — mirroring MMKV's debug logging for its own memory-warning handler, so the mechanism's activity is actually visible instead of silent.
-
-## 0.30.1-alpha.1 - 2026-09-03
-
-### Performance
-
-- The native prepared-statement cache (`Database::cachedStatements_`) is now a bounded, 50-entry LRU instead of growing forever for the life of a connection — `Collection#query()`'s dynamic `where()` conditions inline every distinct filter value directly into the cached SQL string, so this could grow without bound over an app's lifetime.
-- [Android] Stopped unconditionally forcing `pragma temp_store = memory` (which pushed `CREATE INDEX`/`ORDER BY` spill/`VACUUM`/migration scratch space onto the heap instead of disk). SQLite now gets a real, app-sandboxed temp directory (`context.getCacheDir()`, resolved via JNI once at startup) instead; the old pragma is kept only as an automatic fallback if that resolution fails.
-- [iOS][Android] The native low-memory alert added in 0.30.1-alpha.0 now also releases SQLite's own internal memory directly (`sqlite3_db_release_memory`), not just JS-side caches — the alert previously reached JS but never told SQLite itself to give anything back.
-
-## 0.30.1-alpha.0 - 2026-09-03
+- Observing a query whose only condition is `Q.unsafeSqlExpr()` / `Q.unsafeLokiExpr()` (including inside `Q.and` / `Q.or`) no longer throws `Illegal clause sql` when the table changes, e.g. during sync. The same goes for a `Q.on` nested inside `Q.and` / `Q.or`, which used to throw `Illegal Q.on`. Such queries now re-run on change instead of being matched in JavaScript ([WatermelonDB#1679](https://github.com/Nozbe/WatermelonDB/discussions/1679), approach from [WatermelonDB#1977](https://github.com/Nozbe/WatermelonDB/pull/1977)).
+- `yarn install` no longer fails on Yarn Classic (`fatal: not a git repository`) or on Yarn 4 projects that don't allowlist git dependencies. The `wa-sqlite` dependency now points at a GitHub tarball of the same pinned commit instead of a git URL. The installed files are the same.
+- The dev-mode "The writer/reader you're trying to run (unnamed) can't be performed yet..." warning is less noisy and more useful: a single slow writer/reader with several things queued behind it used to print one warning per queued item (each armed its own 1500ms timer); now it warns at most once per running writer/reader, naming it, once something has been waiting behind it for 1500ms -- including when it only gets stuck late (e.g. a nested `write()` without `callWriter()` after a slow `await`). Undescribed `database.write(fn)`/`database.read(fn)` calls now fall back to the function's own name, then (dev only) to the name of the function that called `write()`/`read()`, instead of always saying "unnamed"; `useWriter`/`useAtomicWriter` now pass a description too. Measured on a workload of 3 slow writers + 30 uncoordinated writer/reader callers: 3 warnings now vs 32 before (and 32 on upstream WatermelonDB) for the identical workload -- see the new "Competing writers/readers" card in `examples/benchmark`.
 
 ### Performance
 
 - Internal caches (`KeyedSharedSubscribable`'s per-column-set subscribable map, the `@date` decorator's memoization cache) now self-prune dead entries via a new `WeakValueCache` utility (`Map<K, WeakRef<V>>` + `FinalizationRegistry`, with a tiered fallback for engines without native `WeakRef`/`FinalizationRegistry` support), instead of growing forever for the life of the process.
 - [iOS][Android] Real OS memory-pressure signals (`didReceiveMemoryWarningNotification` on iOS; `ComponentCallbacks2`/`onTrimMemory`, filtered to critical levels, on Android) now proactively trigger that pruning via a new Nitro `onMemoryWarning` callback, instead of the previously-stubbed `platform::onMemoryAlert` doing nothing.
+- The native prepared-statement cache (`Database::cachedStatements_`) is now a bounded, 50-entry LRU instead of growing forever for the life of a connection — `Collection#query()`'s dynamic `where()` conditions inline every distinct filter value directly into the cached SQL string, so this could grow without bound over an app's lifetime.
+- [Android] Stopped unconditionally forcing `pragma temp_store = memory` (which pushed `CREATE INDEX`/`ORDER BY` spill/`VACUUM`/migration scratch space onto the heap instead of disk). SQLite now gets a real, app-sandboxed temp directory (`context.getCacheDir()`, resolved via JNI once at startup) instead; the old pragma is kept only as an automatic fallback if that resolution fails.
+- [iOS][Android] The native low-memory alert added in 0.30.1-alpha.0 now also releases SQLite's own internal memory directly (`sqlite3_db_release_memory`), not just JS-side caches — the alert previously reached JS but never told SQLite itself to give anything back.
+- SQLite adapters: large batches (1,000+ operations on a table) no longer drop and recreate every index in the schema. Recreating an index scans and sorts the whole table, so for chunked sync into a table that already has data, every chunk paid for the entire table. Sync got quadratically slower as the table grew. Now only the tables the batch writes to are considered, and their indices are recreated only when the batch has at least as many operations as the table has rows, which is the case where it's still faster (e.g. a bulk load into an empty table). On web (wa-sqlite), where the adapter can't check row counts without delaying the batch behind later calls, large batches no longer recreate indices at all. That costs up to ~20% only on one-shot bulk loads into an empty table. In Node, syncing 100k records in 2,000-record chunks: initial pull 2.3s → 1.1s, update pull 3.6s → 1.3s.
+- iOS/Android/Windows: record queries (`fetch()`, `observe()`, and the reads `synchronize()` does before applying remote changes) no longer copy every row through Nitro's `AnyMap` on the way to JS. Rows are now read into compact positional vectors and turned into JS objects in one pass, with one property key per column instead of one per cell. In the new sync benchmark (`examples/benchmark`: 12-column records, 2,000 per `synchronize()` call, Release build, 10–20 interleaved runs per size), `synchronize()` + fetch is 14–23% faster, `fetch()` is 37–61% faster, and peak process memory is 56–154 MB (14–27%) lower. That's level with WatermelonDB's JSI adapter, and ahead of it for fetches. `Q.unsafeSqlQuery(...).unsafeFetchRaw()` gets the same path.
+- `Query.markAllAsDeleted()` / `Query.destroyAllPermanently()` are dramatically faster and no longer scale with how many records match: previously each matching record was deleted individually (one `database.batch()` call, i.e. one transaction, per record), then a full row fetch per matching record even after that was batched into one transaction. Now every backend (SQLite native/iOS/Android/Windows, sqlite-node, sqlite-wasm, LokiJS) resolves and deletes matching records in a single operation via a new `DatabaseAdapter#destroyMatching()` method, and clearing a whole table (`collection.query().destroyAllPermanently()`) can take SQLite's own page-truncation fast path instead of deleting row by row. Run `yarn benchmark:destroy-all` for a real, reproducible old-vs-new timing comparison against a real SQLite database (e.g. ~1.6s vs ~11ms clearing 5,000 rows on a MacBook -- see `src/adapters/__tests__/sqliteTests/destroyAll.benchmark.js`). If you maintain a fully custom `DatabaseAdapter` (not one of the three built-in ones) that doesn't implement `destroyMatching()` yet, this still works -- it transparently falls back to the previous id-resolve-then-batch approach and logs one console warning -- but implementing it (see its doc comment in `src/adapters/type.ts`) gets you the same speedup.
+- Sync in apps with many tables is no longer slower than upstream WatermelonDB. The native prepared-statement cache was capped at 50 statements; a sync runs several statements per table, in the same order every time, so apps with more than a few tables re-prepared almost every statement of every sync. With 80 tables, sync took ~45% longer in the library than on WatermelonDB (discussion #109). The cap now scales with the schema (100 + 10 per table, up to 2,000). A memory warning now also clears the cache.
+- Sync no longer pays a fixed cost per table on every call. Tables whose pulled changeset is empty are skipped instead of being read (incremental strategy; replacement still processes every table), and on SQLite one query finds the tables with local changes instead of three calls per table. With 80 tables, an empty pull takes 0.5 ms instead of 3.8 ms in Node.
+
+### Changes
+
+- Docs: rewrote Installation and Migrating from WatermelonDB as one short path per platform and removed outdated steps. Pro Tips now explains how to open the database on Android now that Android Studio's Database Inspector can't see it.
 
 ### Internal
 
 - `plans/single-source-of-truth.md`: a design plan (not implemented) for detecting SQL changes made outside `Database.batch()`'s own JS-side bookkeeping — either a different connection/process writing to the same file, or raw SQL run via `unsafeExecuteMultiple` on our own connection.
+- Memory-pressure trimming (the WeakValueCache-based caches and the native `sqlite3_db_release_memory` call added in 0.30.1) now logs when it actually runs — `logger.debug` on the JS side (`[Memory] <cache>: pruned N dead entries (...)`, `[Memory] Low memory signal received, notifying N listener(s)`), native `consoleLog`/`Logger` on iOS/Android — mirroring MMKV's debug logging for its own memory-warning handler, so the mechanism's activity is actually visible instead of silent.
+- Dependabot cleanup across the example apps and docs site — none of these ship in the published `nitromelondb` package:
+  - `examples/NotesApp_windows`: `@xmldom/xmldom` 0.7.13 → 0.8.15 (GHSA-2v35-w6hq-6mfw, uncontrolled recursion DoS) and `js-yaml` 4.x → 4.3.2 (GHSA-2883-xcg3-v3hh, uncontrolled CPU on empty merge sources), both dev-only transitives.
+  - `docs-website`: `minimatch` → 3.1.5, `js-yaml` (4.x) → 4.3.2, `ws` → 8.21.3, `path-to-regexp` (0.1.x) → 0.1.13, `serialize-javascript` 6 → 7.1.1 — all Docusaurus build-time transitives, none shipped in the generated site.
+  - Root toolchain: `tmp` 0.0.33 → 0.2.7 (GHSA-ph9p-34f9-6g65, path traversal), pulled in transitively via `inquirer` → `external-editor`.
+  - `examples/typescript`: dropped the unmaintained `tsd-check` dev dependency (its only use was a single `expectType` call, replaced with a local type-only helper), clearing its `braces`/`got`/`yargs-parser`/`decode-uri-component` advisory chain.
+- `yarn test:native-unit` builds and runs standalone C++ unit tests (`native/tests`) against the vendored SQLite, now in CI. The first covers the statement cache.
 
 ## 0.30.0 - 2026-09-02
 
