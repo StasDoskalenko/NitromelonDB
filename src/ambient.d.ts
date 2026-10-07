@@ -20,11 +20,6 @@ declare const process: {
   cwd: () => string
 }
 
-declare module 'sql-escape-string' {
-  function escapeString(value: string): string
-  export default escapeString
-}
-
 declare module '*.wasm' {
   const asset: string | number | { uri: string }
   export default asset
@@ -33,16 +28,4 @@ declare module '*.wasm' {
 declare module '*.mjs' {
   const factory: (options?: Record<string, unknown>) => Promise<object>
   export default factory
-}
-
-declare module 'wa-sqlite/src/examples/IDBBatchAtomicVFS.js' {
-  export class IDBBatchAtomicVFS {
-    name: string
-    static create(
-      name: string,
-      module: object,
-      options?: { idbName?: string },
-    ): Promise<IDBBatchAtomicVFS>
-    close(): void
-  }
 }

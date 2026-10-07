@@ -1,9 +1,14 @@
-import escapeString from 'sql-escape-string'
 import { logError } from '../../../utils/common'
 
 // Note: SQLite doesn't support literal TRUE and FALSE; expects 1 or 0 instead
 // It also doesn't encode strings the same way
 // Also: catches invalid values (undefined, NaN) early
+
+// Standard SQL string literal: single-quoted, embedded quotes doubled. SQLite has
+// no backslash escapes (https://sqlite.org/lang_expr.html), so nothing else needs escaping.
+function quoteString(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
+}
 
 export default function encodeValue(value: unknown): string {
   if (value === true) {
@@ -22,7 +27,7 @@ export default function encodeValue(value: unknown): string {
     return `${value}`
   } else if (typeof value === 'string') {
     // TODO: We shouldn't ever encode SQL values directly — use placeholders
-    return escapeString(value)
+    return quoteString(value)
   }
   throw new Error('Invalid value to encode into query')
 }

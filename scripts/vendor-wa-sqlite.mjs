@@ -1,11 +1,17 @@
 #!/usr/bin/env node
 /**
- * Vendor wa-sqlite's Asyncify build into src/adapters/sqlite/sqlite-wasm.
+ * Vendor wa-sqlite into src/adapters/sqlite/sqlite-wasm.
  *
  * Unlike native/vendor/sqlite and native/vendor/simdjson, wa-sqlite is not
- * published to npm, so this pulls the prebuilt `dist/wa-sqlite-async.{mjs,wasm}`
- * artifacts directly from a pinned commit of github.com/rhashimoto/wa-sqlite
- * and reapplies the one documented source patch (see VENDOR.md).
+ * published to npm. Rather than making every NitromelonDB install download the
+ * whole upstream repository as a git/URL dependency (~15 MB, mostly demos and
+ * docs), this pulls only what the web adapter loads, from a pinned commit of
+ * github.com/rhashimoto/wa-sqlite:
+ *
+ * - the prebuilt `dist/wa-sqlite-async.{mjs,wasm}` artifacts, with the one
+ *   documented source patch reapplied to the `.mjs` (see VENDOR.md), and
+ * - the JavaScript API + IndexedDB VFS sources the worker imports, byte for
+ *   byte, under `vendor/wa-sqlite/` (plus upstream's LICENSE).
  *
  *   node scripts/vendor-wa-sqlite.mjs <commit-sha> [tag]   # bump to a new commit
  *   node scripts/vendor-wa-sqlite.mjs --verify              # check committed files match VENDOR.md and upstream
@@ -18,10 +24,24 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..')
 const VENDOR_DIR = path.join(ROOT, 'src', 'adapters', 'sqlite', 'sqlite-wasm')
+const SOURCE_VENDOR_DIR = path.join(VENDOR_DIR, 'vendor', 'wa-sqlite')
 const MJS_NAME = 'wa-sqlite-async.mjs'
 const WASM_NAME = 'wa-sqlite-async.wasm'
 const VENDOR_MD_PATH = path.join(VENDOR_DIR, 'VENDOR.md')
 const REPO = 'rhashimoto/wa-sqlite'
+
+// Upstream path -> path under vendor/wa-sqlite/. Keeps upstream's relative
+// layout so the files' own `./` / `../` imports resolve unchanged. This is the
+// full import graph of `sqlite-api.js` and `examples/IDBBatchAtomicVFS.js`.
+const SOURCE_FILES = [
+  ['LICENSE', 'LICENSE'],
+  ['src/sqlite-api.js', 'sqlite-api.js'],
+  ['src/sqlite-constants.js', 'sqlite-constants.js'],
+  ['src/VFS.js', 'VFS.js'],
+  ['src/FacadeVFS.js', 'FacadeVFS.js'],
+  ['src/WebLocksMixin.js', 'WebLocksMixin.js'],
+  ['src/examples/IDBBatchAtomicVFS.js', 'examples/IDBBatchAtomicVFS.js'],
+]
 
 // The single deliberate source patch, documented in VENDOR.md: Expo Metro
 // rewrites `import.meta` to `undefined` in worker chunks, which would crash
@@ -101,11 +121,12 @@ function applyPatch(upstreamSource) {
 
 /** Download + patch the artifacts for one commit. Does not touch the filesystem. */
 async function buildArtifacts(commit, tag) {
-  const base = `https://raw.githubusercontent.com/${REPO}/${commit}/dist`
+  const base = `https://raw.githubusercontent.com/${REPO}/${commit}`
   console.log(`Fetching wa-sqlite artifacts from ${base} ...`)
-  const [upstreamMjs, wasm] = await Promise.all([
-    fetchText(`${base}/${MJS_NAME}`),
-    fetchBuffer(`${base}/${WASM_NAME}`),
+  const [upstreamMjs, wasm, ...sources] = await Promise.all([
+    fetchText(`${base}/dist/${MJS_NAME}`),
+    fetchBuffer(`${base}/dist/${WASM_NAME}`),
+    ...SOURCE_FILES.map(([upstreamPath]) => fetchBuffer(`${base}/${upstreamPath}`)),
   ])
   const patchedMjs = applyPatch(upstreamMjs)
   return {
@@ -116,39 +137,56 @@ async function buildArtifacts(commit, tag) {
     upstreamMjsHash: sha256(Buffer.from(upstreamMjs)),
     patchedMjsHash: sha256(Buffer.from(patchedMjs)),
     wasmHash: sha256(wasm),
+    sources: SOURCE_FILES.map(([upstreamPath, vendoredPath], index) => ({
+      upstreamPath,
+      vendoredPath,
+      contents: sources[index],
+      hash: sha256(sources[index]),
+    })),
   }
 }
 
-function vendorMdContent({ commit, tag, wasmHash, patchedMjsHash, upstreamMjsHash }) {
+function vendorMdContent({ commit, tag, wasmHash, patchedMjsHash, upstreamMjsHash, sources }) {
   const source = tag ? `tag \`${tag}\` (commit \`${commit}\`)` : `commit \`${commit}\``
-  return `# wa-sqlite binary provenance
+  const sourceRows = sources
+    .map(({ vendoredPath, hash }) => `| \`vendor/wa-sqlite/${vendoredPath}\` | \`${hash}\` |`)
+    .join('\n')
+  return `# wa-sqlite provenance
 
-The Emscripten artifacts in this directory come from rhashimoto/wa-sqlite ${source}.
-The runtime JavaScript dependency in \`package.json\` is pinned to that same
-immutable commit.
+Everything NitromelonDB's web adapter loads from wa-sqlite is vendored here from
+rhashimoto/wa-sqlite ${source}. wa-sqlite is MIT licensed (see
+\`vendor/wa-sqlite/LICENSE\`). NitromelonDB does not depend on the \`wa-sqlite\`
+package, so installs never download the upstream repository.
 
 | File | SHA-256 |
 | --- | --- |
 | \`${WASM_NAME}\` | \`${wasmHash}\` |
 | \`${MJS_NAME}\` (patched) | \`${patchedMjsHash}\` |
 | upstream \`dist/${MJS_NAME}\` | \`${upstreamMjsHash}\` |
+${sourceRows}
 
-The JavaScript glue has one deliberate source patch: its \`_scriptName\` base is
-\`self.location.href\` instead of \`import.meta.url\`. Expo Metro currently rewrites
-\`import.meta\` in the emitted worker chunk. This adapter is worker-only and also
-supplies \`wasmBinary\` and \`locateFile\`, so the worker URL is the correct safe base.
+\`vendor/wa-sqlite/\` holds upstream's JavaScript API (\`sqlite-api.js\`) and the
+IndexedDB VFS (\`examples/IDBBatchAtomicVFS.js\`) with its imports, byte for byte
+and in upstream's relative layout. Not part of the upstream snapshot: the \`.d.ts\`
+files (NitromelonDB's own minimal typings) and \`package.json\`, which only sets
+\`"type": "module"\` as upstream's own package.json does.
+The build copies \`vendor/\` as-is instead of running it through Babel.
 
-Regenerate both artifacts and this file with:
+The Emscripten JavaScript glue has one deliberate source patch: its \`_scriptName\`
+base is \`self.location.href\` instead of \`import.meta.url\`. Expo Metro currently
+rewrites \`import.meta\` in the emitted worker chunk. This adapter is worker-only
+and also supplies \`wasmBinary\` and \`locateFile\`, so the worker URL is the correct
+safe base.
+
+Regenerate every file above and this file with:
 
 \`\`\`
-node scripts/vendor-wa-sqlite.mjs <commit-sha>
+node scripts/vendor-wa-sqlite.mjs <commit-sha> [tag]
 \`\`\`
 
 CI runs \`node scripts/vendor-wa-sqlite.mjs --verify\` on every push to confirm the
-committed artifacts still equal upstream plus exactly that one patch, and that this
-file's hashes match. When bumping to a new commit, also update the pinned commit in
-\`package.json\`'s \`wa-sqlite\` dependency (\`.yarnrc.yml\`'s \`approvedGitRepositories\`
-entry for rhashimoto/wa-sqlite does not need to change), then run the Chromium suite
+committed files still equal upstream (plus exactly that one \`.mjs\` patch) and that
+this file's hashes match. After bumping, run the Chromium suite
 (\`yarn --cwd examples/NotesApp test:web\`).
 `
 }
@@ -175,6 +213,12 @@ function readCommittedVendorMd() {
     wasmHash: hashFor((name) => name.includes(WASM_NAME)),
     patchedMjsHash: hashFor((name) => name.includes(MJS_NAME) && !name.includes('dist/')),
     upstreamMjsHash: hashFor((name) => name.includes(`dist/${MJS_NAME}`)),
+    sourceHashes: Object.fromEntries(
+      SOURCE_FILES.map(([, vendoredPath]) => [
+        vendoredPath,
+        hashFor((name) => name === `vendor/wa-sqlite/${vendoredPath}`),
+      ]),
+    ),
   }
 }
 
@@ -220,13 +264,34 @@ async function verify() {
     )
   }
 
+  for (const { upstreamPath, vendoredPath, hash: upstreamHash } of fresh.sources) {
+    const label = `vendor/wa-sqlite/${vendoredPath}`
+    const documentedHash = documented.sourceHashes[vendoredPath]
+    const committedPath = path.join(SOURCE_VENDOR_DIR, vendoredPath)
+    if (!documentedHash) {
+      problems.push(`VENDOR.md has no hash for ${label}`)
+    } else if (upstreamHash !== documentedHash) {
+      problems.push(
+        `Upstream ${upstreamPath} at commit ${documented.commit} hashes to ${upstreamHash}, ` +
+          `but VENDOR.md says ${documentedHash}.`,
+      )
+    }
+    if (!fs.existsSync(committedPath)) {
+      problems.push(`${label} is missing`)
+    } else if (sha256(fs.readFileSync(committedPath)) !== upstreamHash) {
+      problems.push(`${label} differs from upstream ${upstreamPath} (vendored files must be unmodified)`)
+    }
+  }
+
+  // The whole point of vendoring is that installs never fetch the upstream repo.
   const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
-  const pinnedDep = packageJson.dependencies?.['wa-sqlite'] ?? ''
-  if (!pinnedDep.includes(documented.commit)) {
-    problems.push(
-      `package.json's "wa-sqlite" dependency (${pinnedDep || '<missing>'}) does not ` +
-        `reference the commit documented in VENDOR.md (${documented.commit}).`,
-    )
+  for (const field of ['dependencies', 'peerDependencies', 'optionalDependencies']) {
+    if (packageJson[field]?.['wa-sqlite']) {
+      problems.push(
+        `package.json lists "wa-sqlite" in ${field}; import the vendored copy under ` +
+          `${path.relative(ROOT, SOURCE_VENDOR_DIR)} instead.`,
+      )
+    }
   }
 
   if (problems.length) {
@@ -237,8 +302,8 @@ async function verify() {
   }
 
   console.log(
-    `OK: ${MJS_NAME} and ${WASM_NAME} match upstream commit ${documented.commit} ` +
-      'plus exactly the documented patch, and VENDOR.md / package.json agree.',
+    `OK: ${MJS_NAME}, ${WASM_NAME} and ${fresh.sources.length} vendored source files match ` +
+      `upstream commit ${documented.commit} plus exactly the documented patch.`,
   )
 }
 
@@ -246,10 +311,14 @@ async function bump(commit, tag) {
   const artifacts = await buildArtifacts(commit, tag)
   fs.writeFileSync(path.join(VENDOR_DIR, MJS_NAME), artifacts.patchedMjs)
   fs.writeFileSync(path.join(VENDOR_DIR, WASM_NAME), artifacts.wasm)
+  for (const { vendoredPath, contents } of artifacts.sources) {
+    const target = path.join(SOURCE_VENDOR_DIR, vendoredPath)
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.writeFileSync(target, contents)
+  }
   fs.writeFileSync(VENDOR_MD_PATH, vendorMdContent(artifacts))
   console.log(`Vendored wa-sqlite from commit ${commit} into ${path.relative(ROOT, VENDOR_DIR)}`)
-  console.log('Update the pinned commit in package.json\'s "wa-sqlite" dependency to match,')
-  console.log('then run `yarn --cwd examples/NotesApp test:web` before committing.')
+  console.log('Run `yarn --cwd examples/NotesApp test:web` before committing.')
 }
 
 if (verifyMode) {

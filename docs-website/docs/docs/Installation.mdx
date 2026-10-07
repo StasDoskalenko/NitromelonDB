@@ -242,7 +242,9 @@ Electron runs SQLite in the main process. See [Setup — Electron](./Setup.md#el
 <details>
   <summary>Yarn or npm fails to install <code>wa-sqlite</code></summary>
 
-Versions up to `0.30.1-beta.1` pulled `wa-sqlite` from a git URL. Yarn Classic fails on that with `fatal: not a git repository`, and Yarn 4 rejects git dependencies that aren't allowlisted. Newer versions use a tarball URL instead. If you are stuck on an older version, add this to your app's `package.json`:
+Releases after `0.31.0` don't depend on `wa-sqlite` at all: the files the web adapter needs ship inside `nitromelondb`. Upgrading is the simplest fix.
+
+Versions up to `0.30.1-beta.1` pulled `wa-sqlite` from a git URL. Yarn Classic fails on that with `fatal: not a git repository`, and Yarn 4 rejects git dependencies that aren't allowlisted. `0.30.1-beta.2` through `0.31.0` use a tarball URL instead. If you are stuck on an older version, add this to your app's `package.json`:
 
 ```json
 {
