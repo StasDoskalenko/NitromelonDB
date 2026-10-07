@@ -77,9 +77,7 @@
     "@babel/runtime": "^7.29.7",
     "hoist-non-react-statics": "^3.3.2",
     "lokijs": "npm:@nozbe/lokijs@1.5.12-wmelon8",
-    "rxjs": "^7.8.0",
-    "sql-escape-string": "^1.1.0",
-    "wa-sqlite": "https://codeload.github.com/rhashimoto/wa-sqlite/tar.gz/2bf1c59d89eb6497535a4217bc62fec68a0bb994"
+    "rxjs": "^7.8.0"
   },
   "peerDependencies": {
     "react-native-nitro-modules": ">=0.35.2",

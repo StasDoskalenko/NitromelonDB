@@ -145,6 +145,13 @@ const copyNonJavaScriptFiles = (buildPath) => {
     resolvePath('src/adapters/sqlite/sqlite-wasm/wa-sqlite-async.mjs'),
     path.join(buildPath, 'adapters/sqlite/sqlite-wasm/wa-sqlite-async.mjs'),
   )
+  // Vendored wa-sqlite ESM sources ship byte-for-byte (no Babel) next to both builds of workerRuntime.
+  for (const target of ['adapters', 'src/adapters']) {
+    fs.copySync(
+      resolvePath('src/adapters/sqlite/sqlite-wasm/vendor'),
+      path.join(buildPath, target, 'sqlite/sqlite-wasm/vendor'),
+    )
+  }
   // Generated at install / MSBuild; do not ship whatever is on the developer's disk.
   fs.removeSync(path.join(buildPath, 'native/windows/include/NitroModules'))
   fs.writeFileSync(

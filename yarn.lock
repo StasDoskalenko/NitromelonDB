@@ -8728,9 +8728,7 @@ __metadata:
     rimraf: "npm:^4.1.2"
     rxjs: "npm:^7.8.0"
     semver: "npm:^7.8.5"
-    sql-escape-string: "npm:^1.1.0"
     typescript: "npm:^6.0.3"
-    wa-sqlite: "https://codeload.github.com/rhashimoto/wa-sqlite/tar.gz/2bf1c59d89eb6497535a4217bc62fec68a0bb994"
   peerDependencies:
     react-native-nitro-modules: ">=0.35.2"
     rxjs: ^7.8.0
@@ -10479,13 +10477,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sql-escape-string@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "sql-escape-string@npm:1.1.0"
-  checksum: 10c0/89fa6b7adbd550ea2372fc556047ac64703a130593c2fae597e9ab258172908121ac03ac83ae79134f0a7e38c93a8b07ea708c3257f9abcf6452a6a038186f05
-  languageName: node
-  linkType: hard
-
 "stack-utils@npm:^2.0.3":
   version: 2.0.6
   resolution: "stack-utils@npm:2.0.6"
@@ -11277,18 +11268,6 @@ __metadata:
   dependencies:
     xml-name-validator: "npm:^4.0.0"
   checksum: 10c0/02cc66d6efc590bd630086cd88252444120f5feec5c4043932b0d0f74f8b060512f79dc77eb093a7ad04b4f02f39da79ce4af47ceb600f2bf9eacdc83204b1a8
-  languageName: node
-  linkType: hard
-
-"wa-sqlite@https://codeload.github.com/rhashimoto/wa-sqlite/tar.gz/2bf1c59d89eb6497535a4217bc62fec68a0bb994":
-  version: 1.1.1
-  resolution: "wa-sqlite@https://codeload.github.com/rhashimoto/wa-sqlite/tar.gz/2bf1c59d89eb6497535a4217bc62fec68a0bb994"
-  dependenciesMeta:
-    monaco-editor@0.34.1:
-      unplugged: true
-    web-test-runner-jasmine@0.0.6:
-      unplugged: true
-  checksum: 10c0/da1980e5ef0a2903ebbc51be8280c11bddb7920360b5bf7831412ac1104f58c2fb216a1c1bd6f9deb76a0104b7221821a5d7d7b75dcf8fb88cbc7ded9c3f84d6
   languageName: node
   linkType: hard
 
