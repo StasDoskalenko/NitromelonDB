@@ -922,12 +922,12 @@ describe('Database', () => {
         'This deadlocks',
       )
 
-      await expectToRejectWithMessage(
-        database.write(async () => {
-          nested()
-        }, 'outer writer'),
-        'This deadlocks',
-      )
+      // Not waiting for it doesn't deadlock -- it just queues behind the outer writer
+      let nestedPromise
+      await database.write(async () => {
+        nestedPromise = nested()
+      }, 'outer writer')
+      expect(await nestedPromise).toBe(1)
     })
     it('experimentalDetectNestedWriters throws on nested readers without callReader', async () => {
       const { database } = mockDatabase({ experimentalDetectNestedWriters: true })

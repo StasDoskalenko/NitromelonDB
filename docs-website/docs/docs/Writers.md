@@ -257,7 +257,7 @@ const database = new Database({
 
 This throws as soon as a nested `database.write()` / `database.read()` (or `@writer` / `@reader`) runs without `callWriter()` / `callReader()`. That includes nested calls on the same JS turn and after a Watermelon await (`find`, `query`, `batch`). Independent writers queued from the UI (for example while sync is running) still wait as usual.
 
-Detection is best-effort (a nested write after a non-Watermelon `await`, like `fetch()`, is not caught). Fire-and-forget nested `write()` also throws. Details, examples, and caveats: **[Detect nested writers (deadlock prevention)](./Advanced/DetectNestedWriters.md)**.
+A nested `write()` / `read()` that the outer writer waits for throws, no matter how many unrelated `await`s (a `fetch()`, a timer, a helper) come first. One it doesn't wait for (fire-and-forget) just queues. Details, examples, and per-platform notes: **[Detect nested writers (deadlock prevention)](./Advanced/DetectNestedWriters.md)**.
 
 * * *
 
