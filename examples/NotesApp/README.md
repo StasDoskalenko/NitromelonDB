@@ -42,6 +42,7 @@ CI runs these flows on an Android emulator (`NotesApp Android (build)` then `Not
 | `interaction-burst.yaml` | Rapid create / pin / delete |
 | `pagination-seed.yaml` | Sticky pager + `Q.skip` / `Q.take(20)` after seed |
 | `pagination-dynamic.yaml` | Pager updates as notes are added/removed |
+| `nested-writers.yaml` | `experimentalDetectNestedWriters` on the real engine (long-press the title to open the checks screen): nested writes throw instead of deadlocking, also after unrelated `await`s; independent writers still queue |
 
 If you already have a native build and only JS changed, reload Metro. After pulling native SQLite/Nitro changes, rebuild (`yarn expo run:ios` / `yarn expo run:android`). The Expo dev menu is disabled on launch (needed for Maestro); that flag is native, so it also needs a rebuild.
 
