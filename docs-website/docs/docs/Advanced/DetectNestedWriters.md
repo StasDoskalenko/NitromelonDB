@@ -9,11 +9,11 @@ If you call a Writer from another Writer (or a Reader from a Reader/Writer) **wi
 
 `experimentalDetectNestedWriters` makes that fail fast instead of hanging.
 
-This is **opt-in** and **off by default**. With the flag unset, nested writers still deadlock as they always have.
+This is **opt-in** and **off by default**. With the flag unset, nested writers still deadlock as they always have. It's meant for development and tests, not production builds (see [Performance](#performance)).
 
 ## Enable
 
-Pass the flag when you create the database:
+Pass the flag when you create the database, in development builds only:
 
 ```js
 const database = new Database({
@@ -21,9 +21,11 @@ const database = new Database({
   modelClasses: [
     // ...
   ],
-  experimentalDetectNestedWriters: true,
+  experimentalDetectNestedWriters: __DEV__,
 })
 ```
+
+`__DEV__` is defined by React Native (and Expo web). With another web bundler, use `process.env.NODE_ENV !== 'production'`. In Jest, turn it on unconditionally in your test setup; that's where it's free.
 
 When it is on, a nested `database.write()` / `database.read()` (or `@writer` / `@reader`) without `callWriter()` / `callReader()` **throws as soon as the outer writer waits for it**. That's the call that would hang forever.
 
@@ -143,9 +145,27 @@ database.write(async () => {
 
 On Node (and so in Jest) both are caught.
 
-### Development and tests
+## Performance
 
-The flag wraps `Promise.prototype.then` on React Native and in browsers. It costs one extra function call per `.then()` app-wide, plus a small closure while a writer is running. That's fine in development and tests, but there's no reason to ship it to production.
+With the flag off, nothing is installed and there's no cost.
+
+With the flag on, Node and Jest use `AsyncLocalStorage`, which showed no measurable cost. On React Native and in browsers the flag wraps `Promise.prototype.then` for the whole app. Measured on Hermes (iOS simulator, median of 5 runs):
+
+| Workload | Flag off | Flag on | |
+| --- | --- | --- | --- |
+| 50k `await`s, no writer running | 18 ms | 21 ms | 1.12x |
+| 50k `await`s inside one writer | 18 ms | 30 ms | 1.68x |
+| 200 writers × (batch of 10 creates + count) | 63 ms | 65 ms | 1.00–1.02x |
+| 2,000 tiny writers | 5 ms | 5 ms | ~1.1x |
+| 1,000 `fetchCount` reads | 132 ms | 132 ms | ~1.00x |
+
+That's about 0.05 µs extra per `await` outside writers and 0.25 µs inside one. Once a writer does real database work the difference is within noise.
+
+It still doesn't belong in production builds:
+
+- It replaces `Promise.prototype.then` globally. Other code that wraps or inspects `then` (Zone.js-style tools, some error trackers) could interact with it.
+- A promise callback created inside a writer keeps that writer's context after the writer finishes. A long-running loop started from a writer and never awaited keeps paying the in-writer cost. It can't cause false errors: detection only compares against the writer that's currently running.
+- It turns a hang into an error you can see while developing. A forgotten `callWriter()` should be caught by your tests before it ships.
 
 ## See also
 

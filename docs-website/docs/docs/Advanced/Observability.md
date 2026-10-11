@@ -13,17 +13,17 @@ This page is the map. Use it in production debugging and when you turn on strict
 
 Readers and writers are a single queue. Calling `database.write()` / `database.read()` (or `@writer` / `@reader`) from inside an already running block **without** `callWriter()` / `callReader()` does not nest. It waits for the outer block to finish — and the outer block is waiting for the inner one. That is a deadlock.
 
-**Turn on detection in development (and staging):**
+**Turn on detection in development:**
 
 ```js
 const database = new Database({
   adapter,
   modelClasses: [/* ... */],
-  experimentalDetectNestedWriters: true,
+  experimentalDetectNestedWriters: __DEV__,
 })
 ```
 
-When the flag is on, a nested call throws immediately instead of hanging:
+When the flag is on, a nested call throws instead of hanging, as soon as the outer block waits for it:
 
 ```
 Nested writer (nested writer) called from writer (outer writer) without callWriter()/callReader(). This deadlocks.

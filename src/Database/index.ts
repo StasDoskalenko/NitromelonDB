@@ -38,8 +38,13 @@ export type DatabaseProps = {
    * - Browsers: the above, plus a heuristic for natively-executed `await`s (same JS turn, and
    *   right after NitromelonDB's own `find` / `query` / `batch` / `create` / `update`).
    *
-   * Meant for development and tests: enable it in your test setup to catch a forgotten
+   * Meant for development and tests, not production builds. On Hermes it costs about +12% per
+   * `await` app-wide and +70% per `await` inside a running reader/writer; real database work is
+   * within noise (0-2%). On Node / Jest it's free. Enable it in your test setup to catch a forgotten
    * `callWriter()` in CI.
+   *
+   * @example
+   * new Database({ adapter, modelClasses, experimentalDetectNestedWriters: __DEV__ })
    */
   experimentalDetectNestedWriters?: boolean | undefined
   /**
