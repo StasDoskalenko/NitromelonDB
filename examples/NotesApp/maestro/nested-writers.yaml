@@ -39,10 +39,15 @@ appId: com.nitromelondb.example
     text: "Hermes.*context: promise-then"
     id: "nested-checks-engine"
 
-# Spot-check both directions explicitly: the #154 repro throws, fire-and-forget still queues
+# Spot-check both directions explicitly: the #154 repro throws, fire-and-forget still queues.
+# The list scrolls (the header with the buttons doesn't); lower rows are off-screen on smaller devices.
 - assertVisible:
     id: "nested-check-after-await-status"
     text: "PASS"
+- scrollUntilVisible:
+    element:
+      id: "nested-check-fire-and-forget-status"
+    direction: DOWN
 - assertVisible:
     id: "nested-check-fire-and-forget-status"
     text: "PASS"
