@@ -39,7 +39,8 @@
     "serialize-javascript@npm:^6.0.2": "^7.0.3",
     "postcss-selector-parser@npm:^6.0.11": "^7.1.6",
     "postcss-selector-parser@npm:^6.0.16": "^7.1.6",
-    "sockjs/uuid": "^11.1.1"
+    "sockjs/uuid": "^11.1.1",
+    "tinypool@npm:^1.0.2": "^2.1.2"
   },
   "browserslist": {
     "production": [
