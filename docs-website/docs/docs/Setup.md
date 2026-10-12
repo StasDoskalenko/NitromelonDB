@@ -67,7 +67,7 @@ const database = new Database({
     // Post, // ⬅️ You'll add Models to Watermelon here
   ],
   // Throws if you call a writer from another writer without callWriter() (instead of deadlocking)
-  // experimentalDetectNestedWriters: true,
+  // experimentalDetectNestedWriters: __DEV__,
   // (optional) seed initial/demo data -- see "Database initialization" below
   // seed: databaseSeed({
   //   steps: [

@@ -1,0 +1,68 @@
+# experimentalDetectNestedWriters on Hermes (issue #154): a nested write()/read() without
+# callWriter()/callReader() throws instead of deadlocking -- also after unrelated awaits -- and
+# independent / fire-and-forget / observer-triggered writers still queue normally.
+# The checks run in-app (src/nestedWriterChecks.ts) against a separate database file.
+# Run from examples/NotesApp: maestro test maestro/nested-writers.yaml
+
+appId: com.nitromelondb.example
+---
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible:
+      id: "subtitle"
+    timeout: 60000
+
+# Hidden entry point
+- longPressOn:
+    id: "app-title"
+
+- extendedWaitUntil:
+    visible:
+      id: "nested-checks-summary"
+    timeout: 10000
+
+# Every check has a 3s deadlock guard, so even a full regression settles well within this
+- extendedWaitUntil:
+    visible:
+      text: "(ALL PASSED|FAILED).*"
+      id: "nested-checks-summary"
+    timeout: 60000
+
+- assertVisible:
+    text: "ALL PASSED.*"
+    id: "nested-checks-summary"
+
+# On Hermes the detector must be using the promise-then tier (no AsyncLocalStorage/AsyncContext)
+- assertVisible:
+    text: "Hermes.*context: promise-then"
+    id: "nested-checks-engine"
+
+# Spot-check both directions explicitly: the #154 repro throws, fire-and-forget still queues.
+# The list scrolls (the header with the buttons doesn't); lower rows are off-screen on smaller devices.
+- assertVisible:
+    id: "nested-check-after-await-status"
+    text: "PASS"
+- scrollUntilVisible:
+    element:
+      id: "nested-check-fire-and-forget-status"
+    direction: DOWN
+- assertVisible:
+    id: "nested-check-fire-and-forget-status"
+    text: "PASS"
+
+# Re-running in the same session works (the patched .then() and queue are left healthy)
+- tapOn:
+    id: "nested-checks-rerun"
+- extendedWaitUntil:
+    visible:
+      text: "ALL PASSED.*"
+      id: "nested-checks-summary"
+    timeout: 60000
+
+# The app's own database is unaffected
+- tapOn:
+    id: "nested-checks-close"
+- assertVisible:
+    text: ".*100 notes.*"

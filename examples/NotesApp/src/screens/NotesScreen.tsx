@@ -13,9 +13,10 @@ import { colors } from '../theme'
 
 type NotesScreenProps = {
   db: ExampleDatabase
+  onOpenNestedWriterChecks?: () => void
 }
 
-export function NotesScreen({ db }: NotesScreenProps) {
+export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) {
   const [page, setPage] = useState(1)
   const { notes, totalCount } = useNotes(db, page, PAGE_SIZE)
   const [title, setTitle] = useState('')
@@ -100,6 +101,7 @@ export function NotesScreen({ db }: NotesScreenProps) {
         sqliteEngine={db.sqliteEngine}
         schemaVersion={db.schemaVersion}
         totalCount={totalCount}
+        onLongPressTitle={onOpenNestedWriterChecks}
       />
 
       <Pressable

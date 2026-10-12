@@ -4,6 +4,7 @@ import { useDatabaseReady } from 'nitromelondb/hooks'
 import { KeyboardProvider } from 'react-native-keyboard-controller'
 import { createExampleDatabase } from './database'
 import { LoadingScreen } from './screens/LoadingScreen'
+import { NestedWriterChecksScreen } from './screens/NestedWriterChecksScreen'
 import { NotesScreen } from './screens/NotesScreen'
 import { SetupErrorScreen } from './screens/SetupErrorScreen'
 
@@ -23,6 +24,7 @@ export default function App() {
   // This is purely a UX choice: gating on readiness avoids a flash of "0 notes" while the
   // first-launch seed is still running, instead of relying on that queuing invisibly.
   const ready = useDatabaseReady(session.ok ? session.db.database : null)
+  const [showNestedWriterChecks, setShowNestedWriterChecks] = useState(false)
 
   if (!session.ok) {
     return (
@@ -42,9 +44,21 @@ export default function App() {
     )
   }
 
+  if (showNestedWriterChecks) {
+    return (
+      <KeyboardProvider>
+        <NestedWriterChecksScreen onClose={() => setShowNestedWriterChecks(false)} />
+        <StatusBar style="auto" />
+      </KeyboardProvider>
+    )
+  }
+
   return (
     <KeyboardProvider>
-      <NotesScreen db={session.db} />
+      <NotesScreen
+        db={session.db}
+        onOpenNestedWriterChecks={() => setShowNestedWriterChecks(true)}
+      />
       <StatusBar style="auto" />
     </KeyboardProvider>
   )

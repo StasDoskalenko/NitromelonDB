@@ -243,7 +243,7 @@ The same is true with Readers - use `callReader` to nest readers.
 
 If you forget `callWriter` / `callReader` and `await` the nested call, the inner work is queued behind the outer one and **neither ever finishes**.
 
-To fail fast instead of hanging, pass `experimentalDetectNestedWriters: true` when creating the database:
+To fail fast instead of hanging, pass `experimentalDetectNestedWriters` in development builds when creating the database:
 
 ```js
 const database = new Database({
@@ -251,13 +251,11 @@ const database = new Database({
   modelClasses: [
     // ...
   ],
-  experimentalDetectNestedWriters: true,
+  experimentalDetectNestedWriters: __DEV__,
 })
 ```
 
-This throws as soon as a nested `database.write()` / `database.read()` (or `@writer` / `@reader`) runs without `callWriter()` / `callReader()`. That includes nested calls on the same JS turn and after a Watermelon await (`find`, `query`, `batch`). Independent writers queued from the UI (for example while sync is running) still wait as usual.
-
-Detection is best-effort (a nested write after a non-Watermelon `await`, like `fetch()`, is not caught). Fire-and-forget nested `write()` also throws. Details, examples, and caveats: **[Detect nested writers (deadlock prevention)](./Advanced/DetectNestedWriters.md)**.
+A nested `database.write()` / `database.read()` (or `@writer` / `@reader`) without `callWriter()` / `callReader()` throws once the outer writer waits for it, no matter how many unrelated `await`s (a `fetch()`, a timer, a helper) come first. One it doesn't wait for (fire-and-forget) just queues. Independent writers queued from the UI (for example while sync is running) still wait as usual. Details, examples, per-platform notes and performance: **[Detect nested writers (deadlock prevention)](./Advanced/DetectNestedWriters.md)**.
 
 * * *
 

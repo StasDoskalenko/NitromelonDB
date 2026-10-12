@@ -1,4 +1,6 @@
 import { invariant, logger, deprecated } from '../utils/common'
+import { createAsyncVariable } from '../utils/common/asyncContext'
+import type { AsyncVariable } from '../utils/common/asyncContext'
 import type Model from '../Model'
 import type Database from './index'
 
@@ -170,6 +172,32 @@ function describeWork(item: WorkQueueItem): string {
   return caller ? `unnamed ${kind} called from ${caller}` : 'unnamed'
 }
 
+// A guarded nested promise's `constructor` (see WorkQueue#_guardNested): anything but the
+// intrinsic Promise, so a native `await` reads `then`. It still has to work as a constructor --
+// Hermes' Promise#then does `new this.constructor(...)` instead of the spec's species lookup --
+// and spec-compliant engines use its `Symbol.species`, so promises derived from it are plain.
+// Deliberately not a `class extends Promise`: loose Babel class transforms can't subclass builtins.
+function PlainPromise<T>(
+  executor: (resolve: (value: T) => void, reject: (reason?: unknown) => void) => void,
+): Promise<T> {
+  return new Promise(executor)
+}
+Object.defineProperty(PlainPromise, Symbol.species, { value: Promise })
+
+function nestedCallError(
+  isWriter: boolean,
+  name: string | undefined,
+  currentWork: WorkQueueItem,
+): Error {
+  const nestedKind = isWriter ? 'writer' : 'reader'
+  const currentKind = currentWork.isWriter ? 'writer' : 'reader'
+  return new Error(
+    `Nested ${nestedKind} (${name || 'unnamed'}) called from ${currentKind} (${describeWork(
+      currentWork,
+    )}) without callWriter()/callReader(). This deadlocks.`,
+  )
+}
+
 export default class WorkQueue {
   _db: Database
 
@@ -177,7 +205,15 @@ export default class WorkQueue {
 
   _subActionIncoming: boolean = false
 
+  // experimentalDetectNestedWriters, synchronous fallback: true while the running item's work
+  // function is executing synchronously (and for one microtask after followPromise()). Only used
+  // when _workContext can't follow every `await` on its own (see _usesPreciseContext()).
   _inWorkTurn: boolean = false
+
+  // experimentalDetectNestedWriters: the queue item the current async flow logically belongs to,
+  // followed through `await`s (see utils/common/asyncContext). Created on first use, only when
+  // the flag is on.
+  _workContext: AsyncVariable<WorkQueueItem> | null = null
 
   // dev-only: pending stuck-warning timer for the running item (at most one at a time)
   _stuckWatchdog: ReturnType<typeof setTimeout> | undefined = undefined
@@ -186,12 +222,53 @@ export default class WorkQueue {
     this._db = db
   }
 
+  _getWorkContext(): AsyncVariable<WorkQueueItem> | null {
+    if (!this._db.experimentalDetectNestedWriters) {
+      return null
+    }
+    if (!this._workContext) {
+      this._workContext = createAsyncVariable<WorkQueueItem>()
+    }
+    return this._workContext
+  }
+
+  // AsyncContext / AsyncLocalStorage follow every `await`, so the _inWorkTurn heuristic is
+  // redundant there (and its one-microtask window can misattribute unrelated code). The
+  // promise-then tier misses natively-executed `await`s (browsers), so it keeps the heuristic as
+  // a supplement.
+  _usesPreciseContext(): boolean {
+    const context = this._getWorkContext()
+    return Boolean(context && context.kind !== 'promise-then')
+  }
+
+  /**
+   * Runs `fn` as if outside any reader/writer, for experimentalDetectNestedWriters' purposes. Used
+   * for change notifications: an observer reacting to a writer's changes by starting its own
+   * writer isn't a nested call (nothing waits for it) and must simply queue.
+   */
+  runOutsideWork<T>(fn: () => T): T {
+    if (!this._db.experimentalDetectNestedWriters) {
+      return fn()
+    }
+    const wasInWorkTurn = this._inWorkTurn
+    this._inWorkTurn = false
+    try {
+      return this._workContext ? this._workContext.run(undefined, fn) : fn()
+    } finally {
+      this._inWorkTurn = wasInWorkTurn
+    }
+  }
+
   /**
    * When a writer `await`s this promise, mark the next microtask as still inside that writer
    * so a nested write() without callWriter throws.
    */
   followPromise<T>(promise: Promise<T>): Promise<T> {
-    if (!this._db.experimentalDetectNestedWriters || !this._inWorkTurn) {
+    if (
+      !this._db.experimentalDetectNestedWriters ||
+      !this._inWorkTurn ||
+      this._usesPreciseContext()
+    ) {
       return promise
     }
 
@@ -255,21 +332,22 @@ export default class WorkQueue {
       return work(actionInterface(this, currentWork) as unknown as WriterInterface)
     }
 
-    if (this._db.experimentalDetectNestedWriters && this._inWorkTurn) {
+    // experimentalDetectNestedWriters: called from inside the running item's own async flow?
+    let nestedIn: WorkQueueItem | undefined
+    if (this._db.experimentalDetectNestedWriters) {
       const currentWork = this._queue[0]
-      if (currentWork) {
-        const nestedKind = isWriter ? 'writer' : 'reader'
-        const currentKind = currentWork.isWriter ? 'writer' : 'reader'
-        throw new Error(
-          `Nested ${nestedKind} (${description || 'unnamed'}) called from ${currentKind} (${
-            currentWork.description || 'unnamed'
-          }) without callWriter()/callReader(). This deadlocks.`,
-        )
+      if (currentWork && this._getWorkContext()?.get() === currentWork) {
+        nestedIn = currentWork
+      } else if (currentWork && this._inWorkTurn) {
+        // Heuristic fallback (see _inWorkTurn) can't tell whether the caller will wait for this
+        // one, so it throws right away
+        throw nestedCallError(isWriter, description || work.name, currentWork)
       }
     }
 
-    return new Promise((resolve, reject) => {
-      const workItem: WorkQueueItem = {
+    let workItem: WorkQueueItem | undefined
+    const promise = new Promise<T>((resolve, reject) => {
+      workItem = {
         work: work as WorkQueueItem['work'],
         isWriter,
         resolve: resolve as (value: unknown) => void,
@@ -291,6 +369,39 @@ export default class WorkQueue {
         this._armStuckWatchdog()
       }
     })
+
+    return nestedIn && workItem ? this._guardNested(promise, workItem, nestedIn) : promise
+  }
+
+  // `item` was requested from inside `owner`'s own async flow, without callWriter()/callReader().
+  // Queueing it behind `owner` is fine on its own (fire-and-forget: "do this once I'm done") --
+  // what deadlocks is `owner` then *waiting* for it, since `item` can't start until `owner`
+  // finishes. So that's the moment to fail: when `owner` subscribes to the returned promise.
+  //
+  // Every way of waiting on a promise reads its `then` property synchronously, in the waiter's
+  // own async flow: `.then()`/`.catch()`/`.finally()`, `Promise.resolve()`/`Promise.all()`,
+  // returning it from an async function or a `.then()` callback (resolve() reads `then`), and
+  // `await` -- natively, once `constructor` isn't the intrinsic Promise (otherwise V8/JSC await
+  // an unmodified native promise without reading `then`); when compiled by Babel, through
+  // `Promise.resolve(x).then(...)`. A getter on `then` sees all of them.
+  _guardNested<T>(promise: Promise<T>, item: WorkQueueItem, owner: WorkQueueItem): Promise<T> {
+    const context = this._workContext
+    const queue = this._queue
+    Object.defineProperty(promise, 'then', {
+      configurable: true,
+      get() {
+        if (context?.get() === owner && queue[0] === owner) {
+          const index = queue.indexOf(item)
+          if (index > 0) {
+            queue.splice(index, 1)
+            item.reject(nestedCallError(item.isWriter, item.description || item.work.name, owner))
+          }
+        }
+        return Promise.prototype.then
+      },
+    })
+    Object.defineProperty(promise, 'constructor', { configurable: true, value: PlainPromise })
+    return promise
   }
 
   subAction<T>(work: () => Promise<T>): Promise<T> {
@@ -318,10 +429,12 @@ export default class WorkQueue {
     }
 
     try {
-      this._inWorkTurn = this._db.experimentalDetectNestedWriters
+      const workContext = this._getWorkContext()
+      this._inWorkTurn = Boolean(workContext) && !this._usesPreciseContext()
       let workPromise: Promise<unknown>
       try {
-        workPromise = work(actionInterface(this, workItem))
+        const api = actionInterface(this, workItem)
+        workPromise = workContext ? workContext.run(workItem, () => work(api)) : work(api)
       } finally {
         this._inWorkTurn = false
       }

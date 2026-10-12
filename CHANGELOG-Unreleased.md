@@ -8,6 +8,8 @@
 
 ### Fixes
 
+- `experimentalDetectNestedWriters` now catches a nested `write()` / `read()` without `callWriter()` / `callReader()` after **any** `await` inside the outer writer/reader (a `fetch()`, a timer, a helper function, a `.then()` chain), not only on the same JS turn or right after a NitromelonDB query/write ([#154](https://github.com/StasDoskalenko/NitromelonDB/issues/154)). It throws when the outer writer/reader actually waits for the nested one (awaits it, returns it, chains on it) -- the case that deadlocks. A nested writer it doesn't wait for (fire-and-forget) no longer throws; it just queues behind the outer one, as it would with the flag off. Observers reacting to a writer's changes by starting their own writer are never treated as nested. To follow the writer through `await`s, the flag uses `AsyncLocalStorage` on Node (including Jest), TC39 `AsyncContext` where available, and elsewhere (Hermes, browsers) wraps `Promise.prototype.then` while the flag is on, Zone.js-style. Verified on Hermes in the example app (`maestro/nested-writers.yaml`). Nothing changes with the flag off. Meant for development and tests: the docs now recommend `experimentalDetectNestedWriters: __DEV__` and list the measured overhead on Hermes.
+
 ### Performance
 
 ### Changes

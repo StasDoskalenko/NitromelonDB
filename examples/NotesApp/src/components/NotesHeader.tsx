@@ -5,12 +5,19 @@ type NotesHeaderProps = {
   sqliteEngine: string
   schemaVersion: number
   totalCount: number
+  // Hidden entry point to the nested-writer diagnostics screen (maestro/nested-writers.yaml)
+  onLongPressTitle?: () => void
 }
 
-export function NotesHeader({ sqliteEngine, schemaVersion, totalCount }: NotesHeaderProps) {
+export function NotesHeader({
+  sqliteEngine,
+  schemaVersion,
+  totalCount,
+  onLongPressTitle,
+}: NotesHeaderProps) {
   return (
     <View style={styles.header}>
-      <Text style={styles.title} testID="app-title" accessible>
+      <Text style={styles.title} testID="app-title" accessible onLongPress={onLongPressTitle}>
         NitromelonDB
       </Text>
       <Text style={styles.subtitle} testID="subtitle" accessible>

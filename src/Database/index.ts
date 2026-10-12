@@ -21,12 +21,30 @@ export type DatabaseProps = {
   adapter: DatabaseAdapter
   modelClasses: ModelClass<Model>[]
   /**
-   * If true, calling `database.write()` / `database.read()` (or `@writer` / `@reader`) from inside
-   * an already running reader/writer, without `callWriter()` / `callReader()`, throws immediately
-   * instead of deadlocking.
+   * If true, a `database.write()` / `database.read()` (or `@writer` / `@reader`) called from inside
+   * an already running reader/writer without `callWriter()` / `callReader()` throws -- instead of
+   * deadlocking -- once the running one waits for it (awaits it, returns it, chains on it), even
+   * after any number of unrelated `await`s (a fetch, a timer, a helper function). One it doesn't
+   * wait for (fire-and-forget) just queues behind it. Independent readers/writers (from the UI, from
+   * observers reacting to changes) queue as usual.
    *
-   * Detection covers nested calls on the same JS turn and after Watermelon adapter awaits
-   * (`find` / `query` / `batch`). Independent writers queued from the UI still wait as usual.
+   * How a nested call is told apart from an independent one depends on the engine:
+   * - Node / Jest / Electron (`AsyncLocalStorage`), or engines with TC39 `AsyncContext`: exact,
+   *   through any `await`, timer or callback started by the reader/writer.
+   * - React Native (Hermes): exact through any `await` and `.then()` chain, as long as async
+   *   functions are compiled by Babel (React Native's default). To do this, `Promise.prototype.then`
+   *   is wrapped while this flag is on, Zone.js-style. Callback-style timers/events started by a
+   *   reader/writer aren't followed.
+   * - Browsers: the above, plus a heuristic for natively-executed `await`s (same JS turn, and
+   *   right after NitromelonDB's own `find` / `query` / `batch` / `create` / `update`).
+   *
+   * Meant for development and tests, not production builds. On Hermes it costs about +12% per
+   * `await` app-wide and +70% per `await` inside a running reader/writer; real database work is
+   * within noise (0-2%). On Node / Jest it's free. Enable it in your test setup to catch a forgotten
+   * `callWriter()` in CI.
+   *
+   * @example
+   * new Database({ adapter, modelClasses, experimentalDetectNestedWriters: __DEV__ })
    */
   experimentalDetectNestedWriters?: boolean | undefined
   /**
@@ -635,6 +653,13 @@ export default class Database {
       return
     }
 
+    // Observers reacting to a writer's changes (e.g. by starting their own writer) aren't part of
+    // that writer -- nothing awaits them -- so don't let experimentalDetectNestedWriters treat
+    // them (or anything they schedule) as nested calls.
+    this._workQueue.runOutsideWork(() => this._notifySubscribers(changes))
+  }
+
+  _notifySubscribers(changes: TableChange[]): void {
     const affectedTables = new Set(changes.map(([table]) => table))
 
     const databaseChangeNotifySubscribers = ([tables, subscriber]: [
