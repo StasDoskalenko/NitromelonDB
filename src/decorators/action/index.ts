@@ -1,4 +1,5 @@
 import type { Descriptor } from '../../utils/common/makeDecorator'
+import deprecated from '../../utils/common/deprecated'
 import type Database from '../../Database'
 
 type ActionHost = {
@@ -8,7 +9,7 @@ type ActionHost = {
 }
 
 function wrapInDatabaseMethod(
-  method: 'write' | 'read' | 'action',
+  method: 'write' | 'read',
   key: string,
   descriptor: Descriptor,
 ): Descriptor {
@@ -17,8 +18,8 @@ function wrapInDatabaseMethod(
   return {
     ...descriptor,
     value(this: ActionHost, ...args: unknown[]): Promise<unknown> {
-      // Computed here, not eagerly at decoration time: `target` above is just
-      // the bare prototype (no instance exists yet when a decorator runs), and
+      // Computed here, not eagerly at decoration time: a decorator's `target` is
+      // just the bare prototype (no instance exists yet when it runs), and
       // Collection's `table` getter reads `this.modelClass`, an instance field
       // only set by the constructor — reading it off the prototype throws.
       // `this` here is a real, constructed instance, so `this.table` is safe
@@ -45,14 +46,19 @@ export function reader(_target: object, key: string, descriptor: Descriptor): De
 /**
  * @deprecated Use {@link writer} instead.
  */
-export default function action(target: object, key: string, descriptor: Descriptor): Descriptor {
-  const actionName = `${(target as ActionHost).table}.${key}`
+export default function action(_target: object, key: string, descriptor: Descriptor): Descriptor {
   const original = descriptor.value as (this: unknown, ...args: unknown[]) => Promise<unknown>
 
   return {
     ...descriptor,
     value(this: ActionHost, ...args: unknown[]): Promise<unknown> {
-      return this.database.action(() => original.apply(this, args), actionName)
+      if (process.env.NODE_ENV !== 'production') {
+        deprecated('@action', 'Use @writer instead.')
+      }
+      // Lazy for the same reason as in wrapInDatabaseMethod. Goes through write() with the label
+      // Database.action() would add, so users see the @action warning, not Database.action()'s.
+      const actionName = `${this.table || this.constructor.name}.${key}`
+      return this.database.write(() => original.apply(this, args), `${actionName} (legacy action)`)
     },
   }
 }
