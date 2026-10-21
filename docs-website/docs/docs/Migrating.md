@@ -131,6 +131,20 @@ Type replacements, all from `nitromelondb`:
 </details>
 
 <details>
+  <summary>Coming from WatermelonDB 0.25 or older: <code>@action</code>, <code>subAction</code>, and friends</summary>
+
+WatermelonDB 0.26 removed these, and NitromelonDB doesn't have them either:
+
+| Removed | Use instead |
+| --- | --- |
+| `@action` | `@writer` (or `@reader` if the method only reads) |
+| `database.action(fn)` | `database.write(fn)` (or `database.read(fn)`) |
+| `record.subAction(fn)`, `writer.subAction(fn)` | `callWriter(fn)` (or `callReader(fn)`) |
+| `collection.unsafeFetchRecordsWithSQL(sql)` | `collection.query(Q.unsafeSqlQuery(sql)).fetch()` |
+
+</details>
+
+<details>
   <summary>Assigning <code>record.id</code></summary>
 
 You can set `record.id` only inside `collection.create()` / `prepareCreate()`. Anywhere else it throws. `_raw.id` and `prepareCreateFromDirtyRaw` still work.

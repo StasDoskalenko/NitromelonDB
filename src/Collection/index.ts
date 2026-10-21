@@ -8,7 +8,6 @@ import {
   type Observer,
 } from '../utils/rx'
 import invariant from '../utils/common/invariant'
-import deprecated from '../utils/common/deprecated'
 import { noop, fromArrayOrSpread } from '../utils/fp'
 import { type ResultCallback, toPromise, mapValue } from '../utils/fp/Result'
 import { type Unsubscribe } from '../utils/subscriptions'
@@ -252,19 +251,6 @@ export default class Collection<Record extends Model> {
    */
   disposableFromDirtyRaw(dirtyRaw: DirtyRaw): Record {
     return this.modelClass._disposableFromDirtyRaw(this, dirtyRaw)
-  }
-
-  /**
-   * @deprecated Use `.query(Q.unsafeSqlQuery('select * from...')).fetch()` instead.
-   */
-  unsafeFetchRecordsWithSQL(sql: string): Promise<Record[]> {
-    if (process.env.NODE_ENV !== 'production') {
-      deprecated(
-        'Collection.unsafeFetchRecordsWithSQL()',
-        'Use .query(Q.unsafeSqlQuery(`select * from...`)).fetch() instead.',
-      )
-    }
-    return this.query(Q.unsafeSqlQuery(sql)).fetch()
   }
 
   // *** Implementation details ***

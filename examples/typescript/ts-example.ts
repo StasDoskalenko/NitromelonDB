@@ -1,5 +1,5 @@
 import { Database, Model, Q, Query, Relation } from 'nitromelondb'
-import { action, children, field, lazy, relation, text } from 'nitromelondb/decorators'
+import { children, field, lazy, relation, text, writer } from 'nitromelondb/decorators'
 import { addColumns, schemaMigrations } from 'nitromelondb/Schema/migrations'
 import { setGenerator } from 'nitromelondb/utils/common/randomId'
 import SQLiteAdapter from "nitromelondb/adapters/sqlite"
@@ -28,7 +28,7 @@ class Blog extends Model {
   @lazy nastyPosts = this.posts
     .extend(Q.where('is_nasty', true));
 
-  @action async moderateAll() {
+  @writer async moderateAll() {
     await this.nastyPosts.destroyAllPermanently()
   }
 }

@@ -1,6 +1,6 @@
 import { type Observable, startWith, merge as merge$ } from '../utils/rx'
 import { type Unsubscribe } from '../utils/subscriptions'
-import { invariant, logger, deprecated } from '../utils/common'
+import { invariant, logger } from '../utils/common'
 import { noop, fromArrayOrSpread } from '../utils/fp'
 
 import type { DatabaseAdapter, BatchOperation } from '../adapters/type'
@@ -733,16 +733,6 @@ export default class Database {
    */
   read<T>(work: (reader: ReaderInterface) => Promise<T>, description?: string): Promise<T> {
     return this._workQueue.enqueue(work, description, false)
-  }
-
-  /**
-   * @deprecated Use {@link Database#write} instead.
-   */
-  action<T>(work: (writer: WriterInterface) => Promise<T>, description?: string): Promise<T> {
-    if (process.env.NODE_ENV !== 'production') {
-      deprecated('Database.action()', 'Use Database.write() instead.')
-    }
-    return this._workQueue.enqueue(work, `${description || 'unnamed'} (legacy action)`, true)
   }
 
   /**

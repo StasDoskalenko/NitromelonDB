@@ -617,14 +617,6 @@ describe('Database', () => {
 
       expect(action).toHaveBeenCalledTimes(1)
     })
-    it('Database.action() is a deprecated alias of write()', async () => {
-      const { database } = mockDatabase()
-
-      const work = jest.fn(() => Promise.resolve(true))
-      await database.action(work)
-
-      expect(work).toHaveBeenCalledTimes(1)
-    })
     it('queues writers/readers', async () => {
       const { database } = mockDatabase()
 
@@ -1017,7 +1009,7 @@ describe('Database', () => {
       const action0 = () => db.read(async () => 42)
       const action1 = () => db.write(async (writer) => writer.callReader(() => action0()))
       const action2 = () => db.write(async (writer) => writer.callWriter(() => action1()))
-      const action3 = () => db.write(async (writer) => writer.subAction(() => action2()))
+      const action3 = () => db.write(async (writer) => writer.callWriter(() => action2()))
       expect(await action3()).toBe(42)
     })
     it(`cannot call writers from readers`, async () => {
@@ -1111,7 +1103,6 @@ describe('Database', () => {
       const promise = action0()
       saved.callReader(() => sth())
       saved.callWriter(() => sth())
-      saved.subAction(() => sth())
       saved.batch()
       await promise
 
@@ -1119,7 +1110,6 @@ describe('Database', () => {
         expect(work).toThrow('Illegal call on a reader/writer that should no longer be running')
       expectError(() => saved.callReader(() => sth()))
       expectError(() => saved.callWriter(() => sth()))
-      expectError(() => saved.subAction(() => sth()))
       expectError(() => saved.batch())
 
       db.write(async () => {})

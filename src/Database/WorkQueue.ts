@@ -1,4 +1,4 @@
-import { invariant, logger, deprecated } from '../utils/common'
+import { invariant, logger } from '../utils/common'
 import { createAsyncVariable } from '../utils/common/asyncContext'
 import type { AsyncVariable } from '../utils/common/asyncContext'
 import type Model from '../Model'
@@ -43,11 +43,6 @@ export interface WriterInterface extends ReaderInterface {
    */
   callWriter<T>(writer: () => Promise<T>): Promise<T>
 
-  /**
-   * @deprecated Use {@link WriterInterface#callWriter} or {@link ReaderInterface#callReader} instead.
-   */
-  subAction<T>(writer: () => Promise<T>): Promise<T>
-
   /** @see {Database#batch} */
   batch(...records: ReadonlyArray<Model | Model[] | null | undefined | false>): Promise<void>
 }
@@ -89,14 +84,6 @@ class ReaderInterfaceImpl implements ReaderInterface {
 
 class WriterInterfaceImpl extends ReaderInterfaceImpl implements WriterInterface {
   callWriter<T>(writer: () => Promise<T>): Promise<T> {
-    this.__validateQueue()
-    return this.__workQueue.subAction(writer)
-  }
-
-  subAction<T>(writer: () => Promise<T>): Promise<T> {
-    if (process.env.NODE_ENV !== 'production') {
-      deprecated('.subAction()', 'Use .callWriter() / .callReader() instead.')
-    }
     this.__validateQueue()
     return this.__workQueue.subAction(writer)
   }
