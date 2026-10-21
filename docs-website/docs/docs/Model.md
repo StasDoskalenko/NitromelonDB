@@ -201,6 +201,11 @@ Methods must be marked as `@writer` to be able to modify the database.
 
 **➡️ Learn more:** [Writers](./Writers.md)
 
+For logic that belongs to the whole table rather than one record (creating records, bulk updates,
+named queries), you can give the table its own `Collection` subclass.
+
+**➡️ Learn more:** [Custom Collections](./Advanced/CustomCollections.md)
+
 ## Advanced fields
 
 You can also use these decorators:

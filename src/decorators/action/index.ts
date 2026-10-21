@@ -17,8 +17,8 @@ function wrapInDatabaseMethod(
   return {
     ...descriptor,
     value(this: ActionHost, ...args: unknown[]): Promise<unknown> {
-      // Computed here, not eagerly at decoration time: `target` above is just
-      // the bare prototype (no instance exists yet when a decorator runs), and
+      // Computed here, not eagerly at decoration time: a decorator's `target` is
+      // just the bare prototype (no instance exists yet when it runs), and
       // Collection's `table` getter reads `this.modelClass`, an instance field
       // only set by the constructor — reading it off the prototype throws.
       // `this` here is a real, constructed instance, so `this.table` is safe
@@ -45,14 +45,6 @@ export function reader(_target: object, key: string, descriptor: Descriptor): De
 /**
  * @deprecated Use {@link writer} instead.
  */
-export default function action(target: object, key: string, descriptor: Descriptor): Descriptor {
-  const actionName = `${(target as ActionHost).table}.${key}`
-  const original = descriptor.value as (this: unknown, ...args: unknown[]) => Promise<unknown>
-
-  return {
-    ...descriptor,
-    value(this: ActionHost, ...args: unknown[]): Promise<unknown> {
-      return this.database.action(() => original.apply(this, args), actionName)
-    },
-  }
+export default function action(_target: object, key: string, descriptor: Descriptor): Descriptor {
+  return wrapInDatabaseMethod('action', key, descriptor)
 }

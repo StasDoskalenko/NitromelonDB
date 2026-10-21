@@ -1,4 +1,7 @@
-import { MockTask, mockDatabase } from '../../__tests__/testModels'
+import { MockTask, mockDatabase, testSchema } from '../../__tests__/testModels'
+import Collection from '../../Collection'
+import Database from '../../Database'
+import LokiJSAdapter from '../../adapters/lokijs'
 import action, { writer, reader } from './index'
 
 class MockTaskExtended extends MockTask {
@@ -69,5 +72,77 @@ describe('@writer', () => {
 
     expect(await test.test()).toEqual(42)
     expect(spy).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('decorated Collection subclass methods', () => {
+  // Decorators receive the bare prototype. Collection's `table` getter reads
+  // `this.modelClass`, which only the constructor sets, so anything that reads
+  // `table` at decoration time throws when the class is defined (#84).
+  const makeDatabase = () => {
+    class TaskCollection extends Collection {
+      @writer
+      async createNamed(name) {
+        return this.create((task) => {
+          task.name = name
+        })
+      }
+
+      @reader
+      async countAll() {
+        return this.query().fetchCount()
+      }
+
+      @action
+      async createNamedLegacy(name) {
+        return this.create((task) => {
+          task.name = name
+        })
+      }
+    }
+    class TaskWithCollection extends MockTask {
+      static associatedCollectionClass = TaskCollection
+    }
+
+    const adapter = new LokiJSAdapter({
+      dbName: 'test',
+      schema: testSchema,
+      useWebWorker: false,
+      useIncrementalIndexedDB: false,
+    })
+    const database = new Database({
+      adapter,
+      schema: testSchema,
+      modelClasses: [TaskWithCollection],
+    })
+    return { database, tasks: database.get('mock_tasks'), TaskCollection }
+  }
+
+  it('is used as the table\'s collection', () => {
+    const { tasks, TaskCollection } = makeDatabase()
+    expect(tasks).toBeInstanceOf(TaskCollection)
+  })
+  it('wraps @writer and @reader methods using the table name', async () => {
+    const { database, tasks } = makeDatabase()
+    const writeSpy = jest.spyOn(database, 'write')
+    const readSpy = jest.spyOn(database, 'read')
+
+    const task = await tasks.createNamed('hello')
+    expect(task.name).toBe('hello')
+    expect(await tasks.countAll()).toBe(1)
+
+    expect(writeSpy).toHaveBeenCalledTimes(1)
+    expect(writeSpy.mock.calls[0][1]).toBe('mock_tasks.createNamed')
+    expect(readSpy).toHaveBeenCalledTimes(1)
+    expect(readSpy.mock.calls[0][1]).toBe('mock_tasks.countAll')
+  })
+  it('wraps deprecated @action methods using the table name', async () => {
+    const { database, tasks } = makeDatabase()
+    const spy = jest.spyOn(database, 'action')
+
+    const task = await tasks.createNamedLegacy('legacy')
+    expect(task.name).toBe('legacy')
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0][1]).toBe('mock_tasks.createNamedLegacy')
   })
 })
