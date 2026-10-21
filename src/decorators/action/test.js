@@ -99,9 +99,25 @@ describe('decorated Collection subclass methods', () => {
           task.name = name
         })
       }
+
+      completeAll() {
+        return this.database.write(async (writer) => {
+          const tasks = await this.query().fetch()
+          for (const task of tasks) {
+            await writer.callWriter(() => task.complete())
+          }
+        }, 'mock_tasks.completeAll')
+      }
     }
     class TaskWithCollection extends MockTask {
       static associatedCollectionClass = TaskCollection
+
+      @writer
+      async complete() {
+        await this.update((task) => {
+          task.isCompleted = true
+        })
+      }
     }
 
     const adapter = new LokiJSAdapter({
@@ -144,5 +160,15 @@ describe('decorated Collection subclass methods', () => {
     expect(task.name).toBe('legacy')
     expect(spy).toHaveBeenCalledTimes(1)
     expect(spy.mock.calls[0][1]).toBe('mock_tasks.createNamedLegacy')
+  })
+  it('can call record @writer methods through database.write()', async () => {
+    const { tasks } = makeDatabase()
+    await tasks.createNamed('a')
+    await tasks.createNamed('b')
+
+    await tasks.completeAll()
+
+    const all = await tasks.query().fetch()
+    expect(all.map((task) => task.isCompleted)).toEqual([true, true])
   })
 })
