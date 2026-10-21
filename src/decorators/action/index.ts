@@ -45,6 +45,14 @@ export function reader(_target: object, key: string, descriptor: Descriptor): De
 /**
  * @deprecated Use {@link writer} instead.
  */
-export default function action(_target: object, key: string, descriptor: Descriptor): Descriptor {
-  return wrapInDatabaseMethod('action', key, descriptor)
+export default function action(target: object, key: string, descriptor: Descriptor): Descriptor {
+  const actionName = `${(target as ActionHost).table}.${key}`
+  const original = descriptor.value as (this: unknown, ...args: unknown[]) => Promise<unknown>
+
+  return {
+    ...descriptor,
+    value(this: ActionHost, ...args: unknown[]): Promise<unknown> {
+      return this.database.action(() => original.apply(this, args), actionName)
+    },
+  }
 }

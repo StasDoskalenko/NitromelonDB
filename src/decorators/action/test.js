@@ -93,13 +93,6 @@ describe('decorated Collection subclass methods', () => {
         return this.query().fetchCount()
       }
 
-      @action
-      async createNamedLegacy(name) {
-        return this.create((task) => {
-          task.name = name
-        })
-      }
-
       completeAll() {
         return this.database.write(async (writer) => {
           const tasks = await this.query().fetch()
@@ -151,15 +144,6 @@ describe('decorated Collection subclass methods', () => {
     expect(writeSpy.mock.calls[0][1]).toBe('mock_tasks.createNamed')
     expect(readSpy).toHaveBeenCalledTimes(1)
     expect(readSpy.mock.calls[0][1]).toBe('mock_tasks.countAll')
-  })
-  it('wraps deprecated @action methods using the table name', async () => {
-    const { database, tasks } = makeDatabase()
-    const spy = jest.spyOn(database, 'action')
-
-    const task = await tasks.createNamedLegacy('legacy')
-    expect(task.name).toBe('legacy')
-    expect(spy).toHaveBeenCalledTimes(1)
-    expect(spy.mock.calls[0][1]).toBe('mock_tasks.createNamedLegacy')
   })
   it('can call record @writer methods through database.write()', async () => {
     const { tasks } = makeDatabase()
