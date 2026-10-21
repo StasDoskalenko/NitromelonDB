@@ -33,14 +33,6 @@ describe.each([['SQLiteAdapterNode', 'Asynchronous', 'Memory']])(
     commonTests().forEach((testCase) => {
       const [name, test] = testCase
 
-      if (name.match(/from file system/) && process.platform === 'win32') {
-        // Keep the known platform exclusion visible in Jest's summary without
-        // presenting an intentional skip as a CI error.
-        // eslint-disable-next-line jest/valid-title
-        it.skip(name, () => {})
-        return
-      }
-
       // eslint-disable-next-line jest/valid-title
       it(name, async () => {
         const file = fileString.toLowerCase() === 'file'
