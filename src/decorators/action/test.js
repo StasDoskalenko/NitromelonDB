@@ -1,4 +1,5 @@
 import { MockTask, mockDatabase, testSchema } from '../../__tests__/testModels'
+import { logger } from '../../utils/common'
 import Collection from '../../Collection'
 import Database from '../../Database'
 import LokiJSAdapter from '../../adapters/lokijs'
@@ -20,7 +21,7 @@ class MockTaskExtended extends MockTask {
 }
 
 describe('@action', () => {
-  it('is a deprecated alias of @writer via database.action()', async () => {
+  it('is a deprecated alias of @writer', async () => {
     const { database, tasks } = mockDatabase()
     class MockTaskWithAction extends MockTask {
       @action
@@ -29,11 +30,19 @@ describe('@action', () => {
       }
     }
     const record = new MockTaskWithAction(tasks, { name: 'test' })
-    const spy = jest.spyOn(database, 'action')
+    const writeSpy = jest.spyOn(database, 'write')
+    const warnSpy = jest.spyOn(logger, 'warn')
 
     expect(await record.returnArgs(1, 2)).toEqual(['test', 1, 2])
-    expect(spy).toHaveBeenCalledTimes(1)
-    expect(spy.mock.calls[0][1]).toBe('mock_tasks.returnArgs')
+    expect(writeSpy).toHaveBeenCalledTimes(1)
+    expect(writeSpy.mock.calls[0][1]).toBe('mock_tasks.returnArgs (legacy action)')
+
+    // Warns about @action itself (once), not about Database.action(), which the user never called
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0][0]).toMatch(/^DEPRECATION: @action is deprecated\. Use @writer instead\./)
+    await record.returnArgs(3, 4)
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    warnSpy.mockRestore()
   })
 })
 
@@ -93,6 +102,13 @@ describe('decorated Collection subclass methods', () => {
         return this.query().fetchCount()
       }
 
+      @action
+      async createNamedLegacy(name) {
+        return this.create((task) => {
+          task.name = name
+        })
+      }
+
       completeAll() {
         return this.database.write(async (writer) => {
           const tasks = await this.query().fetch()
@@ -144,6 +160,15 @@ describe('decorated Collection subclass methods', () => {
     expect(writeSpy.mock.calls[0][1]).toBe('mock_tasks.createNamed')
     expect(readSpy).toHaveBeenCalledTimes(1)
     expect(readSpy.mock.calls[0][1]).toBe('mock_tasks.countAll')
+  })
+  it('wraps deprecated @action methods using the table name', async () => {
+    const { database, tasks } = makeDatabase()
+    const spy = jest.spyOn(database, 'write')
+
+    const task = await tasks.createNamedLegacy('legacy')
+    expect(task.name).toBe('legacy')
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0][1]).toBe('mock_tasks.createNamedLegacy (legacy action)')
   })
   it('can call record @writer methods through database.write()', async () => {
     const { tasks } = makeDatabase()
