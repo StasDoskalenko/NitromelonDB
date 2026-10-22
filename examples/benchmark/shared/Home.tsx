@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar'
 import { useMemo } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import type { BenchmarkTheme } from './BenchmarkScreen'
 
 export type BenchmarkTile = {
@@ -26,7 +27,7 @@ export function Home({ title, subtitle, engine, setupError, theme, tiles, onSele
   const styles = useMemo(() => createStyles(theme), [theme])
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.kicker}>DATABASE STRESS TEST</Text>
         <Text style={styles.title}>{title}</Text>
@@ -50,7 +51,7 @@ export function Home({ title, subtitle, engine, setupError, theme, tiles, onSele
         </View>
       </ScrollView>
       <StatusBar style="light" />
-    </View>
+    </SafeAreaView>
   )
 }
 
@@ -61,7 +62,7 @@ function createStyles(theme: BenchmarkTheme) {
       backgroundColor: theme.background,
     },
     content: {
-      paddingTop: 64,
+      paddingTop: 16,
       paddingHorizontal: 20,
       paddingBottom: 40,
     },

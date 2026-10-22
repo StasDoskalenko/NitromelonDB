@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { StatusBar } from 'expo-status-bar'
 import { useDatabaseReady } from 'nitromelondb/hooks'
 import { KeyboardProvider } from 'react-native-keyboard-controller'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { createExampleDatabase } from './database'
 import { LoadingScreen } from './screens/LoadingScreen'
 import { NestedWriterChecksScreen } from './screens/NestedWriterChecksScreen'
@@ -9,6 +10,14 @@ import { NotesScreen } from './screens/NotesScreen'
 import { SetupErrorScreen } from './screens/SetupErrorScreen'
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppContent />
+    </SafeAreaProvider>
+  )
+}
+
+function AppContent() {
   const [session] = useState(() => {
     try {
       return { ok: true as const, db: createExampleDatabase() }

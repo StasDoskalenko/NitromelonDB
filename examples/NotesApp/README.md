@@ -1,10 +1,12 @@
 # NotesApp (iOS / Android)
 
-Expo SDK 57 development-build app that opens SQLite through `SQLiteAdapter` → a typed `NitromelonDatabase` HybridObject. This will not run in Expo Go. New Architecture is required. `app.json` includes the `nitromelondb` config plugin (Nitro autolinking covers native SQLite; the old Android JSI Gradle module is not used).
+Expo SDK 58 development-build app that opens SQLite through `SQLiteAdapter` → a typed `NitromelonDatabase` HybridObject. This will not run in Expo Go. New Architecture is required. `app.json` includes the `nitromelondb` config plugin (Nitro autolinking covers native SQLite; the old Android JSI Gradle module is not used).
 
 The screen is a notes list: schema v3, v1→v2 `pinned`, v2→v3 `sort_order`, create / pin / delete, and sticky FlashList pagination (`Q.skip` + `Q.take(20)`) against the live database.
 
-Windows lives in a sibling app, [`../NotesApp_windows`](../NotesApp_windows), because React Native Windows 0.84 tracks RN 0.84.1 while this Expo app uses RN 0.86.2. That host imports this app’s `src/` UI (with `NotesList.windows.tsx` for `FlatList`).
+On iOS it is built with the iOS 27 SDK (Xcode 27.1+): the pager and composer render as Liquid Glass through `GlassSurface`, and screens pad by real safe-area insets (`useScreenInsets`) instead of a fixed status-bar height, so iPhone Duo's inner display (which reserves a region on the right) lays out correctly. Both have `.windows` siblings that fall back to plain views and zero insets.
+
+Windows lives in a sibling app, [`../NotesApp_windows`](../NotesApp_windows), because React Native Windows 0.85 tracks RN 0.85.3 while this Expo app uses RN 0.88.0. That host imports this app’s `src/` UI (with `NotesList.windows.tsx` for `FlatList`).
 
 ![NitromelonDB notes screen on iOS, showing two notes, Nitro SQLite, and schema v2](assets/screenshot.png)
 

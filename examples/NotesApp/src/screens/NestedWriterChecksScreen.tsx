@@ -7,6 +7,7 @@ import {
   NESTED_WRITER_CHECK_COUNT,
   runNestedWriterChecks,
 } from '../nestedWriterChecks'
+import { useScreenInsets } from '../hooks/useScreenInsets'
 import { colors } from '../theme'
 
 type NestedWriterChecksScreenProps = {
@@ -16,6 +17,7 @@ type NestedWriterChecksScreenProps = {
 export function NestedWriterChecksScreen({ onClose }: NestedWriterChecksScreenProps) {
   const [results, setResults] = useState<CheckResult[]>([])
   const [running, setRunning] = useState(false)
+  const insets = useScreenInsets()
 
   const run = useCallback(() => {
     setResults([])
@@ -44,8 +46,8 @@ export function NestedWriterChecksScreen({ onClose }: NestedWriterChecksScreenPr
   }
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.header}>
+    <View style={[styles.screen, { paddingLeft: insets.left, paddingRight: insets.right }]}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top + 8, 24) }]}>
         <Text style={styles.title}>Nested writer checks</Text>
         <Text style={styles.meta} testID="nested-checks-engine">
           {describeEngine()} · context: {describeContextTier()}
@@ -93,7 +95,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    paddingTop: 64,
     paddingHorizontal: 20,
     paddingBottom: 12,
   },

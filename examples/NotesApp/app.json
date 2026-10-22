@@ -20,7 +20,8 @@
           "showMenuAtLaunch": false
         }
       ],
-      "nitromelondb"
+      "nitromelondb",
+      "expo-status-bar"
     ],
     "ios": {
       "supportsTablet": true,
