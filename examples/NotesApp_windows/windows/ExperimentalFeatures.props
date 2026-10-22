@@ -30,6 +30,14 @@
     -->
     <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
     <TargetPlatformVersion>10.0.26100.0</TargetPlatformVersion>
+
+    <!--
+      RNW 0.85.0 defaults to Hermes 0.0.0-2608.12001-35d34796, which crashes with an access
+      violation in hermes::vm::HadesGC::OldGen::search during e2e/pagination-dynamic. Stay on
+      the Hermes that RNW 0.84 shipped until a fixed build is out. JSEngine.props only sets
+      HermesVersion when it is empty, and this file is imported before it.
+    -->
+    <HermesVersion>0.0.0-2605.6002-2279da22</HermesVersion>
   </PropertyGroup>
 
 </Project>

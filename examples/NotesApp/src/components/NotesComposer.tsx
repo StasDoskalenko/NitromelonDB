@@ -1,5 +1,7 @@
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Platform, Pressable, StyleSheet, Text, TextInput } from 'react-native'
+import { useScreenInsets } from '../hooks/useScreenInsets'
 import { colors } from '../theme'
+import { GlassSurface } from './GlassSurface'
 
 type NotesComposerProps = {
   title: string
@@ -20,9 +22,13 @@ export function NotesComposer({
 }: NotesComposerProps) {
   const canSubmit = Boolean(title.trim()) && !busy
   const isWindows = Platform.OS === 'windows'
+  const insets = useScreenInsets()
 
   return (
-    <View style={styles.composer} testID={isWindows ? undefined : 'composer'}>
+    <GlassSurface
+      style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 28) }]}
+      testID={isWindows ? undefined : 'composer'}
+    >
       {isWindows ? (
         <Text testID="composer" accessible style={styles.composerAnchor}>
           composer
@@ -54,14 +60,13 @@ export function NotesComposer({
       >
         <Text style={styles.addButtonLabel}>{busy ? 'Saving…' : 'Add note'}</Text>
       </Pressable>
-    </View>
+    </GlassSurface>
   )
 }
 
 const styles = StyleSheet.create({
   composer: {
     padding: 16,
-    paddingBottom: 28,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,

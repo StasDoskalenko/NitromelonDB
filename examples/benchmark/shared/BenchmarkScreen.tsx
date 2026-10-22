@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { FULL_WORKLOAD, QUICK_WORKLOAD, type BenchmarkWorkload } from './config'
 import { formatDuration, formatNumber, formatOps, phaseLabel } from './format'
 import { runBenchmark } from './runBenchmark'
@@ -88,7 +89,7 @@ export function BenchmarkScreen({ title, subtitle, adapter, setupError, theme, o
   const blocked = Boolean(setupError) || !adapter
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {onBack ? (
           <Pressable testID="screen-back" style={styles.backButton} onPress={onBack}>
@@ -198,7 +199,7 @@ export function BenchmarkScreen({ title, subtitle, adapter, setupError, theme, o
         ) : null}
       </ScrollView>
       <StatusBar style="light" />
-    </View>
+    </SafeAreaView>
   )
 }
 
@@ -304,7 +305,7 @@ function createStyles(theme: BenchmarkTheme) {
       backgroundColor: theme.background,
     },
     content: {
-      paddingTop: 64,
+      paddingTop: 16,
       paddingHorizontal: 20,
       paddingBottom: 40,
     },

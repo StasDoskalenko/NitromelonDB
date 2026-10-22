@@ -18,9 +18,11 @@ export default function WebAdapterTestScreen() {
 
   useEffect(() => {
     let active = true
-    const runner = require('../webAdapterTests/runner').default as (
-      onProgress: (next: Progress) => void,
-    ) => Promise<Report>
+    const runner = (
+      require('../webAdapterTests/runner') as {
+        default: (onProgress: (next: Progress) => void) => Promise<Report>
+      }
+    ).default
     runner((next) => active && setProgress(next)).then(
       (result) => active && setReport(result),
       (error: unknown) =>

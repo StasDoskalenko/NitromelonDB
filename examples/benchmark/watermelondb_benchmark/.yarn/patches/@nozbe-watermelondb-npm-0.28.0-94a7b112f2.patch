@@ -1,0 +1,52 @@
+diff --git a/native/ios/WatermelonDB/JSIInstaller.h b/native/ios/WatermelonDB/JSIInstaller.h
+index c1b7efb0fb33d56bf7a2f1b3a5f16644ad855e9b..858183e7af385d14d82ef77f6e53745b85baf0d9 100644
+--- a/native/ios/WatermelonDB/JSIInstaller.h
++++ b/native/ios/WatermelonDB/JSIInstaller.h
+@@ -1,13 +1,13 @@
+ #pragma once
+ 
+-#import <React/RCTBridge+Private.h>
++#import <React/RCTBridge.h>
+ 
+ #ifdef __cplusplus
+ extern "C"
+ {
+ #endif
+ 
+-void installWatermelonJSI(RCTCxxBridge *bridge);
++void installWatermelonJSI(RCTBridge *bridge);
+ void watermelondbProvideSyncJson(int id, NSData *json, NSError **errorPtr);
+ 
+ #ifdef __cplusplus
+diff --git a/native/ios/WatermelonDB/JSIInstaller.mm b/native/ios/WatermelonDB/JSIInstaller.mm
+index d508249731957ede36f5e4ad33b030c7fb221b23..08aa700bceee6e0df597c9c0c59c83952101437f 100644
+--- a/native/ios/WatermelonDB/JSIInstaller.mm
++++ b/native/ios/WatermelonDB/JSIInstaller.mm
+@@ -1,7 +1,13 @@
+ #import "JSIInstaller.h"
+ #import "Database.h"
+ 
+-extern "C" void installWatermelonJSI(RCTCxxBridge *bridge) {
++// RN 0.88 removed RCTCxxBridge. In bridgeless mode a legacy module's bridge is an
++// RCTBridgeProxy, which still implements -runtime; declare it so we can call it.
++@interface RCTBridge (WatermelonRuntime)
++- (void *)runtime;
++@end
++
++extern "C" void installWatermelonJSI(RCTBridge *bridge) {
+     if (bridge.runtime == nullptr) {
+         return;
+     }
+diff --git a/native/ios/WatermelonDB/objc/WMDatabaseBridge.m b/native/ios/WatermelonDB/objc/WMDatabaseBridge.m
+index 8a3ab356bf57cad3e994ae7f660387bf2c3a9d16..1a7301e1c6ddb589cb515ffb6664644909434eb4 100644
+--- a/native/ios/WatermelonDB/objc/WMDatabaseBridge.m
++++ b/native/ios/WatermelonDB/objc/WMDatabaseBridge.m
+@@ -196,7 +196,7 @@ + (BOOL) requiresMainQueueSetup
+ 
+ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(initializeJSI)
+ {
+-    __block RCTCxxBridge *bridge = (RCTCxxBridge *) _bridge;
++    __block RCTBridge *bridge = _bridge;
+     dispatch_sync([self methodQueue], ^{
+         installWatermelonJSI(bridge);
+     });

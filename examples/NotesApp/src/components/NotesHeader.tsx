@@ -1,4 +1,5 @@
-import { Platform, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
+import { useScreenInsets } from '../hooks/useScreenInsets'
 import { colors } from '../theme'
 
 type NotesHeaderProps = {
@@ -15,8 +16,10 @@ export function NotesHeader({
   totalCount,
   onLongPressTitle,
 }: NotesHeaderProps) {
+  const insets = useScreenInsets()
+
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { paddingTop: Math.max(insets.top + 8, 24) }]}>
       <Text style={styles.title} testID="app-title" accessible onLongPress={onLongPressTitle}>
         NitromelonDB
       </Text>
@@ -30,7 +33,6 @@ export function NotesHeader({
 
 const styles = StyleSheet.create({
   header: {
-    paddingTop: Platform.OS === 'windows' ? 24 : 64,
     paddingHorizontal: 20,
     paddingBottom: 8,
   },

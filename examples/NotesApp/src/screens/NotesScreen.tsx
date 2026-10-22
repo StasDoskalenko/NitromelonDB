@@ -8,6 +8,7 @@ import { NotesPager } from '../components/NotesPager'
 import { PAGE_SIZE } from '../constants'
 import type { ExampleDatabase } from '../database'
 import { useNotes } from '../hooks/useNotes'
+import { useScreenInsets } from '../hooks/useScreenInsets'
 import Note from '../model/Note'
 import { colors } from '../theme'
 
@@ -19,6 +20,7 @@ type NotesScreenProps = {
 export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) {
   const [page, setPage] = useState(1)
   const { notes, totalCount } = useNotes(db, page, PAGE_SIZE)
+  const insets = useScreenInsets()
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
@@ -96,7 +98,9 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
     // whole screen: an earlier root-level KeyboardAvoidingView ate Maestro's
     // swipe gestures on the list, and plain RN KeyboardAvoidingView doesn't
     // react at all under this Expo SDK's mandatory Android edge-to-edge.
-    <View style={styles.screen}>
+    // Left/right insets are non-zero on iPhone Duo's inner display and in
+    // landscape; the screen background still runs edge to edge.
+    <View style={[styles.screen, { paddingLeft: insets.left, paddingRight: insets.right }]}>
       <NotesHeader
         sqliteEngine={db.sqliteEngine}
         schemaVersion={db.schemaVersion}

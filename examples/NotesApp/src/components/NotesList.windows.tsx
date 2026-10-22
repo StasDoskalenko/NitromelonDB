@@ -1,4 +1,4 @@
-import { useImperativeHandle, useRef, type Ref } from 'react'
+import { useImperativeHandle, useRef, type ComponentRef, type Ref } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { NoteCard } from './NoteCard'
 import type Note from '../model/Note'
@@ -14,7 +14,7 @@ type NotesListProps = {
 }
 
 export function NotesList({ notes, onError, ref }: NotesListProps) {
-  const listRef = useRef<ScrollView>(null)
+  const listRef = useRef<ComponentRef<typeof ScrollView>>(null)
 
   useImperativeHandle(ref, () => ({
     scrollToTop: () => {
