@@ -34,8 +34,10 @@ describe.each([['SQLiteAdapterNode', 'Asynchronous', 'Memory']])(
       const [name, test] = testCase
 
       if (name.match(/from file system/) && process.platform === 'win32') {
-        // Keep the known platform exclusion visible in Jest's summary without
-        // presenting an intentional skip as a CI error.
+        // Resets through a second adapter while the first still has the file
+        // open; the Node adapter's reset deletes the file, which Windows refuses
+        // (EBUSY). Not Windows-specific underneath, see
+        // https://github.com/StasDoskalenko/NitromelonDB/issues/172
         // eslint-disable-next-line jest/valid-title
         it.skip(name, () => {})
         return
