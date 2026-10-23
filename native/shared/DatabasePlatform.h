@@ -29,10 +29,6 @@ std::string resolveDatabasePath(std::string path);
 // site is #ifdef ANDROID), so they don't need to implement it.
 bool hasNativeTempDirectory();
 
-// Removes database file located at `path`.
-// Throws an exception if it's not possible to delete this file
-void deleteDatabaseFile(std::string path, bool warnIfDoesNotExist);
-
 // Calls function when device memory is getting low
 void onMemoryAlert(std::function<void(void)> callback);
 
