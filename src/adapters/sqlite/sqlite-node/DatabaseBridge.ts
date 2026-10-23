@@ -90,8 +90,8 @@ class DatabaseBridge {
     const preserveSharedDatabase = waitingDriver?.isSharedMemory === true
     let driver: DatabaseDriver | undefined
     try {
-      // File-backed schema reset deletes the database, so Windows requires the
-      // waiting handle to close first. Shared memory must stay open until the
+      // A schema reset of a corrupt file recreates it, which Windows only allows
+      // once the waiting handle is closed. Shared memory must stay open until the
       // replacement driver has acquired its own reference.
       if (!preserveSharedDatabase) waitingDriver?.close()
       driver = new DatabaseDriver()
