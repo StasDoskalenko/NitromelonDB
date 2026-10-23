@@ -1,3 +1,7 @@
+---
+description: "Relations between records: relation and immutableRelation, observing, fetching and assigning, and many-to-many."
+---
+
 # Relations
 
 A `Relation` object represents one record pointing to another — such as the author (`User`) of a `Comment`, or the `Post` the comment belongs to.

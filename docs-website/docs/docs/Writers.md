@@ -1,6 +1,7 @@
 ---
 title: Writers, Readers, Batching
 hide_title: true
+description: "All changes must run inside database.write() or a @writer method. Batching, deletes, readers, and nesting with callWriter() / callReader()."
 ---
 
 # Writers, Readers, and batching

@@ -1,6 +1,7 @@
 ---
 title: Pro Tips
 hide_title: true
+description: "Database viewer, checking the SQLite version, prepopulating a database on native, and overriding the record ID generator."
 ---
 
 # Various Pro Tips

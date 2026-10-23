@@ -1,6 +1,7 @@
 ---
 title: Automatic create/update tracking
 hide_title: true
+description: "Add created_at / updated_at columns that NitromelonDB fills in automatically on create and update."
 ---
 
 # Create/Update tracking

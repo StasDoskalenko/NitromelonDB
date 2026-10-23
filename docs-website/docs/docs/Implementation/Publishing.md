@@ -1,3 +1,7 @@
+---
+description: "How NitromelonDB releases are prepared and published to npm through GitHub Actions."
+---
+
 # Publishing NitromelonDB
 
 Releases are done with GitHub Actions. Do not publish to npm from your laptop.

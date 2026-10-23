@@ -1,6 +1,7 @@
 ---
 title: Migrating from WatermelonDB
 hide_title: true
+description: "Move an app from @nozbe/watermelondb to nitromelondb: swap packages and imports, remove the old native setup, update the adapter, and rebuild."
 ---
 
 # Migrating from WatermelonDB

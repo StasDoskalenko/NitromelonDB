@@ -1,6 +1,7 @@
 ---
 title: FAQ
 hide_title: true
+description: "Sync FAQ: building your own sync from the primitives, and local vs remote IDs."
 ---
 
 # Frequently Asked Questions

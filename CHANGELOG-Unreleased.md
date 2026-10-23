@@ -17,6 +17,8 @@
 
 - Docs: new [Custom Collections](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs-website/docs/docs/Advanced/CustomCollections.md) page covering `static associatedCollectionClass`, which lets a Model use its own `Collection` subclass for table-level `@writer` / `@reader` methods and named queries.
 
+- Docs: the docs site now publishes [`llms.txt`](https://stasdoskalenko.github.io/NitromelonDB/llms.txt) and [`llms-full.txt`](https://stasdoskalenko.github.io/NitromelonDB/llms-full.txt) for AI coding agents, plus a plain Markdown copy of every page (`.../docs/Writers.md`). They're generated at build time from the same sources and sidebar, so they stay in sync. Every page now also has a meta description.
+
 ### Internal
 
 - `yarn test` now also runs on Windows in CI (`JavaScript tests (Windows)`), so the SQLite Node adapter's Windows-only fixes (drive-letter paths, file handles blocking deletes) are covered ([#90](https://github.com/StasDoskalenko/NitromelonDB/issues/90)).

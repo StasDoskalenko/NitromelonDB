@@ -1,6 +1,7 @@
 ---
 title: LocalStorage
 hide_title: true
+description: "A simple key/value store inside the database, similar to localStorage, for small bits of app state."
 ---
 
 # Local storage

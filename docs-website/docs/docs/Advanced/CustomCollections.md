@@ -1,3 +1,7 @@
+---
+description: "Subclass Collection to add table-level methods: writer and reader rules, the constructor contract, and TypeScript typing."
+---
+
 # Custom Collections
 
 Every table gets one `Collection` instance, created when the `Database` is constructed. By default it's a

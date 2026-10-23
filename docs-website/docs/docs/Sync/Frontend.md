@@ -1,6 +1,7 @@
 ---
 title: Frontend
 hide_title: true
+description: "Call synchronize() in the app: pullChanges / pushChanges, unsynced changes, migration syncs, Turbo Login, logging, and replacement sync."
 ---
 
 ## Implementing sync in frontend

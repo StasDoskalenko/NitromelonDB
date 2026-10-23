@@ -1,3 +1,7 @@
+---
+description: "Connect React components to the database with withObservables: reactive records, lists, relations and counts, plus DatabaseProvider and useDatabase."
+---
+
 # Connecting Components
 
 After you [define some Models](./Model.md), it's time to connect Watermelon to your app's interface. We're using React in this guide, however WatermelonDB can be used with any UI framework.

@@ -1,6 +1,7 @@
 ---
 title: 'Setup'
 hide_title: true
+description: "Create the adapter and the Database for React Native, Node.js, Electron and the web, and initialize the database."
 ---
 
 # Set up your app for WatermelonDB

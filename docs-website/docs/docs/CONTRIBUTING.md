@@ -1,6 +1,7 @@
 ---
 title: Contributing
 hide_title: true
+description: "Contributing to NitromelonDB: running it in development, tests, native code, and Maestro e2e."
 ---
 
 <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/needyou.jpg" alt="We need you" width="220" />

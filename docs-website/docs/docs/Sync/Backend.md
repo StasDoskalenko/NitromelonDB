@@ -1,6 +1,7 @@
 ---
 title: Backend
 hide_title: true
+description: "Implement the pull and push endpoints on your server: the changes object format and server-side change tracking."
 ---
 
 ## Implementing your Sync backend

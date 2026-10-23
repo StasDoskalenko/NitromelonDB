@@ -1,6 +1,7 @@
 ---
 title: Roadmap
 hide_title: true
+description: "WatermelonDB's roadmap toward 1.0, inherited from upstream."
 ---
 # WatermelonDB Roadmap
 

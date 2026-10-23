@@ -1,3 +1,7 @@
+---
+description: "How to help improve NitromelonDB sync."
+---
+
 
 1. If you implement Watermelon sync but found this guide confusing, please contribute improvements!
 2. Please help out with solving the current limitations!

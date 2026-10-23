@@ -1,3 +1,7 @@
+---
+description: "Schema migrations: add tables and columns to an existing database, the migration workflow, the migrations API, and unsafe SQL migrations."
+---
+
 # Migrations
 
 **Schema migrations** is the mechanism by which you can add new tables and columns to the database in a backward-compatible way.
