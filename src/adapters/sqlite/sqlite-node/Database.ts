@@ -1,8 +1,3 @@
-const fs = require('fs') as {
-  existsSync: (path: string) => boolean
-  unlinkSync: (path: string) => void
-}
-
 type SqliteStatement = {
   run: (args: unknown[]) => unknown
   get: (args: unknown[]) => unknown
@@ -102,47 +97,53 @@ class Database {
     this.instance.pragma(`user_version = ${version}`)
   }
 
+  // Wipes the database in place, on this connection -- like the native adapters do (which use
+  // SQLITE_DBCONFIG_RESET_DATABASE, not exposed by better-sqlite3). It used to close, delete the
+  // file and reopen it, which broke every other connection to the same file: Windows refuses to
+  // delete an open file (EBUSY), and elsewhere they were left on the deleted file, reading stale
+  // data until their next write failed with SQLITE_READONLY_DBMOVED (#172).
   unsafeDestroyEverything(): void {
-    // Deleting files by default because it seems simpler, more reliable
-    // And we have a weird problem with sqlite code 6 (database busy) in sync mode
-    // But sadly this won't work for in-memory (shared) databases, so in those cases,
-    // drop all tables, indexes, and reset user version to 0
-
-    if (this.isInMemoryDatabase()) {
+    const secureDelete = this.instance.pragma('secure_delete', { simple: true })
+    // Zero out freed pages, so the old data is gone even if VACUUM below can't run
+    this.instance.pragma('secure_delete = ON')
+    try {
       this.inTransaction(() => {
-        const results = this.queryRaw(`SELECT * FROM sqlite_master WHERE type = 'table'`)
-        const tables = results.map((table) => String(table.name))
-
-        tables.forEach((table) => {
-          this.execute(`DROP TABLE IF EXISTS '${table}'`)
+        // Dropping a table also drops its indexes and triggers
+        const objects = this.queryRaw(
+          `SELECT type, name FROM sqlite_master WHERE type IN ('view', 'table') AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY type DESC`,
+        )
+        objects.forEach(({ type, name }) => {
+          const quotedName = `"${String(name).replace(/"/g, '""')}"`
+          this.execute(`DROP ${type === 'view' ? 'VIEW' : 'TABLE'} IF EXISTS ${quotedName}`)
         })
-
-        this.execute('PRAGMA writable_schema=1')
-        const count = this.queryRaw(`SELECT * FROM sqlite_master`).length
-        if (count) {
-          // IF required to avoid SQLIte Error
-          this.execute('DELETE FROM sqlite_master')
-        }
-        this.execute('PRAGMA user_version=0')
-        this.execute('PRAGMA writable_schema=0')
+        // SQLite's own bookkeeping tables can't be dropped (sqlite_sequence) or don't need to be
+        const internalTables = this.queryRaw(
+          `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('sqlite_sequence', 'sqlite_stat1', 'sqlite_stat4')`,
+        )
+        internalTables.forEach(({ name }) => {
+          this.execute(`DELETE FROM ${String(name)}`)
+        })
+        this.execute('PRAGMA user_version = 0')
       })
-    } else {
-      this.instance.close()
-      if (this.instance.open) {
-        throw new Error('Could not close database')
-      }
+    } finally {
+      this.instance.pragma(`secure_delete = ${secureDelete ? 'ON' : 'OFF'}`)
+    }
 
-      if (fs.existsSync(this.path)) {
-        fs.unlinkSync(this.path)
+    if (!this.isInMemoryDatabase()) {
+      // Shrink the file. Can't run inside a transaction, and can't run while another connection is
+      // reading. That's fine: the reset itself is already committed, so don't wait for readers.
+      const busyTimeout = this.instance.pragma('busy_timeout', { simple: true })
+      this.instance.pragma('busy_timeout = 0')
+      try {
+        this.instance.exec('VACUUM')
+      } catch (error) {
+        const code = (error as { code?: string }).code
+        if (code !== 'SQLITE_BUSY' && code !== 'SQLITE_LOCKED') {
+          throw error
+        }
+      } finally {
+        this.instance.pragma(`busy_timeout = ${Number(busyTimeout)}`)
       }
-      if (fs.existsSync(`${this.path}-wal`)) {
-        fs.unlinkSync(`${this.path}-wal`)
-      }
-      if (fs.existsSync(`${this.path}-shm`)) {
-        fs.unlinkSync(`${this.path}-shm`)
-      }
-
-      this.open()
     }
   }
 
