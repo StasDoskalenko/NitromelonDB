@@ -77,7 +77,7 @@ export default (it) => {
     }
   })
 
-  it('deleteDatabaseFile removes the database and sidecars', async (
+  it('a connection opened after a reset sees an empty database', async (
     _adapter,
     AdapterClass,
     _extra,
@@ -89,8 +89,6 @@ export default (it) => {
     await adapter.batch([['create', 'tasks', { id: 't1', text1: 'hello' }]])
     assertDbExists(dbName, platform)
 
-    // Until deleteDatabaseFile is exposed on the JS adapter API, reset + reopen
-    // is the supported cleanup path exercised here.
     await adapter.unsafeResetDatabase()
     const reopenedAdapter = await adapter.testClone()
     expect(await reopenedAdapter.count(taskQuery())).toBe(0)
