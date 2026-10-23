@@ -1,3 +1,8 @@
+const fs = require('fs') as {
+  existsSync: (path: string) => boolean
+  unlinkSync: (path: string) => void
+}
+
 type SqliteStatement = {
   run: (args: unknown[]) => unknown
   get: (args: unknown[]) => unknown
@@ -20,6 +25,11 @@ type BetterSqlite3Constructor = new (
 ) => SqliteDatabase
 
 const SQliteDatabase = require('better-sqlite3') as BetterSqlite3Constructor
+
+function isCorruptionError(error: unknown): boolean {
+  const code = (error as { code?: unknown }).code
+  return typeof code === 'string' && (code === 'SQLITE_NOTADB' || code.startsWith('SQLITE_CORRUPT'))
+}
 
 class Database {
   instance: SqliteDatabase = undefined as unknown as SqliteDatabase
@@ -103,37 +113,22 @@ class Database {
   // delete an open file (EBUSY), and elsewhere they were left on the deleted file, reading stale
   // data until their next write failed with SQLITE_READONLY_DBMOVED (#172).
   unsafeDestroyEverything(): void {
-    const secureDelete = this.instance.pragma('secure_delete', { simple: true })
-    // Zero out freed pages, so the old data is gone even if VACUUM below can't run
-    this.instance.pragma('secure_delete = ON')
     try {
-      this.inTransaction(() => {
-        // Dropping a table also drops its indexes and triggers
-        const objects = this.queryRaw(
-          `SELECT type, name FROM sqlite_master WHERE type IN ('view', 'table') AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY type DESC`,
-        )
-        objects.forEach(({ type, name }) => {
-          const quotedName = `"${String(name).replace(/"/g, '""')}"`
-          this.execute(`DROP ${type === 'view' ? 'VIEW' : 'TABLE'} IF EXISTS ${quotedName}`)
-        })
-        // SQLite's own bookkeeping tables can't be dropped (sqlite_sequence) or don't need to be
-        const internalTables = this.queryRaw(
-          `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('sqlite_sequence', 'sqlite_stat1', 'sqlite_stat4')`,
-        )
-        internalTables.forEach(({ name }) => {
-          this.execute(`DELETE FROM ${String(name)}`)
-        })
-        this.execute('PRAGMA user_version = 0')
-      })
-    } finally {
-      this.instance.pragma(`secure_delete = ${secureDelete ? 'ON' : 'OFF'}`)
+      this.dropEverything()
+    } catch (error) {
+      // A corrupt file can't be wiped in place. Recreate it instead, so a reset still recovers
+      // from corruption -- other connections to a corrupt file are broken either way.
+      if (this.isInMemoryDatabase() || !isCorruptionError(error)) {
+        throw error
+      }
+      this.recreateFile()
+      return
     }
 
     if (!this.isInMemoryDatabase()) {
-      // Shrink the file. Can't run inside a transaction, and can't run while another connection is
-      // reading. That's fine: the reset itself is already committed, so don't wait for readers.
-      const busyTimeout = this.instance.pragma('busy_timeout', { simple: true })
-      this.instance.pragma('busy_timeout = 0')
+      // Shrink the file and drop the old data from its free pages. Can't run inside a transaction,
+      // and can't run while another connection is reading: after the usual busy timeout, skip it.
+      // The reset itself is already committed.
       try {
         this.instance.exec('VACUUM')
       } catch (error) {
@@ -141,10 +136,40 @@ class Database {
         if (code !== 'SQLITE_BUSY' && code !== 'SQLITE_LOCKED') {
           throw error
         }
-      } finally {
-        this.instance.pragma(`busy_timeout = ${Number(busyTimeout)}`)
       }
     }
+  }
+
+  dropEverything(): void {
+    this.inTransaction(() => {
+      // Dropping a table also drops its indexes and triggers
+      const objects = this.queryRaw(
+        `SELECT type, name FROM sqlite_master WHERE type IN ('view', 'table') AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY type DESC`,
+      )
+      objects.forEach(({ type, name }) => {
+        const quotedName = `"${String(name).replace(/"/g, '""')}"`
+        this.execute(`DROP ${type === 'view' ? 'VIEW' : 'TABLE'} IF EXISTS ${quotedName}`)
+      })
+      // SQLite's own bookkeeping tables can't be dropped (sqlite_sequence) or don't need to be
+      const internalTables = this.queryRaw(
+        `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('sqlite_sequence', 'sqlite_stat1', 'sqlite_stat4')`,
+      )
+      internalTables.forEach(({ name }) => {
+        this.execute(`DELETE FROM ${String(name)}`)
+      })
+      this.execute('PRAGMA user_version = 0')
+    })
+  }
+
+  recreateFile(): void {
+    this.instance.close()
+    // Including the rollback journal: a leftover one would be replayed into the new file
+    ;['', '-wal', '-shm', '-journal'].forEach((suffix) => {
+      if (fs.existsSync(this.path + suffix)) {
+        fs.unlinkSync(this.path + suffix)
+      }
+    })
+    this.open()
   }
 
   isInMemoryDatabase(): boolean {

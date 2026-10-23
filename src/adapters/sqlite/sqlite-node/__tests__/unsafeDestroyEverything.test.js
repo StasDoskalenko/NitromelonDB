@@ -96,10 +96,11 @@ describe('sqlite-node Database#unsafeDestroyEverything', () => {
     expect(fs.readFileSync(path).includes(MARKER)).toBe(false)
   })
 
-  it("doesn't wait for another connection that's reading, and still leaves no old data", () => {
+  it('skips VACUUM if another connection is still reading after the busy timeout', () => {
     const path = tempPath()
     const db = new Database(path)
     seed(db)
+    db.instance.pragma('busy_timeout = 50')
     const other = new BetterSqlite3(path)
     let iterator
     // Start a read on the other connection right before VACUUM (after the reset has committed),
@@ -116,17 +117,87 @@ describe('sqlite-node Database#unsafeDestroyEverything', () => {
       return realExec(sql)
     }
 
-    const start = Date.now()
     db.unsafeDestroyEverything()
-    expect(Date.now() - start).toBeLessThan(2000)
     expect(iterator).toBeDefined()
     expect(userObjects(db)).toEqual([])
+    expect(fs.existsSync(path)).toBe(true)
 
     iterator.return()
     other.close()
     db.instance.close()
-    // VACUUM didn't run, but secure_delete zeroed the freed pages
-    expect(fs.readFileSync(path).includes(MARKER)).toBe(false)
+  })
+
+  it('throws, without touching the file, when another connection holds the write lock', () => {
+    const path = tempPath()
+    const db = new Database(path)
+    seed(db)
+    db.instance.pragma('busy_timeout = 50')
+    const other = new BetterSqlite3(path)
+    other.exec('begin immediate')
+    const { ino } = fs.statSync(path)
+
+    expect(() => db.unsafeDestroyEverything()).toThrow(/locked|busy/i)
+    expect(fs.statSync(path).ino).toBe(ino)
+
+    other.exec('rollback')
+    expect(userObjects(db)).toHaveLength(7)
+    other.close()
+    db.instance.close()
+  })
+
+  describe('recovers from a corrupt file by recreating it', () => {
+    const resetAndUse = (path) => {
+      const db = new Database(path)
+      db.unsafeDestroyEverything()
+      db.executeStatements('create table ok (x); insert into ok values (1);')
+      expect(db.queryRaw('select x from ok')).toEqual([{ x: 1 }])
+      expect(db.userVersion).toBe(0)
+      db.instance.close()
+    }
+
+    const seededFile = () => {
+      const path = tempPath()
+      const db = new Database(path)
+      seed(db)
+      db.inTransaction(() => {
+        for (let i = 0; i < 200; i += 1) {
+          db.execute('insert into tasks (id, name) values (?, ?)', [`r${i}`, 'x'.repeat(500)])
+        }
+      })
+      db.instance.close()
+      return path
+    }
+
+    it('not a database at all', () => {
+      const path = tempPath()
+      fs.writeFileSync(path, Buffer.alloc(8192, 0x41))
+      resetAndUse(path)
+    })
+
+    it('corrupted pages', () => {
+      const path = seededFile()
+      const file = fs.readFileSync(path)
+      const pageSize = file.readUInt16BE(16)
+      for (let page = 2; page < 6; page += 1) {
+        file.fill(0xff, page * pageSize, page * pageSize + 200)
+      }
+      fs.writeFileSync(path, file)
+      resetAndUse(path)
+    })
+
+    it('truncated', () => {
+      const path = seededFile()
+      fs.truncateSync(path, 4096 * 3 + 100)
+      resetAndUse(path)
+    })
+
+    it('with a leftover rollback journal, which is removed rather than replayed', () => {
+      const path = tempPath()
+      fs.writeFileSync(path, Buffer.alloc(8192, 0x41))
+      fs.writeFileSync(`${path}-journal`, Buffer.alloc(4096, 0x42))
+      resetAndUse(path)
+      expect(fs.existsSync(`${path}-journal`)).toBe(false)
+    })
   })
 
   it('works on in-memory databases', () => {
@@ -137,18 +208,6 @@ describe('sqlite-node Database#unsafeDestroyEverything', () => {
 
     expect(userObjects(db)).toEqual([])
     expect(db.userVersion).toBe(0)
-    db.instance.close()
-  })
-
-  it('restores secure_delete and busy_timeout', () => {
-    const db = new Database(tempPath())
-    seed(db)
-    db.instance.pragma('busy_timeout = 1234')
-
-    db.unsafeDestroyEverything()
-
-    expect(db.instance.pragma('secure_delete', { simple: true })).toBe(0)
-    expect(db.instance.pragma('busy_timeout', { simple: true })).toBe(1234)
     db.instance.close()
   })
 })
