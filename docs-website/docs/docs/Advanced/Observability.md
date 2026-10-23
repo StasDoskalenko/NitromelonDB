@@ -1,6 +1,7 @@
 ---
 title: Observability
 hide_title: true
+description: "Make nested writers, stuck readers and writers, and queue problems fail loudly: detection, stuck warnings, logging, and a setup checklist."
 ---
 
 # Observability

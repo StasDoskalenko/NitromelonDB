@@ -1,3 +1,7 @@
+---
+description: "Workaround for a release build failure (UglifyES) when importing sync."
+---
+
 
 **⚠️ Note about a React Native / UglifyES bug**. When you import Watermelon Sync, your app might fail to compile in release mode. To fix this, configure Metro bundler to use Terser instead of UglifyES. Run:
 

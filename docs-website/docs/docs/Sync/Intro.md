@@ -1,6 +1,7 @@
 ---
 title: Intro
 hide_title: true
+description: "Overview of syncing NitromelonDB with your own backend, and where to start."
 ---
 
 # Synchronization

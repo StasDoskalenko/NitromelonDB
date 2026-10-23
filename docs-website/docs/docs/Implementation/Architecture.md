@@ -1,3 +1,7 @@
+---
+description: "Internal architecture: the base objects (Database, Collection, Model, Query, adapters) and helper functions."
+---
+
 # Architecture
 
 ## Base objects

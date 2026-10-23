@@ -1,3 +1,7 @@
+---
+description: "Field decorators beyond the basics: @json, @nochange, @readonly, and custom observable fields."
+---
+
 # Advanced Fields
 
 ## `@json`

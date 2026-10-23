@@ -37,6 +37,9 @@ const config = {
     locales: ['en'],
   },
 
+  // llms.txt, llms-full.txt and a Markdown copy of each doc, for AI coding agents
+  plugins: [require.resolve('./plugins/llms-txt')],
+
   presets: [
     [
       'classic',

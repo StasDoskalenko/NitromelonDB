@@ -1,3 +1,7 @@
+---
+description: "Share one database between iOS targets (app extensions, widgets) through an App Group, from JS or from native code."
+---
+
 # iOS - Sharing database across targets
 
 In case you have multiple Xcode targets and want to share your WatermelonDB instance across them, there are 2 options to be followed: via JS or via native Swift / Objective-C.

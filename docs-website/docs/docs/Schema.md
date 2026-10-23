@@ -1,3 +1,7 @@
+---
+description: "Define the database schema: tables, column types, naming conventions, special columns, indexing, and unsafe SQL."
+---
+
 # Schema
 
 When using WatermelonDB, you're dealing with **Models** and **Collections**. However, underneath Watermelon sits an **underlying database** (SQLite or LokiJS) which speaks a different language: **tables and columns**. Together, those are called a **database schema** and we must define it first.

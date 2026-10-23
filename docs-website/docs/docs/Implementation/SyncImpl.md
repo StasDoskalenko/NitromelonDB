@@ -1,6 +1,7 @@
 ---
 title: Sync implementation
 hide_title: true
+description: "Sync internals: general design, the sync procedure, migration syncs, and implementing sync from scratch."
 ---
 
 # Sync implementation details

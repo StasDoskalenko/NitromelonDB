@@ -1,3 +1,7 @@
+---
+description: "Disable or override NitromelonDB's built-in logging."
+---
+
 # Logging
 
 By default, Watermelon ships with basic logging enabled that may be useful for debugging. When the application is started, basic information

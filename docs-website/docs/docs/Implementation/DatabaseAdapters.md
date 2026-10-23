@@ -1,3 +1,7 @@
+---
+description: "How database adapters work and how to add a new platform or database."
+---
+
 # Database Adapters
 
 In this guide, you'll learn how to add support for new databases and new platforms to WatermelonDB.

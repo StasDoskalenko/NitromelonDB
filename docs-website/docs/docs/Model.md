@@ -1,3 +1,7 @@
+---
+description: "Define Model classes: associations, fields, dates, derived fields, relations, children, custom queries and writer methods."
+---
+
 # Model
 
 A **Model** class represents a type of thing in your app. For example, `Post`, `Comment`, `User`.

@@ -1,6 +1,7 @@
 ---
 title: Querying
 hide_title: true
+description: "Query API: Q conditions and operators, LIKE, AND / OR nesting, conditions on related tables (JOINs), advanced clauses, and observing queries."
 ---
 
 # Query API

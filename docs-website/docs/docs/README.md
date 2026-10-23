@@ -1,6 +1,7 @@
 ---
 title: Check out the README
 hide_title: true
+description: "What NitromelonDB is, why the fork exists, how to install it, and its features."
 ---
 
 <p align="center">
@@ -37,6 +38,8 @@ yarn add nitromelondb react-native-nitro-modules
 ```
 
 Then enable Babel decorators and rebuild the native app. On Expo, also add `"nitromelondb"` to `plugins` in `app.json`. Full steps: [Installation](https://stasdoskalenko.github.io/NitromelonDB/docs/Installation). Coming from WatermelonDB: [Migrating](https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating).
+
+Using an AI coding agent? Point it at [llms.txt](https://stasdoskalenko.github.io/NitromelonDB/llms.txt) (an index of the docs as Markdown) or [llms-full.txt](https://stasdoskalenko.github.io/NitromelonDB/llms-full.txt) (all of it in one file).
 
 ```js
 import { Database } from 'nitromelondb'

@@ -1,6 +1,7 @@
 ---
 title: Detect nested writers (deadlock prevention)
 hide_title: true
+description: "experimentalDetectNestedWriters turns a forgotten callWriter() / callReader() into an error instead of a deadlock. What it detects, how it works per platform, caveats and performance."
 ---
 
 # Detect nested writers (deadlock prevention)

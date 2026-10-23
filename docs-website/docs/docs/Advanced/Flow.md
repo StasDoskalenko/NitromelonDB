@@ -1,6 +1,7 @@
 ---
 title: Flow
 hide_title: true
+description: "Flow types are no longer shipped. NitromelonDB is written in TypeScript."
 ---
 
 # Flow support removed

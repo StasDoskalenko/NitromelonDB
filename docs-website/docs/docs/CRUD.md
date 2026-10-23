@@ -1,3 +1,7 @@
+---
+description: "Read, create, update and delete records, delete everything matching a query, reset the database on logout, and run unsafe raw SQL."
+---
+
 # Create, Read, Update, Delete
 
 When you have your [Schema](./Schema.md) and [Models](./Model.md) defined, learn how to manipulate them!

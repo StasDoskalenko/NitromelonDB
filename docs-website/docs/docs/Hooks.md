@@ -1,3 +1,7 @@
+---
+description: "React hooks from nitromelondb/hooks: useQuery, useRecord, useWriter, useAtomicWriter, useObservable and useDatabaseReady, and which one to use."
+---
+
 # React Hooks
 
 `withObservables` (see [Connecting Components](./Components.md)) is a higher-order component — a good fit if your components are plain functions of their props and you're happy wrapping them. If you'd rather subscribe from inside a hooks-based component, `nitromelondb/hooks` (or `nitromelondb/react`) ships hooks that cover the same ground for reads (`useRecord`, `useQuery`, `useObservable`), `useWriter`/`useAtomicWriter` for writes, and `useDatabaseReady` for gating your own UI on database readiness.

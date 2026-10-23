@@ -1,3 +1,7 @@
+---
+description: "Release notes for every NitromelonDB version."
+---
+
 # Changelog
 
 All notable changes to this project will be documented in this file.

@@ -1,3 +1,7 @@
+---
+description: "Internals of the wa-sqlite web adapter: platform selection, worker architecture, persistence, and initialization ordering."
+---
+
 # wa-sqlite web adapter
 
 NitromelonDB's SQLite adapter uses [wa-sqlite](https://github.com/rhashimoto/wa-sqlite) in

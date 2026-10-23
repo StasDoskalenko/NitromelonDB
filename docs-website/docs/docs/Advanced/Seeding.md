@@ -1,3 +1,7 @@
+---
+description: "databaseSeed(): populate initial or demo data tied to schema versions, with retries, onError / onDone hooks, and readiness APIs."
+---
+
 # Database seeding
 
 **`databaseSeed()`** lets you populate the database with data as part of setup, tied to the schema
