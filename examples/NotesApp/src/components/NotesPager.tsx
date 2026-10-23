@@ -1,5 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text } from 'react-native'
 import { colors } from '../theme'
+import { GlassSurface } from './GlassSurface'
 
 type NotesPagerProps = {
   page: number
@@ -13,7 +14,7 @@ export function NotesPager({ page, pageCount, onPrev, onNext }: NotesPagerProps)
   const canGoNext = page < pageCount
 
   return (
-    <View style={styles.pager} testID="pager">
+    <GlassSurface style={styles.pager} testID="pager">
       <Pressable
         style={[styles.pagerButton, !canGoPrev && styles.pagerButtonDisabled]}
         onPress={onPrev}
@@ -41,7 +42,7 @@ export function NotesPager({ page, pageCount, onPrev, onNext }: NotesPagerProps)
           Next
         </Text>
       </Pressable>
-    </View>
+    </GlassSurface>
   )
 }
 

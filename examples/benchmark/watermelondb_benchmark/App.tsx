@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { BenchmarkScreen } from '../shared/BenchmarkScreen'
 import { CompetingWorkBenchmarkCard } from '../shared/CompetingWorkBenchmarkCard'
 import { Home, type BenchmarkTile } from '../shared/Home'
@@ -59,6 +60,14 @@ const TILES: BenchmarkTile[] = [
 type ScreenKey = (typeof TILES)[number]['key'] | null
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <BenchmarkApp />
+    </SafeAreaProvider>
+  )
+}
+
+function BenchmarkApp() {
   const [session] = useState(() => {
     try {
       return { ok: true as const, adapter: createWatermelonAdapter() }

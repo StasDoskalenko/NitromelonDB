@@ -19,7 +19,7 @@
 - **First-class Expo.** A config plugin covers development builds, EAS Build, and EAS Update. It replaces `@morrowdigital/watermelondb-expo-plugin`. Expo Go is not supported.
 - **One TypeScript codebase.** Implementation lives in TypeScript under `strict` checking. That removes Flow and the standalone `.d.ts` layer, so types and runtime cannot drift.
 - **Simpler native install.** SQLite and simdjson are vendored in-tree. No FMDB, no `@nozbe/sqlite` / `@nozbe/simdjson`, no separate `android-jsi` package. Autolinking is enough.
-- **Current platforms.** Tested on React Native 0.83+ (NotesApp is Expo SDK 57 / RN 0.86) and React 19. Android builds with 16kB page alignment. Web uses persistent SQLite through wa-sqlite and IndexedDB. Electron can run SQLite in the main process via `RemoteAdapter`.
+- **Current platforms.** Tested on React Native 0.83+ (NotesApp is Expo SDK 58 / RN 0.88) and React 19. Android builds with 16kB page alignment. Web uses persistent SQLite through wa-sqlite and IndexedDB. Electron can run SQLite in the main process via `RemoteAdapter`.
 - **Extensively tested — a safer bet.** Every push runs the full stack in CI, not just JS unit tests: the shared correctness suite (CRUD, queries, migrations, concurrent writers, batches) executes against the real native SQLite bridge on real iOS and Android devices, and the Expo [NotesApp](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp) ships [Maestro](https://docs.maestro.dev) end-to-end flows — cold start, create/pin/delete, kill-and-relaunch persistence, sticky `Q.skip` / `Q.take` pagination — run on iOS, Android, **and** Windows.
 - **Observability.** Nested writers, stuck readers, and incorrect `callWriter`/`callReader` usage should fail loudly so engineers can see *where* — not hang in production. See [Observability](https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Observability).
 - **Performance.** We want to keep improving SQLite, native, and JS performance. The TypeScript rewrite is one step on that path (including future runtimes such as Static Hermes), alongside further native optimizations.
@@ -42,7 +42,7 @@ import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
 
 The same `SQLiteAdapter` automatically selects wa-sqlite in a browser. It runs the Asyncify build in a dedicated worker and stores the offline replica in IndexedDB with `IDBBatchAtomicVFS`; it does not fall back to LokiJS or memory storage. Native platforms continue to select Nitro SQLite, and Node continues to select `better-sqlite3`.
 
-Expo SDK 57 projects must use `expo/metro-config`, include `wasm` in `resolver.assetExts`, and enable bundle splitting with Expo Router or `@expo/metro-runtime`. In a native-and-web app, load that runtime through a `.web.ts` platform module so it is not bundled on native. No COOP/COEP headers are required. Always verify a release build with `npx expo export -p web` and check that the worker chunk and `.wasm` asset are present.
+Expo SDK 57+ projects must use `expo/metro-config`, include `wasm` in `resolver.assetExts`, and enable bundle splitting with Expo Router or `@expo/metro-runtime`. In a native-and-web app, load that runtime through a `.web.ts` platform module so it is not bundled on native. No COOP/COEP headers are required. Always verify a release build with `npx expo export -p web` and check that the worker chunk and `.wasm` asset are present.
 
 The packaged worker and WASM load automatically. For a custom CDN, CSP, or bundler policy, override either resource:
 
@@ -182,7 +182,7 @@ The result is fully reactive! Whenever a post or comment is added, changed, or r
 
 ## Example apps
 
-A notes list (schema v2, migrations, create / pin / delete) ships as two apps, because React Native Windows **0.84** tracks RN **0.84.1** while Expo SDK 57 uses RN **0.86.2**:
+A notes list (schema v2, migrations, create / pin / delete) ships as two apps, because React Native Windows **0.85** tracks RN **0.85.3** while Expo SDK 58 uses RN **0.88.0**:
 
 - **[examples/NotesApp](./examples/NotesApp)** — iOS and Android (Expo development build; not Expo Go)
 - **[examples/NotesApp_windows](./examples/NotesApp_windows)** — Windows New Architecture playground (Fabric / WinAppSDK)

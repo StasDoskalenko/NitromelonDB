@@ -9,7 +9,8 @@
     "plugins": [
       "expo-dev-client",
       "nitromelondb",
-      "../shared/plugins/withCleartextLocalhost"
+      "../shared/plugins/withCleartextLocalhost",
+      "expo-status-bar"
     ],
     "ios": {
       "supportsTablet": true,

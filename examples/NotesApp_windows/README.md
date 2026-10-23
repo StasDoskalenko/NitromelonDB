@@ -1,8 +1,8 @@
 # NotesApp for Windows (New Architecture)
 
-React Native Windows **0.84** NotesApp using the New Architecture (`cpp-app` / Fabric / WinAppSDK). This is the playground for NitromelonDB SQLite on RNW.
+React Native Windows **0.85** NotesApp using the New Architecture (`cpp-app` / Fabric / WinAppSDK). This is the playground for NitromelonDB SQLite on RNW.
 
-iOS and Android live in the sibling Expo app, [`../NotesApp`](../NotesApp). They cannot share one `package.json` yet: RNW 0.84 tracks React Native **0.84.1**, while the Expo app is on **0.86.2**.
+iOS and Android live in the sibling Expo app, [`../NotesApp`](../NotesApp). They cannot share one `package.json` yet: RNW 0.85 tracks React Native **0.85.3**, while the Expo app is on **0.88.0**.
 
 The Windows host (`src/App.tsx`) renders the **same UI** from [`../NotesApp/src`](../NotesApp/src) (screen, components, model, hooks). Metro watches that folder. List virtualization is `NotesList.windows.tsx` (`FlatList`); iOS/Android use FlashList. Edit files under `examples/NotesApp/src`, not a copy in this app.
 
@@ -13,7 +13,7 @@ The Windows host (`src/App.tsx`) renders the **same UI** from [`../NotesApp/src`
 | Tool | Version / notes |
 | --- | --- |
 | Windows | Windows 10 22H2+ or Windows 11 |
-| Node.js | **22.11+** (RNW 0.84 refuses older engines) |
+| Node.js | **22.11+** (this app's `engines` field) |
 | Yarn | 4.18 (pinned) — do not use npm / `package-lock.json` in this example |
 | Visual Studio | **2022** (MSVC **v143**) or **2026** (MSVC **v145**) |
 | Workloads | Desktop development with C++; Windows application development (Windows App SDK / WinUI) |

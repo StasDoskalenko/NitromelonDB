@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar'
 import { useMemo, type ReactNode } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import type { BenchmarkTheme } from './BenchmarkScreen'
 
 type Props = {
@@ -18,7 +19,7 @@ export function Screen({ title, theme, onBack, children }: Props) {
   const styles = useMemo(() => createStyles(theme), [theme])
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Pressable testID="screen-back" style={styles.backButton} onPress={onBack}>
           <Text style={styles.backLabel}>‹ Back</Text>
@@ -27,7 +28,7 @@ export function Screen({ title, theme, onBack, children }: Props) {
         {children}
       </ScrollView>
       <StatusBar style="light" />
-    </View>
+    </SafeAreaView>
   )
 }
 
@@ -38,7 +39,7 @@ function createStyles(theme: BenchmarkTheme) {
       backgroundColor: theme.background,
     },
     content: {
-      paddingTop: 64,
+      paddingTop: 16,
       paddingHorizontal: 20,
       paddingBottom: 40,
     },
