@@ -2,6 +2,10 @@ import Database from './Database'
 import type { NativeBridgeBatchOperation, SQLiteArg } from '../type'
 import encodeDestroyMatchingMutation from '../encodeDestroyMatchingMutation'
 
+const { randomUUID } = require('crypto') as { randomUUID: () => string }
+
+export const RESET_ID_KEY = '__nitromelon_reset_id'
+
 function fixArgs(args: SQLiteArg[]): SQLiteArg[] {
   return args.map((value) => {
     if (typeof value === 'boolean') {
@@ -257,13 +261,19 @@ class DatabaseDriver {
   }
 
   unsafeResetDatabase(schema: { sql: string; version: number }): void {
-    this.database.unsafeDestroyEverything()
-    this.cachedRecords = {}
-
-    this.database.inTransaction(() => {
+    // The new schema goes in the same transaction as the wipe, so other connections to the file
+    // never see a database without tables
+    this.database.unsafeDestroyEverything(() => {
       this.database.executeStatements(schema.sql)
       this.database.userVersion = schema.version
+      // A new ID on every reset, so other connections can tell a reset apart from other schema
+      // changes (migrations, VACUUM), which also change `PRAGMA schema_version`
+      this.database.execute(
+        'INSERT OR REPLACE INTO `local_storage` (`key`, `value`) VALUES (?, ?)',
+        [RESET_ID_KEY, randomUUID()],
+      )
     })
+    this.cachedRecords = {}
   }
 
   migrate(migrations: Migrations): void {

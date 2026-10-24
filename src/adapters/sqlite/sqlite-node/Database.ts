@@ -112,9 +112,15 @@ class Database {
   // file and reopen it, which broke every other connection to the same file: Windows refuses to
   // delete an open file (EBUSY), and elsewhere they were left on the deleted file, reading stale
   // data until their next write failed with SQLITE_READONLY_DBMOVED (#172).
-  unsafeDestroyEverything(): void {
+  //
+  // `setUp` (the new schema) runs in the same transaction as the wipe, so other connections see
+  // either the old database or the new one -- never an empty one without tables in between.
+  unsafeDestroyEverything(setUp: () => void = () => {}): void {
     try {
-      this.dropEverything()
+      this.inTransaction(() => {
+        this.dropEverything()
+        setUp()
+      })
     } catch (error) {
       // A corrupt file can't be wiped in place. Recreate it instead, so a reset still recovers
       // from corruption -- other connections to a corrupt file are broken either way.
@@ -122,6 +128,7 @@ class Database {
         throw error
       }
       this.recreateFile()
+      this.inTransaction(setUp)
       return
     }
 
@@ -140,25 +147,24 @@ class Database {
     }
   }
 
+  // Must run in a transaction
   dropEverything(): void {
-    this.inTransaction(() => {
-      // Dropping a table also drops its indexes and triggers
-      const objects = this.queryRaw(
-        `SELECT type, name FROM sqlite_master WHERE type IN ('view', 'table') AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY type DESC`,
-      )
-      objects.forEach(({ type, name }) => {
-        const quotedName = `"${String(name).replace(/"/g, '""')}"`
-        this.execute(`DROP ${type === 'view' ? 'VIEW' : 'TABLE'} IF EXISTS ${quotedName}`)
-      })
-      // SQLite's own bookkeeping tables can't be dropped (sqlite_sequence) or don't need to be
-      const internalTables = this.queryRaw(
-        `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('sqlite_sequence', 'sqlite_stat1', 'sqlite_stat4')`,
-      )
-      internalTables.forEach(({ name }) => {
-        this.execute(`DELETE FROM ${String(name)}`)
-      })
-      this.execute('PRAGMA user_version = 0')
+    // Dropping a table also drops its indexes and triggers
+    const objects = this.queryRaw(
+      `SELECT type, name FROM sqlite_master WHERE type IN ('view', 'table') AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY type DESC`,
+    )
+    objects.forEach(({ type, name }) => {
+      const quotedName = `"${String(name).replace(/"/g, '""')}"`
+      this.execute(`DROP ${type === 'view' ? 'VIEW' : 'TABLE'} IF EXISTS ${quotedName}`)
     })
+    // SQLite's own bookkeeping tables can't be dropped (sqlite_sequence) or don't need to be
+    const internalTables = this.queryRaw(
+      `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('sqlite_sequence', 'sqlite_stat1', 'sqlite_stat4')`,
+    )
+    internalTables.forEach(({ name }) => {
+      this.execute(`DELETE FROM ${String(name)}`)
+    })
+    this.execute('PRAGMA user_version = 0')
   }
 
   recreateFile(): void {
