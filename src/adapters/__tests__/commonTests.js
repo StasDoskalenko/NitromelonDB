@@ -1397,6 +1397,14 @@ export default () => {
     await adapter2.unsafeResetDatabase()
     expect(await adapter2.count(taskQuery())).toBe(0)
 
+    // the first connection sees the reset, and can still write
+    // (a reset that deletes the file leaves it on the deleted file: stale reads, then
+    // SQLITE_READONLY_DBMOVED -- or EBUSY on Windows; see #172)
+    expect(await adapter.count(taskQuery())).toBe(0)
+    await adapter.batch([['create', 'tasks', mockTaskRaw({ id: 'after_reset' })]])
+    expect(await adapter.count(taskQuery())).toBe(1)
+    expect(await adapter2.count(taskQuery())).toBe(1)
+
     // open third db
     const adapter3 = new DatabaseAdapterCompat(
       new AdapterClass({
@@ -1406,7 +1414,7 @@ export default () => {
       }),
     )
 
-    expect(await adapter3.count(taskQuery())).toBe(0)
+    expect(await adapter3.count(taskQuery())).toBe(1)
   })
   matchTests.forEach((testCase) =>
     it(`[shared match test] ${testCase.name}`, async (adapter, AdapterClass) => {
