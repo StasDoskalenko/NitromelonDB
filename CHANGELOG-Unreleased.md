@@ -3,6 +3,8 @@
 ### BREAKING CHANGES
 
 - SQLite adapter (all platforms): a database file that has tables but schema version 0 (`PRAGMA user_version`) now fails to initialize instead of being silently wiped. Version 0 normally means a new, empty database, so such a file wasn't set up by NitromelonDB, or its header is damaged, and setting it up from scratch deleted every table in it without an error. The adapter now reports it through `onSetUpError` ("... has tables but no schema version ...") and leaves the file alone. `database.unsafeResetDatabase()` is the explicit way to start over. Files with only SQLite's own tables, or Android's `android_metadata`, are still set up as new. Databases with a newer version than the app's schema are still reset, as before.
+  - When this happens: the database path holds a file NitromelonDB didn't create. For example, an Electron app that stored data with plain `better-sqlite3` in `userData/app.db` (never setting `PRAGMA user_version`) and switches to NitromelonDB with the same `dbName`. Before, the first launch of the new version deleted every user's data without an error; now setup fails, so the problem shows up in development. Also: a prepopulated database built with the `sqlite3` CLI or DB Browser without setting `user_version`, a file Android's `SQLiteDatabase` created directly, or a damaged file header (rare).
+  - It never happens for databases NitromelonDB or WatermelonDB created: they always set the version together with the tables.
 
 ### Deprecations
 
