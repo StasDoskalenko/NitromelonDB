@@ -1,6 +1,7 @@
 import Database from './Database'
 import type { NativeBridgeBatchOperation, SQLiteArg } from '../type'
 import encodeDestroyMatchingMutation from '../encodeDestroyMatchingMutation'
+import { USER_OBJECTS_QUERY, tablesWithoutVersionError } from '../tablesWithoutVersion'
 
 const { randomUUID } = require('crypto') as { randomUUID: () => string }
 
@@ -74,6 +75,9 @@ class DatabaseDriver {
 
   initialize(dbName: string, schemaVersion: number): void {
     this.init(dbName)
+    if (this.database.userVersion === 0 && this.database.queryRaw(USER_OBJECTS_QUERY).length) {
+      throw tablesWithoutVersionError(dbName)
+    }
     this.isCompatible(schemaVersion)
   }
 

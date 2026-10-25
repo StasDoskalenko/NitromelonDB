@@ -31,6 +31,7 @@ import type {
   SQLiteArg,
   SQLiteQuery,
   SqliteDispatcher,
+  SqliteDispatcherMethod,
   MigrationEvents,
   InitializeStatus,
   NativeBridgeBatchOperation,
@@ -62,6 +63,13 @@ if (process.env.NODE_ENV !== 'production') {
 
 const IGNORE_CACHE = 0
 
+// What can still run once setting up the database failed: setting it up again (that's how
+// unsafeResetDatabase() recovers), and closing the connection
+const CALLABLE_AFTER_FAILED_SET_UP: ReadonlySet<SqliteDispatcherMethod> = new Set([
+  'setUpWithSchema',
+  'unsafeCloseConnection',
+])
+
 export default class SQLiteAdapter implements DatabaseAdapter {
   static adapterType: string = 'sqlite'
 
@@ -81,6 +89,11 @@ export default class SQLiteAdapter implements DatabaseAdapter {
 
   _initPromise: Promise<void>
 
+  // Set when setting up the database failed (e.g. it has tables but no schema version). There's no
+  // working connection then: other calls fail with this error instead of reaching the database
+  // (native asserts it's set up), and unsafeResetDatabase() sets the database up instead
+  _setUpError: Error | null = null
+
   constructor(options: SQLiteAdapterOptions) {
     // console.log(`---> Initializing new adapter (${this._tag})`)
     const {
@@ -98,11 +111,25 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     this._dispatcherType = getDispatcherType(options)
     // Hacky-ish way to create an object with NativeModule-like shape, but that can dispatch method
     // calls to async, synch NativeModule, or JSI implementation w/ type safety in rest of the impl
-    this._dispatcher = makeDispatcher(this._dispatcherType, this._tag, this.dbName, {
+    const dispatcher = makeDispatcher(this._dispatcherType, this._tag, this.dbName, {
       usesExclusiveLocking,
       experimentalUnsafeNativeReuse,
       ...(options.web ? { web: options.web } : {}),
     })
+    this._dispatcher = {
+      call: (methodName, args, callback) => {
+        const setUpError = this._setUpError
+        if (setUpError && !CALLABLE_AFTER_FAILED_SET_UP.has(methodName)) {
+          callback({
+            error: new Error(
+              `The database couldn't be set up, so ${methodName}() can't run. ${setUpError.message}`,
+            ),
+          })
+          return
+        }
+        dispatcher.call(methodName, args, callback)
+      },
+    }
 
     if (process.env.NODE_ENV !== 'production') {
       validateAdapter(this)
@@ -110,6 +137,9 @@ export default class SQLiteAdapter implements DatabaseAdapter {
 
     this._initPromise = toPromise((callback) => {
       this._init((result) => {
+        if (result.error) {
+          this._setUpError = result.error
+        }
         callback(result)
         devSetupCallback(result, options.onSetUpError)
       })
@@ -453,6 +483,17 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   }
 
   unsafeResetDatabase(callback: ResultCallback<void>): void {
+    if (this._setUpError) {
+      // Setting up from scratch is what a reset does anyway
+      this._setUpWithSchema((result) => {
+        if (!result.error) {
+          this._setUpError = null
+          logger.log('[SQLite] Database is now reset')
+        }
+        callback(result)
+      })
+      return
+    }
     this._dispatcher.call<void>(
       'unsafeResetDatabase',
       [this._encodedSchema(), this.schema.version],

@@ -1,4 +1,5 @@
 import DatabaseDriver from './DatabaseDriver'
+import { isTablesWithoutVersionError } from '../tablesWithoutVersion'
 
 const SQLITE_ROW = 100
 const SQLITE_DONE = 101
@@ -94,6 +95,24 @@ function makeDriver() {
 }
 
 describe('wa-sqlite DatabaseDriver contract', () => {
+  it('refuses to set up a database with tables but no schema version', async () => {
+    const { api, driver } = makeDriver()
+    // PRAGMA user_version isn't a SELECT, so the fake reports version 0; the schema query finds a table
+    api.queueRows([{ 1: 1 }])
+
+    const error = await driver.initialize(1, 'app.db').catch((e) => e)
+
+    expect(error.message).toMatch(/"app.db" has tables but no schema version/)
+    expect(isTablesWithoutVersionError(error)).toBe(true)
+  })
+
+  it('sets up a database with version 0 and no tables of its own', async () => {
+    const { api, driver } = makeDriver()
+    api.queueRows([])
+
+    await expect(driver.initialize(1, 'app.db')).resolves.toEqual({ code: 'schema_needed' })
+  })
+
   it('surfaces non-success parameter binding results and finalizes the statement', async () => {
     const { api, driver } = makeDriver()
     api.bindResult = 25

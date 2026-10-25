@@ -6,6 +6,7 @@ import type { NativeBridgeBatchOperation, SQLiteArg } from '../type'
 import DatabaseDriver, { type SQLiteAPI } from './DatabaseDriver'
 import type { WorkerRequest, WorkerResponse } from './protocol'
 import { serializeError } from './protocol'
+import { isTablesWithoutVersionError } from '../tablesWithoutVersion'
 
 type WorkerScope = {
   addEventListener: (
@@ -205,8 +206,12 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     const connection = { driver, databaseKey: key, database }
     connections.set(tag, connection)
     try {
-      return await driver.initialize(Number(args[1]))
+      return await driver.initialize(Number(args[1]), dbName)
     } catch (error) {
+      // Keep the connection: database.unsafeResetDatabase() sets the database up through it
+      if (isTablesWithoutVersionError(error)) {
+        throw error
+      }
       try {
         await disposeConnection(tag, connection)
       } catch {

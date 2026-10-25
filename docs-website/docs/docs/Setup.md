@@ -57,7 +57,8 @@ const adapter = new SQLiteAdapter({
   // dbName: 'myapp',
   // (optional, but you should implement this method)
   onSetUpError: error => {
-    // Database failed to load -- offer the user to reload the app or log out
+    // Database failed to load -- offer the user to reload the app or log out.
+    // To start over, call database.unsafeResetDatabase() (see Migrations: "Database reseting and other edge cases")
   }
 })
 

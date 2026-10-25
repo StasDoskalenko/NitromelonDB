@@ -106,6 +106,8 @@ public:
     void migrate(const std::string &migrationSql, int fromVersion, int toVersion);
 
     int getUserVersion();
+    // Whether the database has any tables, indexes, views or triggers of its own (not SQLite's)
+    bool hasUserObjects();
     void migrate(jsi::String &migrationSql, int fromVersion, int toVersion);
 
 private:

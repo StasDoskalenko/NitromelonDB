@@ -374,6 +374,24 @@ int Database::getUserVersion() {
     return version;
 }
 
+// Same as getUserVersion(): a one-off statement, safe without mutex_. Must match USER_OBJECTS_QUERY in
+// src/adapters/sqlite/tablesWithoutVersion.ts
+bool Database::hasUserObjects() {
+    sqlite3_stmt *statement = nullptr;
+    const char *sql = "select 1 from sqlite_master where name not like 'sqlite\\_%' escape '\\' "
+                      "and name != 'android_metadata' limit 1";
+    if (sqlite3_prepare_v2(db_->sqlite, sql, -1, &statement, nullptr) != SQLITE_OK) {
+        sqlite3_finalize(statement);
+        throwSqliteError("Failed to prepare query statement");
+    }
+    int resultStep = sqlite3_step(statement);
+    sqlite3_finalize(statement);
+    if (resultStep != SQLITE_ROW && resultStep != SQLITE_DONE) {
+        throwSqliteError("Failed to read the database schema");
+    }
+    return resultStep == SQLITE_ROW;
+}
+
 void Database::setUserVersion(int newVersion) {
     // NOTE: placeholders don't work, and ints are safe
     std::string sql = "pragma user_version = " + std::to_string(newVersion);

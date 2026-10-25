@@ -2,12 +2,15 @@
 
 ### BREAKING CHANGES
 
+- SQLite adapter (all platforms): a database file that has tables but schema version 0 (`PRAGMA user_version`) now fails to initialize instead of being silently wiped. Version 0 normally means a new, empty database, so such a file wasn't set up by NitromelonDB, or its header is damaged, and setting it up from scratch deleted every table in it without an error. The adapter now reports it through `onSetUpError` ("... has tables but no schema version ...") and leaves the file alone. `database.unsafeResetDatabase()` is the explicit way to start over. Files with only SQLite's own tables, or Android's `android_metadata`, are still set up as new. Databases with a newer version than the app's schema are still reset, as before.
+
 ### Deprecations
 
 ### New features
 
 ### Fixes
 
+- SQLite adapter: after setting up the database failed (a failed migration, a corrupt or unrecognized file), `database.unsafeResetDatabase()` now sets it up from scratch instead of failing (`No driver for tag N` on Node), and `database.readyPromise`, `isReady` and `seed` then behave as on a fresh install. Until then, every other database call fails with the setup error instead of reaching the database, where native builds hit an assertion. On Node, this also recovers files too damaged to open ("file is not a database", "malformed").
 - SQLite Node adapter (Node.js, Electron, Jest): `unsafeResetDatabase()` on a file-backed database no longer breaks other connections to the same file ([#172](https://github.com/StasDoskalenko/NitromelonDB/issues/172)). It used to delete and recreate the file, which failed with `EBUSY` on Windows and elsewhere left the other connections on the deleted file, reading stale data until their next write failed with `SQLITE_READONLY_DBMOVED`. It now wipes the database in place, like the native adapters. In one transaction, it drops every table and view and sets up the new schema, so other connections see either the old database or the new one, never one without tables. It then runs `VACUUM` (skipped if another connection is still reading after the busy timeout). A corrupt database file can't be wiped in place, so for that case it still recreates the file, as before. (A file too damaged to open at all still can't be reset through the adapter, also as before.)
 - The deprecated `@action` decorator no longer throws `Cannot read properties of undefined (reading 'table')` when it decorates a method of a `Collection` subclass. It now gets the table name when the method runs, like `@writer` and `@reader` ([#84](https://github.com/StasDoskalenko/NitromelonDB/issues/84)). Its deprecation warning now names `@action` ("Use @writer instead") instead of `Database.action()`, which `@action` users never call directly. Still once per app run and only in development.
 - Android: release builds with R8 (`minifyEnabled`, which Expo SDK 58 now turns on by default) no longer abort on the first database open with `ClassNotFoundException: com.nitromelondb.NativeDatabasePath`. The library now ships consumer ProGuard rules that keep the classes and methods its C++ code finds by name over JNI.
