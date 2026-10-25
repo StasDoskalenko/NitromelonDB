@@ -224,9 +224,29 @@ export default class Database {
       // a step's run() works the same way it would inside any other writer, since this job IS
       // the running writer for the whole time any step is executing.
       this._readyPromise = this._workQueue
-        .enqueue(() => this._runSeed(seed), 'Database.seed', true)
-        .then(() => {
-          this._ready = true
+        .enqueue(
+          async () => {
+            const setUp = await this._adapterInitPromise.then(
+              () => true,
+              () => false,
+            )
+            if (!setUp) {
+              // Setup failed (the adapter reports it, and readyPromise rejects with it), so there's
+              // nothing to seed and the database isn't ready. Don't reject: reads queued behind
+              // this would never run. They go to the adapter instead, which fails them with the
+              // setup error. unsafeResetDatabase() sets the database up, seeds it and marks it ready.
+              return false
+            }
+            await this._runSeed(seed)
+            return true
+          },
+          'Database.seed',
+          true,
+        )
+        .then((seeded) => {
+          if (seeded) {
+            this._ready = true
+          }
         })
     }
   }
@@ -851,6 +871,10 @@ export default class Database {
 
       // Clear the database
       await adapter.unsafeResetDatabase()
+      // A reset sets the database up from scratch, so it's ready even if the adapter's initial
+      // setup failed (e.g. a database with tables but no schema version) -- readyPromise and the
+      // seed below must not keep waiting on that failure
+      this._adapterInitPromise = Promise.resolve()
 
       // Only now clear caches, since there may have been queued fetches from DB still bringing in items to cache
       Object.values(this.collections.map).forEach((collection) => {
@@ -882,6 +906,12 @@ export default class Database {
       // not something that needs its own separate readiness signal.
       if (this._seed && reapplySeed) {
         await this._runSeed(this._seed)
+      }
+      // Only false here if the initial seed never got to run because the adapter's setup failed
+      // (the seed job is writer #0, so it has settled by now). The database is set up now.
+      if (!this._ready) {
+        this._ready = true
+        this._readyPromise = Promise.resolve()
       }
     } finally {
       this._isBeingReset = false

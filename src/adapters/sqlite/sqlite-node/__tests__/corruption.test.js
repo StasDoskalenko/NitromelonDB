@@ -5,8 +5,10 @@ import {
   openFileAdapter,
   cleanupDb,
 } from '../../../__tests__/sqliteTests/helpers'
-import { taskQuery, mockTaskRaw } from '../../../__tests__/helpers'
+import { taskQuery, mockTaskRaw, testSchema } from '../../../__tests__/helpers'
 import DatabaseBridge from '../DatabaseBridge'
+import SQLiteAdapter from '../..'
+import DatabaseAdapterCompat from '../../../compat'
 
 // What the SQLite adapter does with a damaged database file, through its public API. Node-only:
 // the shared adapter tests also run on devices, where JS can't reach the database file.
@@ -66,6 +68,13 @@ async function expectResetRecovers(adapter) {
   expect(await reopened.adapter.count(taskQuery())).toBe(1)
 }
 
+// An adapter whose setup failed: unsafeResetDatabase() is how the app starts over
+async function adapterWhoseSetUpFails(dbName, error) {
+  const underlying = new SQLiteAdapter({ dbName, schema: testSchema })
+  await expect(underlying.initializingPromise).rejects.toThrow(error)
+  return new DatabaseAdapterCompat(underlying)
+}
+
 describe('SQLite adapter (Node) with a damaged database file', () => {
   it('damaged table pages: opens, some reads fail, and unsafeResetDatabase() recovers', async () => {
     const dbName = await databaseWithTasks()
@@ -90,17 +99,19 @@ describe('SQLite adapter (Node) with a damaged database file', () => {
     await expectResetRecovers(adapter)
   })
 
-  it('a file that is not a database: opening fails with a clear error', async () => {
+  it('a file that is not a database: opening fails, and unsafeResetDatabase() recovers', async () => {
     const dbName = await databaseWithTasks()
     fs.writeFileSync(dbName, Buffer.alloc(16384, 0x41))
 
-    await expect(openFileAdapter(dbName)).rejects.toThrow(/file is not a database/)
+    const adapter = await adapterWhoseSetUpFails(dbName, /file is not a database/)
+    await expectResetRecovers(adapter)
   })
 
-  it('a truncated file: opening fails with a clear error', async () => {
+  it('a truncated file: opening fails, and unsafeResetDatabase() recovers', async () => {
     const dbName = await databaseWithTasks()
     fs.truncateSync(dbName, fs.statSync(dbName).size / 2)
 
-    await expect(openFileAdapter(dbName)).rejects.toThrow(/malformed/)
+    const adapter = await adapterWhoseSetUpFails(dbName, /malformed/)
+    await expectResetRecovers(adapter)
   })
 })

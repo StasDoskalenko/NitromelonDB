@@ -186,6 +186,7 @@ schemaMigrations({
 2. If the migration fails, the database will fail to initialize, and will roll back to previous version. This is unlikely, but could happen if you, for example, create a migration that tries to create the same table twice. The reason why the database will fail instead of reset is to avoid losing user data (also it's less confusing in development). You can notice the problem, fix the migration, and ship it again without data loss.
 3. When database in the running app has *newer* database version than the schema version defined in code, the database will reset (clear its contents). This is useful in development.
 4. If there's no available migrations path (e.g. user has app with database version 4, but oldest migration is from version 10 to 11), the database will reset.
+5. A database with **tables but no schema version** (`PRAGMA user_version` is 0) fails to initialize instead of being reset. Version 0 normally means a new, empty database, so a file that has tables anyway wasn't set up by NitromelonDB, or its header is damaged. Setting it up from scratch would silently delete those tables, so the adapter reports it through `onSetUpError` and leaves the file alone. To delete them and start over, call `database.unsafeResetDatabase()`: after a failed setup, it sets the database up from scratch, and `readyPromise` and `seed` behave as on a fresh install. Until then, every other database call fails with the setup error.
 
 ### Rolling back changes
 

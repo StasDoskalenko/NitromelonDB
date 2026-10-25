@@ -1,5 +1,6 @@
 import type { NativeBridgeBatchOperation, SQLiteArg } from '../type'
 import encodeDestroyMatchingMutation from '../encodeDestroyMatchingMutation'
+import { USER_OBJECTS_QUERY, tablesWithoutVersionError } from '../tablesWithoutVersion'
 
 type SQLiteValue = string | number | bigint | Uint8Array | null
 
@@ -68,11 +69,17 @@ export default class DatabaseDriver {
     )
   }
 
-  async initialize(schemaVersion: number): Promise<
+  async initialize(
+    schemaVersion: number,
+    dbName: string,
+  ): Promise<
     | { code: 'ok' | 'schema_needed' }
     | { code: 'migrations_needed'; databaseVersion: number }
   > {
     const databaseVersion = await this.getUserVersion()
+    if (databaseVersion === 0 && (await this.queryRaw(USER_OBJECTS_QUERY)).length) {
+      throw tablesWithoutVersionError(dbName)
+    }
     if (databaseVersion === schemaVersion) {
       return { code: 'ok' }
     }

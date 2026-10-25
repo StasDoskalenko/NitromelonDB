@@ -288,7 +288,8 @@ class DatabaseBridge {
   }
 
   connectDriverAsync(tag: number, driver: DatabaseDriver): void {
-    const { queue = [] } = this.connections[tag]
+    // No connection yet if initialize() failed and the app is now resetting the database
+    const { queue = [] } = this.connections[tag] || {}
     this.connections[tag] = { driver, queue: [], status: 'connected' }
 
     queue.forEach((operation) => operation())

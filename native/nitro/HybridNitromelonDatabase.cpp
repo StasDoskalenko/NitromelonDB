@@ -325,7 +325,7 @@ void HybridNitromelonDatabase::onMemoryWarning(const std::function<void()>& call
   memoryWarningCallback_ = callback;
 }
 
-NitromelonInitializeResult HybridNitromelonDatabase::initialize(const std::string&, double expectedVersion) {
+NitromelonInitializeResult HybridNitromelonDatabase::initialize(const std::string& dbName, double expectedVersion) {
   int databaseVersion = database().getUserVersion();
   int expected = static_cast<int>(expectedVersion);
 
@@ -335,6 +335,17 @@ NitromelonInitializeResult HybridNitromelonDatabase::initialize(const std::strin
     return NitromelonInitializeResult("ok", std::nullopt);
   }
   if (databaseVersion == 0) {
+    // Version 0 normally means a new, empty database. One with tables wasn't set up by NitromelonDB,
+    // or its header is damaged: setting it up from scratch would silently delete them. Refuse, and
+    // leave it to the app (database.unsafeResetDatabase() sets it up). Same as
+    // src/adapters/sqlite/tablesWithoutVersion.ts.
+    if (database().hasUserObjects()) {
+      throw std::runtime_error(
+          "The database \"" + dbName +
+          "\" has tables but no schema version (PRAGMA user_version is 0), so it wasn't set up by NitromelonDB, "
+          "or its file header is damaged. Setting it up as a new database would delete those tables, so "
+          "NitromelonDB won't do it on its own. To delete them and start over, call database.unsafeResetDatabase().");
+    }
     return NitromelonInitializeResult("schema_needed", std::nullopt);
   }
   if (databaseVersion < expected) {
