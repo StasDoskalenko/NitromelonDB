@@ -110,7 +110,9 @@ void Database::removeFromCache(std::string cacheKey) {
 void Database::unsafeResetDatabase(const std::string &schema, int schemaVersion) {
     const std::lock_guard<std::mutex> lock(mutex_);
 
-    // TODO: in non-memory mode, just delete the DB files
+    // Reset in place, on the open connection. Don't delete and recreate the file instead: any other
+    // connection to it would be left on the deleted file (see #172 for the Node adapter's version
+    // of that bug).
     // NOTE: As of iOS 14, selecting tables from sqlite_master and deleting them does not work
     // They seem to be enabling "defensive" config. So we use another obscure method to clear the database
     // https://www.sqlite.org/c3ref/c_dbconfig_defensive.html#sqlitedbconfigresetdatabase

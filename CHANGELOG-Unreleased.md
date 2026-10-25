@@ -22,4 +22,5 @@
 
 ### Internal
 
+- Native: removed `deleteDatabaseFile()` from the iOS, Android and Windows platform code ([#91](https://github.com/StasDoskalenko/NitromelonDB/issues/91)). Nothing called it, and its three implementations disagreed on when to throw (Android and Windows never did, despite the documented contract). Resetting a database stays in place on the open connection.
 - `yarn test` now also runs on Windows in CI (`JavaScript tests (Windows)`), so the SQLite Node adapter's Windows-only fixes (drive-letter paths, file handles blocking deletes) are covered ([#90](https://github.com/StasDoskalenko/NitromelonDB/issues/90)).

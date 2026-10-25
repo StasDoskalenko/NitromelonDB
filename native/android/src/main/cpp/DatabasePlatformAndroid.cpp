@@ -4,8 +4,6 @@
 #include <string>
 #include <sqlite3.h>
 #include <cassert>
-#include <unistd.h>
-#include <sys/stat.h>
 
 #include "DatabasePlatform.h"
 #include "DatabasePlatformAndroid.h"
@@ -196,27 +194,6 @@ std::string resolveDatabasePath(std::string path) {
     std::string resolvedPath(cResolvedPath);
     env->ReleaseStringUTFChars(jniResolvedPath, cResolvedPath);
     return resolvedPath;
-}
-
-static void deleteFileIfExists(std::string filePath, bool warnIfDoesNotExist) {
-    struct stat st;
-    if (stat(filePath.c_str(), &st) == 0) {
-        if (unlink(filePath.c_str()) != 0) {
-            consoleError(("Failed to delete file: " + filePath).c_str());
-        }
-    } else if (warnIfDoesNotExist) {
-        consoleError(("File does not exist, nothing to delete: " + filePath).c_str());
-    }
-}
-
-void deleteDatabaseFile(std::string path, bool warnIfDoesNotExist) {
-    deleteFileIfExists(path, warnIfDoesNotExist);
-
-    // Delete WAL and SHM sidecars if they exist (missing sidecars are fine)
-    std::string walPath = path + "-wal";
-    std::string shmPath = path + "-shm";
-    deleteFileIfExists(walPath, false);
-    deleteFileIfExists(shmPath, false);
 }
 
 // Unlike destroyListeners (a one-time teardown event, cleared after firing),
