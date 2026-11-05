@@ -10,6 +10,8 @@
 
 ### New features
 
+- New `destroyTable({ table })` migration step. On SQLite (native, Node and web), it's `DROP TABLE IF EXISTS`. On LokiJS, the collection is removed. With IndexedDB, its persisted data isn't deleted (it's ignored on launch), so on LokiJS don't create a table with the same name again. Migration syncs skip tables and columns destroyed later in the migrated range
+
 ### Fixes
 
 - SQLite adapter: after setting up the database failed, `database.unsafeResetDatabase()` now sets it up from scratch, and `database.readyPromise`, `isReady` and `seed` then behave as on a fresh install. On native and Node, this works after any failed setup: a failed migration, or a corrupt or unrecognized file (Node used to fail with `No driver for tag N`). On Node, it also recovers files too damaged to open ("file is not a database", "malformed"). On web, it works for a database with tables but no schema version; after a failed migration or a corrupt file, the reset still fails (`No wa-sqlite driver with tag N`), as before. Until the database is set up, every other database call fails with the setup error instead of reaching the database. On native, that changes release builds: debug builds stopped at an assertion, but release builds compile it out, so those calls used to run against the database as it was (after a failed migration, still on the old schema).

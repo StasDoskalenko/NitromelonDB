@@ -13,6 +13,7 @@ import type {
   SchemaMigrations,
   CreateTableMigrationStep,
   AddColumnsMigrationStep,
+  DestroyTableMigrationStep,
   MigrationStep,
 } from '../../../Schema/migrations'
 import type { SerializedQuery } from '../../../Query'
@@ -20,7 +21,7 @@ import type { RecordId } from '../../../Model'
 import { type RawRecord, sanitizedRaw, setRawSanitized, type DirtyRaw } from '../../../RawRecord'
 import type { Loki, LokiCollection, LokiAdapterOptions, LokiRawDocument } from '../type'
 
-import { newLoki, deleteDatabase, lokiFatalError } from './lokiExtensions'
+import { newLoki, deleteDatabase, lokiFatalError, destroyCollection } from './lokiExtensions'
 import { executeQuery, executeCount } from './executeQuery'
 
 const SCHEMA_VERSION_KEY = '_loki_schema_version'
@@ -427,6 +428,8 @@ export default class DatabaseDriver {
         this._executeCreateTableMigration(step)
       } else if (step.type === 'add_columns') {
         this._executeAddColumnsMigration(step)
+      } else if (step.type === 'destroy_table') {
+        this._executeDestroyTableMigration(step)
       } else if (step.type === 'sql') {
         // ignore
       } else {
@@ -461,6 +464,11 @@ export default class DatabaseDriver {
         collection.ensureIndex(column.name)
       }
     })
+  }
+
+  _executeDestroyTableMigration({ table }: DestroyTableMigrationStep): void {
+    destroyCollection(this.loki, table)
+    this.cachedRecords.delete(table)
   }
 
   // Maps records to their IDs if the record is already cached on JS side

@@ -83,6 +83,9 @@ export const encodeMigrationSteps = (steps: MigrationStep[]): SQL =>
         return encodeAddColumnsMigrationStep(step)
       } else if (step.type === 'sql') {
         return step.sql
+      } else if (step.type === 'destroy_table') {
+        // (indices are dropped along with the table)
+        return `drop table if exists "${step.table}";`
       }
 
       throw new Error(`Unsupported migration step ${(step as { type: string }).type}`)

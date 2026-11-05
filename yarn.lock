@@ -5798,6 +5798,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"fake-indexeddb@npm:^6.2.5":
+  version: 6.2.7
+  resolution: "fake-indexeddb@npm:6.2.7"
+  checksum: 10c0/634bf90ba77ffd834a347661a6f7a6dc00d97b18ae49d49e437d454a42b9250dfe92144799605255b25428df577349b9195d0c150df3507edc003e26120f81ae
+  languageName: node
+  linkType: hard
+
 "fast-async@npm:^7.0":
   version: 7.0.6
   resolution: "fast-async@npm:7.0.6"
@@ -8703,6 +8710,7 @@ __metadata:
     eslint-plugin-react: "npm:^7.37.5"
     eslint-plugin-react-hooks: "npm:^4.6.2"
     execa: "npm:^7.0.0"
+    fake-indexeddb: "npm:^6.2.5"
     fast-async: "npm:^7.0"
     fs-extra: "npm:^11.4.0"
     glob-to-regexp: "npm:^0.4.1"
