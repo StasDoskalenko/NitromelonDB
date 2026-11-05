@@ -19,6 +19,8 @@
 
 ### Performance
 
+- Sync: `markLocalChangesAsSynced` and applying pulled changes to locally deleted records now take linear time in the number of local changes, instead of quadratic. Pushed records are looked up in a Map by table and id instead of scanning `affectedRecords`, and the locally deleted ids are kept in a Set. This speeds up syncs with many local changes or deletions.
+
 ### Changes
 
 - Docs: new [Custom Collections](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs-website/docs/docs/Advanced/CustomCollections.md) page covering `static associatedCollectionClass`, which lets a Model use its own `Collection` subclass for table-level `@writer` / `@reader` methods and named queries.

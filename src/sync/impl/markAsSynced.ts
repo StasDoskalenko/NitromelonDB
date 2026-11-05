@@ -1,6 +1,6 @@
 import areRecordsEqual from '../../utils/fp/areRecordsEqual'
 import { logError } from '../../utils/common'
-import type { Database, Model, TableName } from '../..'
+import type { Database, Model, RecordId, TableName } from '../..'
 
 import { prepareMarkAsSynced } from './helpers'
 import type { SyncLocalChanges, SyncRejectedIds } from '../index'
@@ -11,6 +11,18 @@ const recordsToMarkAsSynced = (
 ): Model[] => {
   const syncedRecords: Model[] = []
 
+  // perf-critical - index records by table and id, so that each lookup below is O(1)
+  const recordsByTable: Map<string, Map<RecordId, Model>> = new Map()
+  affectedRecords.forEach((record) => {
+    const { table } = record
+    let tableRecords = recordsByTable.get(table)
+    if (!tableRecords) {
+      tableRecords = new Map()
+      recordsByTable.set(table, tableRecords)
+    }
+    tableRecords.set(record.id, record)
+  })
+
   Object.keys(changes).forEach((table) => {
     const tableChanges = changes[table as TableName]
     if (!tableChanges) {
@@ -19,10 +31,11 @@ const recordsToMarkAsSynced = (
     const { created, updated } = tableChanges
     const raws = created.concat(updated)
     const rejectedIds = new Set(allRejectedIds[table as TableName] ?? [])
+    const tableRecords = recordsByTable.get(table)
 
     raws.forEach((raw) => {
       const { id } = raw
-      const record = affectedRecords.find((model) => model.id === id && model.table === table)
+      const record = tableRecords?.get(id as RecordId)
       if (!record) {
         logError(
           `[Sync] Looking for record ${table}#${String(id)} to mark it as synced, but I can't find it. Will ignore it (it should get synced next time). This is probably a Watermelon bug — please file an issue!`,
