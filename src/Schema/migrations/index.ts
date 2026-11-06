@@ -141,8 +141,9 @@ export function unsafeExecuteSql(sql: string): SqlMigrationStep {
 }
 
 // Destroys a table and all its records. On SQLite, this is `DROP TABLE IF EXISTS`. On LokiJS, the
-// collection is removed, but with IndexedDB its persisted data stays (it's ignored on launch), so don't
-// create a table with the same name again on LokiJS. Destroying a table that doesn't exist is a no-op
+// collection is removed and its data is deleted from IndexedDB (so it's no longer loaded on launch).
+// Destroying a table that doesn't exist is a no-op, except that LokiJS still deletes its leftover
+// data from IndexedDB, if any
 export function destroyTable({ table }: { table: TableName }): DestroyTableMigrationStep {
   if (process.env.NODE_ENV !== 'production') {
     invariant(typeof table === 'string' && table, `Missing table name in destroyTable()`)
