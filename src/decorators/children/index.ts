@@ -7,7 +7,8 @@ import type { TableName } from '../../Schema'
 import type Model from '../../Model'
 import type Query from '../../Query'
 
-import { type ModelDecoratorHost } from '../common'
+import { modelFieldDecorator, type ModelDecoratorHost } from '../common'
+import type { ModelFieldDecorator } from '../types'
 
 // Defines a model property that queries records that *belong_to* this model
 // Pass name of the table with desired records. (The model defining a @children property must
@@ -16,36 +17,41 @@ import { type ModelDecoratorHost } from '../common'
 // Example: a Task has_many Comments, so it may define:
 //   @children('comment') comments: Query<Comment>
 
-const children = makeDecorator(
-  (childTable: unknown) => () => ({
-    get(this: ModelDecoratorHost): Query<Model> {
-      const table = childTable as TableName
-      // Use cached Query if possible
-      this._childrenQueryCache = this._childrenQueryCache || {}
-      const cachedQuery = this._childrenQueryCache[table]
-      if (cachedQuery) {
-        return cachedQuery
-      }
+const children = makeDecorator((childTable: unknown) =>
+  modelFieldDecorator(
+    '@children',
+    null,
+    () => ({
+      get(this: ModelDecoratorHost): Query<Model> {
+        const table = childTable as TableName
+        // Use cached Query if possible
+        this._childrenQueryCache = this._childrenQueryCache || {}
+        const cachedQuery = this._childrenQueryCache[table]
+        if (cachedQuery) {
+          return cachedQuery
+        }
 
-      // Cache new Query
-      const model = this.asModel
-      const childCollection = model.collections.get(table)
+        // Cache new Query
+        const model = this.asModel
+        const childCollection = model.collections.get(table)
 
-      const association = (model.constructor as typeof Model).associations[table]
-      invariant(
-        association && association.type === 'has_many',
-        `@children decorator used for a table that's not has_many`,
-      )
+        const association = (model.constructor as typeof Model).associations[table]
+        invariant(
+          association && association.type === 'has_many',
+          `@children decorator used for a table that's not has_many`,
+        )
 
-      const query = childCollection.query(Q.where(association.foreignKey, model.id))
+        const query = childCollection.query(Q.where(association.foreignKey, model.id))
 
-      this._childrenQueryCache[table] = query
-      return query
-    },
-    set(): void {
-      logError('Setter called on a @children-marked property')
-    },
-  }),
-) as (childTable: TableName) => PropertyDecorator
+        this._childrenQueryCache[table] = query
+        return query
+      },
+      set(): void {
+        logError('Setter called on a @children-marked property')
+      },
+    }),
+    {},
+  ),
+) as (childTable: TableName) => ModelFieldDecorator
 
 export default children

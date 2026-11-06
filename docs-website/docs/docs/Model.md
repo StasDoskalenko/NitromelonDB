@@ -80,6 +80,8 @@ class Post extends Model {
 
 Fields are defined using ES6 decorators. Pass **column name** you defined in Schema as the argument to `@field`.
 
+These docs show legacy decorators. With standard decorators (TypeScript 5+ without `experimentalDecorators`, or Babel's `version: '2023-11'`), declare fields with `accessor`: `@text('title') accessor title`. See [Standard decorators](./Advanced/StandardDecorators.md).
+
 **Field types**. Fields are guaranteed to be the same type (string/number/boolean) as the column type defined in Schema. If column is marked `isOptional: true`, fields may also be null.
 
 **User text fields**. For fields that contain arbitrary text specified by the user (e.g. names, titles, comment bodies), use `@text` - a simple extension of `@field` that also trims whitespace.

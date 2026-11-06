@@ -1,4 +1,5 @@
-import { ensureDecoratorUsedProperly, type ModelDecoratorHost } from '../common'
+import { modelFieldDecorator, type ModelDecoratorHost } from '../common'
+import type { ModelFieldDecorator } from '../types'
 
 import Relation, { type Options } from '../../Relation'
 import type Model from '../../Model'
@@ -24,12 +25,11 @@ function relation(
   relationTable: TableName,
   relationIdColumn: ColumnName,
   options?: Options | null,
-): PropertyDecorator {
-  return (target: object, key: string | symbol, descriptor?: PropertyDescriptor) => {
-    const propertyKey = String(key)
-    ensureDecoratorUsedProperly(relationIdColumn, target, propertyKey, descriptor)
-
-    return {
+): ModelFieldDecorator {
+  return modelFieldDecorator(
+    '@relation',
+    relationIdColumn,
+    (propertyKey) => ({
       get(this: ModelDecoratorHost): Relation<Model> {
         const model = this
         model._relationCache = model._relationCache || {}
@@ -51,8 +51,9 @@ function relation(
       set(): void {
         throw new Error(`Don't set relation directly. Use relation.set() instead`)
       },
-    }
-  }
+    }),
+    {},
+  ) as ModelFieldDecorator
 }
 
 export default relation

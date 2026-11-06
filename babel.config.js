@@ -102,6 +102,19 @@ const webWorkerTestPlugins = [...webWorkerPlugins, '@babel/plugin-syntax-jsx']
 const webWorkerSource =
   /(?:^|[\\/])(?:adapters[\\/]sqlite[\\/]sqlite-wasm[\\/].*|wa-sqlite\.worker)\.ts$/
 
+// Tests for the standard (2023-11) decorators, compiled the way an app opting into them would be.
+// Node runs class fields, private members and static blocks natively, so only the decorators and
+// the module transform are needed; the legacy list above would compile classes down and clash.
+const standardDecoratorsTest = /\.standard\.test\.js$/
+const standardDecoratorsTestPlugins = [
+  ['@babel/plugin-proposal-decorators', { version: '2023-11' }],
+  [
+    '@babel/plugin-transform-modules-commonjs',
+    { loose: true, strict: false, strictMode: true, allowTopLevelThis: true },
+  ],
+  '@babel/plugin-syntax-jsx',
+]
+
 // TypeScript must run before class-properties / decorators. Babel concatenates
 // override plugins after parent plugins, so TS files get a full plugin list here
 // instead of a parent config plus a trailing transform-typescript override.
@@ -111,6 +124,10 @@ function babelConfig(api) {
   api.cache(true)
   return {
     overrides: [
+      {
+        test: standardDecoratorsTest,
+        plugins: standardDecoratorsTestPlugins,
+      },
       {
         test: webWorkerSource,
         env: {
@@ -132,7 +149,7 @@ function babelConfig(api) {
         env: envPlugins([typescriptPlugin(false)]),
       },
       {
-        exclude: /\.tsx?$/,
+        exclude: [/\.tsx?$/, standardDecoratorsTest],
         env: envPlugins(),
       },
     ],
