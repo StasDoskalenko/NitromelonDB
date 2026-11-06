@@ -1,0 +1,5 @@
+node_modules/
+.yarn/
+# The default database file (see DATABASE in src/main.ts)
+sync.db
+sync.db-*

@@ -1,0 +1,34 @@
+import { serve } from '@hono/node-server'
+
+import { createApp } from './app.ts'
+import { openDatabase } from './db.ts'
+import { appSchema } from './schema.ts'
+
+// Configuration through environment variables:
+//   PORT                    default 3000 (0 picks a free port)
+//   HOST                    default 127.0.0.1 (use 0.0.0.0 to reach it from a phone on your network)
+//   DATABASE                SQLite file, default sync.db (":memory:" for a throwaway database)
+//   SYNC_SERVER_SEND_CREATED  "1" splits pulled records into `created` and `updated` instead of
+//                           sending everything as `updated` (see README.md before using it)
+//   SYNC_SERVER_TEST_HOOKS  "1" enables the /__test endpoints used by the end-to-end tests
+const port = Number(process.env.PORT ?? 3000)
+const hostname = process.env.HOST ?? '127.0.0.1'
+const db = openDatabase(process.env.DATABASE ?? 'sync.db', appSchema)
+const app = createApp(db, appSchema, {
+  testHooks: process.env.SYNC_SERVER_TEST_HOOKS === '1',
+  sendCreatedAsUpdated: process.env.SYNC_SERVER_SEND_CREATED !== '1',
+})
+
+const server = serve({ fetch: app.fetch, port, hostname }, (info) => {
+  // The end-to-end tests wait for this line to learn the port
+  console.log(`sync server listening on http://${hostname}:${info.port}`)
+})
+
+const shutdown = (): void => {
+  server.close(() => {
+    db.close()
+    process.exit(0)
+  })
+}
+process.on('SIGINT', shutdown)
+process.on('SIGTERM', shutdown)

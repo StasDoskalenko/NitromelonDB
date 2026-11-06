@@ -6,6 +6,10 @@ description: "Implement the pull and push endpoints on your server: the changes 
 
 ## Implementing your Sync backend
 
+:::tip Reference implementation
+[`examples/sync-server`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/sync-server) is a complete sync backend in TypeScript (Hono and SQLite) that follows every rule on this page. The library's end-to-end sync tests run against it, so it's checked with real NitromelonDB databases on every change. Its `src/sync.ts` has no framework dependencies, so you can copy it into your own backend.
+:::
+
 ### Understanding `changes` objects
 
 Synchronized changes (received by the app in `pullChanges` and sent to the backend in `pushChanges`) are represented as an object with _raw records_. Those only use raw table and column names, and raw values (strings/numbers/booleans) — the same as in [Schema](../Schema.md).
@@ -140,6 +144,7 @@ If you're wondering how to _actually_ implement consistent pulling of all change
 - An alternative to using timestamps is to use an auto-incrementing counter sequence, but you must ensure that this sequence is consistent across all collections. You also leak to users the amount of traffic to your sync server (number of changes in the sequence)
 - To distinguish between `created` and `updated` records, you can also store server-side `server_created_at` timestamp (if it's greater than `last_pulled_at` supplied to sync, then record is to be `created` on client, if less than — client already has it and it is to be `updated` on client). Note that this timestamp must be consistent with last_modified — and you must not use client-created `created_at` field, since you can never trust local timestamps.
     - Alternatively, you can send all non-deleted records as all `updated` and Watermelon will do the right thing in 99% of cases (you will be slightly less protected against weird edge cases — treatment of locally deleted records is different). If you do this, pass `sendCreatedAsUpdated: true` to `synchronize()` to supress warnings about records to be updated not existing locally.
+    - **Prefer sending everything as `updated`.** The app keeps the `lastPulledAt` of the pull it made *before* pushing, so its next pull returns the records it just pushed. With `server_created_at`, those come back as `created`. If the user deleted one of them in the meantime (create, sync, delete, sync), the library treats it as an interrupted earlier sync and recreates the record, so the deletion is lost. It also logs "Server wants client to create record ... but it already exists locally" after syncs that follow a create. With `updated` and `sendCreatedAsUpdated: true`, the deletion is kept and pushed. See the [reference server's README](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/sync-server#why-everything-is-sent-as-updated).
 - You do need to implement a mechanism to track when records were deleted on the server, otherwise you wouldn't know to push them
     - One possible implementation is to not fully delete records, but mark them as DELETED=true
     - Or, you can have a `deleted_xxx` table with just the record ID and timestamp (consistent with last_modified)
@@ -151,7 +156,9 @@ If you're wondering how to _actually_ implement consistent pulling of all change
 
 ## Existing Backend Implementations
 
-Note that those are not maintained by WatermelonDB, and we make no endorsements about quality of these projects:
+- [`examples/sync-server`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/sync-server) (TypeScript, Hono, SQLite): the reference implementation in this repository, covered by the end-to-end sync tests
+
+Community implementations below are not maintained by NitromelonDB, and we make no endorsements about their quality:
 
 - [How to Build WatermelonDB Sync Backend in Elixir](https://fahri.id/posts/how-to-build-watermelondb-sync-backend-in-elixir/)
 - [Firemelon](https://github.com/AliAllaf/firemelon)
