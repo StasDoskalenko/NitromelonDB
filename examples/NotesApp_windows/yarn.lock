@@ -7382,15 +7382,15 @@ __metadata:
   linkType: hard
 
 "joi@npm:^17.2.1":
-  version: 17.13.8
-  resolution: "joi@npm:17.13.8"
+  version: 17.13.9
+  resolution: "joi@npm:17.13.9"
   dependencies:
     "@hapi/hoek": "npm:^9.3.0"
     "@hapi/topo": "npm:^5.1.0"
     "@sideway/address": "npm:^4.1.5"
     "@sideway/formula": "npm:^3.0.1"
     "@sideway/pinpoint": "npm:^2.0.0"
-  checksum: 10c0/7fe2b38d26dfcbcf1836892384ba2f42f83058795f32dcb3733de4c3b97cac923a8b9053738f10701663872a994f77af351c71e1428117a20bbfc1f94768f648
+  checksum: 10c0/7a52549e8e9d99853d6166b647d102e58197720869aa5339f9b9c1704e471a70918645944a8aa6a9998955dc0a521ffd1580fdb3e9e502b1e2bb88793dd0e50c
   languageName: node
   linkType: hard
 
@@ -11299,8 +11299,8 @@ __metadata:
   linkType: hard
 
 "zod@npm:^3.25.0 || ^4.0.0":
-  version: 4.4.3
-  resolution: "zod@npm:4.4.3"
-  checksum: 10c0/7ea31b558e88f9faf44f31dd185e2e1cbf51fed3081787fb96cc2534749b50c0acfc6da7f0922a7353ed092dd358c7d50c28ea96c94d04af64191bd33152eca3
+  version: 4.6.7
+  resolution: "zod@npm:4.6.7"
+  checksum: 10c0/4ce2eb14034317b7254e347ca37b5ad591cf8333147030cf05b9b5d31692d45073f7f2747aa50cf8c6b29012194d2b22978cecc89969cf34a0d18e89d0ee7d7b
   languageName: node
   linkType: hard

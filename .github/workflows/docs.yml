@@ -12,6 +12,8 @@ on:
       - 'scripts/update-docusaurus'
       - 'scripts/rewrite-readme-docs-links.mjs'
       - 'scripts/replace-docs-path.mjs'
+      - 'scripts/enrich-benchmarks.mjs'
+      - 'scripts/perf-commit-info.mjs'
       - '.github/workflows/docs.yml'
   # Triggered by perf-publish (.github/workflows/ci.yml) after it pushes a new
   # benchmark record to the `benchmarks` branch -- that push doesn't touch any

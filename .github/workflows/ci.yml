@@ -73,6 +73,31 @@ jobs:
       - run: node scripts/prepare-changelog.mjs --self-test
       - name: Gradle Wrapper Validation
         uses: gradle/actions/wrapper-validation@v5
+  sync-e2e:
+    # Real NitromelonDB databases (SQLite on Node, and LokiJS) syncing over HTTP with the reference
+    # server in examples/sync-server. Runs on Linux only, so it doesn't wait for macOS runners.
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-24.04
+    name: Sync end-to-end
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set Node.js version
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+      - uses: actions/cache@v5
+        with:
+          path: 'node_modules'
+          key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
+      - run: yarn install --immutable
+      - name: Install the sync server
+        working-directory: examples/sync-server
+        run: yarn install --immutable
+      - name: Typecheck the sync server
+        working-directory: examples/sync-server
+        run: yarn typecheck
+      - run: yarn test:sync-e2e
   ci-check-windows:
     # The SQLite Node adapter (better-sqlite3) has Windows-only failure modes
     # that POSIX can't reproduce: drive-letter paths (`D:\...`) and open file
@@ -111,6 +136,9 @@ jobs:
       - name: Install NotesApp
         working-directory: examples/NotesApp
         run: yarn install --immutable
+      - name: Check the Babel configs in the Installation docs
+        # Needs both installs: @react-native/babel-preset from the root, babel-preset-expo from NotesApp.
+        run: yarn test:babel-docs
       - name: Install Chromium
         working-directory: examples/NotesApp
         run: yarn playwright install --with-deps chromium

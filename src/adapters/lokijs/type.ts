@@ -57,6 +57,7 @@ export type Loki = {
   autosave: boolean
   autosaveDisable: () => void
   persistenceAdapter?: LokiMemoryAdapter | undefined
+  collections: Array<{ name: string }>
 }
 
 export type LokiAdapterOptions = {
