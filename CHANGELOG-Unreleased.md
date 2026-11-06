@@ -19,7 +19,7 @@
 
 ### Performance
 
-- Sync: `markLocalChangesAsSynced` and applying pulled changes to locally deleted records now take linear time in the number of local changes, instead of quadratic. Pushed records are looked up in a Map by table and id instead of scanning `affectedRecords`, and the locally deleted ids are kept in a Set. This speeds up syncs with many local changes or deletions.
+- Sync: `markLocalChangesAsSynced` and applying pulled changes to locally deleted records now take linear time in the number of local changes, instead of quadratic. Pushed records are looked up in a Map by table and id instead of scanning `affectedRecords`, and the locally deleted ids are kept in a Set. This speeds up syncs with many local changes or deletions ([#183](https://github.com/StasDoskalenko/NitromelonDB/issues/183), [#192](https://github.com/StasDoskalenko/NitromelonDB/pull/192) by [@joker-777](https://github.com/joker-777)).
 
 ### Changes
 
