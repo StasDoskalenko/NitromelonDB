@@ -22,21 +22,28 @@ Expo Go is not supported. Use a development build.
 
 ## React Native (bare)
 
-1. Install the package, the Nitro peer, and the decorators Babel plugin. If the app already depends on `react-native-nitro-modules`, leave it out.
+1. Install the package, the Nitro peer, and the Babel plugins for decorators. If the app already depends on `react-native-nitro-modules`, leave it out.
 
    ```bash
    yarn add nitromelondb react-native-nitro-modules
-   yarn add --dev @babel/plugin-proposal-decorators
+   yarn add --dev @babel/plugin-proposal-decorators @babel/plugin-transform-class-properties @babel/plugin-transform-private-methods @babel/plugin-transform-private-property-in-object
    ```
 
-2. Enable decorators in `babel.config.js`:
+2. Enable decorators in `babel.config.js`. Keep all four plugins, in this order, with these options:
 
    ```js
    module.exports = {
      presets: ['module:@react-native/babel-preset'],
-     plugins: [['@babel/plugin-proposal-decorators', { legacy: true }]],
+     plugins: [
+       ['@babel/plugin-proposal-decorators', { legacy: true }],
+       ['@babel/plugin-transform-class-properties', { loose: true }],
+       ['@babel/plugin-transform-private-methods', { loose: true }],
+       ['@babel/plugin-transform-private-property-in-object', { loose: true }],
+     ],
    }
    ```
+
+   Decorators must run before class fields are compiled. With RN 0.87 and newer, the preset no longer compiles class fields early enough on its own, so the decorators plugin alone fails on fields like `@field('amount') amount!: number` with `Definitely assigned fields cannot be initialized here, but only in the constructor`.
 
 3. Rebuild the native app. Metro reload is not enough.
 
@@ -45,13 +52,7 @@ Expo Go is not supported. Use a development build.
    npx react-native run-android
    ```
 
-That's it. Autolinking links SQLite on iOS and Android. You don't add Podfile lines, Gradle lines, or `MainApplication` code, and there is no setup CLI to run.
-
-If you minify with R8 / Proguard, keep this rule:
-
-```
--keep class com.nitromelondb.** { *; }
-```
+That's it. Autolinking links SQLite on iOS and Android. You don't add Podfile lines, Gradle lines, or `MainApplication` code, and there is no setup CLI to run. R8 / ProGuard keep rules ship with the library, so minified release builds need no extra rules either.
 
 ## Expo
 
@@ -59,20 +60,20 @@ If you minify with R8 / Proguard, keep this rule:
 
    ```bash
    npx expo install nitromelondb react-native-nitro-modules
-   yarn add --dev @babel/plugin-proposal-decorators
    ```
 
-2. Enable decorators in `babel.config.js`:
+2. You don't need any Babel setup for decorators. `babel-preset-expo` already turns them on, together with the class field plugins they need, in the right order. The default config is all you need:
 
    ```js
    module.exports = function (api) {
      api.cache(true)
      return {
        presets: ['babel-preset-expo'],
-       plugins: [['@babel/plugin-proposal-decorators', { legacy: true }]],
      }
    }
    ```
+
+   Don't add `@babel/plugin-proposal-decorators` to `plugins` yourself. Your plugins run before the preset's, which breaks that order (since SDK 56) and fails on fields like `@field('amount') amount!: number` with `Definitely assigned fields cannot be initialized here, but only in the constructor`. If you're upgrading and have it in your config, delete it.
 
 3. Add the config plugin to `app.json`:
 

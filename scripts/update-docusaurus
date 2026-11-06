@@ -31,4 +31,6 @@ git fetch origin benchmarks --depth=1 > /dev/null 2>&1 || true
 mkdir -p ./docs-website/static/data
 git show origin/benchmarks:results/benchmarks.json > ./docs-website/static/data/benchmarks.json 2>/dev/null \
   || echo "[]" > ./docs-website/static/data/benchmarks.json
+# Older records lack the commit subject / PR number the charts show and link to.
+node scripts/enrich-benchmarks.mjs ./docs-website/static/data/benchmarks.json
 
