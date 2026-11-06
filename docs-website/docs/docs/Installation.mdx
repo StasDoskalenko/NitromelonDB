@@ -45,6 +45,8 @@ Expo Go is not supported. Use a development build.
 
    Decorators must run before class fields are compiled. With RN 0.87 and newer, the preset no longer compiles class fields early enough on its own, so the decorators plugin alone fails on fields like `@field('amount') amount!: number` with `Definitely assigned fields cannot be initialized here, but only in the constructor`.
 
+   This sets up legacy decorators. To use standard (TC39) decorators instead, see [Standard decorators](./Advanced/StandardDecorators.md).
+
 3. Rebuild the native app. Metro reload is not enough.
 
    ```bash
@@ -74,6 +76,8 @@ That's it. Autolinking links SQLite on iOS and Android. You don't add Podfile li
    ```
 
    Don't add `@babel/plugin-proposal-decorators` to `plugins` yourself. Your plugins run before the preset's, which breaks that order (since SDK 56) and fails on fields like `@field('amount') amount!: number` with `Definitely assigned fields cannot be initialized here, but only in the constructor`. If you're upgrading and have it in your config, delete it.
+
+   This gives you legacy decorators. To use standard (TC39) decorators instead, see [Standard decorators](./Advanced/StandardDecorators.md).
 
 3. Add the config plugin to `app.json`:
 
