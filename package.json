@@ -23,6 +23,7 @@
     "test:metro-transform": "node ./scripts/check-metro-transform.mjs",
     "ci:check": "concurrently -c auto -n jest,eslint,ts,ts-examples,metro,pkg 'yarn test' 'yarn eslint' 'yarn typecheck' 'yarn test:typescript' 'yarn test:metro-transform' 'yarn test:published-package' --kill-others-on-fail",
     "test:published-package": "node ./scripts/published-package.mjs --self-test",
+    "test:babel-docs": "node ./scripts/check-babel-docs.mjs",
     "test:android": "cd native/androidTest && ./gradlew connectedAndroidTest",
     "test:ios": "scripts/test-ios",
     "test:windows": "yarn --cwd examples/NotesApp_windows windows",
