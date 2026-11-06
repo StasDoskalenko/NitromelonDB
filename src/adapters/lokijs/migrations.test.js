@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto'
 import Loki from 'lokijs'
 
 import { appSchema, tableSchema } from '../../Schema'
-import { schemaMigrations, createTable, destroyTable } from '../../Schema/migrations'
+import { schemaMigrations, createTable, addColumns, destroyTable } from '../../Schema/migrations'
 import logger from '../../utils/common/logger'
 import Model from '../../Model'
 import Query from '../../Query'
@@ -254,6 +254,48 @@ describe('LokiJSAdapter destroyTable() migrations', () => {
     ])
     const reopened = await openAdapter(dbName, schema, migrations)
     expect(await countComments(reopened.adapter)).toBe(151)
+  })
+
+  it('keeps the persisted database as it was if a migration fails after destroying a table', async () => {
+    const dbName = `test${Math.random()}`
+    const v1 = await openAdapter(dbName, schemaV1)
+    await v1.adapter.batch(comments(150, 'old'))
+    await closeAdapter(v1)
+
+    const onSetUpError = jest.fn()
+    const failing = new LokiJSAdapter({
+      dbName,
+      schema: bothTables(2),
+      migrations: schemaMigrations({
+        migrations: [
+          {
+            toVersion: 2,
+            steps: [
+              createTable({ name: 'tags', columns: [{ name: 'name', type: 'string' }] }),
+              destroyTable({ table: 'comments' }),
+              // fails: there's no such table
+              addColumns({ table: 'missing', columns: [{ name: 'name', type: 'string' }] }),
+            ],
+          },
+        ],
+      }),
+      useWebWorker: false,
+      useIncrementalIndexedDB: true,
+      extraLokiOptions: { autosaveInterval: 5 },
+      onSetUpError,
+    })
+    openAdapters.push(failing)
+    await waitFor(() => onSetUpError.mock.calls.length > 0)
+    // longer than the autosave interval
+    await sleep(50)
+
+    expect(chunksOf(await getPersistedKeys(dbName), 'comments')).toEqual([
+      'comments.chunk.0',
+      'comments.chunk.1',
+      'comments.metadata',
+    ])
+    const reopened = await openAdapter(dbName, schemaV1)
+    expect(await countComments(reopened.adapter)).toBe(150)
   })
 
   // Incremental saves only write changed chunks, and loading reads every stored chunk of a

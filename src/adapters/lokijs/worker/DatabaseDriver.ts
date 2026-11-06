@@ -60,7 +60,14 @@ export default class DatabaseDriver {
 
   async setUp(): Promise<void> {
     await this._openDatabase()
-    await this._migrateIfNeeded()
+    try {
+      await this._migrateIfNeeded()
+    } catch (error) {
+      // The driver is dropped, but Loki would keep autosaving a half-migrated database (e.g. one
+      // whose destroyed tables are deleted from IndexedDB, while its version stays the old one)
+      lokiFatalError(this.loki)
+      throw error
+    }
   }
 
   isCached(table: TableName, id: RecordId): boolean {
