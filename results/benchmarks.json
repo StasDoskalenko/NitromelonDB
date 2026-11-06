@@ -829,5 +829,18 @@
       "ram": 181,
       "fps": 54.4
     }
+  },
+  {
+    "sha": "0c4cd1449599e010b4ce2f70c7ea3667b5d0ca63",
+    "date": "2026-11-06T23:40:31.074Z",
+    "prNumber": 195,
+    "subject": "fix(sync): track changed columns on locally created records (#195)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 28.1,
+      "ram": 179,
+      "fps": 54.8
+    }
   }
 ]
