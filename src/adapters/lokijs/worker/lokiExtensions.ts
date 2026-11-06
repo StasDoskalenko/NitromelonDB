@@ -129,6 +129,17 @@ export async function deleteDatabase(loki: Loki): Promise<void> {
   })
 }
 
+// Removes a collection from Loki. With IncrementalIndexedDBAdapter, its chunks stay in IndexedDB
+// (they're ignored on load, because Loki's metadata no longer lists the collection)
+export function destroyCollection(loki: Loki, name: string): void {
+  // NOTE: Not using loki.removeCollection(), because it throws for collections that were loaded by
+  // IncrementalIndexedDBAdapter, but not yet accessed (their `data` is a getter that loads them lazily)
+  const index = loki.collections.findIndex((collection) => collection.name === name)
+  if (index !== -1) {
+    loki.collections.splice(index, 1)
+  }
+}
+
 // In case of a fatal error, break Loki so that it cannot save its contents to disk anymore
 // This might result in a loss of data in recent changes, but we assume that whatever caused the
 // fatal error has corrupted the database, so we want to prevent it from being persisted

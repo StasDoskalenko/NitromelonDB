@@ -4,7 +4,7 @@ import invariant from '../../utils/common/invariant'
 import isObj from '../../utils/fp/isObj'
 
 import type { ColumnSchema, TableName, TableSchema, TableSchemaSpec, SchemaVersion } from '../index'
-import { tableSchema, validateColumnSchema } from '../index'
+import { tableSchema, validateColumnSchema, validateName } from '../index'
 
 export type CreateTableMigrationStep = Readonly<{
   type: 'create_table'
@@ -23,7 +23,13 @@ export type SqlMigrationStep = Readonly<{
   sql: string
 }>
 
-export type MigrationStep = CreateTableMigrationStep | AddColumnsMigrationStep | SqlMigrationStep
+export type DestroyTableMigrationStep = Readonly<{
+  type: 'destroy_table'
+  table: TableName
+}>
+
+export type MigrationStep =
+  CreateTableMigrationStep | AddColumnsMigrationStep | SqlMigrationStep | DestroyTableMigrationStep
 
 export type Migration = Readonly<{
   toVersion: SchemaVersion
@@ -132,4 +138,20 @@ export function unsafeExecuteSql(sql: string): SqlMigrationStep {
     )
   }
   return { type: 'sql', sql }
+}
+
+// Destroys a table and all its records. On SQLite, this is `DROP TABLE IF EXISTS`. On LokiJS, the
+// collection is removed, but with IndexedDB its persisted data stays (it's ignored on launch), so don't
+// create a table with the same name again on LokiJS. Destroying a table that doesn't exist is a no-op
+export function destroyTable({ table }: { table: TableName }): DestroyTableMigrationStep {
+  if (process.env.NODE_ENV !== 'production') {
+    invariant(typeof table === 'string' && table, `Missing table name in destroyTable()`)
+    invariant(
+      table.toLowerCase() !== 'local_storage',
+      `local_storage is used internally by NitromelonDB and can't be destroyed`,
+    )
+    // same name rules as tableSchema(), since the name is interpolated into SQL
+    validateName(table)
+  }
+  return { type: 'destroy_table', table }
 }
