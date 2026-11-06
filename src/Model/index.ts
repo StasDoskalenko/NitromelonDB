@@ -36,9 +36,7 @@ export type AssociationInfo = BelongsToAssociation | HasManyAssociation
 export type Associations = { [tableName: TableName]: AssociationInfo }
 
 // TODO: Refactor associations API and ideally get rid of this in favor of plain arrays/objects
-export function associations(
-  ...associationList: [TableName, AssociationInfo][]
-): Associations {
+export function associations(...associationList: [TableName, AssociationInfo][]): Associations {
   return fromPairs(associationList)
 }
 
@@ -74,6 +72,8 @@ export default class Model {
   _isEditing: boolean = false
 
   _preparedState: null | 'create' | 'update' | 'markAsDeleted' | 'destroyPermanently' = null
+
+  __columnsSetOnCreate: ColumnName[] | null = null
 
   __changes: BehaviorSubject<Model> | null = null
 
@@ -389,7 +389,10 @@ export default class Model {
     this._raw = raw
   }
 
-  static _prepareCreate(collection: Collection<Model>, recordBuilder: (record: Model) => void): Model {
+  static _prepareCreate(
+    collection: Collection<Model>,
+    recordBuilder: (record: Model) => void,
+  ): Model {
     const record = new this(
       collection,
       // sanitizedRaw sets id
@@ -398,8 +401,20 @@ export default class Model {
 
     record._preparedState = 'create'
     record._isEditing = true
+    const columnsSet: ColumnName[] = []
+    record.__columnsSetOnCreate = columnsSet
     ensureSync(recordBuilder(record))
+    record.__columnsSetOnCreate = null
     record._isEditing = false
+
+    // Track columns set while building a locally created record, so that sync can resolve a
+    // conflict with a remote record of the same id per column (locally set columns win).
+    // Checked after the builder runs, since it may also change the record's sync status
+    if (record._raw._status === 'created') {
+      columnsSet.forEach((column) => {
+        setRawColumnChange(record._raw, column)
+      })
+    }
 
     record.__logVerbose('prepareCreate')
 
@@ -428,7 +443,10 @@ export default class Model {
    * Notification contains a flag that indicates whether the change is due to deletion
    * (Currently, subscribers are called after `changes` emissions, but this behavior might change)
    */
-  experimentalSubscribe(subscriber: (isDeleted: boolean) => void, debugInfo?: unknown): Unsubscribe {
+  experimentalSubscribe(
+    subscriber: (isDeleted: boolean) => void,
+    debugInfo?: unknown,
+  ): Unsubscribe {
     const entry: [(isDeleted: boolean) => void, unknown] = [subscriber, debugInfo]
     this._subscribers.push(entry)
 
@@ -463,7 +481,10 @@ export default class Model {
     const valueBefore = this._raw[rawFieldName]
     setRawSanitized(this._raw, rawFieldName, rawValue, this.collection.schema.columns[rawFieldName])
 
-    if (valueBefore !== this._raw[rawFieldName] && this._preparedState !== 'create') {
+    if (this._preparedState === 'create') {
+      // See _prepareCreate
+      this.__columnsSetOnCreate?.push(rawFieldName)
+    } else if (valueBefore !== this._raw[rawFieldName]) {
       setRawColumnChange(this._raw, rawFieldName)
     }
   }
