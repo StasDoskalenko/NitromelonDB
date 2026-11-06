@@ -1,6 +1,6 @@
 /* eslint-disable prefer-template */
 import { appSchema, tableSchema } from '../../../Schema'
-import { addColumns, createTable, unsafeExecuteSql } from '../../../Schema/migrations'
+import { addColumns, createTable, unsafeExecuteSql, destroyTable } from '../../../Schema/migrations'
 
 import { encodeSchema, encodeMigrationSteps, encodeCreateIndices, encodeDropIndices } from './index'
 
@@ -190,5 +190,10 @@ describe('encodeMigrationSteps', () => {
         `create index if not exists "comments__status" on "comments" ("_status");` +
         'boop;',
     )
+  })
+  it(`encodes destroyTable`, () => {
+    const migrationSteps = [destroyTable({ table: 'comments' }), unsafeExecuteSql('boop;')]
+
+    expect(encodeMigrationSteps(migrationSteps)).toBe(`drop table if exists "comments";boop;`)
   })
 })
