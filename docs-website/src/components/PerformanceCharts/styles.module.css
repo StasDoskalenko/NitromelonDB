@@ -1,16 +1,69 @@
+/* Filters: one row above everything they scope. */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  flex-wrap: wrap;
+  margin: 1.5rem 0 1rem;
+}
+
+.filters {
+  display: inline-flex;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.filterButton {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ifm-color-emphasis-700);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+}
+
+.filterButton:hover {
+  background: var(--ifm-color-emphasis-100);
+}
+
+.filterButton[aria-checked='true'] {
+  background: var(--ifm-color-emphasis-200);
+  color: var(--ifm-font-color-base);
+  font-weight: 600;
+}
+
+.filterButton:focus-visible,
+.closeButton:focus-visible,
+.linkButton:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+
+.caption {
+  color: var(--ifm-color-emphasis-600);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
 .grid {
   display: grid;
   /* Two wide charts per row on desktop, one per row once it gets tight. */
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
   gap: 1.5rem;
-  margin: 2rem 0;
+  margin: 0 0 2rem;
 }
 
 .chartCard {
   border: 1px solid var(--ifm-color-emphasis-300);
   border-radius: 10px;
-  padding: 1.25rem 1.5rem 1rem;
+  padding: 1.25rem 1.25rem 0.75rem;
   background: var(--ifm-background-surface-color);
+  min-width: 0;
 }
 
 .chartHead {
@@ -42,7 +95,7 @@
 .latestValue {
   font-size: 1.35rem;
   font-weight: 700;
-  color: var(--perf-chart-android);
+  color: var(--ifm-font-color-base);
   line-height: 1;
 }
 
@@ -53,52 +106,252 @@
   color: var(--ifm-color-emphasis-600);
 }
 
+/* Deltas always spell out better/worse; the tint is a second channel, never the only one. */
 .delta {
   font-size: 0.75rem;
   color: var(--ifm-color-emphasis-600);
   white-space: nowrap;
 }
 
-.svg {
+.delta[data-direction='better'],
+.tooltipDelta[data-direction='better'] {
+  color: var(--ifm-color-success-darker);
+}
+
+.delta[data-direction='worse'],
+.tooltipDelta[data-direction='worse'] {
+  color: var(--ifm-color-danger-darker);
+}
+
+[data-theme='dark'] .delta[data-direction='better'],
+[data-theme='dark'] .tooltipDelta[data-direction='better'] {
+  color: var(--ifm-color-success-light);
+}
+
+[data-theme='dark'] .delta[data-direction='worse'],
+[data-theme='dark'] .tooltipDelta[data-direction='worse'] {
+  color: var(--ifm-color-danger-light);
+}
+
+.plot {
+  /* Recharts' keyboard layer focuses the SVG wrapper; keep the ring inside the card. */
+  margin: 0 -0.25rem;
+}
+
+/* A mouse click focuses an inner tabindex=-1 group; only keyboard focus gets a ring. */
+.plot svg:focus:not(:focus-visible),
+.plot g:focus {
+  outline: none;
+}
+
+.plot svg:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Synced charts (not under the pointer) get just the value, pinned to the top edge. */
+.tooltipCompact {
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 6px;
+  background: var(--ifm-background-surface-color);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.tooltipCompact strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.tooltip {
+  max-width: 320px;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  background: var(--ifm-background-surface-color);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.tooltipValue {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.4rem;
+}
+
+.tooltipValue strong {
+  font-size: 1.05rem;
+}
+
+.tooltipKey {
+  display: inline-block;
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--perf-chart-android);
+  align-self: center;
+}
+
+.tooltipUnit {
+  color: var(--ifm-color-emphasis-600);
+  margin-left: -0.25rem;
+}
+
+.tooltipDelta {
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.75rem;
+}
+
+.tooltipSubject {
+  margin-top: 0.35rem;
+  color: var(--ifm-font-color-base);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tooltipMeta {
+  margin-top: 0.2rem;
+  color: var(--ifm-color-emphasis-600);
+  font-variant-numeric: tabular-nums;
+}
+
+.tooltipHint {
+  margin-top: 0.35rem;
+  color: var(--ifm-color-emphasis-500);
+  font-size: 0.7rem;
+}
+
+/* Pinned run */
+.pinned {
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-left: 3px solid var(--perf-chart-android);
+  border-radius: 10px;
+  padding: 0.9rem 1.25rem;
+  margin-bottom: 1.5rem;
+  background: var(--ifm-background-surface-color);
+}
+
+.pinnedHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.pinnedSubject {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pinnedMeta {
+  margin-top: 0.15rem;
+  color: var(--ifm-color-emphasis-600);
+  font-size: 0.85rem;
+}
+
+.closeButton {
+  border: 0;
+  background: transparent;
+  color: var(--ifm-color-emphasis-600);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  border-radius: 4px;
+}
+
+.closeButton:hover {
+  color: var(--ifm-font-color-base);
+}
+
+.pinnedMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem 1.5rem;
+  margin: 0.75rem 0 0;
+}
+
+.pinnedMetrics dt {
+  font-weight: normal;
+  font-size: 0.75rem;
+  color: var(--ifm-color-emphasis-600);
+  margin: 0;
+}
+
+.pinnedMetrics dd {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.pinnedMetrics dd strong {
+  font-size: 1.1rem;
+}
+
+/* Table view */
+.tableWrap {
+  margin-bottom: 2rem;
+}
+
+.tableWrap summary {
+  cursor: pointer;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.9rem;
+}
+
+.tableScroll {
+  overflow-x: auto;
+  margin-top: 0.75rem;
+}
+
+.table {
+  display: table;
   width: 100%;
-  height: auto;
-  overflow: visible;
+  font-size: 0.85rem;
 }
 
-.gridline {
-  stroke: var(--ifm-color-emphasis-200);
-  stroke-width: 1;
+.table th {
+  text-align: left;
+  white-space: nowrap;
 }
 
-.axisLabel {
-  fill: var(--ifm-color-emphasis-600);
-  font-size: 13px;
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.lineAndroid {
-  stroke: var(--perf-chart-android);
-  stroke-width: 2.5;
-  stroke-linejoin: round;
-  stroke-linecap: round;
+.nowrap {
+  white-space: nowrap;
 }
 
-.dotAndroid {
-  fill: var(--perf-chart-android);
-  stroke: var(--ifm-background-surface-color);
-  stroke-width: 1.5;
+.tableSubject {
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.8rem;
+  max-width: 48ch;
 }
 
-.dotAndroid:hover {
-  r: 5;
+.linkButton {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--ifm-link-color);
+  cursor: pointer;
+  text-align: left;
+}
+
+.linkButton:hover {
+  text-decoration: underline;
 }
 
 .empty {
   color: var(--ifm-color-emphasis-600);
   font-style: italic;
-}
-
-.caption {
-  color: var(--ifm-color-emphasis-600);
-  font-size: 0.9rem;
-  margin: 0.5rem 0 0;
 }
