@@ -10,7 +10,7 @@
 
 ### New features
 
-- New `destroyTable({ table })` migration step. On SQLite (native, Node and web), it's `DROP TABLE IF EXISTS`. On LokiJS, the collection is removed. With IndexedDB, its persisted data isn't deleted (it's ignored on launch), so on LokiJS don't create a table with the same name again. Migration syncs skip tables and columns destroyed later in the migrated range
+- New `destroyTable({ table })` migration step. On SQLite (native, Node and web), it's `DROP TABLE IF EXISTS`. On LokiJS, the collection is removed and its data is deleted from IndexedDB, so it's no longer loaded and parsed on every launch (also if it was already removed from Loki). Migration syncs skip tables and columns destroyed later in the migrated range
 
 ### Fixes
 

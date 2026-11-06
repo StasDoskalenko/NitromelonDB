@@ -178,7 +178,7 @@ schemaMigrations({
 
 - `createTable({ name: 'table_name', columns: [ ... ] })` - same API as `tableSchema()`
 - `addColumns({ table: 'table_name', columns: [ ... ] })` - you can add one or multiple columns to an existing table. The columns table has the same format as in schema definitions
-- `destroyTable({ table: 'table_name' })` - destroys a table and all its records. Remove the table from the schema as well. On SQLite, this is `DROP TABLE IF EXISTS`, so it's safe to use for a table that was already dropped with `unsafeExecuteSql`. On LokiJS, the collection is removed, but with IndexedDB its persisted data isn't deleted (it's ignored on launch), so don't create a table with the same name again on LokiJS
+- `destroyTable({ table: 'table_name' })` - destroys a table and all its records. Remove the table from the schema as well. On SQLite, this is `DROP TABLE IF EXISTS`, so it's safe to use for a table that was already dropped with `unsafeExecuteSql`. On LokiJS, the collection's data is also deleted from IndexedDB, so it's no longer loaded on launch (this works even if the collection is already gone from Loki), and a table with the same name can be created again, as on SQLite
 - Other types of migrations (e.g. renaming tables, or deleting and renaming columns) are not yet implemented. See [`migrations/index.ts`](https://github.com/StasDoskalenko/NitromelonDB/blob/master/src/Schema/migrations/index.ts). Please contribute!
 
 ## Database reseting and other edge cases
