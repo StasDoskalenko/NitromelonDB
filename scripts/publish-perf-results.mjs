@@ -11,11 +11,13 @@
  * Usage:
  *   node scripts/publish-perf-results.mjs <resultsFile> <sha> <prNumber> <androidResultFile>
  *
- * prNumber may be the empty string when the push wasn't associated with a PR.
+ * prNumber may be the empty string; it's then taken from the commit subject's
+ * "(#123)" suffix when there is one.
  */
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { commitInfo } from './perf-commit-info.mjs'
 import { summarizePerfResult } from './perf-summary.mjs'
 
 function main() {
@@ -29,10 +31,14 @@ function main() {
 
   const history = fs.existsSync(resultsFile) ? JSON.parse(fs.readFileSync(resultsFile, 'utf8')) : []
 
+  // A push to master carries no PR context, so fall back to the "(#123)" GitHub's
+  // squash merge appends to the subject (needs the commit locally: fetch-depth: 0).
+  const info = commitInfo(sha)
   const record = {
     sha,
     date: new Date().toISOString(),
-    prNumber: prNumber ? Number(prNumber) : null,
+    prNumber: prNumber ? Number(prNumber) : (info?.prNumber ?? null),
+    subject: info?.subject ?? null,
     android: summarizePerfResult(androidFile),
   }
 
