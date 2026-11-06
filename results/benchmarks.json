@@ -790,5 +790,18 @@
       "ram": 182,
       "fps": 54.2
     }
+  },
+  {
+    "sha": "82c7d151b6d2205e62cfa7fd9d070a4f2c058a4e",
+    "date": "2026-11-06T07:42:45.184Z",
+    "prNumber": 198,
+    "subject": "docs(perf): interactive benchmark charts with Recharts, linked to commits and PRs (#198)",
+    "android": {
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 29.5,
+      "ram": 181,
+      "fps": 54.2
+    }
   }
 ]
