@@ -816,5 +816,18 @@
       "ram": 180,
       "fps": 52.5
     }
+  },
+  {
+    "sha": "2e9f9f1026e74af420d57cb64997b0a323107419",
+    "date": "2026-11-06T19:54:23.942Z",
+    "prNumber": 201,
+    "subject": "fix(lokijs): delete a destroyed table's chunks from IndexedDB (#201)",
+    "android": {
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 27,
+      "ram": 181,
+      "fps": 54.4
+    }
   }
 ]
