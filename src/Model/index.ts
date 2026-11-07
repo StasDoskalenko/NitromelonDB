@@ -74,8 +74,6 @@ export default class Model {
 
   _preparedState: null | 'create' | 'update' | 'markAsDeleted' | 'destroyPermanently' = null
 
-  __columnsSetOnCreate: ColumnName[] | null = null
-
   __changes: BehaviorSubject<Model> | null = null
 
   _getChanges(): BehaviorSubject<Model> {
@@ -403,21 +401,12 @@ export default class Model {
 
     record._preparedState = 'create'
     record._isEditing = true
-    const columnsSet: ColumnName[] = []
-    record.__columnsSetOnCreate = columnsSet
     ensureSync(recordBuilder(record))
-    record.__columnsSetOnCreate = null
     record._isEditing = false
 
-    // Track columns set while building a locally created record, so that sync can resolve a
-    // conflict with a remote record of the same id per column (locally set columns win).
-    // Checked after the builder runs, since it may also change the record's sync status
-    if (record._raw._status === 'created') {
-      columnsSet.forEach((column) => {
-        setRawColumnChange(record._raw, column)
-      })
-    }
-
+    // Columns set here aren't recorded in `_changed`: that would make every locally created row
+    // bigger until it's synced (forever in apps that don't sync), and slow down every create. Sync
+    // infers them instead if a pull conflicts with this record (see inferLocallySetColumns).
     record.__logVerbose('prepareCreate')
 
     return record
@@ -485,10 +474,7 @@ export default class Model {
     const valueBefore = this._raw[rawFieldName]
     setRawSanitized(this._raw, rawFieldName, rawValue, this.collection.schema.columns[rawFieldName])
 
-    if (this._preparedState === 'create') {
-      // See _prepareCreate
-      this.__columnsSetOnCreate?.push(rawFieldName)
-    } else if (valueBefore !== this._raw[rawFieldName]) {
+    if (valueBefore !== this._raw[rawFieldName] && this._preparedState !== 'create') {
       setRawColumnChange(this._raw, rawFieldName)
     }
   }

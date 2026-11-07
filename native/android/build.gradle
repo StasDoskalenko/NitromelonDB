@@ -86,9 +86,11 @@ android {
 
     sourceSets {
         main {
-            java.srcDirs += [
-                "${project.projectDir}/../../nitrogen/generated/android/kotlin"
-            ]
+            def nitrogenKotlin = "${project.projectDir}/../../nitrogen/generated/android/kotlin"
+            java.srcDirs += [nitrogenKotlin]
+            // AGP 9's built-in Kotlin (android.builtInKotlin=true) only compiles .kt files from the
+            // Kotlin source directories, not from java.srcDirs
+            kotlin.srcDirs += [nitrogenKotlin]
         }
     }
 

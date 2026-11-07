@@ -3,7 +3,8 @@ import areRecordsEqual from '../../utils/fp/areRecordsEqual'
 import { invariant } from '../../utils/common'
 
 import type { Model, Collection, Database } from '../..'
-import { type RawRecord, type DirtyRaw, sanitizedRaw } from '../../RawRecord'
+import { type RawRecord, type DirtyRaw, sanitizedRaw, nullValue } from '../../RawRecord'
+import type { TableSchema } from '../../Schema'
 import type { SyncLog, SyncDatabaseChangeSet, SyncConflictResolver } from '../index'
 
 // Returns raw record with naive solution to a conflict based on local `_changed` field
@@ -33,6 +34,23 @@ export function resolveConflict(local: RawRecord, remote: DirtyRaw): DirtyRaw {
   })
 
   return resolved
+}
+
+// Columns set locally on a record created here and not pushed yet, for resolving a conflict with a
+// pulled record of the same id. Creating a record doesn't record its columns in `_changed` (that
+// would make every created row bigger until it's synced), so they're inferred: every column whose
+// value isn't the column's default (null, or '' / 0 / false if not optional), plus the columns
+// changed by updates since (which are in `_changed`). A column explicitly set to its default value
+// counts as not set, so the server's value wins for it. This only runs on a record's first
+// conflict: resolving it turns the record into a local update, with these columns in `_changed`.
+export function inferLocallySetColumns(local: RawRecord, schema: TableSchema): string {
+  const columns = local._changed ? local._changed.split(',') : []
+  schema.columnArray.forEach((column) => {
+    if (local[column.name] !== nullValue(column) && !columns.includes(column.name)) {
+      columns.push(column.name)
+    }
+  })
+  return columns.join(',')
 }
 
 function replaceRaw(record: Model, dirtyRaw: DirtyRaw): void {
@@ -84,15 +102,27 @@ export function prepareUpdateFromRaw<T extends Model>(
 
   const local = recordFromRaw(localRaw, collection)
 
+  // A locally created record has no `_changed` from its creation; see inferLocallySetColumns
+  const localForResolution =
+    localRaw._status === 'created'
+      ? { ...localRaw, _changed: inferLocallySetColumns(localRaw, collection.schema) }
+      : localRaw
+
   // Note COPY for log - only if needed
-  const logConflict = log && !!localRaw._changed
+  const logConflict = log && !!localForResolution._changed
   const logLocal = logConflict ? { ...localRaw } : {}
   const logRemote = logConflict ? { ...remoteDirtyRaw } : {}
 
-  let newRaw = resolveConflict(localRaw, remoteDirtyRaw)
+  let newRaw = resolveConflict(localForResolution, remoteDirtyRaw)
+  if (localRaw._status === 'created') {
+    // The server has this record now, so the local one becomes an update of it, with the inferred
+    // columns recorded. Later conflicts (e.g. another pull before the push succeeds) then resolve
+    // by `_changed`, instead of inferring the server's values from this pull as locally set too.
+    newRaw._status = localForResolution._changed ? 'updated' : 'synced'
+  }
 
   if (conflictResolver) {
-    newRaw = conflictResolver(collection.table, localRaw, remoteDirtyRaw, newRaw)
+    newRaw = conflictResolver(collection.table, localForResolution, remoteDirtyRaw, newRaw)
   }
 
   return local.prepareUpdate(() => {
