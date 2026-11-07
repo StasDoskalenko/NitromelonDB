@@ -16,6 +16,12 @@ if [ -z "$APK" ]; then
 fi
 
 adb install -r "$APK"
+
+# For maestro/sync.yaml: the app reaches the sync server at 127.0.0.1:3000 through adb reverse
+source "$(dirname "$0")/ci-start-sync-server.sh"
+start_sync_server
+adb reverse tcp:3000 tcp:3000
+
 # Screenshots + logs of every flow step, uploaded by the workflow when a flow fails
 maestro test examples/NotesApp/maestro/ --debug-output maestro-debug
 

@@ -55,6 +55,29 @@ export const appSchema: ServerSchema = {
   ],
 }
 
+// The schema of the example NotesApp (examples/NotesApp/src/model/schema.ts), for its Maestro sync
+// flow. Start the server with SYNC_SERVER_SCHEMA=notes-app to use it.
+export const notesAppSchema: ServerSchema = {
+  tables: [
+    {
+      name: 'notes',
+      columns: [
+        { name: 'title', type: 'string' },
+        { name: 'body', type: 'string' },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+        { name: 'pinned', type: 'boolean' },
+        { name: 'rank', type: 'number' },
+      ],
+    },
+  ],
+}
+
+export const schemas: Record<string, ServerSchema> = {
+  default: appSchema,
+  'notes-app': notesAppSchema,
+}
+
 // Columns the server keeps for change tracking. They're never sent to clients or read from them.
 export const internalColumns = ['last_modified', 'server_created_at', 'deleted'] as const
 

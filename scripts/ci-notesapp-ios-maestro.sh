@@ -4,6 +4,10 @@
 # simulator, then run the same Maestro flows.
 set -euo pipefail
 
+# For maestro/sync.yaml (the simulator reaches the host's 127.0.0.1 directly)
+source "$(dirname "$0")/ci-start-sync-server.sh"
+start_sync_server
+
 cd examples/NotesApp
 
 SIM_UDID=$(xcrun simctl list devices available --json | python3 -c "
