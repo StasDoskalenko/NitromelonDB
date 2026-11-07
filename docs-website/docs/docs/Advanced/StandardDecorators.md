@@ -40,7 +40,9 @@ module.exports = {
 
 **TypeScript:** remove `experimentalDecorators` (and `emitDecoratorMetadata`) from `tsconfig.json`. TypeScript 5.0 or newer is required.
 
-The mode applies to the whole app at once: Babel compiles every file with one decorators version, and the legacy plugin can't parse the `accessor` keyword.
+The mode applies to the whole app at once: Babel compiles every file with one decorators version, and the legacy plugin can't parse the `accessor` keyword. That includes decorators from other libraries, so if you use one that only supports legacy decorators (some versions of MobX, TypeORM or class-validator, for example), stay on legacy decorators for now.
+
+The [example apps](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp) use standard decorators.
 
 ## Update your models
 
@@ -74,6 +76,8 @@ Values still live in the record's raw data, so change tracking, sync and observa
 Models without `accessor` keep working with standard decorators. Plain fields get their getter and setter on each record when the record is created, instead of once on the class. That's slower: in a Node benchmark it added about 2 µs per record with five fields (about 100 ms for 50,000 records). In development, NitromelonDB logs a warning once per field, naming the field that needs `accessor`.
 
 So you can switch the Babel config first, then add `accessor` to models as you go, starting with the tables you load the most records from.
+
+To let a coding agent do the whole switch, copy the prompt from the migration guide: [Let a coding agent do it](../Migrating.md#let-a-coding-agent-do-it).
 
 ### `@lazy`
 

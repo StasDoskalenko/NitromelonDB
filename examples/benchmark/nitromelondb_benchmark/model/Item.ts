@@ -6,9 +6,9 @@ export default class Item extends Model {
   static table = ITEMS_TABLE
 
   @text('title')
-  title!: string
+  accessor title!: string
   @field('value')
-  value!: number
+  accessor value!: number
   @field('created_at')
-  createdAt!: number
+  accessor createdAt!: number
 }
