@@ -219,15 +219,19 @@ waiting around the benchmark itself.
 builds of both apps (`scripts/ci-benchmark-ios.sh` at the repo root). It checks that the
 WatermelonDB app really runs the JSI adapter before measuring.
 
-- **On a PR:** a maintainer comments `/perf ios` (or adds the `perf-ios` label). The result is
-  posted as a PR comment, and updated on the next request.
+- **On a PR:** comment `/perf ios`. A maintainer's comment (or the `perf-ios` label) starts it, and
+  the result is posted as a PR comment, updated on the next request. Anyone else's comment gets a
+  reply asking a maintainer to start it, since it runs the PR's code on paid macOS runners. The
+  Android flashlight comment on every PR reminds contributors of this.
 - **On every merge to master** that touches the library or the benchmark: the result is recorded
   on the `benchmarks` branch and charted on the docs site's Performance page.
 
 CI machines vary a lot from run to run, so the number to watch is **NitromelonDB relative to
 WatermelonDB JSI measured in the same job**. The PR comment shows that ratio for every metric,
 and how it changed from master's latest run (flagged when it drops by more than 10%). A run takes
-about an hour of macOS runner time, which is why it doesn't run on every push.
+about an hour of macOS runner time, which is why it doesn't run on every push. The WatermelonDB
+app doesn't use this repo's code, so its build is cached and only redone when the benchmark app,
+`shared/` or Xcode changes.
 
 ### Timers on Android
 

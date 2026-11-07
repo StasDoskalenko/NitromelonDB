@@ -6,9 +6,10 @@
 # run to run, so the number to watch is NitromelonDB relative to WatermelonDB measured in the same
 # job; the absolute times only compare within one run.
 #
-# Expects both apps to be prebuilt with pods installed (the workflow does it, so it can cache
-# Pods). Writes the runner's JSONL to perf-results/ios/ and the summary to
-# perf-results/perf-result-ios-sync.json (scripts/ios-sync-summary.mjs).
+# Expects the apps to be prebuilt with pods installed (the workflow does it, so it can cache
+# Pods): NitromelonDB always, WatermelonDB unless $WM_APP_CACHE holds its build. Writes the
+# runner's JSONL to perf-results/ios/ and the summary to perf-results/perf-result-ios-sync.json
+# (scripts/ios-sync-summary.mjs).
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -49,12 +50,14 @@ if [ -z "$SIM_UDID" ]; then
   xcrun simctl list devices available
   exit 1
 fi
+# Booting takes a minute or two; let it happen while the apps build (installing waits for it)
 xcrun simctl boot "$SIM_UDID" || true
-xcrun simctl bootstatus "$SIM_UDID" -b
 
 # See scripts/ci-notesapp-ios-maestro.sh for the ccache and ONLY_ACTIVE_ARCH overrides.
-build_and_install() {
-  local app_dir=$1 workspace scheme app_path
+# COMPILER_INDEX_STORE_ENABLE=NO: nothing reads Xcode's code index here.
+# Sets BUILT_APP to the .app's path.
+build_app() {
+  local app_dir=$1 workspace scheme
   workspace=$(find "$app_dir/ios" -maxdepth 1 -name '*.xcworkspace' -print -quit)
   scheme=$(basename "$workspace" .xcworkspace)
   # shellcheck disable=SC2016
@@ -68,17 +71,36 @@ build_and_install() {
     CPLUSPLUS="$REPO_ROOT/scripts/ccache-clang++" \
     GCC_PREPROCESSOR_DEFINITIONS='CCACHE_HACK_TOOLCHAIN_DIR="$(DT_TOOLCHAIN_DIR)" $(inherited)' \
     ONLY_ACTIVE_ARCH=YES \
+    COMPILER_INDEX_STORE_ENABLE=NO \
     build | xcbeautify --renderer github-actions
-  app_path=$(find "$app_dir/ios/build/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
-  if [ -z "$app_path" ]; then
+  BUILT_APP=$(find "$app_dir/ios/build/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
+  if [ -z "$BUILT_APP" ]; then
     echo "No .app built in $app_dir"
     exit 1
   fi
-  xcrun simctl install "$SIM_UDID" "$app_path"
 }
 
-build_and_install "$BENCH/nitromelondb_benchmark"
-build_and_install "$BENCH/watermelondb_benchmark"
+build_app "$BENCH/nitromelondb_benchmark"
+NITRO_APP=$BUILT_APP
+
+# The WatermelonDB app doesn't use this repo's code, so the workflow caches its build in
+# $WM_APP_CACHE (keyed on the benchmark app, the shared benchmark code and Xcode) and only
+# rebuilds it when one of those changes
+WM_APP=$(find "${WM_APP_CACHE:-/nonexistent}" -maxdepth 1 -name '*.app' -print -quit 2> /dev/null || true)
+if [ -n "$WM_APP" ]; then
+  echo "Using the cached WatermelonDB app build"
+else
+  build_app "$BENCH/watermelondb_benchmark"
+  WM_APP=$BUILT_APP
+  if [ -n "${WM_APP_CACHE:-}" ]; then
+    mkdir -p "$WM_APP_CACHE"
+    cp -R "$WM_APP" "$WM_APP_CACHE/"
+  fi
+fi
+
+xcrun simctl bootstatus "$SIM_UDID" -b
+xcrun simctl install "$SIM_UDID" "$NITRO_APP"
+xcrun simctl install "$SIM_UDID" "$WM_APP"
 
 # The baseline has to be WatermelonDB's JSI adapter: without its native module it silently falls
 # back to the asynchronous bridge adapter, which is ~2x slower and would flatter every ratio.
