@@ -13,6 +13,8 @@ module.exports = {
     '^.+\\.[jt]sx?$': 'babel-jest',
   },
   modulePathIgnorePatterns: ['<rootDir>/dist', '<rootDir>/dev', '<rootDir>/examples'],
+  // End-to-end sync tests need a running server: yarn test:sync-e2e
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/src/sync/__tests__/e2e/'],
   // collectCoverage: true,
   // collectCoverageFrom: ['!**/node_modules/**', 'src/**'],
   // coverageDirectory: 'coverage',

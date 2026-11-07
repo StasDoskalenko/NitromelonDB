@@ -1,0 +1,27 @@
+{
+  "name": "nitromelondb-sync-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reference sync backend for NitromelonDB: pull/push endpoints on Hono + SQLite",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "dev": "node --watch src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.5",
+    "better-sqlite3": "13.0.3",
+    "hono": "4.13.13"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "9.6.0",
+    "@types/node": "^24.0.0",
+    "typescript": "^6.0.3"
+  },
+  "packageManager": "yarn@4.18.0"
+}
