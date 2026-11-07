@@ -16,6 +16,7 @@ import { type RawRecord, type DirtyRaw, sanitizedRaw, setRawSanitized } from '..
 import { setRawColumnChange } from '../sync/helpers'
 
 import { createTimestampsFor, fetchDescendants } from './helpers'
+import { checkDecoratedFields } from '../decorators/common'
 
 export type RecordId = string
 
@@ -398,6 +399,7 @@ export default class Model {
       // sanitizedRaw sets id
       sanitizedRaw(createTimestampsFor(this.prototype), collection.schema),
     )
+    checkDecoratedFields(record)
 
     record._preparedState = 'create'
     record._isEditing = true
@@ -423,6 +425,7 @@ export default class Model {
 
   static _prepareCreateFromDirtyRaw(collection: Collection<Model>, dirtyRaw: DirtyRaw): Model {
     const record = new this(collection, sanitizedRaw(dirtyRaw, collection.schema))
+    checkDecoratedFields(record)
     record._preparedState = 'create'
     record.__logVerbose('prepareCreateFromDirtyRaw')
     return record
@@ -430,6 +433,7 @@ export default class Model {
 
   static _disposableFromDirtyRaw(collection: Collection<Model>, dirtyRaw: DirtyRaw): Model {
     const record = new this(collection, sanitizedRaw(dirtyRaw, collection.schema))
+    checkDecoratedFields(record)
     record._raw._status = 'disposable'
     record.__logVerbose('disposableFromDirtyRaw')
     return record

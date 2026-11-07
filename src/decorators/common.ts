@@ -154,8 +154,69 @@ export function modelFieldDecorator(
     if (columnName !== null) {
       ensureDecoratorUsedProperly(columnName, target as object, key, descriptor)
     }
+    if (isDev) {
+      registerLegacyField(target as object, key, decoratorName, descriptor === undefined)
+    }
     return { ...legacyFlags, ...makeAccessors(key) }
   }
+}
+
+// Legacy field decorators put a getter/setter on the prototype. If the build then also defines
+// the field on each instance (an own data property), that property hides the getter: reads
+// return undefined and writes never reach the database, with no error. This happens with
+// TypeScript or esbuild when `useDefineForClassFields` is on (the default for ES2022+ targets),
+// or with a Babel setup that compiles class fields without letting the decorators replace them.
+// In development, the first record of each class is checked for it (checkDecoratedFields).
+type LegacyField = { decoratorName: string; compiledByTypeScript: boolean }
+const legacyFields = new WeakMap<object, Map<string, LegacyField>>()
+const checkedClasses = new WeakSet<object>()
+
+function registerLegacyField(
+  prototype: object,
+  key: string,
+  decoratorName: string,
+  // Babel's legacy decorators pass a descriptor; TypeScript's and esbuild's pass none
+  compiledByTypeScript: boolean,
+): void {
+  let fields = legacyFields.get(prototype)
+  if (!fields) {
+    fields = new Map()
+    legacyFields.set(prototype, fields)
+  }
+  fields.set(key, { decoratorName, compiledByTypeScript })
+}
+
+export function checkDecoratedFields(record: object): void {
+  if (!isDev || checkedClasses.has(record.constructor)) {
+    return
+  }
+  checkedClasses.add(record.constructor)
+
+  const hidden: string[] = []
+  let compiledByTypeScript = false
+  for (
+    let prototype = Object.getPrototypeOf(record);
+    prototype && prototype !== Object.prototype;
+    prototype = Object.getPrototypeOf(prototype)
+  ) {
+    legacyFields.get(prototype)?.forEach((field, key) => {
+      const own = Object.getOwnPropertyDescriptor(record, key)
+      if (own && 'value' in own) {
+        hidden.push(`${key} (${field.decoratorName})`)
+        compiledByTypeScript = compiledByTypeScript || field.compiledByTypeScript
+      }
+    })
+  }
+  if (!hidden.length) {
+    return
+  }
+
+  const fix = compiledByTypeScript
+    ? 'TypeScript or esbuild defines class fields on each instance (`useDefineForClassFields`, the default for ES2022 and newer targets). Set `"useDefineForClassFields": false` in tsconfig.json.'
+    : 'Babel compiled these class fields without letting the decorators replace them. Use the Babel setup from the Installation guide (on Expo, no decorators plugin of your own).'
+  logger.error(
+    `${record.constructor.name}: decorators aren't working for ${hidden.join(', ')}. Each record has its own plain property with that name, which hides the decorator, so reading it returns undefined and writing it doesn't change the database. ${fix} See "Decorators" in the docs.`,
+  )
 }
 
 // Wraps the setter of a field another decorator already set up (@nochange, @readonly).
