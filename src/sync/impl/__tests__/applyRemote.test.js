@@ -120,7 +120,7 @@ describe('applyRemoteChanges', () => {
           { id: 'tSynced', name: 'remote' },
           // create / updated - resolve and update (stay updated)
           { id: 'tUpdated', name: 'remote', description: 'remote' },
-          // create / deleted - destroy and recreate? (or just un-delete?)
+          // create / deleted - ignore (deletion will be pushed), e.g. a pushed record sent back
           { id: 'tDeleted', name: 'remote' },
         ],
       },
@@ -135,7 +135,11 @@ describe('applyRemoteChanges', () => {
       description: 'remote', // remote change
       project_id: 'orig', // unchanged
     })
-    await expectSyncedAndMatches(tasks, 'tDeleted', { name: 'remote' })
+    await expectSyncedAndMatches(tasks, 'tDeleted', {
+      _status: 'deleted',
+      _changed: 'name',
+      name: 'local',
+    })
   })
   it('can handle weird edge cases', async () => {
     const { database, projects, tasks } = makeDatabase()

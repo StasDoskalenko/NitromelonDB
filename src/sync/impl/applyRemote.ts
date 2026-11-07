@@ -349,7 +349,7 @@ function prepareApplyRemoteChangesToCollection<T extends Model>(
   collection: Collection<T>,
   context: ApplyRemoteChangesContext,
 ): Array<T | null> {
-  const { db, sendCreatedAsUpdated, log, conflictResolver } = context
+  const { sendCreatedAsUpdated, log, conflictResolver } = context
   const { table } = collection
   const {
     created,
@@ -380,12 +380,8 @@ function prepareApplyRemoteChangesToCollection<T extends Model>(
         prepareUpdateFromRaw(currentRecord, raw, collection, log, conflictResolver),
       )
     } else if (locallyDeletedIds.has(dirtyRawId(raw))) {
-      logError(
-        `[Sync] Server wants client to create record ${table}#${dirtyRawId(raw)}, but it already exists locally and is marked as deleted. This may suggest last sync partially executed, and then failed; or it could be a serious bug. Will delete local record and recreate it instead.`,
-      )
-      // Note: we're not awaiting the async operation (but it will always complete before the batch)
-      db.adapter.destroyDeletedRecords(table, [dirtyRawId(raw)])
-      recordsToBatch.push(prepareCreateFromRaw(collection, raw))
+      // Nothing to do, record was locally deleted, deletion will be pushed later. The server sends
+      // records this device pushed back as `created` when it splits changes by server_created_at
     } else {
       recordsToBatch.push(prepareCreateFromRaw(collection, raw))
     }

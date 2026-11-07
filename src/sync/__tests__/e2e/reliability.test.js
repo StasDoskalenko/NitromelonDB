@@ -121,16 +121,13 @@ describe.each(ADAPTERS)('Sync reliability end-to-end (%s)', (adapterKind) => {
 })
 
 // With `created` and `updated` split by server_created_at, as Backend.md suggests, the app's own
-// pushed records come back as `created` on its next pull. If the app deleted one of them in the
-// meantime, the library treats it as a half-finished earlier sync: it recreates the record and the
-// deletion is lost. The reference server sends everything as `updated` by default because of this
-// (see examples/sync-server/README.md). These tests document the library behavior: when it's fixed,
-// they start failing, and `test.failing` should become `test`.
-describe('Known issue: records echoed back as `created`', () => {
+// pushed records come back as `created` on its next pull. A record deleted in the meantime must stay
+// deleted, as with `updated`.
+describe('Records echoed back as `created`', () => {
   const createdServer = setUpServer({ sendCreated: true })
 
   describe.each(ADAPTERS)('%s', (adapterKind) => {
-    test.failing('keeps a local deletion when the record is echoed back as created', async () => {
+    it('keeps a local deletion when the record is echoed back as created', async () => {
       const alice = makeClient(createdServer, adapterKind)
       let project
       await alice.write(async () => {

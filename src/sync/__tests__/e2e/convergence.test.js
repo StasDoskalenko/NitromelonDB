@@ -14,7 +14,11 @@ const SEEDS = process.env.SYNC_E2E_SEEDS
   : [1, 2, 3, 4, 5]
 const STEPS = Number(process.env.SYNC_E2E_STEPS || 150)
 
-const server = setUpServer()
+// Both pull modes: everything as `updated`, and `created` / `updated` split by server_created_at
+const servers = [
+  ['updated', setUpServer()],
+  ['created', setUpServer({ sendCreated: true })],
+]
 
 function mulberry32(seed) {
   let a = seed >>> 0
@@ -150,7 +154,7 @@ async function randomLocalChange(client, random, step, history) {
   })
 }
 
-async function randomServerChange(random, step, history) {
+async function randomServerChange(server, random, step, history) {
   const { tasks, projects } = await serverSnapshot(server)
   const task = random.pick(tasks)
   if (task && random.chance(0.7)) {
@@ -212,7 +216,7 @@ async function randomSync(client, random, history) {
   }
   if (random.chance(0.05)) {
     // Someone else pushes between this device's pull and push
-    client.afterPull = () => randomServerChange(random, -1, history)
+    client.afterPull = () => randomServerChange(client.server, random, -1, history)
   }
   try {
     await client.syncUntilDone({ maxAttempts: 10 })
@@ -226,7 +230,7 @@ async function randomSync(client, random, history) {
   }
 }
 
-describe('Sync convergence end-to-end', () => {
+describe.each(servers)('Sync convergence end-to-end (pulled as %s)', (_mode, server) => {
   it.each(SEEDS)(
     `converges after ${STEPS} random steps on three devices (seed %i)`,
     async (seed) => {
@@ -255,7 +259,7 @@ describe('Sync convergence end-to-end', () => {
           await randomSync(device, random, history)
           stats.syncs += 1
         } else if (what === 'server') {
-          await randomServerChange(random, step, history)
+          await randomServerChange(server, random, step, history)
           stats.server += 1
         } else {
           device.offline = !device.offline
