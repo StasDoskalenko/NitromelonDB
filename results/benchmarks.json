@@ -881,5 +881,18 @@
       "ram": 183,
       "fps": 54.9
     }
+  },
+  {
+    "sha": "240f4cb7fcb7bce4dc2a398db1cc7a71e4f48e55",
+    "date": "2026-11-07T05:21:43.495Z",
+    "prNumber": 196,
+    "subject": "fix(sync): apply batched pulls sequentially and notify observers once per pull (#196)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 28.5,
+      "ram": 179,
+      "fps": 55.2
+    }
   }
 ]
