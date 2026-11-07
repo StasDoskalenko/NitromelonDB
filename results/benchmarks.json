@@ -868,5 +868,18 @@
       "ram": 179,
       "fps": 53.2
     }
+  },
+  {
+    "sha": "7d1b39d26ce2e9a771f0ea1e6d44db8974101cf0",
+    "date": "2026-11-07T01:55:00.157Z",
+    "prNumber": 194,
+    "subject": "fix(sync): validate the whole pulled changeset before applying any of it (#194)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 27.6,
+      "ram": 183,
+      "fps": 54.9
+    }
   }
 ]
