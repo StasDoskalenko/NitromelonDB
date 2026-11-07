@@ -6,9 +6,9 @@
  * the docs can't drift from what the presets actually need (#182).
  *
  * The configs are read from the docs' own code blocks, not copied here:
- *   - Installation.mdx (standard 2023-11 decorators, the recommended setup): bare React Native,
- *     Expo and web
- *   - Advanced/StandardDecorators.md, "Legacy decorators": bare React Native, Expo and web
+ *   - Installation.mdx (legacy decorators, the default): bare React Native, Expo and web
+ *   - Advanced/StandardDecorators.md, "Standard decorators" (2023-11): bare React Native, Expo
+ *     and web
  *
  * Presets and plugins come from examples/NotesApp (`babel-preset-expo`,
  * `@react-native/babel-preset`, `@babel/plugin-transform-class-static-block`,
@@ -165,8 +165,8 @@ const decoratorsDoc = fs.readFileSync(
   path.join(docsDir, 'Advanced', 'StandardDecorators.md'),
   'utf8',
 )
-const legacySection = () =>
-  between(decoratorsDoc, 'StandardDecorators.md', '\n## Legacy decorators\n', '\n## Moving from')
+const standardSection = () =>
+  between(decoratorsDoc, 'StandardDecorators.md', '\n## Standard decorators\n', '\n### Models with')
 
 const metroCaller = (platform) => ({ name: 'metro', bundler: 'metro', platform })
 const expoCaller = (platform) => ({
@@ -184,39 +184,39 @@ const configs = [
     text: () =>
       between(installation, 'Installation.mdx', '\n## React Native (bare)\n', '\n## Expo\n'),
     kind: 'bare',
-    standard: true,
+    standard: false,
   },
   {
     label: 'Installation, Expo',
     text: () => between(installation, 'Installation.mdx', '\n## Expo\n', '\n### Expo web\n'),
     kind: 'expo',
-    standard: true,
+    standard: false,
   },
   {
     label: 'Installation, web',
     text: () => between(installation, 'Installation.mdx', '\n## Web without Expo', '\n## Windows'),
     kind: 'web',
+    standard: false,
+  },
+  {
+    label: 'Standard decorators, React Native (bare)',
+    text: () =>
+      between(standardSection(), 'StandardDecorators.md', '**Bare React Native:**', '**Web'),
+    kind: 'bare',
     standard: true,
   },
   {
-    label: 'Legacy decorators, React Native (bare)',
+    label: 'Standard decorators, Expo',
     text: () =>
-      between(legacySection(), 'StandardDecorators.md', '**Bare React Native:**', '**Web'),
-    kind: 'bare',
-    standard: false,
-  },
-  {
-    label: 'Legacy decorators, Expo',
-    text: () =>
-      between(legacySection(), 'StandardDecorators.md', '**Expo:**', '**Bare React Native:**'),
+      between(standardSection(), 'StandardDecorators.md', '**Expo:**', '**Bare React Native:**'),
     kind: 'expo',
-    standard: false,
+    standard: true,
   },
   {
-    label: 'Legacy decorators, web',
-    text: () => between(legacySection(), 'StandardDecorators.md', '**Web', '**TypeScript:**'),
+    label: 'Standard decorators, web',
+    text: () => between(standardSection(), 'StandardDecorators.md', '**Web', '**Vite:**'),
     kind: 'web',
-    standard: false,
+    standard: true,
   },
 ]
 

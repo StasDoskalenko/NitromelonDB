@@ -3,6 +3,7 @@
   "compilerOptions": {
     "types": ["jest"],
     "strict": true,
+    "experimentalDecorators": true,
     "useDefineForClassFields": false,
     "skipLibCheck": true,
     "moduleSuffixes": [".windows", ""],

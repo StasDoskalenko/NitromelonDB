@@ -38,25 +38,25 @@ export default class Note extends Model {
   }
 
   @text('title')
-  accessor title!: string
+  title!: string
   @text('body')
-  accessor body!: string
+  body!: string
   // Set automatically on collection.create() / prepareCreate(). Not @readonly:
   // the seed loop (database.ts) deliberately backdates these to stagger 100
   // notes for the demo, which @readonly would reject.
   @date('created_at')
-  accessor createdAt!: Date
+  createdAt!: Date
   // Set automatically on model.update() / prepareUpdate(). Nothing needs to
   // override it, so this one is @readonly.
   @readonly
   @date('updated_at')
-  accessor updatedAt!: Date
+  updatedAt!: Date
   @field('pinned')
-  accessor pinned!: boolean
+  pinned!: boolean
   // Dense 1..N position, 1 = top. Not the library's SortOrder ('asc' | 'desc',
   // a query-direction type) — this is a per-row rank. See addNote/deleteForever.
   @field('rank')
-  accessor rank!: number
+  rank!: number
 
   // Not @writer: called via useWriter (see NoteCard), which already runs this
   // inside a Writer -- an @writer method calling database.write() itself

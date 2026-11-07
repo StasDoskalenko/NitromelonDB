@@ -47,8 +47,8 @@ import { date, readonly } from 'nitromelondb/decorators'
 
 class Post extends Model {
   // ...
-  @readonly @date('created_at') accessor createdAt
-  @readonly @date('updated_at') accessor updatedAt
+  @readonly @date('created_at') createdAt
+  @readonly @date('updated_at') updatedAt
 }
 ```
 

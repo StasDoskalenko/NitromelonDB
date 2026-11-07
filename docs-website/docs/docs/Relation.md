@@ -28,7 +28,7 @@ There's two steps to defining a relation:
 
    class Comment extends Model {
      // ...
-     @relation('users', 'author_id') accessor author
+     @relation('users', 'author_id') author
    }
    ```
 
@@ -43,8 +43,8 @@ import { immutableRelation } from 'nitromelondb/decorators'
 
 class Comment extends Model {
   // ...
-  @immutableRelation('posts', 'post_id') accessor post
-  @immutableRelation('users', 'author_id') accessor author
+  @immutableRelation('posts', 'post_id') post
+  @immutableRelation('users', 'author_id') author
 }
 ```
 
@@ -146,8 +146,8 @@ class PostAuthor extends Model {
     posts: { type: 'belongs_to', key: 'post_id' },
     users: { type: 'belongs_to', key: 'user_id' },
   }
-  @immutableRelation('posts', 'post_id') accessor post
-  @immutableRelation('users', 'user_id') accessor user
+  @immutableRelation('posts', 'post_id') post
+  @immutableRelation('users', 'user_id') user
 }
 
 ```

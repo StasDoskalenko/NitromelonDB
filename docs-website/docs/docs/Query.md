@@ -23,7 +23,7 @@ The simplest query is made using `@children`. This defines a `Query` for all com
 ```js
 class Post extends Model {
   // ...
-  @children('comments') accessor comments
+  @children('comments') comments
 }
 ```
 
@@ -39,7 +39,7 @@ import { children, lazy } from 'nitromelondb/decorators'
 
 class Post extends Model {
   // ...
-  @children('comments') accessor comments
+  @children('comments') comments
 
   @lazy get verifiedComments() {
     return this.comments.extend(Q.where('is_verified', true))

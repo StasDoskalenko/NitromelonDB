@@ -72,15 +72,15 @@ class Post extends Model {
     comments: { type: 'has_many', foreignKey: 'post_id' },
   }
 
-  @text('title') accessor title
-  @text('body') accessor body
-  @field('is_pinned') accessor isPinned
+  @text('title') title
+  @text('body') body
+  @field('is_pinned') isPinned
 }
 ```
 
 Fields are defined using ES6 decorators. Pass **column name** you defined in Schema as the argument to `@field`.
 
-These docs use standard decorators, the setup [Installation](./Installation.mdx) recommends: fields are declared with `accessor`. With legacy decorators (models from WatermelonDB, for example), leave `accessor` out. See [Decorators](./Advanced/StandardDecorators.md).
+These docs use legacy decorators, the default: on Expo they need no Babel setup. Standard (TC39) decorators work too. With them, declare fields with `accessor` (`@text('title') accessor title`). See [Decorators](./Advanced/StandardDecorators.md).
 
 **Field types**. Fields are guaranteed to be the same type (string/number/boolean) as the column type defined in Schema. If column is marked `isOptional: true`, fields may also be null.
 
@@ -97,7 +97,7 @@ import { date } from 'nitromelondb/decorators'
 
 class Post extends Model {
   // ...
-  @date('last_event_at') accessor lastEventAt
+  @date('last_event_at') lastEventAt
 }
 ```
 
@@ -111,7 +111,7 @@ import { field, text } from 'nitromelondb/decorators'
 class Post extends Model {
   static table = 'posts'
 
-  @date('archived_at') accessor archivedAt
+  @date('archived_at') archivedAt
 
   get isRecentlyArchived() {
     // in the last 7 days
@@ -130,8 +130,8 @@ import { relation, immutableRelation } from 'nitromelondb/decorators'
 
 class Comment extends Model {
   // ...
-  @relation('posts', 'post_id') accessor post
-  @immutableRelation('users', 'author_id') accessor author
+  @relation('posts', 'post_id') post
+  @immutableRelation('users', 'author_id') author
 }
 ```
 
@@ -150,7 +150,7 @@ class Post extends Model {
     comments: { type: 'has_many', foreignKey: 'post_id' },
   }
 
-  @children('comments') accessor comments
+  @children('comments') comments
 }
 ```
 
@@ -174,7 +174,7 @@ class Post extends Model {
     comments: { type: 'has_many', foreignKey: 'post_id' },
   }
 
-  @children('comments') accessor comments
+  @children('comments') comments
   @lazy get verifiedComments() {
     return this.comments.extend(Q.where('is_verified', true))
   }
@@ -193,7 +193,7 @@ import { writer } from 'nitromelondb/decorators'
 class Comment extends Model {
   static table = 'comments'
 
-  @field('is_spam') accessor isSpam
+  @field('is_spam') isSpam
 
   @writer async markAsSpam() {
     await this.update(comment => {
@@ -214,21 +214,21 @@ named queries), you can give the table its own `Collection` subclass.
 
 ## TypeScript: `!` and keeping fields in sync with the schema
 
-In TypeScript, model fields need `!` (`@text('title') accessor title!: string`). With `strictPropertyInitialization` on, TypeScript requires every field to be set in the constructor, and it can't tell that a decorator provides the value. That's true with both standard and legacy decorators, and decorated `declare` fields aren't allowed. So `!` is expected, not a smell.
+In TypeScript, model fields need `!` (`@text('title') title!: string`). With `strictPropertyInitialization` on, TypeScript requires every field to be set in the constructor, and it can't tell that a decorator provides the value. That's true with both standard and legacy decorators, and decorated `declare` fields aren't allowed. So `!` is expected, not a smell.
 
 `!` only says "something sets this". The type after it is a promise you make, and **nothing checks it against the schema**. When the two drift apart, TypeScript stays quiet and the bug shows up at runtime:
 
 | Drift | Example | What happens |
 | --- | --- | --- |
-| An optional column typed without `null` | `subtitle` is `isOptional: true`, but the field is `accessor subtitle!: string` | Reads return `null` typed as `string`, so `subtitle.trim()` crashes later, far from the cause. |
+| An optional column typed without `null` | `subtitle` is `isOptional: true`, but the field is `subtitle!: string` | Reads return `null` typed as `string`, so `subtitle.trim()` crashes later, far from the cause. |
 | The wrong type | `rank` is a `number` column, but the field is typed `string` | Reads return a number. **Writes of the wrong type are silently stored as the column's empty value** (`''`, `0`, `false`, or `null` if optional), with no error. |
 | A misspelled column name | `@field('positon')` instead of `'position'` | Reads return `undefined`. Writes throw `Cannot destructure property 'type' of 'columnSchema' as it is undefined.` |
 | A column renamed or removed in a migration, but not in the model | the schema drops `legacy_flag`, and the model still has `@field('legacy_flag')` | Same as a misspelled name. |
-| A missing decorator | `accessor title!: string` with no `@text(...)` | The field is always `undefined`, and nothing reads or writes the database. |
+| A missing decorator | `title!: string` with no `@text(...)` | The field is always `undefined`, and nothing reads or writes the database. |
 
 Until NitromelonDB can check this for you, keep models and the schema in step by hand:
 
-- **Write optional columns as `T | null`**: `@text('subtitle') accessor subtitle!: string | null`. A column that isn't optional is never `null`. Missing values become `''`, `0` or `false`.
+- **Write optional columns as `T | null`**: `@text('subtitle') subtitle!: string | null`. A column that isn't optional is never `null`. Missing values become `''`, `0` or `false`.
 - **Match the decorator's type**: `@field` on a `string`, `number` or `boolean` column, `@text` on `string`, `@date` on a `number` column (typed `Date`, or `Date | null` if optional), `@json` gets its sanitizer's return type, `@relation` / `@immutableRelation` give `Relation<Model>`, and `@children` gives `Query<Model>`.
 - **Update models in the same change as a migration** that renames, removes or retypes a column.
 - **Have one test per model that writes and reads back every field.** It catches misspelled columns (the write throws), wrong types (the value comes back as `''`, `0` or `false`) and missing decorators (the value comes back `undefined`).

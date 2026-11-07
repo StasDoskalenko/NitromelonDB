@@ -1,33 +1,87 @@
 ---
 title: Decorators
-description: "NitromelonDB recommends standard (TC39 2023-11) decorators with the accessor keyword. Legacy decorators keep working; here's how to set them up, migrate one model at a time, or let a coding agent do it."
+description: "NitromelonDB models work with legacy decorators (the default, no Babel setup on Expo) and with standard TC39 decorators and the accessor keyword. Setup for both, moving between them, and what to do when decorators don't work."
 ---
 
-# Decorators: standard and legacy
+# Decorators: legacy and standard
 
-JavaScript has two versions of decorators:
+JavaScript has two versions of decorators, and every NitromelonDB decorator works with both:
 
-- **Standard decorators**, the TC39 proposal that's becoming part of JavaScript (Babel's `version: '2023-11'`). TypeScript 5+ uses them when `experimentalDecorators` is off. **NitromelonDB recommends them**, and [Installation](../Installation.mdx) sets them up.
-- **Legacy decorators**, which TypeScript calls `experimentalDecorators` and Babel calls `legacy: true`. WatermelonDB used them. They keep working, so existing models don't have to change.
+- **Legacy decorators**, which TypeScript calls `experimentalDecorators` and Babel calls `legacy: true`. WatermelonDB used them, and **they're the default for now**: on Expo they need no Babel setup at all, and the rest of these docs use them.
+- **Standard decorators**, the TC39 proposal that's becoming part of JavaScript (Babel's `version: '2023-11'`). TypeScript 5+ uses them when `experimentalDecorators` is off. They need a small Babel setting, and fields are declared with `accessor`.
 
-Every NitromelonDB decorator accepts both.
+## The default: legacy decorators
 
-Why standard decorators? They're the version JavaScript is standardizing, so tools keep supporting them. They need less Babel setup: legacy decorators depend on a fixed plugin order that has broken more than once as React Native and Babel changed (most recently on Expo SDK 56 and React Native 0.87). And they're what TypeScript 5+ uses by default.
+Follow [Installation](../Installation.mdx). In short:
 
-## Set them up
+- **Expo:** nothing to set up. `babel-preset-expo` enables legacy decorators by default, so you don't need a `babel.config.js` for them. Don't add `@babel/plugin-proposal-decorators` yourself: since SDK 56 it runs before the preset's own plugins and breaks fields declared with `!`.
+- **Bare React Native:** four Babel plugins in a fixed order (see [Installation](../Installation.mdx#react-native-bare)).
+- **Web (Webpack, Vite):** the decorators plugin and class properties in `loose` mode.
+- **TypeScript:** `experimentalDecorators: true`.
 
-Follow [Installation](../Installation.mdx) for your platform. In short:
+Models declare fields as plain properties:
 
-- **Expo:** `presets: [['babel-preset-expo', { decorators: { version: '2023-11' } }]]`
-- **Bare React Native:** `@babel/plugin-proposal-decorators` with `version: '2023-11'`, plus `@babel/plugin-transform-class-static-block`
-- **Web (Webpack, Vite):** `@babel/plugin-proposal-decorators` with `version: '2023-11'`
-- **TypeScript:** 5.0 or newer, with `experimentalDecorators` off
+```ts
+class Post extends Model {
+  static table = 'posts'
 
-The setting applies to the whole app, including decorators from other libraries. If you use one that only supports legacy decorators (some versions of MobX, TypeORM or class-validator, for example), use [legacy decorators](#legacy-decorators) until it supports standard ones.
+  @text('title') title!: string
+  @readonly @date('created_at') createdAt!: Date
+  @children('comments') comments!: Query<Comment>
+}
+```
 
-The [example apps](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp) use standard decorators.
+## Standard decorators
 
-## Models
+Standard decorators work too. Turn them on with your platform's setting below, and declare model fields with `accessor`. The [examples](#models-with-standard-decorators) below show the model side.
+
+The setting applies to the whole app, including decorators from other libraries, so if you use one that only supports legacy decorators (some versions of MobX, TypeORM or class-validator, for example), stay on legacy decorators.
+
+**Expo:** pass the version to the preset.
+
+```js
+// babel.config.js
+module.exports = function (api) {
+  api.cache(true)
+  return {
+    presets: [['babel-preset-expo', { decorators: { version: '2023-11' } }]],
+  }
+}
+```
+
+**Bare React Native:** two plugins instead of the four legacy ones.
+
+```bash
+yarn add --dev @babel/plugin-proposal-decorators @babel/plugin-transform-class-static-block
+```
+
+```js
+// babel.config.js
+module.exports = {
+  presets: ['module:@react-native/babel-preset'],
+  plugins: [
+    ['@babel/plugin-proposal-decorators', { version: '2023-11' }],
+    '@babel/plugin-transform-class-static-block',
+  ],
+}
+```
+
+**Web (Webpack):** the decorators plugin, and if Babel also compiles your TypeScript, the TypeScript plugin first. (With `@babel/preset-typescript` instead, presets run after plugins, which breaks plain fields declared with `!`.) For browsers older than Safari 16.4, also add `@babel/plugin-transform-class-static-block`.
+
+```json
+{
+  "plugins": [
+    ["@babel/plugin-transform-typescript", { "allowDeclareFields": true }],
+    ["@babel/plugin-proposal-decorators", { "version": "2023-11" }]
+  ]
+}
+```
+
+**Vite:** pass `['@babel/plugin-proposal-decorators', { version: '2023-11' }]` to `@vitejs/plugin-react`'s `babel.plugins`. Vite compiles TypeScript itself, so that's all it needs.
+
+**TypeScript:** 5.0 or newer, with `experimentalDecorators` (and `emitDecoratorMetadata`) off.
+
+### Models with standard decorators
 
 With standard decorators, a decorator can't turn a plain class field into a getter and setter, which is how model fields read and write the database. The `accessor` keyword gives it one:
 
@@ -52,13 +106,13 @@ class Post extends Model {
 
 Values live in the record's raw data, so change tracking, sync and observation work the same in both modes.
 
-### `@lazy`
+## `@lazy`
 
-Use `@lazy` on a getter. It runs the getter the first time it's read and keeps the result:
+Use `@lazy` on a getter. It runs the getter the first time it's read and keeps the result, in both modes:
 
 ```js
 class Post extends Model {
-  @children('comments') accessor comments
+  @children('comments') comments
 
   @lazy get verifiedComments() {
     return this.comments.extend(Q.where('is_verified', true))
@@ -66,65 +120,28 @@ class Post extends Model {
 }
 ```
 
-The getter form works with legacy decorators too. With standard decorators, `@lazy` on a field (`@lazy verified = ...`) can't be lazy: a field's initializer runs while the record is being built, before the decorator could defer it. It's still computed only once, and development builds log a warning.
+With legacy decorators, `@lazy` on a field (`@lazy verified = this.comments.extend(...)`) is lazy too. With standard decorators it can't be: a field's initializer runs while the record is being built, before the decorator could defer it. It's still computed only once, and development builds log a warning.
 
-## Legacy decorators
+## Moving to standard decorators
 
-Keep legacy decorators if you have models written for them, for example from WatermelonDB, or a library that needs them. Write models without `accessor`, and with `@lazy` on fields or getters.
-
-**Expo:** use the preset without the `decorators` option. `babel-preset-expo` enables legacy decorators by default. Don't add `@babel/plugin-proposal-decorators` to `plugins`: since SDK 56 it runs before the preset's own plugins and fails on fields declared with `!`.
-
-```js
-// babel.config.js
-module.exports = function (api) {
-  api.cache(true)
-  return {
-    presets: ['babel-preset-expo'],
-  }
-}
-```
-
-**Bare React Native:** four plugins, in this order, with these options. With React Native 0.87 and newer, the decorators plugin alone fails on fields like `@field('amount') amount!: number` with `Definitely assigned fields cannot be initialized here, but only in the constructor`.
-
-```bash
-yarn add --dev @babel/plugin-proposal-decorators @babel/plugin-transform-class-properties @babel/plugin-transform-private-methods @babel/plugin-transform-private-property-in-object
-```
-
-```js
-// babel.config.js
-module.exports = {
-  presets: ['module:@react-native/babel-preset'],
-  plugins: [
-    ['@babel/plugin-proposal-decorators', { legacy: true }],
-    ['@babel/plugin-transform-class-properties', { loose: true }],
-    ['@babel/plugin-transform-private-methods', { loose: true }],
-    ['@babel/plugin-transform-private-property-in-object', { loose: true }],
-  ],
-}
-```
-
-**Web (Webpack, Vite):** the decorators plugin first, then class properties in `loose` mode:
-
-```json
-{
-  "plugins": [
-    ["@babel/plugin-proposal-decorators", { "legacy": true }],
-    ["@babel/plugin-transform-class-properties", { "loose": true }]
-  ]
-}
-```
-
-**TypeScript:** turn on `experimentalDecorators` in `tsconfig.json`.
-
-## Moving from legacy to standard decorators
-
-1. Change the Babel config to the standard one in [Installation](../Installation.mdx), and turn off `experimentalDecorators`.
+1. Change the Babel config to the standard one above, and turn off `experimentalDecorators`.
 2. Restart the bundler with a cleared cache (`npx expo start --clear` or `npx react-native start --reset-cache`).
 3. Add `accessor` to model fields, and move `@lazy` fields to getters.
 
 Step 1 switches every file at once, because Babel compiles the whole app with one decorators version (and the legacy plugin can't parse `accessor`). Models you haven't updated yet keep working: plain fields get their getter and setter on each record when the record is created, instead of once on the class. That's slower, about 2 µs per record with five fields in a Node benchmark (about 100 ms for 50,000 records), so development builds log a warning once per field, naming the field that needs `accessor`. You can update models one at a time, starting with the tables you load the most records from.
 
 To let a coding agent do the switch, copy the prompt from the migration guide: [Let a coding agent do it](../Migrating.md#let-a-coding-agent-do-it).
+
+## When decorators don't work
+
+**Fields read `undefined`, with a dev error "decorators aren't working".** In development, NitromelonDB checks the first record of each model class. If a decorated field is also a plain property on the record, that property hides the decorator, so reads return `undefined` and writes never reach the database, with no other error. Two common causes:
+
+- **TypeScript or esbuild compiles your models** (`tsc`, `ts-node`, `ts-jest`, `tsx`, Vite without Babel, Bun) with `useDefineForClassFields` on, which is the default for `ES2022` and newer targets. Set `"useDefineForClassFields": false` in `tsconfig.json`.
+- **Babel compiles class fields before the decorators run**, for example a decorators plugin of your own on Expo, or the plugins out of order on bare React Native. Use the setup from [Installation](../Installation.mdx).
+
+**`Support for the experimental syntax 'decoratorAutoAccessors' isn't currently enabled`.** A model uses `accessor`, but the app compiles legacy decorators. Remove `accessor`, or turn on [standard decorators](#standard-decorators).
+
+**`Definitely assigned fields cannot be initialized here, but only in the constructor`.** Babel's plugins run in the wrong order. See [Installation](../Installation.mdx) for your platform.
 
 ## Things that behave differently
 

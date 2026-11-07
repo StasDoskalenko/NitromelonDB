@@ -33,11 +33,11 @@ class Note extends Model {
   static table = 'notes'
   static associatedCollectionClass = NoteCollection
 
-  @field('title') accessor title
-  @field('body') accessor body
-  @field('is_pinned') accessor isPinned
-  @field('is_archived') accessor isArchived
-  @date('updated_at') accessor updatedAt
+  @field('title') title
+  @field('body') body
+  @field('is_pinned') isPinned
+  @field('is_archived') isArchived
+  @date('updated_at') updatedAt
 }
 ```
 

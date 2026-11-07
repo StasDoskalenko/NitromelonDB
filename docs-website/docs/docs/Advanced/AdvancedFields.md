@@ -28,7 +28,7 @@ import { json } from 'nitromelondb/decorators'
 
 class Comment extends Model {
   // ...
-  @json('reactions', sanitizeReactions) accessor reactions
+  @json('reactions', sanitizeReactions) reactions
 }
 ```
 
@@ -77,7 +77,7 @@ import { field, nochange } from 'nitromelondb/decorators'
 
 class User extends Model {
   // ...
-  @nochange @field('is_owner') accessor isOwner
+  @nochange @field('is_owner') isOwner
 }
 ```
 

@@ -112,14 +112,14 @@ First, you define Models:
 
 ```js
 class Post extends Model {
-  @field('name') accessor name
-  @field('body') accessor body
-  @children('comments') accessor comments
+  @field('name') name
+  @field('body') body
+  @children('comments') comments
 }
 
 class Comment extends Model {
-  @field('body') accessor body
-  @field('author') accessor author
+  @field('body') body
+  @field('author') author
 }
 ```
 
