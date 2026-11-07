@@ -707,9 +707,26 @@ export default class Database {
     } finally {
       this._pendingNotificationBatches -= 1
       if (this._pendingNotificationBatches === 0) {
-        const changes = this._pendingNotificationChanges
+        const pendingChanges = this._pendingNotificationChanges
         this._pendingNotificationChanges = []
-        changes.forEach((_changes) => this._notify(_changes))
+
+        // Merge all pending changes per table, so that subscribers are notified once
+        const changesByTable: Map<TableName, CollectionChangeSet<Model>> = new Map()
+        pendingChanges.forEach((changes) => {
+          changes.forEach(([table, changeSet]) => {
+            const tableChanges = changesByTable.get(table)
+            if (tableChanges) {
+              changeSet.forEach((change) => {
+                tableChanges.push(change)
+              })
+            } else {
+              changesByTable.set(table, changeSet.slice())
+            }
+          })
+        })
+        if (changesByTable.size) {
+          this._notify(Array.from(changesByTable.entries()))
+        }
       }
     }
   }
