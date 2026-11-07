@@ -103,7 +103,7 @@ export function warnOnce(decoratorName: string, key: string, message: string): v
   const id = `${decoratorName}:${key}`
   if (!warned.has(id)) {
     warned.add(id)
-    logger.warn(`${decoratorName} on "${key}": ${message} See "Standard decorators" in the docs.`)
+    logger.warn(`${decoratorName} on "${key}": ${message} See "Decorators" in the docs.`)
   }
 }
 

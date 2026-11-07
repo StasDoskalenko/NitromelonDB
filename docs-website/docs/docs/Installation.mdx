@@ -26,26 +26,24 @@ Expo Go is not supported. Use a development build.
 
    ```bash
    yarn add nitromelondb react-native-nitro-modules
-   yarn add --dev @babel/plugin-proposal-decorators @babel/plugin-transform-class-properties @babel/plugin-transform-private-methods @babel/plugin-transform-private-property-in-object
+   yarn add --dev @babel/plugin-proposal-decorators @babel/plugin-transform-class-static-block
    ```
 
-2. Enable decorators in `babel.config.js`. Keep all four plugins, in this order, with these options:
+2. Enable standard decorators in `babel.config.js`:
 
    ```js
    module.exports = {
      presets: ['module:@react-native/babel-preset'],
      plugins: [
-       ['@babel/plugin-proposal-decorators', { legacy: true }],
-       ['@babel/plugin-transform-class-properties', { loose: true }],
-       ['@babel/plugin-transform-private-methods', { loose: true }],
-       ['@babel/plugin-transform-private-property-in-object', { loose: true }],
+       ['@babel/plugin-proposal-decorators', { version: '2023-11' }],
+       '@babel/plugin-transform-class-static-block',
      ],
    }
    ```
 
-   Decorators must run before class fields are compiled. With RN 0.87 and newer, the preset no longer compiles class fields early enough on its own, so the decorators plugin alone fails on fields like `@field('amount') amount!: number` with `Definitely assigned fields cannot be initialized here, but only in the constructor`.
+   With TypeScript, use 5.0 or newer and leave `experimentalDecorators` off. Models declare their fields with `accessor`: `@text('title') accessor title!: string` (see [Model](./Model.md)).
 
-   This sets up legacy decorators. To use standard (TC39) decorators instead, see [Standard decorators](./Advanced/StandardDecorators.md).
+   Keeping models with legacy decorators, for example from WatermelonDB? See [Legacy decorators](./Advanced/StandardDecorators.md#legacy-decorators).
 
 3. Rebuild the native app. Metro reload is not enough.
 
@@ -64,20 +62,22 @@ That's it. Autolinking links SQLite on iOS and Android. You don't add Podfile li
    npx expo install nitromelondb react-native-nitro-modules
    ```
 
-2. You don't need any Babel setup for decorators. `babel-preset-expo` already turns them on, together with the class field plugins they need, in the right order. The default config is all you need:
+2. Turn on standard decorators with the preset's `decorators` option in `babel.config.js`. `babel-preset-expo` adds the decorator plugins itself, so there's nothing to install:
 
    ```js
    module.exports = function (api) {
      api.cache(true)
      return {
-       presets: ['babel-preset-expo'],
+       presets: [['babel-preset-expo', { decorators: { version: '2023-11' } }]],
      }
    }
    ```
 
-   Don't add `@babel/plugin-proposal-decorators` to `plugins` yourself. Your plugins run before the preset's, which breaks that order (since SDK 56) and fails on fields like `@field('amount') amount!: number` with `Definitely assigned fields cannot be initialized here, but only in the constructor`. If you're upgrading and have it in your config, delete it.
+   With TypeScript, leave `experimentalDecorators` off. Models declare their fields with `accessor`: `@text('title') accessor title!: string` (see [Model](./Model.md)).
 
-   This gives you legacy decorators. To use standard (TC39) decorators instead, see [Standard decorators](./Advanced/StandardDecorators.md).
+   Don't add `@babel/plugin-proposal-decorators` to `plugins` yourself. Your plugins run before the preset's and break its order (since SDK 56). If you're upgrading and have it in your config, delete it.
+
+   Keeping models with legacy decorators, for example from WatermelonDB? See [Legacy decorators](./Advanced/StandardDecorators.md#legacy-decorators).
 
 3. Add the config plugin to `app.json`:
 
@@ -161,22 +161,24 @@ Limitations, multi-tab behavior, and SSR notes are in [wa-sqlite web adapter](./
 
 ## Web without Expo (Webpack, Vite)
 
-Install the Babel plugins:
+Install the decorators plugin, and the TypeScript plugin if Babel compiles your TypeScript:
 
 ```bash
-yarn add --dev @babel/plugin-proposal-decorators @babel/plugin-transform-class-properties
+yarn add --dev @babel/plugin-proposal-decorators @babel/plugin-transform-typescript
 ```
 
-Use this Babel config. Decorators must come first, and class properties must use `loose` mode:
+Use this Babel config. If Babel compiles your TypeScript, keep the TypeScript plugin first; otherwise leave it out:
 
 ```json
 {
   "plugins": [
-    ["@babel/plugin-proposal-decorators", { "legacy": true }],
-    ["@babel/plugin-transform-class-properties", { "loose": true }]
+    ["@babel/plugin-transform-typescript", { "allowDeclareFields": true }],
+    ["@babel/plugin-proposal-decorators", { "version": "2023-11" }]
   ]
 }
 ```
+
+The output uses class static blocks, which every current browser supports. For browsers older than Safari 16.4, also add `@babel/plugin-transform-class-static-block`.
 
 - **Webpack:** put it in `.babelrc` / `babel.config.js`.
 - **Vite + React:** pass it to `@vitejs/plugin-react`:
@@ -190,14 +192,17 @@ Use this Babel config. Decorators must come first, and class properties must use
       react({
         babel: {
           plugins: [
-            ['@babel/plugin-proposal-decorators', { legacy: true }],
-            ['@babel/plugin-transform-class-properties', { loose: true }],
+            ['@babel/plugin-proposal-decorators', { version: '2023-11' }],
           ],
         },
       }),
     ],
   })
   ```
+
+  Vite compiles TypeScript itself, so the decorators plugin is all Babel needs.
+
+Models declare their fields with `accessor` (see [Model](./Model.md)). For legacy decorators, see [Legacy decorators](./Advanced/StandardDecorators.md#legacy-decorators).
 
 Then pick an adapter in [Setup](./Setup.md): SQLite (wa-sqlite) or LokiJS.
 

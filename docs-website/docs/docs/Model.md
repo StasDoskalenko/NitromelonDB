@@ -72,15 +72,15 @@ class Post extends Model {
     comments: { type: 'has_many', foreignKey: 'post_id' },
   }
 
-  @text('title') title
-  @text('body') body
-  @field('is_pinned') isPinned
+  @text('title') accessor title
+  @text('body') accessor body
+  @field('is_pinned') accessor isPinned
 }
 ```
 
 Fields are defined using ES6 decorators. Pass **column name** you defined in Schema as the argument to `@field`.
 
-These docs show legacy decorators. With standard decorators (TypeScript 5+ without `experimentalDecorators`, or Babel's `version: '2023-11'`), declare fields with `accessor`: `@text('title') accessor title`. See [Standard decorators](./Advanced/StandardDecorators.md).
+These docs use standard decorators, the setup [Installation](./Installation.mdx) recommends: fields are declared with `accessor`. With legacy decorators (models from WatermelonDB, for example), leave `accessor` out. See [Decorators](./Advanced/StandardDecorators.md).
 
 **Field types**. Fields are guaranteed to be the same type (string/number/boolean) as the column type defined in Schema. If column is marked `isOptional: true`, fields may also be null.
 
@@ -97,7 +97,7 @@ import { date } from 'nitromelondb/decorators'
 
 class Post extends Model {
   // ...
-  @date('last_event_at') lastEventAt
+  @date('last_event_at') accessor lastEventAt
 }
 ```
 
@@ -111,7 +111,7 @@ import { field, text } from 'nitromelondb/decorators'
 class Post extends Model {
   static table = 'posts'
 
-  @date('archived_at') archivedAt
+  @date('archived_at') accessor archivedAt
 
   get isRecentlyArchived() {
     // in the last 7 days
@@ -130,8 +130,8 @@ import { relation, immutableRelation } from 'nitromelondb/decorators'
 
 class Comment extends Model {
   // ...
-  @relation('posts', 'post_id') post
-  @immutableRelation('users', 'author_id') author
+  @relation('posts', 'post_id') accessor post
+  @immutableRelation('users', 'author_id') accessor author
 }
 ```
 
@@ -150,7 +150,7 @@ class Post extends Model {
     comments: { type: 'has_many', foreignKey: 'post_id' },
   }
 
-  @children('comments') comments
+  @children('comments') accessor comments
 }
 ```
 
@@ -174,10 +174,10 @@ class Post extends Model {
     comments: { type: 'has_many', foreignKey: 'post_id' },
   }
 
-  @children('comments') comments
-  @lazy verifiedComments = this.comments.extend(
-    Q.where('is_verified', true)
-  )
+  @children('comments') accessor comments
+  @lazy get verifiedComments() {
+    return this.comments.extend(Q.where('is_verified', true))
+  }
 }
 ```
 
@@ -193,7 +193,7 @@ import { writer } from 'nitromelondb/decorators'
 class Comment extends Model {
   static table = 'comments'
 
-  @field('is_spam') isSpam
+  @field('is_spam') accessor isSpam
 
   @writer async markAsSpam() {
     await this.update(comment => {

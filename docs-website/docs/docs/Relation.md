@@ -28,7 +28,7 @@ There's two steps to defining a relation:
 
    class Comment extends Model {
      // ...
-     @relation('users', 'author_id') author
+     @relation('users', 'author_id') accessor author
    }
    ```
 
@@ -43,8 +43,8 @@ import { immutableRelation } from 'nitromelondb/decorators'
 
 class Comment extends Model {
   // ...
-  @immutableRelation('posts', 'post_id') post
-  @immutableRelation('users', 'author_id') author
+  @immutableRelation('posts', 'post_id') accessor post
+  @immutableRelation('users', 'author_id') accessor author
 }
 ```
 
@@ -129,10 +129,11 @@ class Post extends Model {
     post_authors: { type: 'has_many', foreignKey: 'post_id' },
   }
 
-  @lazy
-  authors = this.collections
-    .get('users')
-    .query(Q.on('post_authors', 'post_id', this.id));
+  @lazy get authors() {
+    return this.collections
+      .get('users')
+      .query(Q.on('post_authors', 'post_id', this.id))
+  }
 }
 ```
 
@@ -145,8 +146,8 @@ class PostAuthor extends Model {
     posts: { type: 'belongs_to', key: 'post_id' },
     users: { type: 'belongs_to', key: 'user_id' },
   }
-  @immutableRelation('posts', 'post_id') post
-  @immutableRelation('users', 'user_id') user
+  @immutableRelation('posts', 'post_id') accessor post
+  @immutableRelation('users', 'user_id') accessor user
 }
 
 ```
@@ -160,11 +161,11 @@ class User extends Model {
     post_authors: { type: 'has_many', foreignKey: 'user_id' },
   }
 
-  @lazy
-  posts = this.collections
-    .get('posts')
-    .query(Q.on('post_authors', 'user_id', this.id));
-
+  @lazy get posts() {
+    return this.collections
+      .get('posts')
+      .query(Q.on('post_authors', 'user_id', this.id))
+  }
 }
 ```
 

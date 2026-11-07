@@ -28,7 +28,7 @@ import { json } from 'nitromelondb/decorators'
 
 class Comment extends Model {
   // ...
-  @json('reactions', sanitizeReactions) reactions
+  @json('reactions', sanitizeReactions) accessor reactions
 }
 ```
 
@@ -77,7 +77,7 @@ import { field, nochange } from 'nitromelondb/decorators'
 
 class User extends Model {
   // ...
-  @nochange @field('is_owner') isOwner
+  @nochange @field('is_owner') accessor isOwner
 }
 ```
 
@@ -113,10 +113,12 @@ import { distinctUntilChanged, map as map$ } from 'rxjs/operators'
 import { lazy } from 'nitromelondb/decorators'
 
 class Post extends Model {
-  @lazy isPopular = this.comments.observeCount().pipe(
-    map$(comments => comments > 10),
-    distinctUntilChanged()
-  )
+  @lazy get isPopular() {
+    return this.comments.observeCount().pipe(
+      map$(comments => comments > 10),
+      distinctUntilChanged()
+    )
+  }
 }
 ```
 
@@ -143,15 +145,17 @@ import { distinctUntilChanged, map as map$ } from 'rxjs/operators'
 import { lazy } from 'nitromelondb/decorators'
 
 class Post extends Model {
-  @lazy isPopular = this.observe().pipe(
-    distinctUntilKeyChanged('isStarred'),
-    switchMap(post =>
-      post.isStarred ?
-        of$(true) :
-        this.comments.observeCount().pipe(map$(comments => comments > 10))
-    ),
-    distinctUntilChanged(),
-  )
+  @lazy get isPopular() {
+    return this.observe().pipe(
+      distinctUntilKeyChanged('isStarred'),
+      switchMap(post =>
+        post.isStarred ?
+          of$(true) :
+          this.comments.observeCount().pipe(map$(comments => comments > 10))
+      ),
+      distinctUntilChanged(),
+    )
+  }
 }
 ```
 

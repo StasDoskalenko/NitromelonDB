@@ -104,16 +104,16 @@ npx expo prebuild --clean
 npx expo run:ios
 ```
 
-## Optional: switch to standard decorators
+## Recommended: switch to standard decorators
 
-Your models keep working with the legacy decorators they use today, so you can skip this. Standard decorators (TC39 2023-11) are what TypeScript 5+ uses without `experimentalDecorators`, and they need less Babel setup. Our example apps use them. You can switch now, or any time after the migration.
+WatermelonDB models use legacy decorators. They keep working in NitromelonDB, so the steps above are all a migration needs. But we recommend switching to standard decorators (TC39 2023-11): they're what JavaScript is standardizing and what TypeScript 5+ uses, they need less Babel setup, and they don't depend on the plugin order that broke on Expo SDK 56 and React Native 0.87. Our example apps use them. Do it right after the migration, or later.
 
-1. **Babel.** Expo: pass `decorators: { version: '2023-11' }` to `babel-preset-expo`. Bare React Native: use `@babel/plugin-proposal-decorators` with `version: '2023-11'` and `@babel/plugin-transform-class-static-block`. The exact configs are in [Standard decorators](./Advanced/StandardDecorators.md#turn-them-on).
+1. **Babel.** Expo: pass `decorators: { version: '2023-11' }` to `babel-preset-expo`. Bare React Native: use `@babel/plugin-proposal-decorators` with `version: '2023-11'` and `@babel/plugin-transform-class-static-block`. The exact configs are in [Installation](./Installation.mdx).
 2. **TypeScript.** Remove `experimentalDecorators` and `emitDecoratorMetadata` from `tsconfig.json`. TypeScript 5.0+ is required.
 3. **Models.** Add `accessor` to every decorated field: `@text('title') title!: string` becomes `@text('title') accessor title!: string`. Turn `@lazy` fields into getters: `@lazy get recent() { return ... }`.
 4. **Restart the bundler with a cleared cache** (`npx expo start --clear` or `npx react-native start --reset-cache`), then run your type checker and tests.
 
-The decorators mode applies to the whole app, including decorators from other libraries. If you use one that only supports legacy decorators (some versions of MobX, TypeORM or class-validator, for example), stay on legacy decorators for now.
+The decorators setting applies to the whole app, including decorators from other libraries. If you use one that only supports legacy decorators (some versions of MobX, TypeORM or class-validator, for example), stay on [legacy decorators](./Advanced/StandardDecorators.md#legacy-decorators) until it supports standard ones.
 
 Models you haven't updated yet keep working after step 1, and in development NitromelonDB logs a warning naming each field that still needs `accessor`. So you can do step 3 one model at a time.
 
@@ -231,6 +231,6 @@ NitromelonDB ships its own SQLite build, and the Inspector only sees databases o
 - [ ] New Architecture on, `jsi: false` removed
 - [ ] Babel decorators set up as in [Installation](./Installation.mdx) (Expo: no decorator plugin; bare RN 0.87+: four plugins in order)
 - [ ] Full native rebuild
-- [ ] Optional: [standard decorators](#optional-switch-to-standard-decorators)
+- [ ] Recommended: [switch to standard decorators](#recommended-switch-to-standard-decorators)
 
 Next: [Setup](./Setup.md) covers the `Database` options added since WatermelonDB, such as `seed` and `useDatabaseReady`.

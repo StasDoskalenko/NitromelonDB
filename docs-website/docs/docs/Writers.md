@@ -69,7 +69,7 @@ Note that this is the same as defining a simple method that wraps all work in `d
 ```js
 class Comment extends Model {
   // ...
-  @field('is_spam') isSpam
+  @field('is_spam') accessor isSpam
 
   @writer async markAsSpam() {
     await this.update(comment => {
@@ -153,7 +153,7 @@ class Post extends Model {
     comments: { type: 'has_many', foreignKey: 'post_id' },
   }
 
-  @children('comments') comments
+  @children('comments') accessor comments
 
   async markAsDeleted() {
     await this.comments.destroyAllPermanently()
