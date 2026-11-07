@@ -11,6 +11,7 @@
   "scripts": {
     "start": "node src/main.ts",
     "dev": "node --watch src/main.ts",
+    "start:notes-app": "SYNC_SERVER_SCHEMA=notes-app SYNC_SERVER_TEST_HOOKS=1 DATABASE=:memory: node src/main.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

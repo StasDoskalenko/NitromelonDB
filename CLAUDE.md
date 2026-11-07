@@ -39,6 +39,8 @@ maestro test maestro/
 
 One flow: `maestro test maestro/cold-start.yaml`
 
+`maestro/sync.yaml` needs the sync server running first: `cd examples/sync-server && yarn install && yarn start:notes-app` (Android emulator: also `adb reverse tcp:3000 tcp:3000`). The CI scripts start it themselves.
+
 App id: `com.nitromelondb.example`
 
 ## Maestro MCP

@@ -19,6 +19,8 @@ maestro test maestro/cold-start.yaml
 
 For Maestro, use `yarn start:e2e` (`expo start --dev-client --no-dev`), not plain `yarn start`.
 
+`maestro/sync.yaml` also needs the sync server: `cd ../sync-server && yarn install && yarn start:notes-app` (port 3000; on an Android emulator also `adb reverse tcp:3000 tcp:3000`).
+
 App id: `com.nitromelondb.example`
 
 If you need to change database code, that lives in `../../src/` and `../../native/`, then rebuild this app.
