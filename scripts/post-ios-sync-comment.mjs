@@ -27,6 +27,30 @@ const MARKER = '<!-- perf-ios-sync-comment -->'
 const BODY_FILE = '.perf-ios-sync-comment-body.md'
 const REGRESSION_THRESHOLD = 0.1
 
+/**
+ * The summary comes from a run of a PR's code, so keep only what the comment needs, in the shape
+ * it expects: finite numbers, and a device name without markdown or HTML in it.
+ */
+export function sanitizeSummary(summary) {
+  if (!summary || typeof summary !== 'object') return null
+  const number = (value) => (typeof value === 'number' && Number.isFinite(value) ? value : null)
+  const metrics = (values) =>
+    Object.fromEntries(IOS_SYNC_METRICS.map(({ key }) => [key, number(values?.[key])]))
+  return {
+    device:
+      typeof summary.device === 'string'
+        ? summary.device.replace(/[^\w .,()+-]/g, '').slice(0, 80)
+        : null,
+    runs: {
+      sync: number(summary.runs?.sync),
+      realistic: number(summary.runs?.realistic),
+      stress: number(summary.runs?.stress),
+    },
+    nitromelondb: metrics(summary.nitromelondb),
+    watermelondb: metrics(summary.watermelondb),
+  }
+}
+
 function formatValue(value, unit) {
   if (value == null) return '–'
   const rounded =
@@ -97,7 +121,7 @@ export function buildBody({ repo, sha, summary, master, runUrl }) {
 
   lines.push(
     '',
-    '_Comment `/perf ios` on a PR to run it again (maintainers). Also runs on every merge to master. Not a required check._',
+    '_Comment `/perf ios` or re-add the `perf-ios` label to run it again (maintainers). Also runs on every merge to master. Not a required check._',
   )
   return lines.join('\n')
 }
@@ -118,7 +142,7 @@ function main() {
   const body = buildBody({
     repo,
     sha,
-    summary: readIosSyncSummary(summaryFile),
+    summary: sanitizeSummary(readIosSyncSummary(summaryFile)),
     master: latestMasterRun(benchmarksFile),
     runUrl,
   })

@@ -120,10 +120,14 @@ export function summarizeIosSync(dir, device = null) {
   return summary
 }
 
-/** The summary written by this script, or null when the file is missing (the job failed). */
+/** The summary written by this script, or null when the file is missing (the job failed) or not JSON. */
 export function readIosSyncSummary(file) {
   if (!file || !fs.existsSync(file)) return null
-  return JSON.parse(fs.readFileSync(file, 'utf8'))
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'))
+  } catch {
+    return null
+  }
 }
 
 /**

@@ -1,0 +1,82 @@
+name: iOS sync benchmark comment
+
+# Posts the result of a PR run of perf-ios.yml on that PR. A separate workflow_run workflow, so the
+# PR run never needs a write token (fork PRs don't get one), and this one never runs the PR's code:
+# it checks out master's scripts, finds the PR from GitHub's API (not from anything the PR run
+# produced), and only reads the run's result JSON, downloaded outside the workspace and validated
+# by scripts/post-ios-sync-comment.mjs before it goes into the comment.
+
+on:
+  workflow_run:
+    workflows: [iOS sync benchmark]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  comment:
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-24.04
+    name: Post PR comment
+    permissions:
+      actions: read
+      pull-requests: write
+    steps:
+      # Every label added to any PR starts a perf-ios.yml run; only ones that ran the benchmark
+      # (finished or not) get a comment, and a cancelled one was replaced by a newer request
+      - name: Find the PR, if this run benchmarked one
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          conclusion=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID/jobs" \
+            -q '.jobs[] | select(.name == "Benchmark (iOS simulator)") | .conclusion')
+          case "$conclusion" in
+            success|failure|timed_out) ;;
+            *) echo "Benchmark job didn't run (${conclusion:-none}), nothing to post"; exit 0 ;;
+          esac
+          pr=$(gh pr list --state open --limit 200 --json number,headRefOid \
+            -q ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number" | head -1)
+          if [ -z "$pr" ]; then
+            echo "No open PR has head $HEAD_SHA (pushed again since?), nothing to post"
+            exit 0
+          fi
+          echo "pr=$pr" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v6
+        if: steps.target.outputs.pr
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v7
+        if: steps.target.outputs.pr
+        with:
+          name: perf-result-ios-sync
+          path: ${{ runner.temp }}/perf-results
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+        continue-on-error: true
+      - name: Set Node.js version
+        if: steps.target.outputs.pr
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+      - name: Get master's latest recorded run
+        if: steps.target.outputs.pr
+        run: |
+          git fetch origin benchmarks --depth=1 > /dev/null 2>&1 \
+            && git show origin/benchmarks:results/benchmarks.json > "$RUNNER_TEMP/benchmarks.json" \
+            || echo "[]" > "$RUNNER_TEMP/benchmarks.json"
+      - name: Post comment
+        if: steps.target.outputs.pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.target.outputs.pr }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          node scripts/post-ios-sync-comment.mjs "$REPO" "$PR" "$HEAD_SHA" \
+            "$RUNNER_TEMP/perf-results/perf-result-ios-sync.json" "$RUNNER_TEMP/benchmarks.json" "$RUN_URL"

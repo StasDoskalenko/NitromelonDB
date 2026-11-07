@@ -3,15 +3,17 @@ name: iOS sync benchmark
 # Runs examples/benchmark's Sync, Realistic sync and Stress cards on an iOS simulator, NitromelonDB
 # against WatermelonDB 0.28 JSI in the same job (scripts/ci-benchmark-ios.sh). Informational, never
 # a required check. macOS minutes are expensive, so it doesn't run on every PR push:
-#   - on a PR, when a maintainer comments `/perf ios` (or adds the `perf-ios` label); the result is
-#     posted as a PR comment. Anyone else's `/perf ios` gets a reply asking a maintainer to start it
+#   - on a PR when the `perf-ios` label is added: by a maintainer, or by the `request` job below
+#     when a maintainer comments `/perf ios`. perf-ios-comment.yml posts the result on the PR
 #   - on every merge to master that touches the library or the benchmark; the result is recorded
 #     on the `benchmarks` branch for the docs Performance page
 #
-# Security: an issue_comment run uses this file from master, but checks out the PR's code, which
-# can be anyone's. Only OWNER/MEMBER/COLLABORATOR comments start it, and the job that runs the PR's
-# code only gets a read-only token and no secrets. Commenting and publishing happen in separate
-# jobs that run master's scripts on the benchmark's JSON output.
+# Security: a PR's code (possibly from a fork) only ever runs in a `pull_request` run. Its token
+# is read-only for forks, and the caches it writes are scoped to the PR, so it can't poison the
+# caches master's workflows restore. It never runs from the `issue_comment` event, which runs
+# with master's cache scope: code on a hosted runner can read the runner's cache token, so any
+# untrusted code there could write master's caches whatever the steps do. The `request` job only
+# adds the label, and perf-ios-comment.yml runs master's scripts on the result JSON.
 
 on:
   issue_comment:
@@ -35,94 +37,66 @@ permissions:
   contents: read
 
 jobs:
-  # `/perf ios` from someone who can't start a run (it runs the PR's code on paid macOS runners):
-  # acknowledge it, so the request isn't silently ignored, and point a maintainer at it
+  # `/perf ios` on a PR. Runs no repository code. A maintainer's request is turned into the
+  # `perf-ios` label, which starts the benchmark job below as a `pull_request` run. A label added
+  # with the workflow's own token doesn't trigger workflows (GitHub prevents that), so this needs
+  # PERF_LABEL_TOKEN: a fine-grained token with Pull requests: write on this repository. Without
+  # it, the reply asks for the label to be added by hand. Anyone else's request gets a reply asking
+  # a maintainer to start it, since it runs the PR's code on paid macOS runners.
   request:
     if: >-
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '/perf ios') &&
-      !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+      startsWith(github.event.comment.body, '/perf ios')
     runs-on: ubuntu-24.04
-    name: Acknowledge benchmark request
+    name: Handle /perf ios
     permissions:
       pull-requests: write
     steps:
-      - name: Reply
+      - name: Start the benchmark, or reply
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          LABEL_TOKEN: ${{ secrets.PERF_LABEL_TOKEN }}
           COMMENT_ID: ${{ github.event.comment.id }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR: ${{ github.event.issue.number }}
           OWNER: ${{ github.repository_owner }}
+          IS_MAINTAINER: ${{ contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) }}
         run: |
-          gh api -X POST "repos/$GH_REPO/issues/comments/$COMMENT_ID/reactions" -f content=eyes > /dev/null
-          gh pr comment "$ISSUE_NUMBER" --body "Thanks for asking! The iOS sync benchmark runs on macOS runners, so a maintainer starts it: @$OWNER, reply \`/perf ios\` here to run it."
+          set -euo pipefail
+          react() { gh api -X POST "repos/$GH_REPO/issues/comments/$COMMENT_ID/reactions" -f content="$1" > /dev/null; }
+          if [ "$IS_MAINTAINER" != "true" ]; then
+            react eyes
+            gh pr comment "$PR" --body "Thanks for asking! The iOS sync benchmark runs on macOS runners, so a maintainer starts it: @$OWNER, reply \`/perf ios\` here (or add the \`perf-ios\` label) to run it."
+          elif [ -n "$LABEL_TOKEN" ]; then
+            # Removing it first, so a PR that already has the label runs again
+            GH_TOKEN="$LABEL_TOKEN" gh pr edit "$PR" --remove-label perf-ios > /dev/null 2>&1 || true
+            GH_TOKEN="$LABEL_TOKEN" gh pr edit "$PR" --add-label perf-ios > /dev/null
+            react rocket
+          else
+            react confused
+            gh pr comment "$PR" --body "To run the iOS sync benchmark, add the \`perf-ios\` label to this PR (remove and re-add it to run again). \`/perf ios\` can add it for you once the repository has a \`PERF_LABEL_TOKEN\` secret, see \`.github/workflows/perf-ios.yml\`."
+          fi
 
-  # Decides whether this event is a benchmark request, and which commit and PR it's for. Every PR
-  # comment triggers the workflow, so this stays cheap and runs no repository code.
-  resolve:
+  benchmark:
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && github.event.label.name == 'perf-ios') ||
-      (github.event_name == 'issue_comment' &&
-        github.event.issue.pull_request &&
-        startsWith(github.event.comment.body, '/perf ios') &&
-        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
-    runs-on: ubuntu-24.04
-    name: Resolve benchmark target
-    permissions:
-      pull-requests: write
-    outputs:
-      sha: ${{ steps.target.outputs.sha }}
-      pr: ${{ steps.target.outputs.pr }}
-    steps:
-      - name: Find the commit to benchmark
-        id: target
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          EVENT: ${{ github.event_name }}
-          COMMENT_ID: ${{ github.event.comment.id }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          case "$EVENT" in
-            issue_comment)
-              # 🚀 on the comment, so whoever asked sees it was picked up
-              gh api -X POST "repos/$GH_REPO/issues/comments/$COMMENT_ID/reactions" -f content=rocket > /dev/null
-              echo "sha=$(gh pr view "$ISSUE_NUMBER" --json headRefOid -q .headRefOid)" >> "$GITHUB_OUTPUT"
-              echo "pr=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
-              ;;
-            pull_request)
-              echo "sha=$PR_HEAD_SHA" >> "$GITHUB_OUTPUT"
-              echo "pr=$PR_NUMBER" >> "$GITHUB_OUTPUT"
-              ;;
-            *)
-              echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
-              echo "pr=" >> "$GITHUB_OUTPUT"
-              ;;
-          esac
-
-  benchmark:
-    needs: resolve
+      (github.event_name == 'pull_request' && github.event.label.name == 'perf-ios')
     runs-on: macos-26
     name: Benchmark (iOS simulator)
     timeout-minutes: 150
     # A newer request for the same PR replaces a running one; master runs queue instead
     concurrency:
-      group: perf-ios-${{ needs.resolve.outputs.pr || github.ref }}
-      cancel-in-progress: ${{ needs.resolve.outputs.pr != '' }}
+      group: perf-ios-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     env:
       CI: true
       EXPO_NO_TELEMETRY: 1
     steps:
+      # A PR run checks out the PR merged into its base, like the rest of CI
       - uses: actions/checkout@v6
         with:
-          ref: ${{ needs.resolve.outputs.sha }}
           persist-credentials: false
       - name: Set Node.js version
         uses: actions/setup-node@v6
@@ -134,8 +108,8 @@ jobs:
           xcode-version: latest-stable
       # The WatermelonDB app doesn't use this repo's code: its build only changes with the benchmark
       # app, the shared benchmark code or Xcode, so it's reused across runs (the key is computed
-      # before anything is installed into those folders). Runs started by a `/perf ios` comment
-      # run on master's ref, so their caches are shared with master's runs too.
+      # before anything is installed into those folders). A PR run restores master's caches and
+      # saves its own under the PR's scope.
       - name: Xcode version for cache keys
         id: xcode
         run: echo "version=$(xcodebuild -version | tr -s '\n ' '-')" >> "$GITHUB_OUTPUT"
@@ -195,45 +169,9 @@ jobs:
           path: perf-results/
           if-no-files-found: ignore
 
-  comment:
-    needs: [resolve, benchmark]
-    if: always() && needs.resolve.result == 'success' && needs.resolve.outputs.pr != '' && needs.benchmark.result != 'cancelled'
-    runs-on: ubuntu-24.04
-    name: Post PR comment
-    permissions:
-      pull-requests: write
-    steps:
-      # The default ref: master's scripts for a `/perf ios` comment
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v7
-        with:
-          name: perf-result-ios-sync
-          path: perf-results
-        continue-on-error: true
-      - name: Set Node.js version
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24.x
-      - name: Get master's latest recorded run
-        run: |
-          git fetch origin benchmarks --depth=1 > /dev/null 2>&1 \
-            && git show origin/benchmarks:results/benchmarks.json > benchmarks.json \
-            || echo "[]" > benchmarks.json
-      - name: Post comment
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          node scripts/post-ios-sync-comment.mjs \
-            "${{ github.repository }}" \
-            "${{ needs.resolve.outputs.pr }}" \
-            "${{ needs.resolve.outputs.sha }}" \
-            perf-results/perf-result-ios-sync.json \
-            benchmarks.json \
-            "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
   publish:
-    needs: [resolve, benchmark]
-    if: needs.resolve.outputs.pr == '' && github.ref == 'refs/heads/master'
+    needs: benchmark
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     name: Publish benchmark history
     permissions:
