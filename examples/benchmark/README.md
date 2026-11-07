@@ -187,8 +187,13 @@ node scripts/summarize-sync.mjs incremental.jsonl --baseline WatermelonDB
 Android Release builds can't be `run-as`, so the runner clears the app's data (`pm clear`) before
 each run instead of deleting just the database file, and reads RSS from `/proc/<pid>/status`.
 
-Each run relaunches the app, drives the card with [Maestro](https://maestro.dev), and appends one
-JSON line to `--out`. The runner also samples the app process's RSS from the host every 100ms,
+Each run relaunches the app, runs the card once, and appends one JSON line to `--out`. On iOS
+(every card but mass delete), the runner launches the app with a launch argument
+(`-benchAutorun 'card=…&size=…&report=…'`, see `shared/autorun.ts`): the app opens that card, runs
+it, and POSTs the result back to the runner, which also records the engine the app reports. A run
+then costs the app launch plus the benchmark. Elsewhere, or with `--driver maestro`, it drives the
+card with [Maestro](https://maestro.dev) and reads the result from the view hierarchy, which adds
+about 40 s per run on a Mac (two Maestro starts and some UI timeouts). The runner also samples the app process's RSS from the host every 100ms,
 which works because a simulator app is a normal macOS process. It approximates native memory use,
 but it isn't the `phys_footprint` iOS uses for memory limits on a device. The summary prints the
 median of each column, with min–max underneath.
@@ -216,8 +221,8 @@ waiting around the benchmark itself.
 
 `.github/workflows/perf-ios.yml` runs the Sync (5k and 50k), Realistic sync (300 pulls) and Stress
 (Quick) cards with the scripted runner above, on an iOS simulator on GitHub Actions, using Release
-builds of both apps (`scripts/ci-benchmark-ios.sh` at the repo root). It checks that the
-WatermelonDB app really runs the JSI adapter before measuring.
+builds of both apps (`scripts/ci-benchmark-ios.sh` at the repo root). Its summary fails if any
+WatermelonDB run didn't use the JSI adapter.
 
 - **On a PR:** comment `/perf ios`. A maintainer's comment (or the `perf-ios` label) starts it, and
   the result is posted as a PR comment, updated on the next request. Anyone else's comment gets a
@@ -228,10 +233,10 @@ WatermelonDB app really runs the JSI adapter before measuring.
 
 CI machines vary a lot from run to run, so the number to watch is **NitromelonDB relative to
 WatermelonDB JSI measured in the same job**. The PR comment shows that ratio for every metric,
-and how it changed from master's latest run (flagged when it drops by more than 10%). A run takes
-about an hour of macOS runner time, which is why it doesn't run on every push. The WatermelonDB
-app doesn't use this repo's code, so its build is cached and only redone when the benchmark app,
-`shared/` or Xcode changes.
+and how it changed from master's latest run (flagged when it drops by more than 10%). A run is
+mostly building: the WatermelonDB app doesn't use this repo's code, so its build is cached and only
+redone when the benchmark app, `shared/` or Xcode changes. It still costs macOS runner minutes,
+which is why it doesn't run on every push.
 
 ### Timers on Android
 

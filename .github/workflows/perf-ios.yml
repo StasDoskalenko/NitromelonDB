@@ -2,8 +2,7 @@ name: iOS sync benchmark
 
 # Runs examples/benchmark's Sync, Realistic sync and Stress cards on an iOS simulator, NitromelonDB
 # against WatermelonDB 0.28 JSI in the same job (scripts/ci-benchmark-ios.sh). Informational, never
-# a required check. macOS minutes are expensive and a run takes ~1 hour, so it doesn't run on every
-# PR push:
+# a required check. macOS minutes are expensive, so it doesn't run on every PR push:
 #   - on a PR, when a maintainer comments `/perf ios` (or adds the `perf-ios` label); the result is
 #     posted as a PR comment. Anyone else's `/perf ios` gets a reply asking a maintainer to start it
 #   - on every merge to master that touches the library or the benchmark; the result is recorded
@@ -183,10 +182,6 @@ jobs:
           for app in ${{ steps.apps.outputs.list }}; do
             (cd "examples/benchmark/$app/ios" && pod install)
           done
-      - name: Install Maestro
-        run: |
-          curl -fsSL "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
       - name: Install xcbeautify
         run: brew install xcbeautify
       - name: Run the benchmark
