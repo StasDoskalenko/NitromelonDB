@@ -842,5 +842,18 @@
       "ram": 179,
       "fps": 54.8
     }
+  },
+  {
+    "sha": "5a7b0f8a4cca39eb5f4f5b9fc8096ead95fd5911",
+    "date": "2026-11-07T00:27:21.809Z",
+    "prNumber": 181,
+    "subject": "build(deps): bump the npm_and_yarn group across 3 directories with 5 updates (#181)",
+    "android": {
+      "iterationCount": 5,
+      "score": 93,
+      "cpu": 34.5,
+      "ram": 181,
+      "fps": 51.7
+    }
   }
 ]
