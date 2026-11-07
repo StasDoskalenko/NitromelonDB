@@ -271,9 +271,78 @@ function validateRemoteRaw(raw: DirtyRaw): void {
   // TODO: I think other code is actually resilient enough to handle illegal _status and _changed
   // would be best to change that part to a warning - but tests are needed
   invariant(
-    raw && typeof raw === 'object' && 'id' in raw && !('_status' in raw || '_changed' in raw),
-    `[Sync] Invalid raw record supplied to Sync. Records must be objects, must have an 'id' field, and must NOT have a '_status' or '_changed' fields`,
+    raw &&
+      typeof raw === 'object' &&
+      typeof raw.id === 'string' &&
+      !('_status' in raw || '_changed' in raw),
+    `[Sync] Invalid raw record supplied to Sync. Records must be objects, must have a string 'id' field, and must NOT have a '_status' or '_changed' fields`,
   )
+  invariant(
+    !Object.prototype.hasOwnProperty.call(raw, '__proto__'),
+    'Malicious dirtyRaw detected - contains a __proto__ key',
+  )
+}
+
+// Table changes are copied with object spread when applied, which only keeps own enumerable keys
+const isOwnArray = (obj: object, key: string): boolean =>
+  Object.prototype.propertyIsEnumerable.call(obj, key) &&
+  Array.isArray((obj as Record<string, unknown>)[key])
+
+// Checks the whole pulled changeset before anything is prepared. Preparing a record mutates its
+// cached JS model, so if a bad record were only found halfway through, the records prepared before
+// it would stay out of sync with the database (and couldn't be updated until the app restarts).
+function validateRemoteChanges(remoteChanges: SyncDatabaseChangeSet, db: Database): void {
+  invariant(
+    remoteChanges && typeof remoteChanges === 'object',
+    `[Sync] Invalid changeset supplied to Sync. Changes must be an object of per-table changes`,
+  )
+
+  // Enumerating the same way as getAllRecordsToApply (filterObj uses for-in), so that every table
+  // that is applied is validated first
+  // eslint-disable-next-line no-restricted-syntax, guard-for-in
+  for (const tableName in remoteChanges) {
+    // Unknown tables are skipped (for forward-compatibility), so their changes are never applied
+    if (!db.get(tableName as TableName)) {
+      // eslint-disable-next-line no-continue
+      continue
+    }
+
+    const changes: SyncTableChangeSet = remoteChanges[tableName as TableName]
+    invariant(
+      changes &&
+        typeof changes === 'object' &&
+        isOwnArray(changes, 'created') &&
+        isOwnArray(changes, 'updated') &&
+        isOwnArray(changes, 'deleted'),
+      `[Sync] Invalid changeset supplied to Sync for table ${tableName}. Table changes must be an object with own 'created', 'updated', and 'deleted' arrays`,
+    )
+
+    // mutating - perf critical
+    const seenIds: Set<RecordId> = new Set()
+    const checkUnique = (id: RecordId): void => {
+      invariant(
+        !seenIds.has(id),
+        `[Sync] Invalid changeset supplied to Sync. Record ${tableName}#${id} appears more than once in created/updated/deleted`,
+      )
+      seenIds.add(id)
+    }
+
+    changes.created.forEach((raw) => {
+      validateRemoteRaw(raw)
+      checkUnique(dirtyRawId(raw))
+    })
+    changes.updated.forEach((raw) => {
+      validateRemoteRaw(raw)
+      checkUnique(dirtyRawId(raw))
+    })
+    changes.deleted.forEach((id) => {
+      invariant(
+        typeof id === 'string',
+        `[Sync] Invalid changeset supplied to Sync. Deleted ids in table ${tableName} must be strings`,
+      )
+      checkUnique(id)
+    })
+  }
 }
 
 function prepareApplyRemoteChangesToCollection<T extends Model>(
@@ -303,7 +372,6 @@ function prepareApplyRemoteChangesToCollection<T extends Model>(
 
   // Insert and update records
   created.forEach((raw) => {
-    validateRemoteRaw(raw)
     const currentRecord = recordsMap.get(dirtyRawId(raw))
     if (currentRecord) {
       logError(
@@ -325,7 +393,6 @@ function prepareApplyRemoteChangesToCollection<T extends Model>(
   })
 
   updated.forEach((raw) => {
-    validateRemoteRaw(raw)
     const currentRecord = recordsMap.get(dirtyRawId(raw))
 
     if (currentRecord) {
@@ -408,6 +475,7 @@ export default async function applyRemoteChanges(
 ): Promise<void> {
   const { db, _unsafeBatchPerCollection } = context
 
+  validateRemoteChanges(remoteChanges, db)
   const recordsToApply = await getAllRecordsToApply(remoteChanges, context)
 
   // Perform steps concurrently
