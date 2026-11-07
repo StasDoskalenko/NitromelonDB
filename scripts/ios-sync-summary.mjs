@@ -126,12 +126,29 @@ export function readIosSyncSummary(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'))
 }
 
+/**
+ * Throws unless every WatermelonDB run used its JSI adapter. Without its native module it silently
+ * falls back to the asynchronous bridge adapter, which is ~2x slower and would flatter every ratio.
+ * Runs record the engine the app reported (run-sync-trials.mjs --driver launch).
+ */
+export function checkEngines(dir) {
+  const label = LIBRARIES.find((library) => library.key === 'watermelondb').label
+  for (const card of ['sync', 'real', 'stress']) {
+    for (const row of readJsonl(path.join(dir, `${card}.jsonl`))) {
+      if (row.label === label && !/\(JSI\)/.test(row.engine ?? '')) {
+        throw new Error(`${label} ran "${row.engine ?? 'an unknown engine'}" in ${card} run ${row.run}, not JSI`)
+      }
+    }
+  }
+}
+
 function main() {
   const [dir, outFile, ...rest] = process.argv.slice(2)
   if (!dir || !outFile) {
     console.error('Usage: node scripts/ios-sync-summary.mjs <jsonlDir> <outFile> [--device <name>]')
     process.exit(1)
   }
+  checkEngines(dir)
   const deviceAt = rest.indexOf('--device')
   const summary = summarizeIosSync(dir, deviceAt >= 0 ? rest[deviceAt + 1] : null)
   fs.mkdirSync(path.dirname(outFile), { recursive: true })

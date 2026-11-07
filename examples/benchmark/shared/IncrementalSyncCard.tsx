@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
+import type { AutorunProps } from './autorun'
 import type { BenchmarkTheme } from './BenchmarkScreen'
 import { formatNumber } from './format'
 import type {
@@ -17,10 +18,11 @@ function formatMs(ms: number): string {
 type Props = {
   theme: BenchmarkTheme
   run: (options: IncrementalSyncOptions) => Promise<IncrementalSyncResult>
+  autorun?: AutorunProps
 }
 
 // Same card in both apps. See incrementalSyncBenchmark.ts for the workload.
-export function IncrementalSyncCard({ theme, run }: Props) {
+export function IncrementalSyncCard({ theme, run, autorun }: Props) {
   const [seedPerTable, setSeedPerTable] = useState(SEED_SIZES[0]!)
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<IncrementalSyncResult | null>(null)
@@ -28,20 +30,33 @@ export function IncrementalSyncCard({ theme, run }: Props) {
 
   const styles = createStyles(theme)
 
-  const start = async () => {
+  const start = async (seed = seedPerTable) => {
     if (running) {
       return
     }
+    setSeedPerTable(seed)
     setRunning(true)
     setError(null)
     try {
-      setResult(await run({ seedPerTable }))
+      const next = await run({ seedPerTable: seed })
+      setResult(next)
+      autorun?.onResult(next)
     } catch (runError) {
-      setError(runError instanceof Error ? runError.message : String(runError))
+      const message = runError instanceof Error ? runError.message : String(runError)
+      setError(message)
+      autorun?.onError(message)
     } finally {
       setRunning(false)
     }
   }
+
+  useEffect(() => {
+    if (autorun) {
+      void start(autorun.size)
+    }
+    // Only on mount: a launch autoruns once (see autorun.ts)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const row = (label: string, phase: IncrementalPhaseResult) => (
     <View style={styles.tableRow}>

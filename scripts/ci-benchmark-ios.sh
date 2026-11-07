@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Run by .github/workflows/perf-ios.yml. Builds Release simulator builds of both benchmark apps
 # (examples/benchmark: NitromelonDB from this checkout, WatermelonDB 0.28 with JSI as the
-# baseline), then drives their Sync, Realistic sync and Stress cards with the same scripted runner
-# the benchmark README describes, interleaving the two apps run by run. CI machines vary a lot from
+# baseline), then runs their Sync, Realistic sync and Stress cards with the same scripted runner
+# the benchmark README describes, interleaving the two apps run by run. Every run records the
+# engine the app actually used, and the summary fails if WatermelonDB didn't run JSI. CI machines vary a lot from
 # run to run, so the number to watch is NitromelonDB relative to WatermelonDB measured in the same
 # job; the absolute times only compare within one run.
 #
@@ -17,8 +18,11 @@ BENCH="$REPO_ROOT/examples/benchmark"
 OUT="$REPO_ROOT/perf-results/ios"
 mkdir -p "$OUT"
 
-SYNC_RUNS=${SYNC_RUNS:-5}
-REAL_RUNS=${REAL_RUNS:-5}
+# The runner launches the app with a launch argument that runs the card and reports back (its
+# --driver launch, see examples/benchmark/shared/autorun.ts), so a run costs the app launch plus the
+# benchmark itself and more runs are cheap
+SYNC_RUNS=${SYNC_RUNS:-8}
+REAL_RUNS=${REAL_RUNS:-8}
 STRESS_RUNS=${STRESS_RUNS:-3}
 
 # Realistic sync pulls from the mock server (the simulator reaches the host's localhost directly)
@@ -101,22 +105,6 @@ fi
 xcrun simctl bootstatus "$SIM_UDID" -b
 xcrun simctl install "$SIM_UDID" "$NITRO_APP"
 xcrun simctl install "$SIM_UDID" "$WM_APP"
-
-# The baseline has to be WatermelonDB's JSI adapter: without its native module it silently falls
-# back to the asynchronous bridge adapter, which is ~2x slower and would flatter every ratio.
-cat > "${RUNNER_TEMP:-/tmp}/check-wm-engine.yaml" <<'EOF'
-appId: com.watermelondb.benchmark
----
-- launchApp:
-    stopApp: true
-- tapOn:
-    text: "Cancel"
-    optional: true
-- extendedWaitUntil:
-    visible: ".*WatermelonDB SQLite \\(JSI\\).*"
-    timeout: 30000
-EOF
-maestro --device "$SIM_UDID" test "${RUNNER_TEMP:-/tmp}/check-wm-engine.yaml"
 
 APPS='NitromelonDB=com.nitromelondb.benchmark;WatermelonDB JSI=com.watermelondb.benchmark'
 run_card() {
