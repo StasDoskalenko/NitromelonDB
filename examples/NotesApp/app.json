@@ -21,6 +21,7 @@
         }
       ],
       "nitromelondb",
+      "./plugins/withLocalSyncServer",
       "expo-status-bar"
     ],
     "ios": {
