@@ -894,5 +894,18 @@
       "ram": 179,
       "fps": 55.2
     }
+  },
+  {
+    "sha": "646fb251be22e67ce8e406ce766e9153a230b015",
+    "date": "2026-11-07T18:54:27.051Z",
+    "prNumber": 207,
+    "subject": "fix(android): compile the nitrogen Kotlin sources with AGP 9's built-in Kotlin (#207)",
+    "android": {
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 27.6,
+      "ram": 180,
+      "fps": 54.6
+    }
   }
 ]
