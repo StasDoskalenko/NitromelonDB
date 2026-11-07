@@ -855,5 +855,18 @@
       "ram": 181,
       "fps": 51.7
     }
+  },
+  {
+    "sha": "581fbbc30186ae87062d73446ffc4930e1097f97",
+    "date": "2026-11-07T01:16:14.888Z",
+    "prNumber": 203,
+    "subject": "test(notesapp): Maestro flow syncing with the reference sync server (#203)",
+    "android": {
+      "iterationCount": 5,
+      "score": 94,
+      "cpu": 31.5,
+      "ram": 179,
+      "fps": 53.2
+    }
   }
 ]
