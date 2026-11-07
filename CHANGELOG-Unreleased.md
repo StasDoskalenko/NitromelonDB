@@ -31,6 +31,7 @@
 ### Performance
 
 - Sync: `markLocalChangesAsSynced` and applying pulled changes to locally deleted records now take linear time in the number of local changes, instead of quadratic. Pushed records are looked up in a Map by table and id instead of scanning `affectedRecords`, and the locally deleted ids are kept in a Set. This speeds up syncs with many local changes or deletions ([#183](https://github.com/StasDoskalenko/NitromelonDB/issues/183), [#192](https://github.com/StasDoskalenko/NitromelonDB/pull/192) by [@joker-777](https://github.com/joker-777)).
+- iOS/Android/Windows: `batch()` (and so every write, including sync) now hands the encoded operations to native code straight from the JS arrays (`batchJSI`), instead of turning each batch into a JSON string first. On large syncs, those strings fragmented Hermes' heap, so a query returning ~50,000 records right after syncing them took 2.4 s instead of 0.16 s. A 50,000-record sync in the benchmark app is now 2.2× faster overall. Native builds without `batchJSI` keep using `batchJSON` ([#209](https://github.com/StasDoskalenko/NitromelonDB/pull/209)).
 
 ### Changes
 
