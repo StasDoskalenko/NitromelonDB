@@ -212,6 +212,27 @@ The summary's main number is **CPU time**: CPU seconds used during the iteration
 threads. Unlike mean CPU %, it doesn't change with how long the flow spends launching the app or
 waiting around the benchmark itself.
 
+#### In CI (iOS)
+
+`.github/workflows/perf-ios.yml` runs the Sync (5k and 50k), Realistic sync (300 pulls) and Stress
+(Quick) cards with the scripted runner above, on an iOS simulator on GitHub Actions, using Release
+builds of both apps (`scripts/ci-benchmark-ios.sh` at the repo root). It checks that the
+WatermelonDB app really runs the JSI adapter before measuring.
+
+- **On a PR:** comment `/perf ios`. A maintainer's comment (or the `perf-ios` label) starts it, and
+  the result is posted as a PR comment, updated on the next request. Anyone else's comment gets a
+  reply asking a maintainer to start it, since it runs the PR's code on paid macOS runners. The
+  Android flashlight comment on every PR reminds contributors of this.
+- **On every merge to master** that touches the library or the benchmark: the result is recorded
+  on the `benchmarks` branch and charted on the docs site's Performance page.
+
+CI machines vary a lot from run to run, so the number to watch is **NitromelonDB relative to
+WatermelonDB JSI measured in the same job**. The PR comment shows that ratio for every metric,
+and how it changed from master's latest run (flagged when it drops by more than 10%). A run takes
+about an hour of macOS runner time, which is why it doesn't run on every push. The WatermelonDB
+app doesn't use this repo's code, so its build is cached and only redone when the benchmark app,
+`shared/` or Xcode changes.
+
 ### Timers on Android
 
 React Native on Android runs `setTimeout` callbacks on the next display frame, so even

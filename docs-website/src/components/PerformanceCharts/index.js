@@ -2,7 +2,7 @@ import useDocusaurusContext from '@docusaurus/useDocusaurusContext'
 import useBaseUrl from '@docusaurus/useBaseUrl'
 import React, { useEffect, useMemo, useState } from 'react'
 import { MetricChart } from './MetricChart'
-import { METRICS, dateTimeFmt, describeDelta, formatValue, toRows } from './metrics'
+import { SOURCES, dateTimeFmt, describeDelta, formatValue, toRows } from './metrics'
 import styles from './styles.module.css'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -11,6 +11,16 @@ const RANGES = [
   { key: '90d', label: 'Last 90 days', ms: 90 * DAY },
   { key: 'all', label: 'All runs', ms: null },
 ]
+
+// Both chart sections read the same file; fetch it once per page load
+let historyRequest = null
+function loadHistory(url) {
+  historyRequest ??= fetch(url).then((res) => {
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+    return res.json()
+  })
+  return historyRequest
+}
 
 function useRepoUrl() {
   const { siteConfig } = useDocusaurusContext()
@@ -67,7 +77,7 @@ function CommitLinks({ row, previous, repoUrl }) {
 }
 
 /** The clicked run: what it was, where to read the change, and every metric vs the run before it. */
-function PinnedRun({ row, previous, repoUrl, onClose }) {
+function PinnedRun({ row, previous, metrics, repoUrl, onClose }) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -94,13 +104,13 @@ function PinnedRun({ row, previous, repoUrl, onClose }) {
         </button>
       </div>
       <dl className={styles.pinnedMetrics}>
-        {METRICS.map((metric) => {
+        {metrics.map((metric) => {
           const delta = describeDelta(metric, row[metric.key], previous?.[metric.key])
           return (
             <div key={metric.key}>
               <dt>{metric.label}</dt>
               <dd>
-                <strong>{formatValue(row[metric.key])}</strong>
+                <strong>{formatValue(row[metric.key], metric)}</strong>
                 <span className={styles.latestUnit}>{metric.unit}</span>
                 {delta && delta.direction !== 'flat' && (
                   <span className={styles.delta} data-direction={delta.direction}>
@@ -116,7 +126,7 @@ function PinnedRun({ row, previous, repoUrl, onClose }) {
   )
 }
 
-function RunsTable({ rows, repoUrl, onSelect }) {
+function RunsTable({ rows, metrics, repoUrl, onSelect }) {
   return (
     <details className={styles.tableWrap}>
       <summary>Show all {rows.length} runs as a table</summary>
@@ -126,7 +136,7 @@ function RunsTable({ rows, repoUrl, onSelect }) {
             <tr>
               <th>Date</th>
               <th>Commit</th>
-              {METRICS.map((m) => (
+              {metrics.map((m) => (
                 <th key={m.key} className={styles.num}>
                   {m.label} ({m.unit})
                 </th>
@@ -158,9 +168,9 @@ function RunsTable({ rows, repoUrl, onSelect }) {
                   )}
                   {row.subject && <div className={styles.tableSubject}>{row.subject}</div>}
                 </td>
-                {METRICS.map((m) => (
+                {metrics.map((m) => (
                   <td key={m.key} className={styles.num}>
-                    {formatValue(row[m.key])}
+                    {formatValue(row[m.key], m)}
                   </td>
                 ))}
               </tr>
@@ -173,11 +183,13 @@ function RunsTable({ rows, repoUrl, onSelect }) {
 }
 
 /**
- * Renders NotesApp perf-benchmark history (one point per merge to master,
- * appended by the perf-publish CI job) fetched client-side from the static
- * JSON synced onto this branch by scripts/update-docusaurus at build time.
+ * Renders one section of the perf-benchmark history (one point per merge to master, appended by
+ * the perf-publish job in ci.yml for `android` and the publish job in perf-ios.yml for `iosSync`),
+ * fetched client-side from the static JSON synced onto this branch by scripts/update-docusaurus at
+ * build time. `empty` is shown until the section has its first run.
  */
-export default function PerformanceCharts() {
+export default function PerformanceCharts({ source = 'android', empty }) {
+  const { metrics, color } = SOURCES[source]
   const dataUrl = useBaseUrl('/data/benchmarks.json')
   const repoUrl = useRepoUrl()
   const [history, setHistory] = useState(null)
@@ -187,11 +199,7 @@ export default function PerformanceCharts() {
 
   useEffect(() => {
     let cancelled = false
-    fetch(dataUrl)
-      .then((res) => {
-        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-        return res.json()
-      })
+    loadHistory(dataUrl)
       .then((data) => {
         if (!cancelled) setHistory(Array.isArray(data) ? data : [])
       })
@@ -203,7 +211,7 @@ export default function PerformanceCharts() {
     }
   }, [dataUrl])
 
-  const allRows = useMemo(() => (history ? toRows(history) : []), [history])
+  const allRows = useMemo(() => (history ? toRows(history, source) : []), [history, source])
 
   const rows = useMemo(() => {
     const range = RANGES.find((r) => r.key === rangeKey)
@@ -227,22 +235,16 @@ export default function PerformanceCharts() {
   }
 
   if (allRows.length === 0) {
-    return (
-      <p className={styles.empty}>
-        No benchmark runs recorded yet. Data appears here after the first merge to{' '}
-        <code>master</code> runs the perf CI job (see{' '}
-        <code>scripts/ci-notesapp-android-maestro.sh</code>).
-      </p>
-    )
+    return <p className={styles.empty}>{empty ?? 'No benchmark runs recorded yet.'}</p>
   }
 
   return (
-    <>
+    <div style={{ '--perf-series': color }}>
       <div className={styles.toolbar}>
         <RangeFilter value={rangeKey} onChange={setRangeKey} />
         <p className={styles.caption}>
           {rows.length} of {allRows.length} run{allRows.length === 1 ? '' : 's'} · hover to compare
-          all four metrics, click a run to pin it.
+          every metric, click a run to pin it.
         </p>
       </div>
 
@@ -250,24 +252,26 @@ export default function PerformanceCharts() {
         <PinnedRun
           row={pinned}
           previous={pinnedPrevious}
+          metrics={metrics}
           repoUrl={repoUrl}
           onClose={() => setPinnedSha(null)}
         />
       )}
 
       <div className={styles.grid}>
-        {METRICS.map((metric) => (
+        {metrics.map((metric) => (
           <MetricChart
             key={metric.key}
             rows={rows}
             metric={metric}
+            syncId={`perf-${source}`}
             pinnedIndex={pinnedVisible ? pinned.index : null}
             onSelect={setPinnedSha}
           />
         ))}
       </div>
 
-      <RunsTable rows={rows} repoUrl={repoUrl} onSelect={setPinnedSha} />
-    </>
+      <RunsTable rows={rows} metrics={metrics} repoUrl={repoUrl} onSelect={setPinnedSha} />
+    </div>
   )
 }
