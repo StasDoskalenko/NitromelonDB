@@ -289,7 +289,7 @@ describe('synchronize', () => {
     const pullChanges = async () => ({
       changes: makeChangeSet({
         mock_projects: {
-          created: [{ id: 'p2', name: 'remote' }], // error - update, stay synced
+          created: [{ id: 'p2', name: 'remote' }], // conflict with a local, not yet pushed record
           updated: [{ id: 'p1', name: 'change' }], // update
         },
         mock_tasks: {
@@ -304,11 +304,13 @@ describe('synchronize', () => {
     await synchronize({ database, pullChanges, pushChanges: jest.fn(), conflictResolver })
 
     expect(conflictResolver).toHaveBeenCalledTimes(4)
+    // p2 was created locally and not pushed yet, so its locally set name wins (see
+    // inferLocallySetColumns)
     expect(conflictResolver.mock.calls[0]).toMatchObject([
       'mock_projects',
-      { id: 'p2', _status: 'created', name: 'local' },
+      { id: 'p2', _status: 'created', name: 'local', _changed: 'name' },
       { name: 'remote' },
-      { name: 'remote' },
+      { name: 'local' },
     ])
     expect(conflictResolver.mock.calls[1]).toMatchObject([
       'mock_projects',
@@ -503,6 +505,30 @@ describe('synchronize', () => {
       affectedRecords: [project3],
     })
   })
+  it(`lets the server win on locally created records for columns left at their default`, async () => {
+    const { database, tasks } = makeDatabase()
+    await database.write(() =>
+      tasks.create((t) => {
+        t._raw.id = 't1'
+        t.name = 'local'
+        t.position = 0 // the column's default, so it counts as not set
+      }),
+    )
+
+    await synchronize({
+      database,
+      pullChanges: async () => ({
+        changes: makeChangeSet({
+          mock_tasks: { updated: [{ id: 't1', name: 'remote', position: 10 }] },
+        }),
+        timestamp: 1500,
+      }),
+      pushChanges: jest.fn(),
+      sendCreatedAsUpdated: true,
+    })
+
+    await expectSyncedAndMatches(tasks, 't1', { name: 'local', position: 10 })
+  })
   it(`resolves conflicts on locally created records per column`, async () => {
     const { database, tasks } = makeDatabase()
     const task = await database.write(() =>
@@ -512,7 +538,8 @@ describe('synchronize', () => {
         t.position = 5
       }),
     )
-    expect(task._raw).toMatchObject({ _status: 'created', _changed: 'name,position' })
+    // creating a record doesn't record its columns; sync infers them on a conflict
+    expect(task._raw).toMatchObject({ _status: 'created', _changed: '' })
 
     const pushChanges = jest.fn()
     await synchronize({
@@ -535,7 +562,7 @@ describe('synchronize', () => {
     expect(pushChanges).toHaveBeenCalledTimes(1)
     const pushed = pushChanges.mock.calls[0][0].changes.mock_tasks
     expect(pushed.created).toEqual([
-      expect.objectContaining({ ...resolved, _status: 'created', _changed: 'name,position' }),
+      expect.objectContaining({ ...resolved, _status: 'created', _changed: '' }),
     ])
     expect(pushed.updated).toEqual([])
     await expectSyncedAndMatches(tasks, 't1', resolved)
