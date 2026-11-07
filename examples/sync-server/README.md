@@ -26,6 +26,7 @@ yarn start              # http://127.0.0.1:3000, data in sync.db
 | `PORT`                     | `3000`      | `0` picks a free port                                                    |
 | `HOST`                     | `127.0.0.1` | `0.0.0.0` to reach it from a phone on your network                       |
 | `DATABASE`                 | `sync.db`   | SQLite file, or `:memory:`                                               |
+| `SYNC_SERVER_SCHEMA`       | `default`   | `notes-app` syncs the example NotesApp's `notes` table instead           |
 | `SYNC_SERVER_SEND_CREATED` | unset       | `1` splits pulled records into `created` and `updated` (see below first) |
 | `SYNC_SERVER_TEST_HOOKS`   | unset       | `1` enables the `/__test/*` endpoints the tests use. Never in production |
 

@@ -10,6 +10,7 @@ import type { ExampleDatabase } from '../database'
 import { useNotes } from '../hooks/useNotes'
 import { useScreenInsets } from '../hooks/useScreenInsets'
 import Note from '../model/Note'
+import { syncNotes } from '../sync'
 import { colors } from '../theme'
 
 type NotesScreenProps = {
@@ -35,6 +36,10 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
   // so a second submit landing in the same tick as the first — e.g. Enter and
   // a fallback button click on Windows — would still read `busy` as false.
   const addInFlight = useRef(false)
+  const [syncStatus, setSyncStatus] = useState<string | null>(null)
+  const syncInFlight = useRef(false)
+  // Shown in the status ("Synced (2)") so Maestro can tell one finished sync from the next
+  const syncCount = useRef(0)
 
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
@@ -77,6 +82,25 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
     }
   }
 
+  const sync = async () => {
+    if (syncInFlight.current) {
+      return
+    }
+    syncInFlight.current = true
+    setSyncStatus('Syncing…')
+    try {
+      await syncNotes(db.database)
+      syncCount.current += 1
+      setSyncStatus(`Synced (${syncCount.current})`)
+    } catch (syncError) {
+      setSyncStatus(
+        `Sync failed: ${syncError instanceof Error ? syncError.message : String(syncError)}`,
+      )
+    } finally {
+      syncInFlight.current = false
+    }
+  }
+
   const deleteAllNotes = async () => {
     if (deletingAll) {
       return
@@ -106,6 +130,8 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
         schemaVersion={db.schemaVersion}
         totalCount={totalCount}
         onLongPressTitle={onOpenNestedWriterChecks}
+        onSync={() => void sync()}
+        syncStatus={syncStatus}
       />
 
       <Pressable

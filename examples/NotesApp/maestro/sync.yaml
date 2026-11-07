@@ -1,0 +1,70 @@
+# Syncs with the reference sync server (examples/sync-server): pulls a note created on the server,
+# then pushes a note created on the device.
+#
+# Needs the server running with the NotesApp schema (CI scripts start it):
+#   cd examples/sync-server && yarn install && yarn start:notes-app
+# Android emulator: also run `adb reverse tcp:3000 tcp:3000`.
+# Run from examples/NotesApp: maestro test maestro/sync.yaml
+
+appId: com.nitromelondb.example
+env:
+  SYNC_SERVER_URL: http://127.0.0.1:3000
+---
+- launchApp:
+    clearState: true
+
+# Seed is async: wait for the subtitle, which appears once the 100 notes are there
+- extendedWaitUntil:
+    visible:
+      id: "subtitle"
+    timeout: 60000
+
+- assertVisible:
+    text: ".*100 notes.*"
+
+- runScript:
+    file: ../maestro-commands/sync-server.js
+    env:
+      ACTION: prepare
+      SERVER: ${SYNC_SERVER_URL}
+
+# First sync: pushes the 100 seeded notes and pulls the server's note
+- tapOn:
+    id: "sync-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Synced (1)"
+    timeout: 30000
+
+- assertVisible:
+    text: "From the server"
+
+- assertVisible:
+    text: ".*101 notes.*"
+
+- runFlow:
+    file: ../maestro-commands/add-note.yaml
+    env:
+      TITLE: "From the device"
+
+# Second sync: pushes the new note
+- tapOn:
+    id: "sync-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Synced (2)"
+    timeout: 30000
+
+- runScript:
+    file: ../maestro-commands/sync-server.js
+    env:
+      ACTION: verify
+      SERVER: ${SYNC_SERVER_URL}
+      DEVICE_NOTE_TITLE: "From the device"
+
+- assertTrue: ${output.serverHasDeviceNote}
+
+# 100 seeded + 1 from the server + 1 from the device
+- assertTrue: ${output.serverNoteCount == 102}

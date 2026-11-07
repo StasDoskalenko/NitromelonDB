@@ -254,6 +254,9 @@ jobs:
       - name: Install NotesApp
         working-directory: examples/NotesApp
         run: yarn install --immutable
+      - name: Install the sync server
+        working-directory: examples/sync-server
+        run: yarn install --immutable
       - uses: gradle/actions/setup-gradle@v5
       - name: Expo prebuild Android
         working-directory: examples/NotesApp
@@ -318,6 +321,9 @@ jobs:
       - run: yarn install --immutable
       - name: Install NotesApp
         working-directory: examples/NotesApp
+        run: yarn install --immutable
+      - name: Install the sync server
+        working-directory: examples/sync-server
         run: yarn install --immutable
       - name: Expo prebuild iOS
         working-directory: examples/NotesApp
