@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "license": "MIT",
   "scripts": {
-    "test": "tsc --noEmit"
+    "test": "tsc --noEmit && tsc --noEmit -p tsconfig.standard.json"
   },
   "devDependencies": {
     "@types/lokijs": "^1.5.3",

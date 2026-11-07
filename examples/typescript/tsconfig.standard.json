@@ -1,0 +1,9 @@
+{
+  // Standard (TC39 2023-11) decorators: same as tsconfig.json, without experimentalDecorators
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "experimentalDecorators": false,
+    "emitDecoratorMetadata": false
+  },
+  "include": ["./standardDecorators/*.ts", "../../src/**/*.d.ts"]
+}

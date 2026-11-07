@@ -1,7 +1,9 @@
 import { isObj } from '../../utils/fp'
 import { catchError, of } from '../../utils/rx'
 
-import type { BabelDescriptor } from '../common'
+import invariant from '../../utils/common/invariant'
+
+import { isStandardDecoratorContext, type BabelDescriptor } from '../common'
 
 type Thenable = { catch: (onRejected: (reason: unknown) => unknown) => unknown }
 type Pipeable = { pipe: (...ops: unknown[]) => unknown }
@@ -13,6 +15,10 @@ type FailsafeValue = {
 
 function failsafe(fallback?: unknown): PropertyDecorator {
   return (_target: object, key: string | symbol, descriptor?: BabelDescriptor) => {
+    invariant(
+      !isStandardDecoratorContext(key),
+      '@experimentalFailsafe only supports legacy decorators for now.',
+    )
     const propertyKey = String(key)
     const desc = descriptor || {}
 

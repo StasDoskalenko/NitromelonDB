@@ -14,6 +14,7 @@ import { type ResultCallback, toPromise, mapValue } from '../utils/fp/Result'
 import { type Unsubscribe } from '../utils/subscriptions'
 
 import Query from '../Query'
+import { checkDecoratedFields } from '../decorators/common'
 import type Database from '../Database'
 import type Model from '../Model'
 import type { RecordId, Associations } from '../Model'
@@ -82,7 +83,11 @@ export default class Collection<Record extends Model> {
     this.modelClass = ModelClass
     this._cache = new RecordCache<Record>(
       ModelClass.table,
-      (raw) => new ModelClass(this, raw),
+      (raw) => {
+        const record = new ModelClass(this, raw)
+        checkDecoratedFields(record)
+        return record
+      },
       this,
     )
   }

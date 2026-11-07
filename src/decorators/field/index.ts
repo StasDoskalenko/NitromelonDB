@@ -3,7 +3,8 @@ import makeDecorator from '../../utils/common/makeDecorator'
 import { type Value } from '../../QueryDescription'
 import { type ColumnName } from '../../Schema'
 
-import { ensureDecoratorUsedProperly, type ModelDecoratorHost } from '../common'
+import { modelFieldDecorator, type ModelDecoratorHost } from '../common'
+import type { ModelFieldDecorator } from '../types'
 
 // Defines a model property
 //
@@ -14,23 +15,18 @@ import { ensureDecoratorUsedProperly, type ModelDecoratorHost } from '../common'
 //
 // Example:
 //   @field('some_field') someField
+//   @field('some_field') accessor someField (standard decorators)
 
-const field = makeDecorator(
-  (columnName: unknown) => (target: object, key: string, descriptor: PropertyDescriptor) => {
-    const name = columnName as ColumnName
-    ensureDecoratorUsedProperly(name, target, key, descriptor)
-
-    return {
-      configurable: true,
-      enumerable: true,
-      get(this: ModelDecoratorHost): Value {
-        return this.asModel._getRaw(name)
-      },
-      set(this: ModelDecoratorHost, value: Value): void {
-        this.asModel._setRaw(name, value)
-      },
-    }
-  },
-) as (columnName: ColumnName) => PropertyDecorator
+const field = makeDecorator((columnName: unknown) => {
+  const name = columnName as ColumnName
+  return modelFieldDecorator('@field', name, () => ({
+    get(this: ModelDecoratorHost): Value {
+      return this.asModel._getRaw(name)
+    },
+    set(this: ModelDecoratorHost, value: Value): void {
+      this.asModel._setRaw(name, value)
+    },
+  }))
+}) as (columnName: ColumnName) => ModelFieldDecorator
 
 export default field

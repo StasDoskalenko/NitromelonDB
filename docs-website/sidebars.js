@@ -49,6 +49,7 @@ const sidebars = {
     Advanced: [
       'docs/Advanced/CreateUpdateTracking',
       'docs/Advanced/AdvancedFields',
+      'docs/Advanced/StandardDecorators',
       'docs/Advanced/CustomCollections',
       'docs/Advanced/Flow',
       'docs/Advanced/LocalStorage',

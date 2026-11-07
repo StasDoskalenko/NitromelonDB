@@ -80,6 +80,8 @@ class Post extends Model {
 
 Fields are defined using ES6 decorators. Pass **column name** you defined in Schema as the argument to `@field`.
 
+These docs use legacy decorators, the default: on Expo they need no Babel setup. Standard (TC39) decorators work too. With them, declare fields with `accessor` (`@text('title') accessor title`). See [Decorators](./Advanced/StandardDecorators.md).
+
 **Field types**. Fields are guaranteed to be the same type (string/number/boolean) as the column type defined in Schema. If column is marked `isOptional: true`, fields may also be null.
 
 **User text fields**. For fields that contain arbitrary text specified by the user (e.g. names, titles, comment bodies), use `@text` - a simple extension of `@field` that also trims whitespace.
@@ -173,9 +175,9 @@ class Post extends Model {
   }
 
   @children('comments') comments
-  @lazy verifiedComments = this.comments.extend(
-    Q.where('is_verified', true)
-  )
+  @lazy get verifiedComments() {
+    return this.comments.extend(Q.where('is_verified', true))
+  }
 }
 ```
 
@@ -209,6 +211,29 @@ For logic that belongs to the whole table rather than one record (creating recor
 named queries), you can give the table its own `Collection` subclass.
 
 **➡️ Learn more:** [Custom Collections](./Advanced/CustomCollections.md)
+
+## TypeScript: `!` and keeping fields in sync with the schema
+
+In TypeScript, model fields need `!` (`@text('title') title!: string`). With `strictPropertyInitialization` on, TypeScript requires every field to be set in the constructor, and it can't tell that a decorator provides the value. That's true with both standard and legacy decorators, and decorated `declare` fields aren't allowed. So `!` is expected, not a smell.
+
+`!` only says "something sets this". The type after it is a promise you make, and **nothing checks it against the schema**. When the two drift apart, TypeScript stays quiet and the bug shows up at runtime:
+
+| Drift | Example | What happens |
+| --- | --- | --- |
+| An optional column typed without `null` | `subtitle` is `isOptional: true`, but the field is `subtitle!: string` | Reads return `null` typed as `string`, so `subtitle.trim()` crashes later, far from the cause. |
+| The wrong type | `rank` is a `number` column, but the field is typed `string` | Reads return a number. **Writes of the wrong type are silently stored as the column's empty value** (`''`, `0`, `false`, or `null` if optional), with no error. |
+| A misspelled column name | `@field('positon')` instead of `'position'` | Reads return `undefined`. Writes throw `Cannot destructure property 'type' of 'columnSchema' as it is undefined.` |
+| A column renamed or removed in a migration, but not in the model | the schema drops `legacy_flag`, and the model still has `@field('legacy_flag')` | Same as a misspelled name. |
+| A missing decorator | `title!: string` with no `@text(...)` | The field is always `undefined`, and nothing reads or writes the database. |
+
+Until NitromelonDB can check this for you, keep models and the schema in step by hand:
+
+- **Write optional columns as `T | null`**: `@text('subtitle') subtitle!: string | null`. A column that isn't optional is never `null`. Missing values become `''`, `0` or `false`.
+- **Match the decorator's type**: `@field` on a `string`, `number` or `boolean` column, `@text` on `string`, `@date` on a `number` column (typed `Date`, or `Date | null` if optional), `@json` gets its sanitizer's return type, `@relation` / `@immutableRelation` give `Relation<Model>`, and `@children` gives `Query<Model>`.
+- **Update models in the same change as a migration** that renames, removes or retypes a column.
+- **Have one test per model that writes and reads back every field.** It catches misspelled columns (the write throws), wrong types (the value comes back as `''`, `0` or `false`) and missing decorators (the value comes back `undefined`).
+
+Checking field types against the schema at compile time is planned: [plans/typed-schema-fields.md](https://github.com/StasDoskalenko/NitromelonDB/blob/master/plans/typed-schema-fields.md).
 
 ## Advanced fields
 

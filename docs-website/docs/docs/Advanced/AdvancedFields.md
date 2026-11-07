@@ -113,10 +113,12 @@ import { distinctUntilChanged, map as map$ } from 'rxjs/operators'
 import { lazy } from 'nitromelondb/decorators'
 
 class Post extends Model {
-  @lazy isPopular = this.comments.observeCount().pipe(
-    map$(comments => comments > 10),
-    distinctUntilChanged()
-  )
+  @lazy get isPopular() {
+    return this.comments.observeCount().pipe(
+      map$(comments => comments > 10),
+      distinctUntilChanged()
+    )
+  }
 }
 ```
 
@@ -143,15 +145,17 @@ import { distinctUntilChanged, map as map$ } from 'rxjs/operators'
 import { lazy } from 'nitromelondb/decorators'
 
 class Post extends Model {
-  @lazy isPopular = this.observe().pipe(
-    distinctUntilKeyChanged('isStarred'),
-    switchMap(post =>
-      post.isStarred ?
-        of$(true) :
-        this.comments.observeCount().pipe(map$(comments => comments > 10))
-    ),
-    distinctUntilChanged(),
-  )
+  @lazy get isPopular() {
+    return this.observe().pipe(
+      distinctUntilKeyChanged('isStarred'),
+      switchMap(post =>
+        post.isStarred ?
+          of$(true) :
+          this.comments.observeCount().pipe(map$(comments => comments > 10))
+      ),
+      distinctUntilChanged(),
+    )
+  }
 }
 ```
 

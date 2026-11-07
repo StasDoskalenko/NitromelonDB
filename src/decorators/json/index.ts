@@ -1,7 +1,8 @@
 import { type ColumnName } from '../../Schema'
 import type Model from '../../Model'
 
-import { ensureDecoratorUsedProperly, type ModelDecoratorHost } from '../common'
+import { modelFieldDecorator, type ModelDecoratorHost } from '../common'
+import type { ModelFieldDecorator } from '../types'
 
 // Defines a model property that's (de)serialized to and from JSON using custom sanitizer function.
 //
@@ -45,45 +46,39 @@ export function json<TInput = unknown, TOutput = TInput>(
   rawFieldName: ColumnName,
   sanitizer: Sanitizer<TInput, TOutput>,
   options: Options = defaultOptions,
-): PropertyDecorator {
-  return (target: object, key: string | symbol, descriptor?: PropertyDescriptor) => {
-    ensureDecoratorUsedProperly(rawFieldName, target, String(key), descriptor)
+): ModelFieldDecorator {
+  return modelFieldDecorator('@json', rawFieldName, () => ({
+    get(this: ModelDecoratorHost): unknown {
+      const model = this
+      const rawValue = model.asModel._getRaw(rawFieldName)
 
-    return {
-      configurable: true,
-      enumerable: true,
-      get(this: ModelDecoratorHost): unknown {
-        const model = this
-        const rawValue = model.asModel._getRaw(rawFieldName)
-
-        if (options.memo) {
-          // Use cached value if possible
-          model._jsonDecoratorCache = model._jsonDecoratorCache || {}
-          const cachedEntry = model._jsonDecoratorCache[rawFieldName]
-          if (cachedEntry && cachedEntry[0] === rawValue) {
-            return cachedEntry[1]
-          }
+      if (options.memo) {
+        // Use cached value if possible
+        model._jsonDecoratorCache = model._jsonDecoratorCache || {}
+        const cachedEntry = model._jsonDecoratorCache[rawFieldName]
+        if (cachedEntry && cachedEntry[0] === rawValue) {
+          return cachedEntry[1]
         }
+      }
 
-        const parsedValue = parseJSON(rawValue)
-        const sanitized = sanitizer(parsedValue as TInput, model as unknown as Model)
+      const parsedValue = parseJSON(rawValue)
+      const sanitized = sanitizer(parsedValue as TInput, model as unknown as Model)
 
-        if (options.memo) {
-          model._jsonDecoratorCache = model._jsonDecoratorCache || {}
-          model._jsonDecoratorCache[rawFieldName] = [rawValue, sanitized]
-        }
+      if (options.memo) {
+        model._jsonDecoratorCache = model._jsonDecoratorCache || {}
+        model._jsonDecoratorCache[rawFieldName] = [rawValue, sanitized]
+      }
 
-        return sanitized
-      },
-      set(this: ModelDecoratorHost, jsonValue: unknown): void {
-        const model = this
-        const sanitizedValue = sanitizer(jsonValue as TInput, model as unknown as Model)
-        const stringifiedValue = sanitizedValue != null ? JSON.stringify(sanitizedValue) : null
+      return sanitized
+    },
+    set(this: ModelDecoratorHost, jsonValue: unknown): void {
+      const model = this
+      const sanitizedValue = sanitizer(jsonValue as TInput, model as unknown as Model)
+      const stringifiedValue = sanitizedValue != null ? JSON.stringify(sanitizedValue) : null
 
-        model.asModel._setRaw(rawFieldName, stringifiedValue)
-      },
-    }
-  }
+      model.asModel._setRaw(rawFieldName, stringifiedValue)
+    },
+  })) as ModelFieldDecorator
 }
 
 export const jsonDecorator = json

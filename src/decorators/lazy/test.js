@@ -34,4 +34,20 @@ describe('decorators/lazy', () => {
     expect(x2.foo).toEqual({ id: 2 })
     expect(fooMakesCounter).toBe(2)
   })
+  it('works on getters, computing once per instance', () => {
+    let made = 0
+    class X {
+      @lazy
+      get foo() {
+        made += 1
+        return { id: made }
+      }
+    }
+    const x = new X()
+    expect(made).toBe(0)
+    expect(x.foo).toBe(x.foo)
+    expect(x.foo).toEqual({ id: 1 })
+    expect(new X().foo).toEqual({ id: 2 })
+    expect(made).toBe(2)
+  })
 })

@@ -2,13 +2,17 @@
 /* eslint-disable no-console */
 
 /**
- * Compiles and runs a decorated model through the Babel configs that
- * docs-website/docs/docs/Installation.mdx tells people to use, so the docs
- * can't drift from what the presets actually need (#182).
+ * Compiles and runs a decorated model through the Babel configs the docs tell people to use, so
+ * the docs can't drift from what the presets actually need (#182).
  *
- * The configs are read from the doc's own code blocks, not copied here.
- *   - React Native (bare): `@react-native/babel-preset` from the library root
- *   - Expo: `babel-preset-expo` from examples/NotesApp (install it first)
+ * The configs are read from the docs' own code blocks, not copied here:
+ *   - Installation.mdx (legacy decorators, the default): bare React Native, Expo and web
+ *   - Advanced/StandardDecorators.md, "Standard decorators" (2023-11): bare React Native, Expo
+ *     and web
+ *
+ * Presets and plugins come from examples/NotesApp (`babel-preset-expo`,
+ * `@react-native/babel-preset`, `@babel/plugin-transform-class-static-block`,
+ * `@babel/preset-typescript`), so install it first.
  *
  * Usage: node scripts/check-babel-docs.mjs
  */
@@ -20,12 +24,12 @@ import { fileURLToPath } from 'node:url'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const notesAppDir = path.join(repoRoot, 'examples', 'NotesApp')
-const docPath = path.join(repoRoot, 'docs-website', 'docs', 'docs', 'Installation.mdx')
+const docsDir = path.join(repoRoot, 'docs-website', 'docs', 'docs')
 
 // Same shape as a real model: a `!` field (the case that broke in #182), a plain field, a
 // static, and private members, which pull in the class-feature plugins. The decorator mimics
 // @field: a prototype getter/setter that an own instance property must not shadow.
-const modelSource = `
+const legacyModelSource = `
 function field(column) {
   return function (target, key, descriptor) {
     return {
@@ -44,6 +48,34 @@ class Tx {
   @field('title') title: string
   hasSecret(other: object): boolean { return #secret in other }
 }
+`
+
+// The same model for standard decorators: `amount` is an accessor (the getter/setter replaces
+// it), `title` a plain field (the per-record fallback for models not migrated yet).
+const standardModelSource = `
+function field(column) {
+  return function (value, context) {
+    const get = function () { return this._raw[column] ?? null }
+    const set = function (next) { this._raw[column] = next }
+    if (context.kind === 'accessor') {
+      return { get, set }
+    }
+    context.addInitializer(function () {
+      Object.defineProperty(this, context.name, { configurable: true, enumerable: true, get, set })
+    })
+  }
+}
+class Tx {
+  static table = 'tx'
+  _raw = {}
+  #secret = 1
+  @field('amount') accessor amount!: number
+  @field('title') title!: string
+  hasSecret(other: object): boolean { return #secret in other }
+}
+`
+
+const modelResult = `
 const tx = new Tx()
 tx.amount = 5
 tx._raw.title = 'hi'
@@ -55,13 +87,14 @@ module.exports = {
 }
 `
 
-function section(doc, startHeading, endHeading) {
-  const start = doc.indexOf(`\n${startHeading}\n`)
-  const end = doc.indexOf(`\n${endHeading}\n`, start + 1)
-  if (start === -1 || end === -1) {
-    throw new Error(`Installation.mdx: couldn't find the "${startHeading}" section`)
+// Text between `start` and the next `end`, both literal markers in the doc
+function between(doc, docName, start, end) {
+  const from = doc.indexOf(start)
+  const to = doc.indexOf(end, from + start.length)
+  if (from === -1 || to === -1) {
+    throw new Error(`${docName}: couldn't find "${start}"`)
   }
-  return doc.slice(start, end)
+  return doc.slice(from, to)
 }
 
 function babelConfigBlock(text, label) {
@@ -69,7 +102,7 @@ function babelConfigBlock(text, label) {
     .map((match) => match[1].replace(/^ {3}/gm, ''))
     .find((code) => code.includes('module.exports') && code.includes('presets'))
   if (!block) {
-    throw new Error(`Installation.mdx: no babel.config.js block in the ${label} section`)
+    throw new Error(`no babel.config.js block for ${label}`)
   }
   const module = { exports: {} }
   new Function('module', 'exports', block)(module, module.exports)
@@ -77,14 +110,26 @@ function babelConfigBlock(text, label) {
   return typeof config === 'function' ? config({ cache() {} }) : config
 }
 
-function check(label, config, appDir, caller) {
-  const requireFromApp = createRequire(path.join(appDir, 'package.json'))
+// Web setups are a `.babelrc`-style JSON block of plugins
+function babelJsonBlock(text, label) {
+  const block = [...text.matchAll(/```json\n([\s\S]*?)```/g)]
+    .map((match) => match[1])
+    .find((code) => code.includes('"plugins"'))
+  if (!block) {
+    throw new Error(`no Babel JSON block for ${label}`)
+  }
+  return JSON.parse(block)
+}
+
+function check({ config, caller, standard }) {
+  const requireFromApp = createRequire(path.join(notesAppDir, 'package.json'))
   const babel = requireFromApp('@babel/core')
-  const { code } = babel.transformSync(modelSource, {
+  const source = (standard ? standardModelSource : legacyModelSource) + modelResult
+  const { code } = babel.transformSync(source, {
     ...config,
-    filename: path.join(appDir, 'BabelDocsCheck.ts'),
-    cwd: appDir,
-    root: appDir,
+    filename: path.join(notesAppDir, 'BabelDocsCheck.ts'),
+    cwd: notesAppDir,
+    root: notesAppDir,
     babelrc: false,
     configFile: false,
     caller,
@@ -97,58 +142,114 @@ function check(label, config, appDir, caller) {
     result.rawAmount === 5 &&
     result.title === 'hi' &&
     !result.ownKeys.includes('amount') &&
-    !result.ownKeys.includes('title')
+    // The standard fallback puts the plain field's getter/setter on the instance on purpose
+    (standard || !result.ownKeys.includes('title'))
   if (!ok) {
-    throw new Error(
-      `${label}: decorated fields don't reach the raw record: ${JSON.stringify(result)}`,
-    )
+    throw new Error(`decorated fields don't reach the raw record: ${JSON.stringify(result)}`)
   }
-  console.log(`ok: ${label}`)
 }
 
-const doc = fs.readFileSync(docPath, 'utf8')
 const failures = []
 const run = (label, fn) => {
   try {
     fn()
+    console.log(`ok: ${label}`)
   } catch (error) {
     failures.push(label)
     console.error(`FAIL: ${label}\n  ${String(error.message).split('\n')[0]}`)
   }
 }
 
-const bareConfig = babelConfigBlock(
-  section(doc, '## React Native (bare)', '## Expo'),
-  'React Native (bare)',
+const installation = fs.readFileSync(path.join(docsDir, 'Installation.mdx'), 'utf8')
+const decoratorsDoc = fs.readFileSync(
+  path.join(docsDir, 'Advanced', 'StandardDecorators.md'),
+  'utf8',
 )
-const expoConfig = babelConfigBlock(section(doc, '## Expo', '### Expo web'), 'Expo')
+const standardSection = () =>
+  between(decoratorsDoc, 'StandardDecorators.md', '\n## Standard decorators\n', '\n### Models with')
 
-for (const platform of ['ios', 'android']) {
-  run(`React Native (bare) docs config, ${platform}`, () =>
-    check(`React Native (bare) docs config, ${platform}`, bareConfig, repoRoot, {
-      name: 'metro',
-      bundler: 'metro',
-      platform,
-    }),
-  )
-}
+const metroCaller = (platform) => ({ name: 'metro', bundler: 'metro', platform })
+const expoCaller = (platform) => ({
+  name: 'metro',
+  bundler: 'metro',
+  platform,
+  engine: platform === 'web' ? undefined : 'hermes',
+  isDev: false,
+})
+
+// kind: 'bare' and 'expo' run each platform through Metro's caller; 'web' runs plain Babel.
+const configs = [
+  {
+    label: 'Installation, React Native (bare)',
+    text: () =>
+      between(installation, 'Installation.mdx', '\n## React Native (bare)\n', '\n## Expo\n'),
+    kind: 'bare',
+    standard: false,
+  },
+  {
+    label: 'Installation, Expo',
+    text: () => between(installation, 'Installation.mdx', '\n## Expo\n', '\n### Expo web\n'),
+    kind: 'expo',
+    standard: false,
+  },
+  {
+    label: 'Installation, web',
+    text: () => between(installation, 'Installation.mdx', '\n## Web without Expo', '\n## Windows'),
+    kind: 'web',
+    standard: false,
+  },
+  {
+    label: 'Standard decorators, React Native (bare)',
+    text: () =>
+      between(standardSection(), 'StandardDecorators.md', '**Bare React Native:**', '**Web'),
+    kind: 'bare',
+    standard: true,
+  },
+  {
+    label: 'Standard decorators, Expo',
+    text: () =>
+      between(standardSection(), 'StandardDecorators.md', '**Expo:**', '**Bare React Native:**'),
+    kind: 'expo',
+    standard: true,
+  },
+  {
+    label: 'Standard decorators, web',
+    text: () => between(standardSection(), 'StandardDecorators.md', '**Web', '**Vite:**'),
+    kind: 'web',
+    standard: true,
+  },
+]
 
 if (!fs.existsSync(path.join(notesAppDir, 'node_modules', 'babel-preset-expo'))) {
-  failures.push('Expo')
-  console.error(
-    'FAIL: Expo docs config\n  babel-preset-expo is not installed; run yarn install in examples/NotesApp',
-  )
-} else {
-  for (const platform of ['ios', 'android', 'web']) {
-    run(`Expo docs config, ${platform}`, () =>
-      check(`Expo docs config, ${platform}`, expoConfig, notesAppDir, {
-        name: 'metro',
-        bundler: 'metro',
-        platform,
-        engine: platform === 'web' ? undefined : 'hermes',
-        isDev: false,
-      }),
-    )
+  console.error('FAIL: examples/NotesApp is not installed; run yarn install there first')
+  process.exit(1)
+}
+
+for (const { label, text, kind, standard } of configs) {
+  let config
+  run(`${label}: config block`, () => {
+    if (kind === 'web') {
+      config = babelJsonBlock(text(), label)
+      // The legacy web config leaves TypeScript to the app's own setup; a typical one compiles
+      // it with @babel/preset-typescript (presets run after plugins). The standard config
+      // includes the TypeScript plugin itself.
+      if (!standard) {
+        config = { ...config, presets: ['@babel/preset-typescript'] }
+      }
+    } else {
+      config = babelConfigBlock(text(), label)
+    }
+  })
+  if (!config) {
+    continue
+  }
+  if (kind === 'web') {
+    run(`${label}, browser bundle`, () => check({ config, caller: undefined, standard }))
+    continue
+  }
+  for (const platform of kind === 'expo' ? ['ios', 'android', 'web'] : ['ios', 'android']) {
+    const caller = kind === 'expo' ? expoCaller(platform) : metroCaller(platform)
+    run(`${label}, ${platform}`, () => check({ config, caller, standard }))
   }
 }
 

@@ -41,13 +41,13 @@ class Post extends Model {
   // ...
   @children('comments') comments
 
-  @lazy verifiedComments = this.comments.extend(
-    Q.where('is_verified', true)
-  )
+  @lazy get verifiedComments() {
+    return this.comments.extend(Q.where('is_verified', true))
+  }
 
-  @lazy verifiedAwesomeComments = this.verifiedComments.extend(
-    Q.where('is_awesome', true)
-  )
+  @lazy get verifiedAwesomeComments() {
+    return this.verifiedComments.extend(Q.where('is_awesome', true))
+  }
 }
 ```
 
@@ -73,9 +73,9 @@ You can define custom queries on a Model like so:
 ```js
 class Post extends Model {
   // ...
-  @lazy commenters = this.collections.get('users').query(
-    Q.on('comments', 'post_id', this.id)
-  )
+  @lazy get commenters() {
+    return this.collections.get('users').query(Q.on('comments', 'post_id', this.id))
+  }
 }
 ```
 

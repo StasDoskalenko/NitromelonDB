@@ -129,10 +129,11 @@ class Post extends Model {
     post_authors: { type: 'has_many', foreignKey: 'post_id' },
   }
 
-  @lazy
-  authors = this.collections
-    .get('users')
-    .query(Q.on('post_authors', 'post_id', this.id));
+  @lazy get authors() {
+    return this.collections
+      .get('users')
+      .query(Q.on('post_authors', 'post_id', this.id))
+  }
 }
 ```
 
@@ -160,11 +161,11 @@ class User extends Model {
     post_authors: { type: 'has_many', foreignKey: 'user_id' },
   }
 
-  @lazy
-  posts = this.collections
-    .get('posts')
-    .query(Q.on('post_authors', 'user_id', this.id));
-
+  @lazy get posts() {
+    return this.collections
+      .get('posts')
+      .query(Q.on('post_authors', 'user_id', this.id))
+  }
 }
 ```
 

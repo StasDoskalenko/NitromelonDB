@@ -1,6 +1,7 @@
 import type { ColumnName, TableName } from '../../Schema'
 
 import relation from '../relation'
+import type { ModelFieldDecorator } from '../types'
 
 // Defines a model property that fetches a record with a specific ID
 // The property defined must be *immutable*, i.e. the relation ID must never change
@@ -19,7 +20,7 @@ import relation from '../relation'
 function immutableRelation(
   relationTable: TableName,
   relationIdColumn: ColumnName,
-): PropertyDecorator {
+): ModelFieldDecorator {
   return relation(relationTable, relationIdColumn, { isImmutable: true })
 }
 
