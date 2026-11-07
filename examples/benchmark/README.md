@@ -16,6 +16,31 @@ Use **Quick · 100,000 × 10** for day-to-day comparisons. The full 1,000,000 ×
 
 These apps will not run in Expo Go. New Architecture is required.
 
+## Latest results (2026-11-07, iOS simulator)
+
+NitromelonDB `master` ([`240f4cb7`](https://github.com/StasDoskalenko/NitromelonDB/commit/240f4cb7)) against WatermelonDB 0.28 with JSI and without JSI (`jsi: false`, the asynchronous bridge many apps still run).
+
+- **Setup:** Release builds on an iPhone 18 Pro simulator (iOS 27.1, Xcode 27.1, React Native 0.88), on an Apple M5 Pro. Each WatermelonDB build's engine label ("JSI" / "asynchronous") was checked on screen before running.
+- **Method:** [scripted runs](#scripted-runs), relaunching the app and clearing its database before every run. Two sessions, each with NitromelonDB in it: NitromelonDB against WatermelonDB JSI, then against WatermelonDB non-JSI. Runs within a session are interleaved in random order. Medians; p is a Mann-Whitney test.
+- **Raw data:** [`results/2026-11-07-ios/`](./results/2026-11-07-ios). Re-summarize with `node scripts/summarize-sync.mjs <file> --baseline 'WatermelonDB JSI'` (or `'WatermelonDB non-JSI'`).
+
+| Benchmark | NitromelonDB | WatermelonDB JSI | WatermelonDB non-JSI |
+| --- | --- | --- | --- |
+| **Realistic sync**: fresh install, 300 pulls, 80 tables (library time) | **524 ms** | 989 ms (**1.9× slower**, p<0.001) | 2,374 ms (**4.9× slower**, p<0.001) |
+| **Incremental sync**: 67 pulls into 12 tables of 2,000 records | **184 ms** | 259 ms (**1.4× slower**, p<0.001) | 434 ms (**2.4× slower**, p<0.001) |
+| **Sync, 5,000 records**: create, update, fetch, push (total) | **145 ms** | 174 ms (**1.2× slower**, p<0.001) | 254 ms (**1.8× slower**, p<0.001) |
+| **Sync, 20,000 records** (total) | **650 ms** | 741 ms (**1.1× slower**, p<0.001) | 1,157 ms (**1.8× slower**, p<0.001) |
+| **Sync, 50,000 records**: initial + update pulls (p<0.001 for each pull) | **1,503 ms** | 2,296 ms (**1.5× slower**) | 3,484 ms (**2.3× slower**) |
+| **Sync, 50,000 records**: one fetch of all records | 2,402 ms | **193 ms** (12× faster) | **1,317 ms** (1.8× faster, p=0.56) |
+| **Stress test**: 100,000 writes + deletes × 10 (ops/s) | **97,960** | 80,647 (**1.2× slower**) | 54,031 (**1.8× slower**) |
+
+Each sync row is 8 runs per app, Incremental 10, and the stress test 3, where every NitromelonDB run beat every WatermelonDB run (p=0.081 is the smallest a 3-against-3 test can give). The NitromelonDB column is session 1; session 2 matched it within 7%.
+
+**Where NitromelonDB is slower:**
+
+- **One query that returns ~50,000 records at once.** The native query path (`queryJSI`, #140) builds every row object inside a single native call, and on the React Native 0.88 Hermes, garbage collection during that call gets expensive: about 2 s of the 2.4 s is GC. With the older `AnyMap` path forced, the same fetch takes 265 ms. 20,000 records (63 ms, 1.7× faster than WatermelonDB JSI) and the chunked reads sync does are unaffected. A fix is planned.
+- **The stress test's query phase** (count, filtered fetch, paged queries) is 20% slower than WatermelonDB JSI (353 vs 295 ms), likely the same cause. Writes (−13%) and deletes (−27%) are faster.
+
 Each app opens on a **Home** tile grid -- one tile per benchmark below -- instead of stacking
 every card into a single long scroll. Tapping a tile opens that benchmark on its own screen with
 a back button.

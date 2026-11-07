@@ -16,6 +16,7 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs'
 import path from 'node:path'
+import { openCardSteps } from './homeTiles.mjs'
 
 function parseArgs(argv) {
   const args = {}
@@ -57,6 +58,7 @@ function flowFor(app, card, size) {
 ---
 - launchApp:
     stopApp: true
+${openCardSteps(card)}
 - scrollUntilVisible:
     element:
       id: "${card}-run"
