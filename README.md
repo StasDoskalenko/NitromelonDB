@@ -35,7 +35,7 @@ npx expo install nitromelondb react-native-nitro-modules
 yarn add nitromelondb react-native-nitro-modules
 ```
 
-Expo apps also add `"nitromelondb"` to `plugins` in `app.json`. Turn on standard decorators in Babel (Expo: `decorators: { version: '2023-11' }` on `babel-preset-expo`; bare React Native: two Babel plugins), then rebuild the native app. All steps, per platform: [Installation](https://stasdoskalenko.github.io/NitromelonDB/docs/Installation).
+Expo apps also add `"nitromelondb"` to `plugins` in `app.json`. Expo needs no Babel setup for decorators; bare React Native needs four Babel plugins. Then rebuild the native app. All steps, per platform: [Installation](https://stasdoskalenko.github.io/NitromelonDB/docs/Installation).
 
 **Requirements:** React Native 0.83+ on the New Architecture, iOS 15.1+, Android minSdk 24, React Native Windows 0.84+, Node.js 22+ (for Node, Electron and tooling).
 
@@ -43,7 +43,7 @@ Using an AI coding agent? Point it at [llms.txt](https://stasdoskalenko.github.i
 
 ## A quick look
 
-Define models for the tables in your schema. Fields use standard decorators and the `accessor` keyword:
+Define models for the tables in your schema:
 
 ```ts
 import { Model, Query } from 'nitromelondb'
@@ -55,9 +55,9 @@ class Post extends Model {
     comments: { type: 'has_many', foreignKey: 'post_id' },
   } as const
 
-  @text('title') accessor title!: string
-  @field('is_pinned') accessor isPinned!: boolean
-  @children('comments') accessor comments!: Query<Comment>
+  @text('title') title!: string
+  @field('is_pinned') isPinned!: boolean
+  @children('comments') comments!: Query<Comment>
 }
 ```
 
@@ -103,7 +103,7 @@ Prefer higher-order components? `withObservables` still works. See [Components](
 **For developers**
 
 - **Written in TypeScript**, with strict checking, so the published types match the code.
-- **Standard decorators.** Models use standard (TC39) decorators with `accessor` fields, which TypeScript 5+ uses by default and which need less Babel setup. Legacy decorators from WatermelonDB keep working, and models can move over one at a time. See [Decorators](https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/StandardDecorators).
+- **Decorators, both kinds.** On Expo, model decorators work with no Babel setup at all. Standard (TC39) decorators with `accessor` fields work too, and development builds tell you when decorators compiled but don't work. See [Decorators](https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/StandardDecorators).
 - **Hooks:** `useQuery`, `useRecord`, `useObservable`, `useWriter`, `useAtomicWriter` and `useDatabaseReady`, next to `withObservables`.
 - **Seeding and readiness:** `new Database({ seed })` for initial or demo data tied to schema versions, and `database.readyPromise` / `useDatabaseReady` to gate your UI on setup.
 - **Smaller conveniences:** `database.get(Post)` with a model class, `findAndObserveOrNull(id)`, and raw SQL expressions in `Q.sortBy`.
