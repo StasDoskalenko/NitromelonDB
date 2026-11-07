@@ -2,311 +2,153 @@
   <img src="https://github.com/StasDoskalenko/NitromelonDB/raw/master/assets/logo-horizontal.png" alt="NitromelonDB" width="539" />
 </p>
 
-<table>
-<tr>
-<td>
+<p align="center">
+  <strong>A reactive, offline-first SQLite database for React Native, Expo, the web, Windows and Node.</strong><br/>
+  A maintained fork of WatermelonDB, on the React Native New Architecture.
+</p>
 
-## ℹ️ NitromelonDB is a fork of WatermelonDB
+<p align="center">
+  <a href="https://github.com/StasDoskalenko/NitromelonDB/blob/master/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License"/></a>
+  <a href="https://www.npmjs.com/package/nitromelondb"><img src="https://img.shields.io/npm/v/nitromelondb.svg" alt="npm"/></a>
+  <a href="https://discord.gg/aXqqy3HPb"><img src="https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white" alt="Discord"/></a>
+</p>
 
-**[WatermelonDB](https://github.com/Nozbe/WatermelonDB)** (`@nozbe/watermelondb`) has not been updated in a while. React Native, iOS, and Android keep moving — New Architecture, yearly OS releases, new JS runtimes — and a reactive database that sits on native SQLite has to move with them.
+<p align="center">
+  <a href="https://stasdoskalenko.github.io/NitromelonDB/">Documentation</a> ·
+  <a href="https://stasdoskalenko.github.io/NitromelonDB/docs/Installation">Installation</a> ·
+  <a href="https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating">Migrating from WatermelonDB</a> ·
+  <a href="https://stasdoskalenko.github.io/NitromelonDB/performance">Performance</a> ·
+  <a href="https://discord.gg/aXqqy3HPb">Discord</a>
+</p>
 
-**NitromelonDB** continues that work. Same lazy, observable, SQLite-backed model you already know; a codebase we can keep evolving.
+NitromelonDB keeps your data in SQLite and loads only what a screen asks for, so apps with tens of thousands of records still launch fast. Records are observable: change one, and every component that shows it re-renders. It syncs with your own backend.
 
-**Why this fork exists**
+It continues [WatermelonDB](https://github.com/Nozbe/WatermelonDB) by [Nozbe](https://github.com/Nozbe), which hasn't kept up with React Native, iOS and Android for a while. Models, queries, writers and sync work the same way, and existing databases keep working. Coming from `@nozbe/watermelondb`? Follow the [migration guide](https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating). (The original WatermelonDB introduction now lives in [LEGACY_README.md](https://github.com/StasDoskalenko/NitromelonDB/blob/master/LEGACY_README.md).)
 
-- **Upstream is quiet.** Apps still need the library to track frequent React Native, iOS, and Android version changes.
-- **New Architecture only.** Native SQLite on iOS, Android, and Windows (RNW 0.84 / WinAppSDK) goes through [Nitro Modules](https://nitro.margelo.com). The old React Native architecture (Paper / the legacy bridge) is not supported.
-- **First-class Expo.** A config plugin covers development builds, EAS Build, and EAS Update. It replaces `@morrowdigital/watermelondb-expo-plugin`. Expo Go is not supported.
-- **One TypeScript codebase.** Implementation lives in TypeScript under `strict` checking. That removes Flow and the standalone `.d.ts` layer, so types and runtime cannot drift.
-- **Simpler native install.** SQLite and simdjson are vendored in-tree. No FMDB, no `@nozbe/sqlite` / `@nozbe/simdjson`, no separate `android-jsi` package. Autolinking is enough.
-- **Current platforms.** Tested on React Native 0.83+ (NotesApp is Expo SDK 58 / RN 0.88) and React 19. Android builds with 16kB page alignment. Web uses persistent SQLite through wa-sqlite and IndexedDB. Electron can run SQLite in the main process via `RemoteAdapter`.
-- **Extensively tested — a safer bet.** Every push runs the full stack in CI, not just JS unit tests: the shared correctness suite (CRUD, queries, migrations, concurrent writers, batches) executes against the real native SQLite bridge on real iOS and Android devices, and the Expo [NotesApp](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/NotesApp) ships [Maestro](https://docs.maestro.dev) end-to-end flows — cold start, create/pin/delete, kill-and-relaunch persistence, sticky `Q.skip` / `Q.take` pagination — run on iOS, Android, **and** Windows.
-- **Observability.** Nested writers, stuck readers, and incorrect `callWriter`/`callReader` usage should fail loudly so engineers can see *where* — not hang in production. See [Observability](https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Observability).
-- **Performance.** We want to keep improving SQLite, native, and JS performance. The TypeScript rewrite is one step on that path (including future runtimes such as Static Hermes), alongside further native optimizations.
-- **Same product, new package name.** Install `nitromelondb` and import from `nitromelondb` (not `@nozbe/watermelondb`). Existing SQLite files, schema, and models keep working. Step-by-step: **[Migrating from WatermelonDB](https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating)**.
-
-**On the roadmap:** [SQLCipher](https://github.com/StasDoskalenko/NitromelonDB/issues/60) (including existing databases), [VACUUM](https://github.com/StasDoskalenko/NitromelonDB/issues/59), [macOS](https://github.com/StasDoskalenko/NitromelonDB/issues/49), [paginated sync](https://github.com/StasDoskalenko/NitromelonDB/issues/50), [more reliable migrations](https://github.com/StasDoskalenko/NitromelonDB/issues/57), and [clearer critical-error handling](https://github.com/StasDoskalenko/NitromelonDB/issues/61).
+## Install
 
 ```bash
+# Expo (development build, EAS Build or EAS Update; not Expo Go)
+npx expo install nitromelondb react-native-nitro-modules
+
+# bare React Native
 yarn add nitromelondb react-native-nitro-modules
 ```
 
-Then enable Babel decorators and rebuild the native app. On Expo, also add `"nitromelondb"` to `plugins` in `app.json`. Full steps: [Installation](https://stasdoskalenko.github.io/NitromelonDB/docs/Installation). Coming from WatermelonDB: [Migrating](https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating).
+Expo apps also add `"nitromelondb"` to `plugins` in `app.json`. Expo needs no Babel setup for decorators; bare React Native needs four Babel plugins. Then rebuild the native app. All steps, per platform: [Installation](https://stasdoskalenko.github.io/NitromelonDB/docs/Installation).
+
+**Requirements:** React Native 0.83+ on the New Architecture, iOS 15.1+, Android minSdk 24, React Native Windows 0.84+, Node.js 22+ (for Node, Electron and tooling).
 
 Using an AI coding agent? Point it at [llms.txt](https://stasdoskalenko.github.io/NitromelonDB/llms.txt) (an index of the docs as Markdown) or [llms-full.txt](https://stasdoskalenko.github.io/NitromelonDB/llms-full.txt) (all of it in one file).
 
-```js
-import { Database } from 'nitromelondb'
-import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
-```
+## A quick look
 
-### SQLite on Expo web
+Define models for the tables in your schema:
 
-The same `SQLiteAdapter` automatically selects wa-sqlite in a browser. It runs the Asyncify build in a dedicated worker and stores the offline replica in IndexedDB with `IDBBatchAtomicVFS`; it does not fall back to LokiJS or memory storage. Native platforms continue to select Nitro SQLite, and Node continues to select `better-sqlite3`.
+```ts
+import { Model, Query } from 'nitromelondb'
+import { children, field, text } from 'nitromelondb/decorators'
 
-Expo SDK 57+ projects must use `expo/metro-config`, include `wasm` in `resolver.assetExts`, and enable bundle splitting with Expo Router or `@expo/metro-runtime`. In a native-and-web app, load that runtime through a `.web.ts` platform module so it is not bundled on native. No COOP/COEP headers are required. Always verify a release build with `npx expo export -p web` and check that the worker chunk and `.wasm` asset are present.
-
-The packaged worker and WASM load automatically. For a custom CDN, CSP, or bundler policy, override either resource:
-
-```js
-const adapter = new SQLiteAdapter({
-  dbName: 'app',
-  schema,
-  web: {
-    wasmUrl: 'https://static.example.com/wa-sqlite-async.wasm',
-    workerFactory: () => new Worker('/nitromelondb-sqlite-worker.js'),
-  },
-})
-```
-
-`usesExclusiveLocking: true` is rejected on web because the IndexedDB VFS supports multiple connections and tabs. Web initialization is deferred until hydration, so importing and constructing an adapter during SSR is safe; attempts to query it on the server fail with a message directing server code to its authoritative database. Existing LokiJS browser data is not migrated.
-
-Architecture, offline and multi-tab behavior, sync JSON, known issues, testing, and future work are
-documented in the [wa-sqlite web adapter guide](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs-website/docs/docs/Implementation/WaSQLiteAdapter.md).
-
-Full credit to [@Nozbe](https://github.com/Nozbe) and [Radek Pietruszewski](https://github.com/radex) for designing and shipping the original WatermelonDB.
-
-</td>
-</tr>
-</table>
-
-### ➡️ **Learn more:** [see full documentation](https://stasdoskalenko.github.io/NitromelonDB/)
-
-<h4 align="center">
-  NitromelonDB — a reactive database framework
-</h4>
-
-<p align="center">
-  Build powerful React and React Native apps that scale from hundreds to tens of thousands of records and remain <em>fast</em> ⚡️
-</p>
-
-<p align="center">
-  <a href="https://github.com/StasDoskalenko/NitromelonDB/blob/master/LICENSE">
-    <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License"/>
-  </a>
-
-  <a href="https://www.npmjs.com/package/nitromelondb">
-    <img src="https://img.shields.io/npm/v/nitromelondb.svg" alt="npm"/>
-  </a>
-
-  <a href="https://discord.gg/aXqqy3HPb">
-    <img src="https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white" alt="Discord"/>
-  </a>
-</p>
-
-|   | NitromelonDB |
-| - | ------------ |
-| ⚡️ | **Launch your app instantly** no matter how much data you have |
-| 📈 | **Highly scalable** from hundreds to tens of thousands of records |
-| 😎 | **Lazy loaded**. Only load data when you need it |
-| 🔄 | **Offline-first.** [Sync](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs-website/docs/docs/Sync/Intro.md) with your own backend |
-| 📱 | **Multiplatform**. iOS, Android, Windows, web, Node.js, and **Expo** (EAS Build and EAS Update) |
-| 🧪 | **Extensively tested.** Native bridge tests + [Maestro](https://docs.maestro.dev) e2e run on real iOS, Android, and Windows every push |
-| ⚛️ | **Optimized for React.** Easily plug data into components |
-| 🧰 | **Framework-agnostic.** Use JS API to plug into other UI frameworks |
-| ⏱ | **Fast.** And getting faster with every release! |
-| ✅ | **Proven.** Powers [Nozbe](https://nozbe.com/teams) since 2017 (and [many others](#who-uses-watermelondb)) |
-| ✨ | **Reactive.** (Optional) [RxJS](https://github.com/ReactiveX/rxjs) API |
-| 🔗 | **Relational.** Built on rock-solid [SQLite](https://www.sqlite.org) foundation |
-| ⚠️ | **Static typing** with [TypeScript](https://typescriptlang.org) |
-
-## Why Watermelon?
-
-**WatermelonDB** (and this fork) is a different way of dealing with user data in React Native and React web apps.
-
-It's optimized for building **complex applications** in React Native, and the number one goal is **real-world performance**. In simple words, _your app must launch fast_.
-
-For simple apps, using Redux or MobX with a persistence adapter is the easiest way to go. But when you start scaling to thousands or tens of thousands of database records, your app will now be slow to launch (especially on slower Android devices). Loading a full database into JavaScript is expensive!
-
-Watermelon fixes it **by being lazy**. Nothing is loaded until it's requested. And since all querying is performed directly on the rock-solid [SQLite database](https://www.sqlite.org/index.html) on a separate native thread, most queries resolve in an instant.
-
-But unlike using SQLite directly, Watermelon is **fully observable**. So whenever you change a record, all UI that depends on it will automatically re-render. For example, completing a task in a to-do app will re-render the task component, the list (to reorder), and all relevant task counters. [**Learn more**](https://www.youtube.com/watch?v=UlZ1QnFF4Cw).
-
-| <a href="https://www.youtube.com/watch?v=UlZ1QnFF4Cw"><img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/watermelon-talk-thumbnail.jpg" alt="React Native EU: Next-generation React Databases" width="300" /></a> |
-| ---- |
-| <p align="center"><a href="https://www.youtube.com/watch?v=UlZ1QnFF4Cw">📺 <strong>Next-generation React databases</strong><br/>(a talk about WatermelonDB)</a></p> |
-
-## Usage
-
-**Quick (over-simplified) example:** an app with posts and comments.
-
-First, you define Models:
-
-```js
 class Post extends Model {
-  @field('name') name
-  @field('body') body
-  @children('comments') comments
+  static table = 'posts'
+  static associations = {
+    comments: { type: 'has_many', foreignKey: 'post_id' },
+  } as const
+
+  @text('title') title!: string
+  @field('is_pinned') isPinned!: boolean
+  @children('comments') comments!: Query<Comment>
 }
+```
 
-class Comment extends Model {
-  @field('body') body
-  @field('author') author
+Then use them in components. They re-render when the data changes, wherever the change came from:
+
+```tsx
+import { useQuery, useRecord, useWriter } from 'nitromelondb/hooks'
+
+function PostScreen({ post }: { post: Post }) {
+  useRecord(post) // re-render when the post changes
+  const comments = useQuery(post.comments) // ...or when its comments do
+  const [togglePin, { isPending }] = useWriter(post, async (p) => {
+    await p.update((record) => {
+      record.isPinned = !record.isPinned
+    })
+  })
+
+  return (
+    <View>
+      <Text>{post.title}</Text>
+      <Button title={post.isPinned ? 'Unpin' : 'Pin'} onPress={() => togglePin()} disabled={isPending} />
+      {comments.map((comment) => (
+        <CommentRow key={comment.id} comment={comment} />
+      ))}
+    </View>
+  )
 }
 ```
 
-Then, you connect components to the data:
+Prefer higher-order components? `withObservables` still works. See [Components](https://stasdoskalenko.github.io/NitromelonDB/docs/Components) and [Hooks](https://stasdoskalenko.github.io/NitromelonDB/docs/Hooks).
 
-```js
-const Comment = ({ comment }) => (
-  <View style={styles.commentBox}>
-    <Text>{comment.body} — by {comment.author}</Text>
-  </View>
-)
+## What's new since WatermelonDB
 
-// This is how you make your app reactive! ✨
-const enhance = withObservables(['comment'], ({ comment }) => ({
-  comment,
-}))
-const EnhancedComment = enhance(Comment)
-```
+**Platforms**
 
-And now you can render the whole Post:
+- **New Architecture only.** Native SQLite on iOS, Android and Windows goes through [Nitro Modules](https://nitro.margelo.com). The old architecture (Paper and the legacy bridge) isn't supported.
+- **Expo, first class.** A config plugin for development builds, EAS Build and EAS Update replaces `@morrowdigital/watermelondb-expo-plugin`. The example app runs on Expo SDK 58 and React Native 0.88.
+- **Windows.** React Native Windows on the New Architecture (WinAppSDK), with the same Nitro SQLite.
+- **The web, on real SQLite.** The same `nitromelondb/adapters/sqlite` import runs [wa-sqlite](https://stasdoskalenko.github.io/NitromelonDB/docs/Implementation/WaSQLiteAdapter) in a worker in the browser, and stores data in IndexedDB. No COOP/COEP headers needed.
+- **Node.js and Electron.** SQLite through `better-sqlite3`, and `RemoteAdapter` to run it in Electron's main process.
+- **Simpler installs.** SQLite and simdjson are compiled in. Autolinking is all you need: no Podfile, Gradle or `MainApplication` changes, and R8 keep rules ship with the library.
 
-```js
-const Post = ({ post, comments }) => (
-  <View>
-    <Text>{post.name}</Text>
-    <Text>Comments:</Text>
-    {comments.map(comment =>
-      <EnhancedComment key={comment.id} comment={comment} />
-    )}
-  </View>
-)
+**For developers**
 
-const enhance = withObservables(['post'], ({ post }) => ({
-  post,
-  comments: post.comments
-}))
-```
+- **Written in TypeScript**, with strict checking, so the published types match the code.
+- **Decorators, both kinds.** On Expo, model decorators work with no Babel setup at all. Standard (TC39) decorators with `accessor` fields work too, and development builds tell you when decorators compiled but don't work. See [Decorators](https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/StandardDecorators).
+- **Hooks:** `useQuery`, `useRecord`, `useObservable`, `useWriter`, `useAtomicWriter` and `useDatabaseReady`, next to `withObservables`.
+- **Seeding and readiness:** `new Database({ seed })` for initial or demo data tied to schema versions, and `database.readyPromise` / `useDatabaseReady` to gate your UI on setup.
+- **Smaller conveniences:** `database.get(Post)` with a model class, `findAndObserveOrNull(id)`, and raw SQL expressions in `Q.sortBy`.
+- **Observability:** nested writers, stuck readers and writers, and wrong `callWriter` / `callReader` use fail loudly and say where, instead of hanging. See [Observability](https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Observability).
 
-The result is fully reactive! Whenever a post or comment is added, changed, or removed, the right components **will automatically re-render** on screen. Doesn't matter if a change occurred in a totally different part of the app, it all just works out of the box!
+**Performance**
+
+- Query results skip Nitro's generic `AnyMap` conversion on the way to JS, and the native statement cache is a bounded LRU.
+- Sync skips tables with nothing to pull and finds tables with local changes in one query; large batches no longer rebuild every index.
+- `destroyAllPermanently()` and `markAllAsDeleted()` no longer slow down with the number of records.
+- Caches trim themselves when the OS reports memory pressure, and SQLite releases its own memory too.
+
+Benchmarks against WatermelonDB, tracked over time and linked to the commits that changed them: [Performance](https://stasdoskalenko.github.io/NitromelonDB/performance).
+
+**Tested on every pull request**
+
+- The shared correctness suite (CRUD, queries, migrations, concurrent writers, batches) runs against the real native SQLite bridge on iOS and Android.
+- The [NotesApp](./examples/NotesApp) runs end-to-end tests on every platform: [Maestro](https://docs.maestro.dev) flows on iOS and Android (cold start, create / pin / delete, kill-and-relaunch, pagination, sync), the same scenarios except sync through WinAppDriver on Windows, and Playwright on the web.
+- Sync runs end to end against a [reference sync server](./examples/sync-server), on SQLite and LokiJS.
+
+Full history: [changelog](https://stasdoskalenko.github.io/NitromelonDB/docs/CHANGELOG).
 
 ## Example apps
 
-A notes list (schema v2, migrations, create / pin / delete) ships as two apps, because React Native Windows **0.85** tracks RN **0.85.3** while Expo SDK 58 uses RN **0.88.0**:
+- **[NotesApp](./examples/NotesApp):** a notes list with migrations, pagination and sync, on Expo for iOS, Android and the web.
+- **[NotesApp_windows](./examples/NotesApp_windows):** the same app on React Native Windows. It's a separate app because RNW 0.85 is on React Native 0.85.
+- **[benchmark](./examples/benchmark):** NitromelonDB and WatermelonDB side by side, measuring the same operations.
+- **[sync-server](./examples/sync-server):** a small sync backend in TypeScript (Hono and SQLite) to copy from.
 
-- **[examples/NotesApp](./examples/NotesApp)** — iOS and Android (Expo development build; not Expo Go)
-- **[examples/NotesApp_windows](./examples/NotesApp_windows)** — Windows New Architecture playground (Fabric / WinAppSDK)
+Each folder's README has run instructions.
 
-See each folder's README for run instructions.
+## Roadmap
 
-## Who uses WatermelonDB
-
-  <a href="https://nozbe.com/?c=watermelon">
-    <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/apps/nozbe.png" alt="Nozbe Teams" width="300" />
-  </a>
-
-  <br/>
-
-  <a href="https://capmo.de">
-    <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/apps/capmo.png" alt="CAPMO" width="300" />
-  </a>
-
-  <br/>
-
-  <a href="https://mattermost.com/">
-    <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/apps/mattermost.png" alt="Mattermost" width="300" />
-  </a>
-
-  <br/>
-
-  <a href="https://rocket.chat/">
-    <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/apps/rocketchat.png" alt="Rocket Chat" width="300" />
-  </a>
-
-  <br/>
-
-  <a href="https://steady.health">
-    <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/apps/steady.png" alt="Steady" width="150"/>
-  </a>
-
-  <br/>
-
-  <a href="https://aerobotics.com">
-    <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/apps/aerobotics.png" alt="Aerobotics" width="300" />
-  </a>
-
-  <br/>
-
-  <a href="https://smashappz.com">
-    <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/apps/smashappz.jpg" alt="Smash Appz" width="300" />
-  </a>
-
-  <br/>
-
-  <a href="https://halogo.com.au/">
-    <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/apps/halogo_logo.png" alt="HaloGo" width="300" />
-  </a>
-
-  <br/>
-
-  <a href="https://sportsrecruits.com/">
-    <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/apps/sportsrecruits-logo.png" alt="SportsRecruits" width="300" />
-  </a>
-
-  <br/>
-
-  <a href="https://chatable.io/">
-    <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/apps/chatable_logo.png" alt="Chatable" width="300" />
-  </a>
-
-  <br/>
-
-  <a href="https://todorant.com/">
-    <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/apps/todorant-logo.png" alt="Todorant" width="300" />
-  </a>
-
-  <br/>
-
-  <a href="https://blastworkout.app/">
-    <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/apps/blastworkout-logo.png" alt="Blast Workout" width="300" />
-  </a>
-
-  <br/>
-
-  <a href="https://dayful.app/">
-    <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/apps/dayful.png" alt="Dayful" width="300" />
-  </a>
-
-  <br/>
-
-  <a href="https://learnthewords.app/">
-    <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/apps/learn-the-words.png" alt="Learn The Words" width="300" />
-  </a>
-
-  <br/>
-
-  <a href="https://ezypack.app/">
-    <img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/apps/ezypack.png" alt="ezypack" width="300" />
-  </a>
-
-  <br/>
-
-_These apps were built on WatermelonDB. Does your company or app use NitromelonDB (or WatermelonDB)? Open a pull request and add your logo/icon with link here!_
+[SQLCipher](https://github.com/StasDoskalenko/NitromelonDB/issues/60) (including existing databases), [VACUUM](https://github.com/StasDoskalenko/NitromelonDB/issues/59), [macOS](https://github.com/StasDoskalenko/NitromelonDB/issues/49), [paginated sync](https://github.com/StasDoskalenko/NitromelonDB/issues/50), [more reliable migrations](https://github.com/StasDoskalenko/NitromelonDB/issues/57) and [clearer critical-error handling](https://github.com/StasDoskalenko/NitromelonDB/issues/61).
 
 ## Contributing
 
-<img src="https://github.com/Nozbe/WatermelonDB/raw/master/assets/needyou.jpg" alt="We need you" width="220" />
+NitromelonDB is open source and needs your help. If something's missing or broken, open an issue to talk it through, and see the [contributing guide](./CONTRIBUTING.md) for setup and testing. [Good first issues](https://github.com/StasDoskalenko/NitromelonDB/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) are a nice place to start.
 
-**NitromelonDB is an open-source project and it needs your help to thrive!**
+Building an app with NitromelonDB? Let us know on [Discord](https://discord.gg/aXqqy3HPb), or add your logo to [LEGACY_README.md](https://github.com/StasDoskalenko/NitromelonDB/blob/master/LEGACY_README.md#who-uses-watermelondb).
 
-If there's a missing feature, a bug, or other improvement you'd like, we encourage you to contribute! Feel free to open an issue to get some guidance and see [Contributing guide](./CONTRIBUTING.md) for details about project setup, testing, etc.
+## Credits and license
 
-If you're just getting started, see [good first issues](https://github.com/StasDoskalenko/NitromelonDB/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) that are easy to contribute to.
+**WatermelonDB** was created by [@Nozbe](https://github.com/Nozbe), and its main author is [Radek Pietruszewski](https://github.com/radex). Huge thanks to them and to the [original contributors](https://github.com/Nozbe/WatermelonDB/graphs/contributors) for designing and building it.
 
-If you make or are considering making an app using NitromelonDB, please let us know!
+**NitromelonDB** is maintained by [Stas Doskalenko](https://github.com/StasDoskalenko).
 
-Join the community on [Discord](https://discord.gg/aXqqy3HPb).
-
-## Author and license
-
-**WatermelonDB** was created by [@Nozbe](https://github.com/Nozbe).
-
-**WatermelonDB's** main author is [Radek Pietruszewski](https://github.com/radex) ([website](https://radex.io) ⋅ [𝕏 (Twitter)](https://twitter.com/radexp)).
-
-**NitromelonDB** is a maintained fork by [Stas Doskalenko](https://github.com/StasDoskalenko).
-
-[Original WatermelonDB contributors](https://github.com/Nozbe/WatermelonDB/graphs/contributors).
-
-NitromelonDB is available under the MIT license. See the [LICENSE file](https://github.com/StasDoskalenko/NitromelonDB/blob/master/LICENSE) for more info.
+MIT licensed. See [LICENSE](https://github.com/StasDoskalenko/NitromelonDB/blob/master/LICENSE).
