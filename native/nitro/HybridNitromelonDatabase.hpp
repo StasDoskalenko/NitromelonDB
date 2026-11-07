@@ -58,6 +58,7 @@ private:
   // JS dispatcher prefers them when present. Same arguments as the typed methods.
   jsi::Value queryJSI(jsi::Runtime& runtime, const jsi::Value& thisValue, const jsi::Value* args, size_t count);
   jsi::Value unsafeQueryRawJSI(jsi::Runtime& runtime, const jsi::Value& thisValue, const jsi::Value* args, size_t count);
+  jsi::Value batchJSI(jsi::Runtime& runtime, const jsi::Value& thisValue, const jsi::Value* args, size_t count);
 
   ::watermelondb::Database& database();
 
