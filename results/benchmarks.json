@@ -907,5 +907,18 @@
       "ram": 180,
       "fps": 54.6
     }
+  },
+  {
+    "sha": "bdca213a23fd4903aada71e0db49dc15bed15ee6",
+    "date": "2026-11-07T21:47:09.159Z",
+    "prNumber": 209,
+    "subject": "perf: fix the 12× slower 50k fetch (batchJSI) and #195's write/scan cost; faster than WatermelonDB everywhere (#209)",
+    "android": {
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 31.3,
+      "ram": 179,
+      "fps": 53.7
+    }
   }
 ]
