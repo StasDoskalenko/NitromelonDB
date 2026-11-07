@@ -220,6 +220,7 @@ void HybridNitromelonDatabase::loadHybridMethods() {
   registerHybrids(this, [](Prototype& prototype) {
     prototype.registerRawHybridMethod("queryJSI", 3, &HybridNitromelonDatabase::queryJSI);
     prototype.registerRawHybridMethod("unsafeQueryRawJSI", 2, &HybridNitromelonDatabase::unsafeQueryRawJSI);
+    prototype.registerRawHybridMethod("batchJSI", 1, &HybridNitromelonDatabase::batchJSI);
   });
 }
 
@@ -271,6 +272,43 @@ jsi::Value HybridNitromelonDatabase::unsafeQueryRawJSI(jsi::Runtime& runtime, co
     result.setValueAtIndex(runtime, i - 1, builder.build(rows[i]));
   }
   return result;
+}
+
+// Reads the encoded batch (see encodeBatch: [cacheBehavior, table | null, sql, argBatches][]) straight
+// from the JS arrays. The alternatives both cost more on Hermes: batchJSON needs a JSON.stringify of
+// the whole batch on the JS thread, and those large one-off strings fragment Hermes' old generation
+// (after a 50k-record sync, a fetch of every record spent ~2 s promoting objects into the
+// fragmented heap). Nitro's typed batch() converts every argument into a variant and then copies it
+// again.
+jsi::Value HybridNitromelonDatabase::batchJSI(jsi::Runtime& runtime, const jsi::Value&, const jsi::Value* args,
+                                              size_t count) {
+  assert(initialized_);
+  if (count != 1) {
+    throw jsi::JSError(runtime, "batchJSI(operations) expects 1 argument");
+  }
+  jsi::Array operations = args[0].asObject(runtime).asArray(runtime);
+  size_t operationsCount = operations.size(runtime);
+  std::vector<SqliteBatchOperation> cppOps;
+  cppOps.reserve(operationsCount);
+  for (size_t i = 0; i < operationsCount; i++) {
+    jsi::Array operation = operations.getValueAtIndex(runtime, i).asObject(runtime).asArray(runtime);
+    SqliteBatchOperation cppOp;
+    cppOp.cacheBehavior = operation.getValueAtIndex(runtime, 0).asNumber();
+    jsi::Value table = operation.getValueAtIndex(runtime, 1);
+    if (table.isString()) {
+      cppOp.table = table.getString(runtime).utf8(runtime);
+    }
+    cppOp.sql = operation.getValueAtIndex(runtime, 2).asString(runtime).utf8(runtime);
+    jsi::Array argBatches = operation.getValueAtIndex(runtime, 3).asObject(runtime).asArray(runtime);
+    size_t argBatchesCount = argBatches.size(runtime);
+    cppOp.argBatches.reserve(argBatchesCount);
+    for (size_t j = 0; j < argBatchesCount; j++) {
+      cppOp.argBatches.push_back(jsiToSqliteArgs(runtime, argBatches.getValueAtIndex(runtime, j)));
+    }
+    cppOps.push_back(std::move(cppOp));
+  }
+  database().batch(cppOps);
+  return jsi::Value::undefined();
 }
 
 HybridNitromelonDatabase::HybridNitromelonDatabase(std::string dbName, bool usesExclusiveLocking)

@@ -163,13 +163,14 @@ describe('applyRemoteChanges', () => {
       },
     })
 
+    // nothing was set locally, so the server's record wins entirely and there's nothing to push
     expect(await getRaw(projects, 'pCreated1')).toMatchObject({
-      _status: 'created',
+      _status: 'synced',
       _changed: '',
       name: 'remote',
     })
     expect(await getRaw(tasks, 'tCreated')).toMatchObject({
-      _status: 'created',
+      _status: 'synced',
       _changed: '',
       name: 'remote',
     })
@@ -258,13 +259,13 @@ describe('applyRemoteChanges', () => {
 
       await expectSyncedAndMatches(projects, 'pSynced', {})
       expect(await getRaw(projects, 'pCreated1')).toMatchObject({
-        _status: 'created',
+        _status: 'synced',
         _changed: '',
         name: '',
       })
       await expectSyncedAndMatches(projects, 'new_project', { name: 'remote' })
       expect(await getRaw(projects, 'pCreated2')).toMatchObject({
-        _status: 'created',
+        _status: 'synced',
         _changed: '',
         name: 'remote',
       })
