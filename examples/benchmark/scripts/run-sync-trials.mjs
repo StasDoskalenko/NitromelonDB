@@ -29,6 +29,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import { appendFileSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { openCardSteps } from './homeTiles.mjs'
 
 function parseArgs(argv) {
   const args = {}
@@ -99,6 +100,7 @@ function flowFor(app, card, size) {
 - tapOn:
     text: "Cancel"
     optional: true
+${openCardSteps(card)}
 # Optional: on iOS, Maestro never counts the bottom of the last card (mass delete) as visible,
 # even once it's scrolled all the way down and on screen. tapOn below only needs it on screen.
 - scrollUntilVisible:
