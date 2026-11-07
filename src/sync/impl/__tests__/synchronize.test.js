@@ -557,16 +557,81 @@ describe('synchronize', () => {
       sendCreatedAsUpdated: true,
     })
 
-    // locally set columns win, the rest comes from the server
+    // locally set columns win, the rest comes from the server. The server has the record, so the
+    // local one is pushed as an update of it, with the locally set columns in `_changed`
     const resolved = { id: 't1', name: 'local', position: 5, description: 'remote' }
     expect(pushChanges).toHaveBeenCalledTimes(1)
     const pushed = pushChanges.mock.calls[0][0].changes.mock_tasks
-    expect(pushed.created).toEqual([
-      expect.objectContaining({ ...resolved, _status: 'created', _changed: '' }),
+    expect(pushed.created).toEqual([])
+    expect(pushed.updated).toEqual([
+      expect.objectContaining({ ...resolved, _status: 'updated', _changed: 'name,position' }),
     ])
-    expect(pushed.updated).toEqual([])
     await expectSyncedAndMatches(tasks, 't1', resolved)
     expect(await fetchLocalChanges(database)).toEqual(emptyLocalChanges)
+  })
+  it('takes a later server change of a column the device never set (push failed in between)', async () => {
+    const { database, tasks } = makeDatabase()
+    await database.write(() =>
+      tasks.create((t) => {
+        t._raw.id = 't1'
+        t.name = 'local'
+      }),
+    )
+    await expect(
+      synchronize({
+        database,
+        pullChanges: async () => ({
+          changes: makeChangeSet({
+            mock_tasks: { updated: [{ id: 't1', name: 'remote', position: 10 }] },
+          }),
+          timestamp: 1500,
+        }),
+        pushChanges: async () => {
+          throw new Error('offline')
+        },
+        sendCreatedAsUpdated: true,
+      }),
+    ).rejects.toThrow('offline')
+
+    // the server has the record now, so it's a local update of it, with the inferred columns
+    const task = await tasks.find('t1')
+    expect(task._raw).toMatchObject({ _status: 'updated', _changed: 'name', position: 10 })
+
+    await synchronize({
+      database,
+      pullChanges: async () => ({
+        changes: makeChangeSet({
+          mock_tasks: { updated: [{ id: 't1', name: 'remote', position: 20 }] },
+        }),
+        timestamp: 2500,
+      }),
+      pushChanges: jest.fn(),
+      sendCreatedAsUpdated: true,
+    })
+    await expectSyncedAndMatches(tasks, 't1', { name: 'local', position: 20 })
+  })
+  it('marks a locally created record with nothing set as synced after a conflict', async () => {
+    const { database, tasks } = makeDatabase()
+    await database.write(() =>
+      tasks.create((t) => {
+        t._raw.id = 't1'
+      }),
+    )
+    const pushChanges = jest.fn()
+    await synchronize({
+      database,
+      pullChanges: async () => ({
+        changes: makeChangeSet({
+          mock_tasks: { updated: [{ id: 't1', name: 'remote', position: 10 }] },
+        }),
+        timestamp: 1500,
+      }),
+      pushChanges,
+      sendCreatedAsUpdated: true,
+    })
+    // nothing local to keep, so there's nothing to push either
+    expect(pushChanges).not.toHaveBeenCalled()
+    await expectSyncedAndMatches(tasks, 't1', { name: 'remote', position: 10 })
   })
   it(`can safely update created records during push (regression test)`, async () => {
     const { database, tasks } = makeDatabase()
@@ -617,7 +682,11 @@ describe('synchronize', () => {
         timestamp: 1500,
       }),
       pushChanges: () => {
-        expect(task._raw).toMatchObject({ _status: 'created', _changed: 'is_completed,position' })
+        // the pulled record conflicted with the local one, so it's an update of the server's now
+        expect(task._raw).toMatchObject({
+          _status: 'updated',
+          _changed: 'is_completed,position,name,project_id',
+        })
       },
     })
     expect(task._raw).toMatchObject({

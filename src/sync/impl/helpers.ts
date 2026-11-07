@@ -41,7 +41,8 @@ export function resolveConflict(local: RawRecord, remote: DirtyRaw): DirtyRaw {
 // would make every created row bigger until it's synced), so they're inferred: every column whose
 // value isn't the column's default (null, or '' / 0 / false if not optional), plus the columns
 // changed by updates since (which are in `_changed`). A column explicitly set to its default value
-// counts as not set, so the server's value wins for it.
+// counts as not set, so the server's value wins for it. This only runs on a record's first
+// conflict: resolving it turns the record into a local update, with these columns in `_changed`.
 export function inferLocallySetColumns(local: RawRecord, schema: TableSchema): string {
   const columns = local._changed ? local._changed.split(',') : []
   schema.columnArray.forEach((column) => {
@@ -113,8 +114,12 @@ export function prepareUpdateFromRaw<T extends Model>(
   const logRemote = logConflict ? { ...remoteDirtyRaw } : {}
 
   let newRaw = resolveConflict(localForResolution, remoteDirtyRaw)
-  // The inferred columns only steer the resolution; `_changed` keeps what was actually recorded
-  newRaw._changed = localRaw._changed
+  if (localRaw._status === 'created') {
+    // The server has this record now, so the local one becomes an update of it, with the inferred
+    // columns recorded. Later conflicts (e.g. another pull before the push succeeds) then resolve
+    // by `_changed`, instead of inferring the server's values from this pull as locally set too.
+    newRaw._status = localForResolution._changed ? 'updated' : 'synced'
+  }
 
   if (conflictResolver) {
     newRaw = conflictResolver(collection.table, localForResolution, remoteDirtyRaw, newRaw)

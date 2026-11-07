@@ -59,7 +59,9 @@ If possible, please use sync implementation helpers from `sync/*.js` to keep you
             (per-column client wins strategy). For a locally created record, these are the fields whose
             value isn't the column's default (inferred, since creating a record doesn't record them),
             plus any changed since
-          - record stays marked as updated (or created), because local changes still need to be pushed
+          - record stays marked as updated, because local changes still need to be pushed. A locally
+            created record becomes marked as updated too (the server has it now), with the fields it
+            kept in `_changed`, or as synced if it kept none
         - if locally marked as deleted, ignore (deletion will be pushed later)
         - if doesn't exist locally (error), create
       - destroy records
