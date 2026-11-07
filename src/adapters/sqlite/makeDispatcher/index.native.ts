@@ -90,7 +90,12 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
       // Raw-JSI variants build JS objects straight from SQLite rows, skipping Nitro's AnyMap
       // copy (see HybridNitromelonDatabase::queryJSI). Older native builds don't have them.
       methodName = `${methodName}JSI`
+    } else if (methodName === 'batch' && (this._db as NativeDatabase).batchJSI) {
+      // Reads the encoded batch straight from JS arrays (see HybridNitromelonDatabase::batchJSI).
+      // batchJSON's JSON.stringify of every batch fragments Hermes' heap on large syncs.
+      methodName = 'batchJSI'
     } else if (methodName === 'batch') {
+      // Older native builds
       methodName = 'batchJSON'
       args = [JSON.stringify(args[0])]
     } else if (methodName === 'unsafeLoadFromSync') {
