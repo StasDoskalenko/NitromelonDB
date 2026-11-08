@@ -920,5 +920,18 @@
       "ram": 179,
       "fps": 53.7
     }
+  },
+  {
+    "sha": "f008041c5d3a4da918911fd323bf836c5143ba8c",
+    "date": "2026-11-08T01:06:04.984Z",
+    "prNumber": 205,
+    "subject": "docs(bench): current numbers vs WatermelonDB (JSI and non-JSI); fix scripted benchmark runs (#205)",
+    "android": {
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 26.7,
+      "ram": 179,
+      "fps": 54.2
+    }
   }
 ]
