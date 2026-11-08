@@ -155,7 +155,6 @@
     "babel-plugin-minify-flip-comparisons": "^0.4.3",
     "babel-plugin-minify-guarded-expressions": "^0.4.4",
     "babel-plugin-minify-replace": "^0.5.0",
-    "babel-plugin-module-resolver": "^5.0.3",
     "better-sqlite3": "^13.0.3",
     "big-list-of-naughty-strings": "https://github.com/radex/big-list-of-naughty-strings#8346238a82f1e3a6f62389def1e668d80e4023fb",
     "cavy": "git+https://github.com/Nozbe/cavy.git",
@@ -191,13 +190,14 @@
     "react-native": "0.87.1",
     "react-native-nitro-modules": "0.37.1",
     "react-test-renderer": "19.2.3",
-    "rimraf": "^4.1.2",
     "semver": "^7.8.5",
     "typescript": "^6.0.3"
   },
   "//resolutions": "tmp: path traversal GHSA-ph9p-34f9-6g65 (< 0.2.6). Pulled in dev-only via inquirer -> external-editor -> tmp@^0.0.33; external-editor is unmaintained and still pins 0.0.33. 0.2.x keeps the tmpNameSync/fileSync API external-editor uses. Drop once inquirer/external-editor moves off it.",
   "resolutions": {
-    "tmp@npm:^0.0.33": "^0.2.6"
+    "tmp@npm:^0.0.33": "^0.2.6",
+    "minimatch@npm:^10.0.1": "^11.0.5",
+    "minimatch@npm:^10.2.2": "^11.0.5"
   },
   "packageManager": "yarn@4.18.0"
 }

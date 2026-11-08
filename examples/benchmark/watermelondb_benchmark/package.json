@@ -13,13 +13,13 @@
   },
   "dependencies": {
     "@nozbe/watermelondb": "patch:@nozbe/watermelondb@npm%3A0.28.0#~/.yarn/patches/@nozbe-watermelondb-npm-0.28.0-94a7b112f2.patch",
-    "expo": "~58.0.17",
-    "expo-build-properties": "~58.0.11",
-    "expo-dev-client": "~58.0.14",
+    "expo": "~58.0.23",
+    "expo-build-properties": "~58.0.12",
+    "expo-dev-client": "~58.0.18",
     "expo-status-bar": "~58.0.4",
     "react": "19.3.0",
-    "react-native": "0.88.0",
-    "react-native-safe-area-context": "~5.10.1"
+    "react-native": "0.88.1",
+    "react-native-safe-area-context": "~5.11.1"
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
@@ -32,7 +32,9 @@
     "plist/@xmldom/xmldom": "^0.9.12",
     "@expo/xcpretty/js-yaml": "^4.3.2",
     "xcode/uuid": "^11.1.1",
-    "@nozbe/watermelondb/@babel/runtime": "^7.26.10"
+    "@nozbe/watermelondb/@babel/runtime": "^7.26.10",
+    "glob@npm:^13.0.0": "^14.0.4",
+    "minimatch@npm:^10.2.2": "^11.0.5"
   },
   "packageManager": "yarn@4.18.0"
 }
