@@ -118,20 +118,18 @@ and a device pushing an old version of the same records gets a `409`.
 ## Why everything is sent as `updated`
 
 `Backend.md` suggests sending a record as `created` if `server_created_at > lastPulledAt`, and as
-`updated` otherwise. That goes wrong because of how sync works on the device: it pulls, then pushes,
+`updated` otherwise. That has a catch, because of how sync works on the device: it pulls, then pushes,
 and the `lastPulledAt` it keeps is from _before_ its own push. So the next pull returns the device's own
 records again, as `created`.
 
-If the user deleted one of them in the meantime (create, sync, delete, sync), the library sees "the
-server wants me to create a record I deleted", assumes an earlier sync was interrupted, and recreates
-the record. The deletion is lost without any error. It also logs "Server wants client to create record
-... but it already exists locally" after every sync that follows a create.
+The library handles that: it updates the records it already has, and keeps a record deleted in the
+meantime (create, sync, delete, sync) deleted and pushes the deletion. Earlier versions recreated
+that record, so the deletion was lost. The echo still logs "Server wants client to create record ...
+but it already exists locally" after every sync that follows a create.
 
-Sending every record as `updated` (with `sendCreatedAsUpdated: true` in the app) avoids both: the
-library keeps the local deletion and pushes it, which is what the user meant. This is the option
-`Backend.md` mentions at the end of its tips. The `SYNC_SERVER_SEND_CREATED=1` mode is kept so the
-tests can document the library behavior (`src/sync/__tests__/e2e/reliability.test.js`, marked
-`test.failing`).
+Sending every record as `updated` (with `sendCreatedAsUpdated: true` in the app) avoids that. This is
+the option `Backend.md` mentions at the end of its tips. The `SYNC_SERVER_SEND_CREATED=1` mode is kept
+so the tests cover both (`src/sync/__tests__/e2e/reliability.test.js` and `convergence.test.js`).
 
 ## Tests
 
