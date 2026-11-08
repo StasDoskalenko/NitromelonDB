@@ -3,23 +3,24 @@ name: iOS sync benchmark
 # Runs examples/benchmark's Sync, Realistic sync and Stress cards on an iOS simulator, NitromelonDB
 # against WatermelonDB 0.28 JSI in the same job (scripts/ci-benchmark-ios.sh). Informational, never
 # a required check. macOS minutes are expensive, so it doesn't run on every PR push:
-#   - on a PR when the `perf-ios` label is added: by a maintainer, or by the `request` job below
-#     when a maintainer comments `/perf ios`. perf-ios-comment.yml posts the result on the PR
+#   - on a PR when a maintainer comments `/perf ios`; perf-comments.yml posts the result on the PR
 #   - on every merge to master that touches the library or the benchmark; the result is recorded
 #     on the `benchmarks` branch for the docs Performance page
 #
-# Security: a PR's code (possibly from a fork) only ever runs in a `pull_request` run. Its token
-# is read-only for forks, and the caches it writes are scoped to the PR, so it can't poison the
-# caches master's workflows restore. It never runs from the `issue_comment` event, which runs
-# with master's cache scope: code on a hosted runner can read the runner's cache token, so any
-# untrusted code there could write master's caches whatever the steps do. The `request` job only
-# adds the label, and perf-ios-comment.yml runs master's scripts on the result JSON.
+# How `/perf ios` starts a PR run, and why this way: a PR's code (possibly from a fork) must only
+# run in a `pull_request` run, which has the PR's own cache scope and, for forks, a read-only
+# token. The `issue_comment` event runs with master's cache scope, and code on a hosted runner can
+# read the runner's cache token, so running the PR there would let it poison the caches master's
+# workflows restore. A comment can't create a `pull_request` run either (events from the
+# workflow's own token don't start workflows), but it can re-run one. So every PR push gets a run
+# of this workflow in which only the cheap `pr` job runs, and the `request` job re-runs it on
+# `/perf ios`; in a re-run (run_attempt > 1) the benchmark job runs too.
 
 on:
   issue_comment:
     types: [created]
   pull_request:
-    types: [labeled]
+    types: [opened, synchronize, reopened]
   push:
     branches: [master]
     paths:
@@ -37,12 +38,20 @@ permissions:
   contents: read
 
 jobs:
-  # `/perf ios` on a PR. Runs no repository code. A maintainer's request is turned into the
-  # `perf-ios` label, which starts the benchmark job below as a `pull_request` run. A label added
-  # with the workflow's own token doesn't trigger workflows (GitHub prevents that), so this needs
-  # PERF_LABEL_TOKEN: a fine-grained token with Pull requests: write on this repository. Without
-  # it, the reply asks for the label to be added by hand. Anyone else's request gets a reply asking
-  # a maintainer to start it, since it runs the PR's code on paid macOS runners.
+  # The run `/perf ios` re-runs (a run needs a job that ran to be re-run)
+  pr:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    name: Waiting for /perf ios
+    steps:
+      - run: |
+          if [ "${{ github.run_attempt }}" = "1" ]; then
+            echo "The benchmark runs when a maintainer comments /perf ios on the PR."
+          fi
+
+  # `/perf ios` on a PR. Runs no repository code: it re-runs this workflow's `pull_request` run for
+  # the PR's current head commit and leaves 👀 on the comment. Anyone else's request gets a reply
+  # asking a maintainer to start it, since it runs the PR's code on paid macOS runners.
   request:
     if: >-
       github.event_name == 'issue_comment' &&
@@ -51,13 +60,13 @@ jobs:
     runs-on: ubuntu-24.04
     name: Handle /perf ios
     permissions:
+      actions: write
       pull-requests: write
     steps:
       - name: Start the benchmark, or reply
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          LABEL_TOKEN: ${{ secrets.PERF_LABEL_TOKEN }}
           COMMENT_ID: ${{ github.event.comment.id }}
           PR: ${{ github.event.issue.number }}
           OWNER: ${{ github.repository_owner }}
@@ -65,31 +74,37 @@ jobs:
         run: |
           set -euo pipefail
           react() { gh api -X POST "repos/$GH_REPO/issues/comments/$COMMENT_ID/reactions" -f content="$1" > /dev/null; }
+          reply() { gh pr comment "$PR" --body "$1" > /dev/null; }
           if [ "$IS_MAINTAINER" != "true" ]; then
-            react eyes
-            gh pr comment "$PR" --body "Thanks for asking! The iOS sync benchmark runs on macOS runners, so a maintainer starts it: @$OWNER, reply \`/perf ios\` here (or add the \`perf-ios\` label) to run it."
-          elif [ -n "$LABEL_TOKEN" ]; then
-            # Removing it first, so a PR that already has the label runs again
-            GH_TOKEN="$LABEL_TOKEN" gh pr edit "$PR" --remove-label perf-ios > /dev/null 2>&1 || true
-            GH_TOKEN="$LABEL_TOKEN" gh pr edit "$PR" --add-label perf-ios > /dev/null
-            react rocket
-          else
-            react confused
-            gh pr comment "$PR" --body "To run the iOS sync benchmark, add the \`perf-ios\` label to this PR (remove and re-add it to run again). \`/perf ios\` can add it for you once the repository has a \`PERF_LABEL_TOKEN\` secret, see \`.github/workflows/perf-ios.yml\`."
+            reply "Thanks for asking! The iOS sync benchmark runs on macOS runners, so a maintainer starts it: @$OWNER, reply \`/perf ios\` here to run it."
+            exit 0
           fi
+          head=$(gh pr view "$PR" --json headRefOid -q .headRefOid)
+          run=$(gh api "repos/$GH_REPO/actions/workflows/perf-ios.yml/runs?event=pull_request&head_sha=$head" \
+            -q '.workflow_runs[0] | select(.) | "\(.id) \(.status)"')
+          if [ -z "$run" ]; then
+            reply "Couldn't find this workflow's run for the PR's latest commit (\`${head:0:7}\`), so there's nothing to re-run. It's created on every push once \`.github/workflows/perf-ios.yml\` is on the base branch: push to the PR (or close and reopen it), then comment \`/perf ios\` again."
+            exit 0
+          fi
+          read -r run_id run_status <<< "$run"
+          if [ "$run_status" != "completed" ]; then
+            reply "The iOS sync benchmark is already running for \`${head:0:7}\`: $GITHUB_SERVER_URL/$GH_REPO/actions/runs/$run_id"
+            exit 0
+          fi
+          gh run rerun "$run_id"
+          react eyes
 
   benchmark:
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && github.event.label.name == 'perf-ios')
+      (github.event_name == 'pull_request' && github.run_attempt > 1)
     runs-on: macos-26
     name: Benchmark (iOS simulator)
     timeout-minutes: 150
-    # A newer request for the same PR replaces a running one; master runs queue instead
+    # Master runs queue; a PR's runs are separate per commit (a newer push doesn't benchmark)
     concurrency:
-      group: perf-ios-${{ github.event.pull_request.number || github.ref }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      group: perf-ios-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}
     env:
       CI: true
       EXPO_NO_TELEMETRY: 1

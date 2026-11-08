@@ -121,7 +121,7 @@ export function buildBody({ repo, sha, summary, master, runUrl }) {
 
   lines.push(
     '',
-    '_Comment `/perf ios` or re-add the `perf-ios` label to run it again (maintainers). Also runs on every merge to master. Not a required check._',
+    '_Comment `/perf ios` to run it again (maintainers). Also runs on every merge to master. Not a required check._',
   )
   return lines.join('\n')
 }
