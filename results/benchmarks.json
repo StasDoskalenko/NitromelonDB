@@ -1067,5 +1067,47 @@
       "ram": 181,
       "fps": 54.6
     }
+  },
+  {
+    "sha": "72d2cf88b2f86c0314e0244028a1b6d57f2a0e44",
+    "date": "2026-11-08T09:28:39.556Z",
+    "prNumber": 208,
+    "subject": "fix(sync): keep a local deletion when a pulled record is created (#208)",
+    "iosSync": {
+      "device": "iPhone 17 Pro, iOS 26.4",
+      "nitromelondb": {
+        "sync5kTotalMs": 381.1,
+        "sync50kInitialPullMs": 1339.3,
+        "sync50kUpdatePullMs": 2739.9,
+        "sync50kFetchAllMs": 457.9,
+        "sync50kPushMs": 30.4,
+        "sync50kTotalMs": 4663.6,
+        "sync50kGcMs": 739.8,
+        "realisticLibraryMs": 1007.9,
+        "stressScore": 69096,
+        "stressWriteMs": 18814,
+        "stressQueryMs": 562.6,
+        "stressDeleteMs": 9533.5
+      },
+      "watermelondb": {
+        "sync5kTotalMs": 459.1,
+        "sync50kInitialPullMs": 1664.6,
+        "sync50kUpdatePullMs": 3957.7,
+        "sync50kFetchAllMs": 1060,
+        "sync50kPushMs": 137.7,
+        "sync50kTotalMs": 6524.3,
+        "sync50kGcMs": 1171.1,
+        "realisticLibraryMs": 2176.9,
+        "stressScore": 48539,
+        "stressWriteMs": 26843.7,
+        "stressQueryMs": 556,
+        "stressDeleteMs": 13730.9
+      },
+      "runs": {
+        "sync": 8,
+        "realistic": 8,
+        "stress": 3
+      }
+    }
   }
 ]
