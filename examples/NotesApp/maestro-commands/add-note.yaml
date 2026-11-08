@@ -5,12 +5,24 @@
 # fails outright once keyboard-controller is active ("doesn't expose a
 # standard dismiss action"). Tapping app-title still blurs the title input.
 # eraseText so inputText does not append to a leftover title.
+#
+# Typing is checked and retried: on a slow CI simulator, keystrokes can get lost (CI once added a
+# note titled "B" for "Burst Note 1"). The composer slides up with the keyboard while the field
+# gets focus, and the title is a controlled TextInput, so a late re-render can reset what was typed.
 appId: com.nitromelondb.example
 ---
-- tapOn:
-    id: "title-input"
-- eraseText: 80
-- inputText: ${TITLE}
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "title-input"
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - eraseText: 80
+      - inputText: ${TITLE}
+      - assertVisible:
+          id: "title-input"
+          text: ${TITLE}
 - tapOn:
     id: "app-title"
 - tapOn:
