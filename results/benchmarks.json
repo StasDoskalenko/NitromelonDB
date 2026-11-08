@@ -969,5 +969,18 @@
         "stress": 3
       }
     }
+  },
+  {
+    "sha": "b4f39349f45486f3d2077e6b1413d8d47bc73e77",
+    "date": "2026-11-08T07:54:42.331Z",
+    "prNumber": 211,
+    "subject": "ci(perf): `/perf ios` starts the benchmark itself, and perf comments work on fork PRs (#211)",
+    "android": {
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 28.8,
+      "ram": 180,
+      "fps": 54.6
+    }
   }
 ]
