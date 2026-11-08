@@ -1,0 +1,222 @@
+name: iOS sync benchmark
+
+# Runs examples/benchmark's Sync, Realistic sync and Stress cards on an iOS simulator, NitromelonDB
+# against WatermelonDB 0.28 JSI in the same job (scripts/ci-benchmark-ios.sh). Informational, never
+# a required check. macOS minutes are expensive, so it doesn't run on every PR push:
+#   - on a PR when a maintainer comments `/perf ios`; perf-comments.yml posts the result on the PR
+#   - on every merge to master that touches the library or the benchmark; the result is recorded
+#     on the `benchmarks` branch for the docs Performance page
+#
+# How `/perf ios` starts a PR run, and why this way: a PR's code (possibly from a fork) must only
+# run in a `pull_request` run, which has the PR's own cache scope and, for forks, a read-only
+# token. The `issue_comment` event runs with master's cache scope, and code on a hosted runner can
+# read the runner's cache token, so running the PR there would let it poison the caches master's
+# workflows restore. A comment can't create a `pull_request` run either (events from the
+# workflow's own token don't start workflows), but it can re-run one. So every PR push gets a run
+# of this workflow in which only the cheap `pr` job runs, and the `request` job re-runs it on
+# `/perf ios`; in a re-run (run_attempt > 1) the benchmark job runs too.
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [master]
+    paths:
+      - 'src/**'
+      - 'native/**'
+      - 'examples/benchmark/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'scripts/ci-benchmark-ios.sh'
+      - 'scripts/ios-sync-summary.mjs'
+      - '.github/workflows/perf-ios.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # The run `/perf ios` re-runs (a run needs a job that ran to be re-run)
+  pr:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    name: Waiting for /perf ios
+    steps:
+      - run: |
+          if [ "${{ github.run_attempt }}" = "1" ]; then
+            echo "The benchmark runs when a maintainer comments /perf ios on the PR."
+          fi
+
+  # `/perf ios` on a PR. Runs no repository code: it re-runs this workflow's `pull_request` run for
+  # the PR's current head commit and leaves 👀 on the comment. Anyone else's request gets a reply
+  # asking a maintainer to start it, since it runs the PR's code on paid macOS runners.
+  request:
+    if: >-
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/perf ios')
+    runs-on: ubuntu-24.04
+    name: Handle /perf ios
+    permissions:
+      actions: write
+      pull-requests: write
+    steps:
+      - name: Start the benchmark, or reply
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          PR: ${{ github.event.issue.number }}
+          OWNER: ${{ github.repository_owner }}
+          IS_MAINTAINER: ${{ contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) }}
+        run: |
+          set -euo pipefail
+          react() { gh api -X POST "repos/$GH_REPO/issues/comments/$COMMENT_ID/reactions" -f content="$1" > /dev/null; }
+          reply() { gh pr comment "$PR" --body "$1" > /dev/null; }
+          if [ "$IS_MAINTAINER" != "true" ]; then
+            reply "Thanks for asking! The iOS sync benchmark runs on macOS runners, so a maintainer starts it: @$OWNER, reply \`/perf ios\` here to run it."
+            exit 0
+          fi
+          head=$(gh pr view "$PR" --json headRefOid -q .headRefOid)
+          run=$(gh api "repos/$GH_REPO/actions/workflows/perf-ios.yml/runs?event=pull_request&head_sha=$head" \
+            -q '.workflow_runs[0] | select(.) | "\(.id) \(.status)"')
+          if [ -z "$run" ]; then
+            reply "Couldn't find this workflow's run for the PR's latest commit (\`${head:0:7}\`), so there's nothing to re-run. It's created on every push once \`.github/workflows/perf-ios.yml\` is on the base branch: push to the PR (or close and reopen it), then comment \`/perf ios\` again."
+            exit 0
+          fi
+          read -r run_id run_status <<< "$run"
+          if [ "$run_status" != "completed" ]; then
+            reply "The iOS sync benchmark is already running for \`${head:0:7}\`: $GITHUB_SERVER_URL/$GH_REPO/actions/runs/$run_id"
+            exit 0
+          fi
+          gh run rerun "$run_id"
+          react eyes
+
+  benchmark:
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.run_attempt > 1)
+    runs-on: macos-26
+    name: Benchmark (iOS simulator)
+    timeout-minutes: 150
+    # Master runs queue; a PR's runs are separate per commit (a newer push doesn't benchmark)
+    concurrency:
+      group: perf-ios-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}
+    env:
+      CI: true
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      # A PR run checks out the PR merged into its base, like the rest of CI
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Set Node.js version
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+      - name: Set Xcode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      # The WatermelonDB app doesn't use this repo's code: its build only changes with the benchmark
+      # app, the shared benchmark code or Xcode, so it's reused across runs (the key is computed
+      # before anything is installed into those folders). A PR run restores master's caches and
+      # saves its own under the PR's scope.
+      - name: Xcode version for cache keys
+        id: xcode
+        run: echo "version=$(xcodebuild -version | tr -s '\n ' '-')" >> "$GITHUB_OUTPUT"
+      - name: cache the WatermelonDB app build
+        id: wm-app
+        uses: actions/cache@v5
+        with:
+          path: perf-cache/watermelondb
+          key: ${{ runner.os }}-wm-benchmark-app-${{ steps.xcode.outputs.version }}-${{ hashFiles('examples/benchmark/watermelondb_benchmark/**', 'examples/benchmark/shared/**') }}
+      - name: Pick the apps to build
+        id: apps
+        run: echo "list=nitromelondb_benchmark${{ steps.wm-app.outputs.cache-hit != 'true' && ' watermelondb_benchmark' || '' }}" >> "$GITHUB_OUTPUT"
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          key: perf-ios
+          max-size: 2G
+      - uses: actions/cache@v5
+        with:
+          path: 'node_modules'
+          key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
+      - run: yarn install --immutable
+      - name: Install the benchmark apps
+        run: |
+          for app in ${{ steps.apps.outputs.list }}; do
+            (cd "examples/benchmark/$app" && yarn install --immutable)
+          done
+      - name: Expo prebuild iOS
+        # --no-install only skips the JS install; pods are installed below, after restoring their cache
+        run: |
+          for app in ${{ steps.apps.outputs.list }}; do
+            (cd "examples/benchmark/$app" && yarn expo prebuild --platform ios --non-interactive --no-install)
+          done
+      - name: cache Pods
+        uses: actions/cache@v5
+        with:
+          path: |
+            examples/benchmark/nitromelondb_benchmark/ios/Pods
+            examples/benchmark/watermelondb_benchmark/ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: ${{ runner.os }}-benchmark-pods-${{ hashFiles('examples/benchmark/*/ios/Podfile', 'examples/benchmark/*/yarn.lock') }}
+      - name: pod install
+        run: |
+          for app in ${{ steps.apps.outputs.list }}; do
+            (cd "examples/benchmark/$app/ios" && pod install)
+          done
+      - name: Install xcbeautify
+        run: brew install xcbeautify
+      - name: Run the benchmark
+        env:
+          WM_APP_CACHE: perf-cache/watermelondb
+        run: bash scripts/ci-benchmark-ios.sh
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: perf-result-ios-sync
+          path: perf-results/
+          if-no-files-found: ignore
+
+  publish:
+    needs: benchmark
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    name: Publish benchmark history
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v7
+        with:
+          name: perf-result-ios-sync
+          path: perf-results
+      - name: Set Node.js version
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+      # publish-perf-results.mjs also summarizes flashlight results (@perf-profiler/reporter)
+      - uses: actions/cache@v5
+        with:
+          path: 'node_modules'
+          key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
+      - run: yarn install --immutable
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Record result on the benchmarks branch
+        run: bash scripts/ci-publish-benchmark.sh "$GITHUB_SHA" "" "" perf-results/perf-result-ios-sync.json
+      - name: Trigger docs redeploy to pick up the new benchmark
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run docs.yml --ref master

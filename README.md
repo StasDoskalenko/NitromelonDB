@@ -111,12 +111,26 @@ Prefer higher-order components? `withObservables` still works. See [Components](
 
 **Performance**
 
+Measured against WatermelonDB 0.28 on the same device, with the same benchmark apps ([method and raw data](./examples/benchmark#latest-results-2026-11-07-ios-simulator); iPhone 18 Pro simulator, Release builds, React Native 0.88):
+
+| | vs WatermelonDB with JSI | vs WatermelonDB without JSI |
+| --- | --- | --- |
+| Initial sync of a fresh install (80 tables, 300 pulls) | **1.9× faster** | **4.9× faster** |
+| Many small syncs into existing data (67 pulls, 12 tables) | **1.4× faster** | **2.4× faster** |
+| Sync of 5,000 / 20,000 records (create, update, fetch, push) | **1.2× / 1.1× faster** | **1.8× / 1.8× faster** |
+| Sync of 50,000 records (initial and update pulls) | **1.5× faster** | **2.3× faster** |
+| Bulk writes and deletes (100,000 records × 10) | **1.2× faster** | **1.8× faster** |
+
+One known gap: a single query that returns ~50,000 records at once is currently slower than WatermelonDB (2.4 s vs 0.2 s with JSI), because of garbage collection in the native query path on React Native 0.88's Hermes. Results up to 20,000 records, and the chunked reads sync does, are faster. A fix is planned.
+
+What makes it faster:
+
 - Query results skip Nitro's generic `AnyMap` conversion on the way to JS, and the native statement cache is a bounded LRU.
 - Sync skips tables with nothing to pull and finds tables with local changes in one query; large batches no longer rebuild every index.
 - `destroyAllPermanently()` and `markAllAsDeleted()` no longer slow down with the number of records.
 - Caches trim themselves when the OS reports memory pressure, and SQLite releases its own memory too.
 
-Benchmarks against WatermelonDB, tracked over time and linked to the commits that changed them: [Performance](https://stasdoskalenko.github.io/NitromelonDB/performance).
+The NotesApp's Android CPU, memory and frame rate are also tracked on every commit: [Performance](https://stasdoskalenko.github.io/NitromelonDB/performance).
 
 **Tested on every pull request**
 

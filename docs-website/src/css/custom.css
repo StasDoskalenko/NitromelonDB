@@ -26,13 +26,15 @@
   --ifm-color-primary-lightest: #eb8a97;
 }
 
-/* Performance page (src/components/PerformanceCharts) line color. */
+/* Performance page (src/components/PerformanceCharts) line colors, one per chart section. */
 :root {
   --perf-chart-android: #1a73e8;
+  --perf-chart-ios: #c2410c;
 }
 
 [data-theme='dark'] {
   --perf-chart-android: #5b9bf7;
+  --perf-chart-ios: #fb923c;
 }
 
 .navbar__logo img {

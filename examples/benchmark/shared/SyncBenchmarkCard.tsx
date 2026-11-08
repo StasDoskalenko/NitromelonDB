@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
+import type { AutorunProps } from './autorun'
 import type { BenchmarkTheme } from './BenchmarkScreen'
 import { formatNumber } from './format'
 import type { SyncBenchmarkOptions, SyncBenchmarkResult } from './syncBenchmark'
@@ -19,11 +20,12 @@ function formatMs(ms: number): string {
 type Props = {
   theme: BenchmarkTheme
   run: (options: SyncBenchmarkOptions) => Promise<SyncBenchmarkResult>
+  autorun?: AutorunProps
 }
 
 // Same card in both apps, so the numbers line up one to one. See syncBenchmark.ts for what each
 // column measures.
-export function SyncBenchmarkCard({ theme, run }: Props) {
+export function SyncBenchmarkCard({ theme, run, autorun }: Props) {
   const [size, setSize] = useState(SIZES[1]!)
   const [running, setRunning] = useState(false)
   const [results, setResults] = useState<SyncBenchmarkResult[]>([])
@@ -31,21 +33,33 @@ export function SyncBenchmarkCard({ theme, run }: Props) {
 
   const styles = createStyles(theme)
 
-  const start = async () => {
+  const start = async (records = size) => {
     if (running) {
       return
     }
+    setSize(records)
     setRunning(true)
     setError(null)
     try {
-      const result = await run({ records: size, chunkSize: CHUNK_SIZE, pushCount: PUSH_COUNT })
+      const result = await run({ records, chunkSize: CHUNK_SIZE, pushCount: PUSH_COUNT })
       setResults((current) => [result, ...current])
+      autorun?.onResult(result)
     } catch (runError) {
-      setError(runError instanceof Error ? runError.message : String(runError))
+      const message = runError instanceof Error ? runError.message : String(runError)
+      setError(message)
+      autorun?.onError(message)
     } finally {
       setRunning(false)
     }
   }
+
+  useEffect(() => {
+    if (autorun) {
+      void start(autorun.size)
+    }
+    // Only on mount: a launch autoruns once (see autorun.ts)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <View style={styles.card}>

@@ -54,6 +54,14 @@ if type -p ccache >/dev/null 2>&1; then
   # https://ccache.dev/manual/latest.html#_configuration
   export CCACHE_MAXSIZE=5G
   export CCACHE_CPP2=true
+  # Same settings as React Native's own node_modules/react-native/scripts/xcode/ccache.conf, as
+  # environment variables so they don't replace the config file that sets cache_dir (CI's
+  # ccache-action writes it). Without `modules` in sloppiness, ccache refuses every compile that
+  # uses Clang modules, which is every compile Xcode runs: CI saw 100% "uncacheable calls".
+  export CCACHE_SLOPPINESS=clang_index_store,file_stat_matches,include_file_ctime,include_file_mtime,ivfsoverlay,pch_defines,modules,system_headers,time_macros
+  export CCACHE_FILECLONE=true
+  export CCACHE_DEPEND=true
+  export CCACHE_INODECACHE=true
   # (debug)
   # export CCACHE_LOGFILE=/Users/radex/.ccache-log
 

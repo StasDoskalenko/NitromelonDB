@@ -191,8 +191,23 @@
   width: 12px;
   height: 2px;
   border-radius: 1px;
-  background: var(--perf-chart-android);
+  background: var(--perf-series);
   align-self: center;
+}
+
+.tooltipBaseline {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+  color: var(--ifm-color-emphasis-700);
+  font-variant-numeric: tabular-nums;
+}
+
+.tooltipBaselineKey {
+  display: inline-block;
+  width: 12px;
+  border-top: 2px dashed var(--ifm-color-emphasis-500);
 }
 
 .tooltipUnit {
@@ -229,7 +244,7 @@
 /* Pinned run */
 .pinned {
   border: 1px solid var(--ifm-color-emphasis-300);
-  border-left: 3px solid var(--perf-chart-android);
+  border-left: 3px solid var(--perf-series);
   border-radius: 10px;
   padding: 0.9rem 1.25rem;
   margin-bottom: 1.5rem;

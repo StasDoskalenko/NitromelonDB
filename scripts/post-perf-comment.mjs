@@ -3,7 +3,9 @@
 
 /**
  * Upsert a single PR comment with the perf benchmark summary (score, avg
- * CPU%, RAM, FPS from flashlight -- see scripts/perf-summary.mjs). Uses
+ * CPU%, RAM, FPS from flashlight -- see scripts/perf-summary.mjs). Run by
+ * .github/workflows/perf-comments.yml after a PR's CI run, on the result file
+ * that run uploaded, so the file is treated as untrusted data. Uses
  * `gh api` directly (not `gh pr comment`, which always posts a fresh
  * comment -- see publish-release.yml) so the same comment is found and
  * edited in place on every push to the PR, matching this repo's existing
@@ -21,6 +23,26 @@ import { summarizePerfResult } from './perf-summary.mjs'
 
 const MARKER = '<!-- perf-benchmark-comment -->'
 const BODY_FILE = '.perf-comment-body.md'
+
+// The result file comes from a run of the PR's code: a file that isn't a flashlight result
+// counts as no data, and only finite numbers go into the comment
+function readSummary(file) {
+  let summary
+  try {
+    summary = summarizePerfResult(file)
+  } catch {
+    return null
+  }
+  if (!summary) return null
+  const number = (value) => (typeof value === 'number' && Number.isFinite(value) ? value : '–')
+  return {
+    iterationCount: number(summary.iterationCount),
+    score: number(summary.score),
+    cpu: number(summary.cpu),
+    ram: number(summary.ram),
+    fps: number(summary.fps),
+  }
+}
 
 function buildBody(androidSummary) {
   const lines = [
@@ -44,7 +66,13 @@ function buildBody(androidSummary) {
     )
   }
 
-  lines.push('', '_Updated automatically on each push to this PR. Not a required check._')
+  lines.push(
+    '',
+    '_Updated automatically after each CI run of this PR. Not a required check._',
+    '',
+    '> [!TIP]',
+    '> Touching sync, queries or native code? Comment `/perf ios` to request the iOS sync benchmark against WatermelonDB on this PR (see `.github/workflows/perf-ios.yml`). A maintainer\'s request starts it right away (👀 on the comment); anyone else\'s asks a maintainer to start it.'
+  )
   return lines.join('\n')
 }
 
@@ -59,7 +87,7 @@ function main() {
     process.exit(1)
   }
 
-  const body = buildBody(summarizePerfResult(androidFile))
+  const body = buildBody(readSummary(androidFile))
 
   const existing = JSON.parse(gh(['api', `repos/${repo}/issues/${prNumber}/comments`, '--paginate']))
   const existingComment = existing.find((comment) => comment.body?.includes(MARKER))
