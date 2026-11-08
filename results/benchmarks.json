@@ -1220,5 +1220,18 @@
         "stress": 3
       }
     }
+  },
+  {
+    "sha": "1b785dd1c5bc56bd470ec2ffaf9138b82123042e",
+    "date": "2026-11-08T20:43:12.992Z",
+    "prNumber": 217,
+    "subject": "fix(deps): clear the open Dependabot alerts that have a fix (#217)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 25.8,
+      "ram": 177,
+      "fps": 54.7
+    }
   }
 ]
