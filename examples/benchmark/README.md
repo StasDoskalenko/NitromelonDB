@@ -16,6 +16,31 @@ Use **Quick · 100,000 × 10** for day-to-day comparisons. The full 1,000,000 ×
 
 These apps will not run in Expo Go. New Architecture is required.
 
+## Latest results (2026-11-07, iOS simulator)
+
+NitromelonDB `master` ([`240f4cb7`](https://github.com/StasDoskalenko/NitromelonDB/commit/240f4cb7)) against WatermelonDB 0.28 with JSI and without JSI (`jsi: false`, the asynchronous bridge many apps still run).
+
+- **Setup:** Release builds on an iPhone 18 Pro simulator (iOS 27.1, Xcode 27.1, React Native 0.88), on an Apple M5 Pro. Each WatermelonDB build's engine label ("JSI" / "asynchronous") was checked on screen before running.
+- **Method:** [scripted runs](#scripted-runs), relaunching the app and clearing its database before every run. Two sessions, each with NitromelonDB in it: NitromelonDB against WatermelonDB JSI, then against WatermelonDB non-JSI. Runs within a session are interleaved in random order. Medians; p is a Mann-Whitney test.
+- **Raw data:** [`results/2026-11-07-ios/`](./results/2026-11-07-ios). Re-summarize with `node scripts/summarize-sync.mjs <file> --baseline 'WatermelonDB JSI'` (or `'WatermelonDB non-JSI'`).
+
+| Benchmark | NitromelonDB | WatermelonDB JSI | WatermelonDB non-JSI |
+| --- | --- | --- | --- |
+| **Realistic sync**: fresh install, 300 pulls, 80 tables (library time) | **524 ms** | 989 ms (**1.9× slower**, p<0.001) | 2,374 ms (**4.9× slower**, p<0.001) |
+| **Incremental sync**: 67 pulls into 12 tables of 2,000 records | **184 ms** | 259 ms (**1.4× slower**, p<0.001) | 434 ms (**2.4× slower**, p<0.001) |
+| **Sync, 5,000 records**: create, update, fetch, push (total) | **145 ms** | 174 ms (**1.2× slower**, p<0.001) | 254 ms (**1.8× slower**, p<0.001) |
+| **Sync, 20,000 records** (total) | **650 ms** | 741 ms (**1.1× slower**, p<0.001) | 1,157 ms (**1.8× slower**, p<0.001) |
+| **Sync, 50,000 records**: initial + update pulls (p<0.001 for each pull) | **1,503 ms** | 2,296 ms (**1.5× slower**) | 3,484 ms (**2.3× slower**) |
+| **Sync, 50,000 records**: one fetch of all records | 2,402 ms | **193 ms** (12× faster) | **1,317 ms** (1.8× faster, p=0.56) |
+| **Stress test**: 100,000 writes + deletes × 10 (ops/s) | **97,960** | 80,647 (**1.2× slower**) | 54,031 (**1.8× slower**) |
+
+Each sync row is 8 runs per app, Incremental 10, and the stress test 3, where every NitromelonDB run beat every WatermelonDB run (p=0.081 is the smallest a 3-against-3 test can give). The NitromelonDB column is session 1; session 2 matched it within 7%.
+
+**Where NitromelonDB is slower:**
+
+- **One query that returns ~50,000 records at once.** The native query path (`queryJSI`, #140) builds every row object inside a single native call, and on the React Native 0.88 Hermes, garbage collection during that call gets expensive: about 2 s of the 2.4 s is GC. With the older `AnyMap` path forced, the same fetch takes 265 ms. 20,000 records (63 ms, 1.7× faster than WatermelonDB JSI) and the chunked reads sync does are unaffected. A fix is planned.
+- **The stress test's query phase** (count, filtered fetch, paged queries) is 20% slower than WatermelonDB JSI (353 vs 295 ms), likely the same cause. Writes (−13%) and deletes (−27%) are faster.
+
 Each app opens on a **Home** tile grid -- one tile per benchmark below -- instead of stacking
 every card into a single long scroll. Tapping a tile opens that benchmark on its own screen with
 a back button.
@@ -162,8 +187,13 @@ node scripts/summarize-sync.mjs incremental.jsonl --baseline WatermelonDB
 Android Release builds can't be `run-as`, so the runner clears the app's data (`pm clear`) before
 each run instead of deleting just the database file, and reads RSS from `/proc/<pid>/status`.
 
-Each run relaunches the app, drives the card with [Maestro](https://maestro.dev), and appends one
-JSON line to `--out`. The runner also samples the app process's RSS from the host every 100ms,
+Each run relaunches the app, runs the card once, and appends one JSON line to `--out`. On iOS
+(every card but mass delete), the runner launches the app with a launch argument
+(`-benchAutorun 'card=…&size=…&report=…'`, see `shared/autorun.ts`): the app opens that card, runs
+it, and POSTs the result back to the runner, which also records the engine the app reports. A run
+then costs the app launch plus the benchmark. Elsewhere, or with `--driver maestro`, it drives the
+card with [Maestro](https://maestro.dev) and reads the result from the view hierarchy, which adds
+about 40 s per run on a Mac (two Maestro starts and some UI timeouts). The runner also samples the app process's RSS from the host every 100ms,
 which works because a simulator app is a normal macOS process. It approximates native memory use,
 but it isn't the `phys_footprint` iOS uses for memory limits on a device. The summary prints the
 median of each column, with min–max underneath.
@@ -186,6 +216,35 @@ flashlight report flashlight-incr/nitromelondb.json flashlight-incr/watermelondb
 The summary's main number is **CPU time**: CPU seconds used during the iteration, summed over
 threads. Unlike mean CPU %, it doesn't change with how long the flow spends launching the app or
 waiting around the benchmark itself.
+
+#### In CI (iOS)
+
+`.github/workflows/perf-ios.yml` runs the Sync (5k and 50k), Realistic sync (300 pulls) and Stress
+(Quick) cards with the scripted runner above, on an iOS simulator on GitHub Actions, using Release
+builds of both apps (`scripts/ci-benchmark-ios.sh` at the repo root). Its summary fails if any
+WatermelonDB run didn't use the JSI adapter.
+
+- **On a PR:** a maintainer comments `/perf ios`, and 👀 on the comment means it started. Run
+  again with another `/perf ios`. The result is posted as a PR comment by `perf-comments.yml`, and
+  updated by the next run. Anyone else's `/perf ios` gets a reply asking a maintainer to start it,
+  since it runs the PR's code on paid macOS runners. The Android flashlight comment on every PR
+  reminds contributors of this.
+- **Security:** the PR's code only runs in a `pull_request` run, with the PR's own cache scope
+  and, for forks, a read-only token. It never runs from the comment itself, which would run with
+  master's cache scope, where untrusted code could poison the caches master's workflows restore.
+  So every PR push gets a run of `perf-ios.yml` in which the benchmark is skipped, and
+  `/perf ios` re-runs it (a comment can't start a new `pull_request` run, but it can re-run one);
+  in a re-run, the benchmark job runs. Comments on both perf benchmarks come from
+  `perf-comments.yml`, a `workflow_run` workflow, because a fork PR's own run can't comment.
+- **On every merge to master** that touches the library or the benchmark: the result is recorded
+  on the `benchmarks` branch and charted on the docs site's Performance page.
+
+CI machines vary a lot from run to run, so the number to watch is **NitromelonDB relative to
+WatermelonDB JSI measured in the same job**. The PR comment shows that ratio for every metric,
+and how it changed from master's latest run (flagged when it drops by more than 10%). A run is
+mostly building: the WatermelonDB app doesn't use this repo's code, so its build is cached and only
+redone when the benchmark app, `shared/` or Xcode changes. It still costs macOS runner minutes,
+which is why it doesn't run on every push.
 
 ### Timers on Android
 

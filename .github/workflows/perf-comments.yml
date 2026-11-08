@@ -1,0 +1,105 @@
+name: Perf benchmark comments
+
+# Posts the perf benchmark results of a PR's CI run (Android flashlight, from ci.yml) and of its
+# iOS sync benchmark run (perf-ios.yml) as PR comments. A pull_request run from a fork only gets a
+# read-only token, so it can't comment itself ("Resource not accessible by integration"). This
+# workflow_run workflow runs after it with a token that can, and never runs the PR's code: it checks
+# out master's scripts, finds the PR from GitHub's API (not from anything the PR run produced), and
+# only reads the run's result files, downloaded outside the workspace and validated by the comment
+# scripts before anything goes into the comment.
+
+on:
+  workflow_run:
+    workflows: [CI, iOS sync benchmark]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  comment:
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion != 'cancelled'
+    runs-on: ubuntu-24.04
+    name: Post PR comment
+    permissions:
+      actions: read
+      pull-requests: write
+    steps:
+      # Only a run whose benchmark job ran (finished or not) gets a comment: every PR push starts an
+      # iOS sync benchmark run that only benchmarks when re-run by `/perf ios`
+      - name: Find the PR, if this run benchmarked one
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          WORKFLOW: ${{ github.event.workflow_run.name }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          case "$WORKFLOW" in
+            CI) job="NotesApp Android (Maestro)"; kind=android ;;
+            *) job="Benchmark (iOS simulator)"; kind=ios ;;
+          esac
+          conclusion=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID/jobs?filter=latest" \
+            -q ".jobs[] | select(.name == \"$job\") | .conclusion")
+          case "$conclusion" in
+            success|failure|timed_out) ;;
+            *) echo "$job didn't run (${conclusion:-none}), nothing to post"; exit 0 ;;
+          esac
+          pr=$(gh pr list --state open --limit 200 --json number,headRefOid \
+            -q ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number" | head -1)
+          if [ -z "$pr" ]; then
+            echo "No open PR has head $HEAD_SHA (pushed again since?), nothing to post"
+            exit 0
+          fi
+          echo "pr=$pr" >> "$GITHUB_OUTPUT"
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v6
+        if: steps.target.outputs.pr
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v7
+        if: steps.target.outputs.pr
+        with:
+          name: ${{ steps.target.outputs.kind == 'android' && 'perf-result-android' || 'perf-result-ios-sync' }}
+          path: ${{ runner.temp }}/perf-results
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+        continue-on-error: true
+      - name: Set Node.js version
+        if: steps.target.outputs.pr
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+      # post-perf-comment.mjs summarizes flashlight results with @perf-profiler/reporter
+      - uses: actions/cache@v5
+        if: steps.target.outputs.kind == 'android'
+        with:
+          path: 'node_modules'
+          key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
+      - if: steps.target.outputs.kind == 'android'
+        run: yarn install --immutable
+      - name: Post the Android comment
+        if: steps.target.outputs.kind == 'android'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.target.outputs.pr }}
+        run: node scripts/post-perf-comment.mjs "$REPO" "$PR" "$RUNNER_TEMP/perf-results/perf-result-android.json"
+      - name: Get master's latest recorded iOS run
+        if: steps.target.outputs.kind == 'ios'
+        run: |
+          git fetch origin benchmarks --depth=1 > /dev/null 2>&1 \
+            && git show origin/benchmarks:results/benchmarks.json > "$RUNNER_TEMP/benchmarks.json" \
+            || echo "[]" > "$RUNNER_TEMP/benchmarks.json"
+      - name: Post the iOS comment
+        if: steps.target.outputs.kind == 'ios'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.target.outputs.pr }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          node scripts/post-ios-sync-comment.mjs "$REPO" "$PR" "$HEAD_SHA" \
+            "$RUNNER_TEMP/perf-results/perf-result-ios-sync.json" "$RUNNER_TEMP/benchmarks.json" "$RUN_URL"

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { AUTORUN, autorunFor, type AutorunCard } from '../shared/autorun'
 import { BenchmarkScreen } from '../shared/BenchmarkScreen'
 import { CompetingWorkBenchmarkCard } from '../shared/CompetingWorkBenchmarkCard'
 import { Home, type BenchmarkTile } from '../shared/Home'
@@ -59,6 +60,14 @@ const TILES: BenchmarkTile[] = [
 
 type ScreenKey = (typeof TILES)[number]['key'] | null
 
+// The screen each scripted-run card lives on (see ../shared/autorun.ts)
+const AUTORUN_SCREEN: Record<AutorunCard, ScreenKey> = {
+  stress: 'main',
+  sync: 'sync',
+  incr: 'incrementalSync',
+  real: 'realisticSync',
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
@@ -78,8 +87,9 @@ function BenchmarkApp() {
       }
     }
   })
-  const [screen, setScreen] = useState<ScreenKey>(null)
+  const [screen, setScreen] = useState<ScreenKey>(AUTORUN ? AUTORUN_SCREEN[AUTORUN.card] : null)
   const home = () => setScreen(null)
+  const engine = session.ok ? session.adapter.engine : null
 
   if (screen === 'main') {
     return (
@@ -90,27 +100,36 @@ function BenchmarkApp() {
         setupError={session.ok ? null : session.message}
         theme={theme}
         onBack={home}
+        autorun={autorunFor('stress', engine)}
       />
     )
   }
   if (screen === 'sync') {
     return (
       <Screen title="Sync" theme={theme} onBack={home}>
-        <SyncBenchmarkCard theme={theme} run={runSync} />
+        <SyncBenchmarkCard theme={theme} run={runSync} autorun={autorunFor('sync', engine)} />
       </Screen>
     )
   }
   if (screen === 'incrementalSync') {
     return (
       <Screen title="Incremental sync" theme={theme} onBack={home}>
-        <IncrementalSyncCard theme={theme} run={runIncrementalSync} />
+        <IncrementalSyncCard
+          theme={theme}
+          run={runIncrementalSync}
+          autorun={autorunFor('incr', engine)}
+        />
       </Screen>
     )
   }
   if (screen === 'realisticSync') {
     return (
       <Screen title="Realistic sync" theme={theme} onBack={home}>
-        <RealisticSyncCard theme={theme} run={runRealisticSync} />
+        <RealisticSyncCard
+          theme={theme}
+          run={runRealisticSync}
+          autorun={autorunFor('real', engine)}
+        />
       </Screen>
     )
   }
@@ -133,7 +152,7 @@ function BenchmarkApp() {
     <Home
       title="WatermelonDB"
       subtitle="Same 1,000,000 write / query / delete loop against upstream WatermelonDB."
-      engine={session.ok ? session.adapter.engine : null}
+      engine={engine}
       setupError={session.ok ? null : session.message}
       theme={theme}
       tiles={TILES}
