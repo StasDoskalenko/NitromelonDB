@@ -12,7 +12,6 @@ import { fileURLToPath } from 'url'
 import prettyJson from 'json-stringify-pretty-compact'
 import chokidar from 'chokidar'
 import anymatch from 'anymatch'
-import rimraf from 'rimraf'
 
 import { execSync } from 'child_process'
 
@@ -36,7 +35,7 @@ const DIR_PATH = isDevelopment ? DEV_PATH : DIST_PATH
 
 const isNotIncludedInBuildPaths = (value) => !anymatch(DO_NOT_BUILD_PATHS, value)
 
-const cleanFolder = (dir) => rimraf.sync(dir)
+const cleanFolder = (dir) => fs.removeSync(dir)
 
 const takeFiles = pipe(prop('path'), isSourceFile)
 
