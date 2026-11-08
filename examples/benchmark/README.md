@@ -36,10 +36,10 @@ NitromelonDB `master` ([`240f4cb7`](https://github.com/StasDoskalenko/Nitromelon
 
 Each sync row is 8 runs per app, Incremental 10, and the stress test 3, where every NitromelonDB run beat every WatermelonDB run (p=0.081 is the smallest a 3-against-3 test can give). The NitromelonDB column is session 1; session 2 matched it within 7%.
 
-**Where NitromelonDB is slower:**
+**Fixed since (#209):** the two places where NitromelonDB was slower above. Re-measured against WatermelonDB JSI with the same setup ([`results/2026-11-07-ios-after-209/`](./results/2026-11-07-ios-after-209)):
 
-- **One query that returns ~50,000 records at once.** The native query path (`queryJSI`, #140) builds every row object inside a single native call, and on the React Native 0.88 Hermes, garbage collection during that call gets expensive: about 2 s of the 2.4 s is GC. With the older `AnyMap` path forced, the same fetch takes 265 ms. 20,000 records (63 ms, 1.7× faster than WatermelonDB JSI) and the chunked reads sync does are unaffected. A fix is planned.
-- **The stress test's query phase** (count, filtered fetch, paged queries) is 20% slower than WatermelonDB JSI (353 vs 295 ms), likely the same cause. Writes (−13%) and deletes (−27%) are faster.
+- **One query that returns ~50,000 records at once** (2,402 ms above) now takes **162 ms**, against WatermelonDB JSI's 195 ms (1.2× faster, p<0.001). The cause wasn't the query path: `batchJSON` turned every write batch into one large JSON string, which fragmented Hermes' heap during the sync before it, so the query spent ~2 s in garbage collection. `batch()` now hands the operations to native code straight from the JS arrays (`batchJSI`).
+- **The stress test's query phase** (353 vs 295 ms above) is level with WatermelonDB JSI: 297 vs 298 ms (p=0.08). It was slower because locally created records stored their set columns in `_changed` (#195), which made rows ~20% bigger. Those columns are now inferred when a sync conflict happens instead, which also made writes faster: the stress score is **1.44×** WatermelonDB JSI's (113,426 vs 78,690 ops/s).
 
 Each app opens on a **Home** tile grid -- one tile per benchmark below -- instead of stacking
 every card into a single long scroll. Tapping a tile opens that benchmark on its own screen with
