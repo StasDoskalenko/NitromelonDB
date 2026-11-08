@@ -18,6 +18,8 @@ import {
   describeDelta,
   formatTick,
   formatValue,
+  priorLabel,
+  trendKey,
 } from './metrics'
 import styles from './styles.module.css'
 
@@ -35,7 +37,7 @@ function pickTicks(rows) {
   return [...new Set(ticks)]
 }
 
-function RunTooltip({ active, payload, metric, previousByIndex, compact }) {
+function RunTooltip({ active, payload, metric, compact }) {
   if (!active || !payload?.length) return null
   const row = payload[0].payload
   const value = row[metric.key]
@@ -50,7 +52,9 @@ function RunTooltip({ active, payload, metric, previousByIndex, compact }) {
     )
   }
 
-  const delta = describeDelta(metric, value, previousByIndex.get(row.index)?.[metric.key])
+  const prior = row.prior?.[metric.key]
+  const delta = prior && describeDelta(metric, value, prior.value)
+  const trend = row[trendKey(metric)]
 
   return (
     <div className={styles.tooltip}>
@@ -60,10 +64,17 @@ function RunTooltip({ active, payload, metric, previousByIndex, compact }) {
         <span className={styles.tooltipUnit}>{metric.unit}</span>
         {delta && (
           <span className={styles.tooltipDelta} data-direction={delta.direction}>
-            {delta.text} {delta.direction !== 'flat' ? `(${delta.direction})` : ''} vs previous run
+            {delta.text} {delta.direction !== 'flat' ? `(${delta.direction})` : ''}{' '}
+            {priorLabel(prior)}
           </span>
         )}
       </div>
+      {trend != null && (
+        <div className={styles.tooltipBaseline}>
+          <span className={styles.tooltipTrendKey} aria-hidden="true" />
+          Trend: {formatValue(trend, metric)} {metric.unit}
+        </div>
+      )}
       {metric.baseline && row[baselineKey(metric)] != null && (
         <div className={styles.tooltipBaseline}>
           <span className={styles.tooltipBaselineKey} aria-hidden="true" />
@@ -86,8 +97,8 @@ function RunTooltip({ active, payload, metric, previousByIndex, compact }) {
 }
 
 /**
- * One metric's history as a line + area wash, plus WatermelonDB JSI as a dashed line for metrics
- * with a `baseline`. All cards of a section share `syncId`, so hovering a run in one chart shows
+ * One metric's history: the rolling-median trend as the main line + area wash, each run as a faded
+ * line under it, plus WatermelonDB JSI as a dashed line for metrics with a `baseline`. All cards of a section share `syncId`, so hovering a run in one chart shows
  * the same run in every chart; clicking pins it (`onSelect`).
  */
 export function MetricChart({ rows, metric, syncId, pinnedIndex, onSelect }) {
@@ -107,11 +118,8 @@ export function MetricChart({ rows, metric, syncId, pinnedIndex, onSelect }) {
     return { domain: [0, top], ticks: yTicks }
   }, [points, metric.key, metric.parity])
   const rowByIndex = useMemo(() => new Map(rows.map((r) => [r.index, r])), [rows])
-  const previousByIndex = useMemo(() => {
-    const map = new Map()
-    for (let i = 1; i < points.length; i++) map.set(points[i].index, points[i - 1])
-    return map
-  }, [points])
+  // Too few runs for a median (see MIN_TREND_RUNS) → the runs line is the main line
+  const hasTrend = points.some((r) => r[trendKey(metric)] != null)
 
   const header = (
     <h3>
@@ -129,11 +137,8 @@ export function MetricChart({ rows, metric, syncId, pinnedIndex, onSelect }) {
   }
 
   const latest = points[points.length - 1]
-  const delta = describeDelta(
-    metric,
-    latest[metric.key],
-    previousByIndex.get(latest.index)?.[metric.key],
-  )
+  const latestPrior = latest.prior?.[metric.key]
+  const delta = latestPrior && describeDelta(metric, latest[metric.key], latestPrior.value)
 
   const handleClick = (state) => {
     const label = state?.activeLabel
@@ -152,7 +157,7 @@ export function MetricChart({ rows, metric, syncId, pinnedIndex, onSelect }) {
           </span>
           {delta && delta.direction !== 'flat' && (
             <span className={styles.delta} data-direction={delta.direction}>
-              {delta.text} ({delta.direction}) vs previous
+              {delta.text} ({delta.direction}) {priorLabel(latestPrior)}
             </span>
           )}
         </div>
@@ -207,9 +212,7 @@ export function MetricChart({ rows, metric, syncId, pinnedIndex, onSelect }) {
             />
             <Tooltip
               cursor={{ stroke: 'var(--ifm-color-emphasis-500)', strokeWidth: 1 }}
-              content={
-                <RunTooltip metric={metric} previousByIndex={previousByIndex} compact={!hovered} />
-              }
+              content={<RunTooltip metric={metric} compact={!hovered} />}
               position={hovered ? undefined : { y: 0 }}
               wrapperStyle={{ pointerEvents: 'none' }}
               isAnimationActive={false}
@@ -235,7 +238,7 @@ export function MetricChart({ rows, metric, syncId, pinnedIndex, onSelect }) {
               />
             )}
             <Area
-              dataKey={metric.key}
+              dataKey={hasTrend ? trendKey(metric) : metric.key}
               type="linear"
               stroke="none"
               fill={`url(#${gradientId})`}
@@ -258,12 +261,30 @@ export function MetricChart({ rows, metric, syncId, pinnedIndex, onSelect }) {
                 isAnimationActive={false}
               />
             )}
+            {hasTrend && (
+              <Line
+                dataKey={trendKey(metric)}
+                name="Trend"
+                type="linear"
+                stroke={SERIES}
+                strokeWidth={2}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                dot={false}
+                activeDot={false}
+                connectNulls
+                isAnimationActive={false}
+                tooltipType="none"
+              />
+            )}
+            {/* Each run, faded under the trend; the hover dot sits on the run's real value */}
             <Line
               dataKey={metric.key}
               name={metric.label}
               type="linear"
               stroke={SERIES}
-              strokeWidth={2}
+              strokeWidth={hasTrend ? 1.25 : 2}
+              strokeOpacity={hasTrend ? 0.4 : 1}
               strokeLinejoin="round"
               strokeLinecap="round"
               dot={false}

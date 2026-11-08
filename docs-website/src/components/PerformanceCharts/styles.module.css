@@ -210,6 +210,62 @@
   border-top: 2px dashed var(--ifm-color-emphasis-500);
 }
 
+.tooltipTrendKey {
+  display: inline-block;
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--perf-series);
+}
+
+/* Chart key: line keys mirror the marks (solid trend, faded runs, dashed WatermelonDB). */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  list-style: none;
+  padding: 0;
+  margin: -0.25rem 0 1rem;
+  font-size: 0.8rem;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.legendTrend,
+.legendRun,
+.legendBaseline {
+  display: inline-block;
+  width: 16px;
+}
+
+.legendTrend {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--perf-series);
+}
+
+.legendRun {
+  height: 1.25px;
+  background: var(--perf-series);
+  opacity: 0.4;
+}
+
+.legendBaseline {
+  border-top: 1.5px dashed var(--ifm-color-emphasis-500);
+}
+
+.pinnedNote {
+  margin: 0.6rem 0 0;
+  font-size: 0.75rem;
+  color: var(--ifm-color-emphasis-600);
+}
+
 .tooltipUnit {
   color: var(--ifm-color-emphasis-600);
   margin-left: -0.25rem;
