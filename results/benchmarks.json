@@ -1178,5 +1178,47 @@
         "stress": 3
       }
     }
+  },
+  {
+    "sha": "b51de2b1db7b2498e2c68de13bb3f4d67688ea28",
+    "date": "2026-11-08T20:28:06.404Z",
+    "prNumber": 216,
+    "subject": "docs(readme): re-measure v0.32.0-beta.0 against WatermelonDB, with and without JSI (#216)",
+    "iosSync": {
+      "device": "iPhone 17 Pro, iOS 26.4",
+      "nitromelondb": {
+        "sync5kTotalMs": 445.9,
+        "sync50kInitialPullMs": 1429.7,
+        "sync50kUpdatePullMs": 3367.1,
+        "sync50kFetchAllMs": 510,
+        "sync50kPushMs": 28,
+        "sync50kTotalMs": 5300.6,
+        "sync50kGcMs": 1054,
+        "realisticLibraryMs": 1305.1,
+        "stressScore": 55857,
+        "stressWriteMs": 23657.8,
+        "stressQueryMs": 670.6,
+        "stressDeleteMs": 11450.7
+      },
+      "watermelondb": {
+        "sync5kTotalMs": 541.3,
+        "sync50kInitialPullMs": 1903.6,
+        "sync50kUpdatePullMs": 4058.9,
+        "sync50kFetchAllMs": 987.7,
+        "sync50kPushMs": 153.1,
+        "sync50kTotalMs": 7383,
+        "sync50kGcMs": 1035.4,
+        "realisticLibraryMs": 2366.6,
+        "stressScore": 38831,
+        "stressWriteMs": 33129.5,
+        "stressQueryMs": 656,
+        "stressDeleteMs": 17695.8
+      },
+      "runs": {
+        "sync": 8,
+        "realistic": 8,
+        "stress": 3
+      }
+    }
   }
 ]
