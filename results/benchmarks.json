@@ -1018,5 +1018,47 @@
         "stress": 3
       }
     }
+  },
+  {
+    "sha": "8770824cf9ebffd642b589d45e73ca8cb41f1051",
+    "date": "2026-11-08T08:32:18.855Z",
+    "prNumber": 206,
+    "subject": "test(sync): end-to-end test for a large batched pull (#206)",
+    "iosSync": {
+      "device": "iPhone 17 Pro, iOS 26.4",
+      "nitromelondb": {
+        "sync5kTotalMs": 298.8,
+        "sync50kInitialPullMs": 948.1,
+        "sync50kUpdatePullMs": 2076.3,
+        "sync50kFetchAllMs": 341.4,
+        "sync50kPushMs": 21.3,
+        "sync50kTotalMs": 3433.6,
+        "sync50kGcMs": 607,
+        "realisticLibraryMs": 1236.1,
+        "stressScore": 49355,
+        "stressWriteMs": 27070.3,
+        "stressQueryMs": 712.2,
+        "stressDeleteMs": 13051.8
+      },
+      "watermelondb": {
+        "sync5kTotalMs": 364.5,
+        "sync50kInitialPullMs": 1264.3,
+        "sync50kUpdatePullMs": 2844.6,
+        "sync50kFetchAllMs": 380.2,
+        "sync50kPushMs": 96.5,
+        "sync50kTotalMs": 4686.7,
+        "sync50kGcMs": 506.7,
+        "realisticLibraryMs": 2476,
+        "stressScore": 34312,
+        "stressWriteMs": 37588.4,
+        "stressQueryMs": 731.8,
+        "stressDeleteMs": 19941.3
+      },
+      "runs": {
+        "sync": 8,
+        "realistic": 8,
+        "stress": 3
+      }
+    }
   }
 ]
