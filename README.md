@@ -121,7 +121,7 @@ Measured against WatermelonDB 0.28 on the same device, with the same benchmark a
 | Sync of 50,000 records (initial and update pulls) | **1.5× faster** | **2.3× faster** |
 | Bulk writes and deletes (100,000 records × 10) | **1.2× faster** | **1.8× faster** |
 
-One known gap: a single query that returns ~50,000 records at once is currently slower than WatermelonDB (2.4 s vs 0.2 s with JSI), because of garbage collection in the native query path on React Native 0.88's Hermes. Results up to 20,000 records, and the chunked reads sync does, are faster. A fix is planned.
+The table was measured on `240f4cb7`. Since then, [#209](https://github.com/StasDoskalenko/NitromelonDB/pull/209) fixed the one gap it had: a single query returning ~50,000 records right after a large sync took 2.4 s there, and is now faster than WatermelonDB too (162 vs 195 ms with JSI, 1.2×). The other numbers stayed the same or improved, the stress test to 1.4× faster than WatermelonDB with JSI ([raw data](./examples/benchmark/results/2026-11-07-ios-after-209)).
 
 What makes it faster:
 
