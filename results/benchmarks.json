@@ -1116,5 +1116,18 @@
       "ram": 181,
       "fps": 53.3
     }
+  },
+  {
+    "sha": "fc5f46bf64f690a474f9b813be15b5dd80e58f8d",
+    "date": "2026-11-08T18:05:40.879Z",
+    "prNumber": 213,
+    "subject": "ci: retry tool downloads from GitHub release assets, and fail fast when an install didn't work (#213)",
+    "android": {
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 25.4,
+      "ram": 182,
+      "fps": 54.4
+    }
   }
 ]
