@@ -224,16 +224,18 @@ waiting around the benchmark itself.
 builds of both apps (`scripts/ci-benchmark-ios.sh` at the repo root). Its summary fails if any
 WatermelonDB run didn't use the JSI adapter.
 
-- **On a PR:** a maintainer adds the `perf-ios` label (remove and re-add it to run again), or
-  comments `/perf ios`, which adds the label when the repository has a `PERF_LABEL_TOKEN` secret
-  (a fine-grained token with Pull requests: write; a label added with the workflow's own token
-  can't start workflows). The result is posted as a PR comment by `perf-ios-comment.yml`, updated
-  on the next run. Anyone else's `/perf ios` gets a reply asking a maintainer to start it, since it
-  runs the PR's code on paid macOS runners. The Android flashlight comment on every PR reminds
-  contributors of this.
+- **On a PR:** a maintainer comments `/perf ios`, and 👀 on the comment means it started. Run
+  again with another `/perf ios`. The result is posted as a PR comment by `perf-comments.yml`, and
+  updated by the next run. Anyone else's `/perf ios` gets a reply asking a maintainer to start it,
+  since it runs the PR's code on paid macOS runners. The Android flashlight comment on every PR
+  reminds contributors of this.
 - **Security:** the PR's code only runs in a `pull_request` run, with the PR's own cache scope
-  and, for forks, a read-only token. It never runs from the comment, which would run with master's
-  cache scope, where untrusted code could poison the caches master's workflows restore.
+  and, for forks, a read-only token. It never runs from the comment itself, which would run with
+  master's cache scope, where untrusted code could poison the caches master's workflows restore.
+  So every PR push gets a run of `perf-ios.yml` in which the benchmark is skipped, and
+  `/perf ios` re-runs it (a comment can't start a new `pull_request` run, but it can re-run one);
+  in a re-run, the benchmark job runs. Comments on both perf benchmarks come from
+  `perf-comments.yml`, a `workflow_run` workflow, because a fork PR's own run can't comment.
 - **On every merge to master** that touches the library or the benchmark: the result is recorded
   on the `benchmarks` branch and charted on the docs site's Performance page.
 
