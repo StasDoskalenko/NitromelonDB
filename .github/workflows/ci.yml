@@ -420,27 +420,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-      - name: Append result and push to benchmarks branch
-        run: |
-          set -euo pipefail
-          if git ls-remote --exit-code --heads origin benchmarks > /dev/null 2>&1; then
-            git fetch origin benchmarks
-            git worktree add -B benchmarks ../benchmarks-branch origin/benchmarks
-          else
-            git worktree add --detach ../benchmarks-branch
-            git -C ../benchmarks-branch checkout --orphan benchmarks
-            git -C ../benchmarks-branch rm -rf . > /dev/null 2>&1 || true
-          fi
-
-          node scripts/publish-perf-results.mjs \
-            ../benchmarks-branch/results/benchmarks.json \
-            "$GITHUB_SHA" \
-            "" \
-            perf-results/perf-result-android.json
-
-          git -C ../benchmarks-branch add results/benchmarks.json
-          git -C ../benchmarks-branch commit -m "chore: record perf benchmark for ${GITHUB_SHA:0:7}"
-          git -C ../benchmarks-branch push origin benchmarks
+      - name: Record result on the benchmarks branch
+        run: bash scripts/ci-publish-benchmark.sh "$GITHUB_SHA" "" perf-results/perf-result-android.json
       - name: Trigger docs redeploy to pick up the new benchmark
         env:
           GH_TOKEN: ${{ github.token }}

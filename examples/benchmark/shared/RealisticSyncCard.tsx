@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
+import type { AutorunProps } from './autorun'
 import type { BenchmarkTheme } from './BenchmarkScreen'
 import { formatNumber } from './format'
 import type { RealisticSyncOptions, RealisticSyncResult } from './realisticSyncBenchmark'
@@ -13,10 +14,11 @@ function formatMs(ms: number): string {
 type Props = {
   theme: BenchmarkTheme
   run: (options: RealisticSyncOptions) => Promise<RealisticSyncResult>
+  autorun?: AutorunProps
 }
 
 // Same card in both apps. See realisticSyncBenchmark.ts and ../mock-server for the workload.
-export function RealisticSyncCard({ theme, run }: Props) {
+export function RealisticSyncCard({ theme, run, autorun }: Props) {
   const [pulls, setPulls] = useState(PULL_COUNTS[1]!)
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<RealisticSyncResult | null>(null)
@@ -24,20 +26,33 @@ export function RealisticSyncCard({ theme, run }: Props) {
 
   const styles = createStyles(theme)
 
-  const start = async () => {
+  const start = async (count = pulls) => {
     if (running) {
       return
     }
+    setPulls(count)
     setRunning(true)
     setError(null)
     try {
-      setResult(await run({ pulls }))
+      const next = await run({ pulls: count })
+      setResult(next)
+      autorun?.onResult(next)
     } catch (runError) {
-      setError(runError instanceof Error ? runError.message : String(runError))
+      const message = runError instanceof Error ? runError.message : String(runError)
+      setError(message)
+      autorun?.onError(message)
     } finally {
       setRunning(false)
     }
   }
+
+  useEffect(() => {
+    if (autorun) {
+      void start(autorun.size)
+    }
+    // Only on mount: a launch autoruns once (see autorun.ts)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <View style={styles.card}>

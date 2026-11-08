@@ -20,15 +20,24 @@
 // order, so drift over the session (thermals, simulator background work) hits all apps equally
 // instead of whichever one ran last.
 //
+// --driver picks how a run is started. `launch` (the default on iOS, for every card but mass)
+// launches the app with a launch argument that makes it run the card by itself and POST the result
+// back to a listener here (see shared/autorun.ts): a run costs the app launch plus the benchmark.
+// `maestro` (the default on Android and for --card mass) drives the UI with a Maestro flow and
+// reads the result from the view hierarchy, which costs two Maestro starts and some UI timeouts
+// per run (~40 s on a Mac, ~2.5 min on a CI runner).
+//
 // Besides the app's own numbers (timings + Hermes heap/GC, see shared/syncBenchmark.ts), it samples
 // the app process's resident memory from the host every 100ms. On a simulator the app is a normal
 // macOS process, so `ps` can see it. RSS here is a proxy, not the phys_footprint iOS uses for
 // memory limits on a device. On Android it's VmRSS from /proc via adb.
 
 import { execFileSync, spawn } from 'node:child_process'
+import { createServer } from 'node:http'
 import { appendFileSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { openCardSteps } from './homeTiles.mjs'
 
 function parseArgs(argv) {
   const args = {}
@@ -57,10 +66,18 @@ function parseArgs(argv) {
       throw new Error(`Missing --${required}`)
     }
   }
+  const driver = args.driver ?? (platform === 'ios' && card !== 'mass' ? 'launch' : 'maestro')
+  if (!['launch', 'maestro'].includes(driver)) {
+    throw new Error('--driver must be launch or maestro')
+  }
+  if (driver === 'launch' && (platform !== 'ios' || card === 'mass')) {
+    throw new Error('--driver launch only supports iOS, and every card but mass')
+  }
   return {
     apps,
     platform,
     card,
+    driver,
     device: args.device,
     out: args.out,
     sizes: (args.sizes ?? { sync: '20000', incr: '2000', real: '300', stress: '100000', mass: '5000' }[card])
@@ -99,6 +116,7 @@ function flowFor(app, card, size) {
 - tapOn:
     text: "Cancel"
     optional: true
+${openCardSteps(card)}
 # Optional: on iOS, Maestro never counts the bottom of the last card (mass delete) as visible,
 # even once it's scrolled all the way down and on screen. tapOn below only needs it on screen.
 - scrollUntilVisible:
@@ -240,8 +258,63 @@ function deleteSyncDatabases(platform, device, app) {
   }
 }
 
-async function runOnce({ platform, card, device }, app, size, flowPath) {
-  writeFileSync(flowPath, flowFor(app, card, size))
+// Receives the results apps POST in --driver launch mode (shared/autorun.ts), one run at a time
+function startResultListener() {
+  let waiting = null
+  const server = createServer((request, response) => {
+    let body = ''
+    request.on('data', (chunk) => (body += chunk))
+    request.on('end', () => {
+      response.end('ok')
+      if (request.method === 'POST' && request.url === '/result' && waiting) {
+        const { resolve } = waiting
+        waiting = null
+        resolve(body)
+      }
+    })
+  })
+  const ready = new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)))
+  return {
+    port: ready,
+    next(timeoutMs) {
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          waiting = null
+          reject(new Error(`no result within ${timeoutMs / 1000}s`))
+        }, timeoutMs)
+        waiting = {
+          resolve: (body) => {
+            clearTimeout(timer)
+            resolve(body)
+          },
+        }
+      })
+    },
+    close: () => server.close(),
+  }
+}
+
+// One --driver launch run: start the app with the autorun launch argument and wait for its report
+async function launchAndAwaitResult(device, app, card, size, listener) {
+  const port = await listener.port
+  const query = `card=${card}&size=${size}&report=${encodeURIComponent(`http://localhost:${port}/result`)}`
+  const result = listener.next(15 * 60 * 1000)
+  execFileSync('xcrun', ['simctl', 'launch', '--terminate-running-process', device, app, '-benchAutorun', query], {
+    stdio: 'ignore',
+  })
+  const report = JSON.parse(await result)
+  execFileSync('xcrun', ['simctl', 'terminate', device, app], { stdio: 'ignore' })
+  if (report.error) {
+    throw new Error(`the app reported: ${report.error}`)
+  }
+  // The engine the app actually ran (WatermelonDB can silently fall back from JSI to the bridge)
+  return { ...report.result, engine: report.engine }
+}
+
+async function runOnce({ platform, card, device, driver }, app, size, flowPath, listener) {
+  if (driver === 'maestro') {
+    writeFileSync(flowPath, flowFor(app, card, size))
+  }
   deleteSyncDatabases(platform, device, app)
 
   let pid = null
@@ -263,18 +336,24 @@ async function runOnce({ platform, card, device }, app, size, flowPath) {
     }
   })()
 
+  let result
   try {
-    await runMaestro(device, flowPath)
+    if (driver === 'launch') {
+      result = await launchAndAwaitResult(device, app, card, size, listener)
+    } else {
+      await runMaestro(device, flowPath)
+    }
   } finally {
     sampling = false
     await sampler
   }
-  return { result: readResult(device, card), rssPeakBytes: peak, rssEndBytes: last }
+  return { result: result ?? readResult(device, card), rssPeakBytes: peak, rssEndBytes: last }
 }
 
 async function main() {
   const options = parseArgs(process.argv.slice(2))
   const flowPath = path.join(mkdtempSync(path.join(tmpdir(), 'sync-trials-')), 'flow.yaml')
+  const listener = options.driver === 'launch' ? startResultListener() : null
   for (let run = 1; run <= options.runs; run += 1) {
     for (const size of options.sizes) {
       for (const { label, app } of shuffled(options.apps)) {
@@ -284,7 +363,7 @@ async function main() {
         for (let attempt = 1; !outcome; attempt += 1) {
           try {
             // eslint-disable-next-line no-await-in-loop
-            outcome = await runOnce(options, app, size, flowPath)
+            outcome = await runOnce(options, app, size, flowPath, listener)
           } catch (error) {
             if (attempt >= 2) {
               throw error
@@ -330,6 +409,7 @@ async function main() {
       }
     }
   }
+  listener?.close()
 }
 
 main().catch((error) => {

@@ -44,7 +44,13 @@ function buildBody(androidSummary) {
     )
   }
 
-  lines.push('', '_Updated automatically on each push to this PR. Not a required check._')
+  lines.push(
+    '',
+    '_Updated automatically on each push to this PR. Not a required check._',
+    '',
+    '> [!TIP]',
+    '> Touching sync, queries or native code? Comment `/perf ios` to request the iOS sync benchmark against WatermelonDB on this PR (see `.github/workflows/perf-ios.yml`). A maintainer\'s request starts it right away; anyone else\'s asks a maintainer to start it.'
+  )
   return lines.join('\n')
 }
 

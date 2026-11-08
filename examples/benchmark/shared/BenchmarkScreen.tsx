@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Pressable,
   ScrollView,
@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import type { AutorunProps } from './autorun'
 import { FULL_WORKLOAD, QUICK_WORKLOAD, type BenchmarkWorkload } from './config'
 import { formatDuration, formatNumber, formatOps, phaseLabel } from './format'
 import { runBenchmark } from './runBenchmark'
@@ -37,6 +38,8 @@ type Props = {
   // Present when this screen was opened from the Home tile grid (see Home.tsx) rather than
   // being the app's only screen -- renders a back button at the top when given.
   onBack?: () => void
+  // Scripted run (see autorun.ts): size is the workload's records per round
+  autorun?: AutorunProps
 }
 
 const idleProgress = (workload: BenchmarkWorkload): BenchmarkProgress => ({
@@ -50,7 +53,15 @@ const idleProgress = (workload: BenchmarkWorkload): BenchmarkProgress => ({
   roundsCompleted: [],
 })
 
-export function BenchmarkScreen({ title, subtitle, adapter, setupError, theme, onBack }: Props) {
+export function BenchmarkScreen({
+  title,
+  subtitle,
+  adapter,
+  setupError,
+  theme,
+  onBack,
+  autorun,
+}: Props) {
   const [workload, setWorkload] = useState<BenchmarkWorkload>(FULL_WORKLOAD)
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState<BenchmarkProgress>(() => idleProgress(FULL_WORKLOAD))
@@ -75,12 +86,28 @@ export function BenchmarkScreen({ title, subtitle, adapter, setupError, theme, o
     try {
       const result = await runBenchmark(adapter, next, setProgress, cancelRef.current)
       setSummary(result)
+      autorun?.onResult(stressJson(result))
     } catch (runError) {
-      setError(runError instanceof Error ? runError.message : String(runError))
+      const message = runError instanceof Error ? runError.message : String(runError)
+      setError(message)
+      autorun?.onError(message)
     } finally {
       setRunning(false)
     }
   }
+
+  useEffect(() => {
+    if (!autorun) {
+      return
+    }
+    if (!adapter) {
+      autorun.onError(setupError ?? 'No database adapter')
+      return
+    }
+    void start(autorun.size === FULL_WORKLOAD.records ? FULL_WORKLOAD : QUICK_WORKLOAD)
+    // Only on mount: a launch autoruns once (see autorun.ts)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const stop = () => {
     cancelRef.current.cancelled = true
@@ -247,6 +274,23 @@ function Row({
   )
 }
 
+/** What scripted runs record of a stress run (per-round detail left out). */
+function stressJson(summary: BenchmarkSummary) {
+  return {
+    kind: 'stress',
+    records: summary.records,
+    completedRounds: summary.completedRounds,
+    cancelled: summary.cancelled,
+    totalMs: summary.totalMs,
+    writeMs: summary.writeMs,
+    queryMs: summary.queryMs,
+    deleteMs: summary.deleteMs,
+    score: summary.score,
+    fastestRoundMs: summary.fastestRoundMs,
+    slowestRoundMs: summary.slowestRoundMs,
+  }
+}
+
 function ScoreCard({
   summary,
   styles,
@@ -278,21 +322,9 @@ function ScoreCard({
         value={`${formatDuration(summary.fastestRoundMs)} – ${formatDuration(summary.slowestRoundMs)}`}
         styles={styles}
       />
-      {/* Machine-readable copy for scripted runs (maestro hierarchy); per-round detail left out */}
+      {/* Machine-readable copy for scripted runs (maestro hierarchy) */}
       <Text testID="stress-json" style={styles.json}>
-        {JSON.stringify({
-          kind: 'stress',
-          records: summary.records,
-          completedRounds: summary.completedRounds,
-          cancelled: summary.cancelled,
-          totalMs: summary.totalMs,
-          writeMs: summary.writeMs,
-          queryMs: summary.queryMs,
-          deleteMs: summary.deleteMs,
-          score: summary.score,
-          fastestRoundMs: summary.fastestRoundMs,
-          slowestRoundMs: summary.slowestRoundMs,
-        })}
+        {JSON.stringify(stressJson(summary))}
       </Text>
     </View>
   )

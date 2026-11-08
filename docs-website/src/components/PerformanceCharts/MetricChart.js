@@ -10,10 +10,20 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { dateFmt, dateTimeFmt, describeDelta, formatValue } from './metrics'
+import {
+  BASELINE_LABEL,
+  baselineKey,
+  dateFmt,
+  dateTimeFmt,
+  describeDelta,
+  formatTick,
+  formatValue,
+} from './metrics'
 import styles from './styles.module.css'
 
-const SERIES = 'var(--perf-chart-android)'
+// Set per chart section by PerformanceCharts (--perf-chart-android / --perf-chart-ios)
+const SERIES = 'var(--perf-series)'
+const BASELINE = 'var(--ifm-color-emphasis-500)'
 const SURFACE = 'var(--ifm-background-surface-color)'
 const AXIS_TICK = { fill: 'var(--ifm-color-emphasis-600)', fontSize: 12 }
 
@@ -34,7 +44,7 @@ function RunTooltip({ active, payload, metric, previousByIndex, compact }) {
   if (compact) {
     return (
       <div className={styles.tooltipCompact}>
-        <strong>{formatValue(value)}</strong>
+        <strong>{formatValue(value, metric)}</strong>
         <span className={styles.tooltipUnit}> {metric.unit}</span>
       </div>
     )
@@ -46,7 +56,7 @@ function RunTooltip({ active, payload, metric, previousByIndex, compact }) {
     <div className={styles.tooltip}>
       <div className={styles.tooltipValue}>
         <span className={styles.tooltipKey} aria-hidden="true" />
-        <strong>{formatValue(value)}</strong>
+        <strong>{formatValue(value, metric)}</strong>
         <span className={styles.tooltipUnit}>{metric.unit}</span>
         {delta && (
           <span className={styles.tooltipDelta} data-direction={delta.direction}>
@@ -54,6 +64,12 @@ function RunTooltip({ active, payload, metric, previousByIndex, compact }) {
           </span>
         )}
       </div>
+      {metric.baseline && row[baselineKey(metric)] != null && (
+        <div className={styles.tooltipBaseline}>
+          <span className={styles.tooltipBaselineKey} aria-hidden="true" />
+          {BASELINE_LABEL}: {formatValue(row[baselineKey(metric)], metric)} {metric.unit}
+        </div>
+      )}
       {row.subject && <div className={styles.tooltipSubject}>{row.subject}</div>}
       <div className={styles.tooltipMeta}>
         {[
@@ -70,15 +86,26 @@ function RunTooltip({ active, payload, metric, previousByIndex, compact }) {
 }
 
 /**
- * One metric's history as a line + area wash. All cards share `syncId`, so hovering a
- * run in one chart shows the same run in every chart; clicking pins it (`onSelect`).
+ * One metric's history as a line + area wash, plus WatermelonDB JSI as a dashed line for metrics
+ * with a `baseline`. All cards of a section share `syncId`, so hovering a run in one chart shows
+ * the same run in every chart; clicking pins it (`onSelect`).
  */
-export function MetricChart({ rows, metric, pinnedIndex, onSelect }) {
+export function MetricChart({ rows, metric, syncId, pinnedIndex, onSelect }) {
   const gradientId = `perf-area-${useId().replace(/:/g, '')}`
   // Only the chart under the pointer shows the full tooltip; synced ones show a value pill.
   const [hovered, setHovered] = useState(false)
   const points = useMemo(() => rows.filter((r) => r[metric.key] != null), [rows, metric.key])
   const ticks = useMemo(() => pickTicks(rows), [rows])
+  // A ratio's axis starts at 0 and always shows its parity line, so "slower than" is visible
+  const ratioAxis = useMemo(() => {
+    if (metric.parity == null) return null
+    const max = Math.max(...points.map((r) => r[metric.key]), metric.parity * 1.1)
+    const top = Math.ceil(max * 1.15 * 2) / 2
+    const step = top <= 3 ? 0.5 : 1
+    const yTicks = []
+    for (let tick = 0; tick <= top + 1e-9; tick += step) yTicks.push(tick)
+    return { domain: [0, top], ticks: yTicks }
+  }, [points, metric.key, metric.parity])
   const rowByIndex = useMemo(() => new Map(rows.map((r) => [r.index, r])), [rows])
   const previousByIndex = useMemo(() => {
     const map = new Map()
@@ -120,7 +147,7 @@ export function MetricChart({ rows, metric, pinnedIndex, onSelect }) {
         {header}
         <div className={styles.latest}>
           <span className={styles.latestValue}>
-            {formatValue(latest[metric.key])}
+            {formatValue(latest[metric.key], metric)}
             <span className={styles.latestUnit}>{metric.unit}</span>
           </span>
           {delta && delta.direction !== 'flat' && (
@@ -141,7 +168,7 @@ export function MetricChart({ rows, metric, pinnedIndex, onSelect }) {
         <ResponsiveContainer width="100%" height={240}>
           <ComposedChart
             data={rows}
-            syncId="perf"
+            syncId={syncId}
             margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
             onClick={handleClick}
             style={{ cursor: 'pointer' }}
@@ -169,13 +196,14 @@ export function MetricChart({ rows, metric, pinnedIndex, onSelect }) {
               padding={{ left: 6, right: 6 }}
             />
             <YAxis
-              domain={['auto', 'auto']}
+              domain={ratioAxis?.domain ?? ['auto', 'auto']}
+              ticks={ratioAxis?.ticks}
               tickCount={5}
               width={44}
               tick={AXIS_TICK}
               tickLine={false}
               axisLine={false}
-              tickFormatter={formatValue}
+              tickFormatter={(value) => formatTick(value, metric)}
             />
             <Tooltip
               cursor={{ stroke: 'var(--ifm-color-emphasis-500)', strokeWidth: 1 }}
@@ -186,6 +214,19 @@ export function MetricChart({ rows, metric, pinnedIndex, onSelect }) {
               wrapperStyle={{ pointerEvents: 'none' }}
               isAnimationActive={false}
             />
+            {metric.parity != null && (
+              <ReferenceLine
+                y={metric.parity}
+                stroke={BASELINE}
+                strokeDasharray="5 4"
+                label={{
+                  value: `${BASELINE_LABEL} (${metric.parity}×)`,
+                  position: 'insideBottomRight',
+                  fill: 'var(--ifm-color-emphasis-600)',
+                  fontSize: 11,
+                }}
+              />
+            )}
             {pinnedIndex != null && (
               <ReferenceLine
                 x={pinnedIndex}
@@ -203,6 +244,20 @@ export function MetricChart({ rows, metric, pinnedIndex, onSelect }) {
               activeDot={false}
               tooltipType="none"
             />
+            {metric.baseline && (
+              <Line
+                dataKey={baselineKey(metric)}
+                name={BASELINE_LABEL}
+                type="linear"
+                stroke={BASELINE}
+                strokeWidth={1.5}
+                strokeDasharray="5 4"
+                dot={false}
+                activeDot={false}
+                connectNulls
+                isAnimationActive={false}
+              />
+            )}
             <Line
               dataKey={metric.key}
               name={metric.label}
