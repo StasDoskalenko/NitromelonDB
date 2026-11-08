@@ -1141,6 +1141,42 @@
       "cpu": 26.4,
       "ram": 179,
       "fps": 54.9
+    },
+    "iosSync": {
+      "device": "iPhone 17 Pro, iOS 26.4",
+      "nitromelondb": {
+        "sync5kTotalMs": 423.8,
+        "sync50kInitialPullMs": 1266.9,
+        "sync50kUpdatePullMs": 2690.1,
+        "sync50kFetchAllMs": 459.5,
+        "sync50kPushMs": 35.5,
+        "sync50kTotalMs": 4496,
+        "sync50kGcMs": 723.4,
+        "realisticLibraryMs": 1126,
+        "stressScore": 58338,
+        "stressWriteMs": 22838.9,
+        "stressQueryMs": 652.7,
+        "stressDeleteMs": 10762.2
+      },
+      "watermelondb": {
+        "sync5kTotalMs": 476.6,
+        "sync50kInitialPullMs": 1654.1,
+        "sync50kUpdatePullMs": 3715.8,
+        "sync50kFetchAllMs": 685,
+        "sync50kPushMs": 113.2,
+        "sync50kTotalMs": 6271.3,
+        "sync50kGcMs": 805.9,
+        "realisticLibraryMs": 2608.8,
+        "stressScore": 34768,
+        "stressWriteMs": 36651.5,
+        "stressQueryMs": 779.7,
+        "stressDeleteMs": 20066.4
+      },
+      "runs": {
+        "sync": 8,
+        "realistic": 8,
+        "stress": 3
+      }
     }
   }
 ]
