@@ -111,17 +111,17 @@ Prefer higher-order components? `withObservables` still works. See [Components](
 
 **Performance**
 
-Measured against WatermelonDB 0.28 on the same device, with the same benchmark apps ([method and raw data](./examples/benchmark#latest-results-2026-11-07-ios-simulator); iPhone 18 Pro simulator, Release builds, React Native 0.88):
+Measured against WatermelonDB 0.28 on the same device, with the same benchmark apps (v0.32.0-beta.0, iPhone 18 Pro simulator, Release builds, React Native 0.88; [method and raw data](./examples/benchmark#latest-results-2026-11-08-v0320-beta0-ios-simulator)):
 
 | | vs WatermelonDB with JSI | vs WatermelonDB without JSI |
 | --- | --- | --- |
-| Initial sync of a fresh install (80 tables, 300 pulls) | **1.9× faster** | **4.9× faster** |
-| Many small syncs into existing data (67 pulls, 12 tables) | **1.4× faster** | **2.4× faster** |
-| Sync of 5,000 / 20,000 records (create, update, fetch, push) | **1.2× / 1.1× faster** | **1.8× / 1.8× faster** |
-| Sync of 50,000 records (initial and update pulls) | **1.5× faster** | **2.3× faster** |
-| Bulk writes and deletes (100,000 records × 10) | **1.2× faster** | **1.8× faster** |
+| Initial sync of a fresh install (80 tables, 300 pulls) | **2.0× faster** | **4.7× faster** |
+| Many small syncs into existing data (67 pulls, 12 tables) | **1.4× faster** | **2.3× faster** |
+| Sync of 5,000 / 20,000 records (create, update, fetch, push) | **1.2× / 1.2× faster** | **1.9× / 2.1× faster** |
+| Sync of 50,000 records (initial and update pulls) | **1.6× faster** | **2.4× faster** |
+| Bulk writes and deletes (100,000 records × 10) | **1.4× faster** | **2.1× faster** |
 
-The table was measured on `240f4cb7`. Since then, [#209](https://github.com/StasDoskalenko/NitromelonDB/pull/209) fixed the one gap it had: a single query returning ~50,000 records right after a large sync took 2.4 s there, and is now faster than WatermelonDB too (162 vs 195 ms with JSI, 1.2×). The other numbers stayed the same or improved, the stress test to 1.4× faster than WatermelonDB with JSI ([raw data](./examples/benchmark/results/2026-11-07-ios-after-209)).
+A single query returning ~50,000 records right after syncing them is faster too: 1.2× faster than WatermelonDB with JSI when the app sat idle before the sync, and 4.3× when the sync runs right at launch, where WatermelonDB spends most of that query in garbage collection. One thing is slower: the stress test's query phase, 10% against WatermelonDB without JSI (level with JSI).
 
 What makes it faster:
 

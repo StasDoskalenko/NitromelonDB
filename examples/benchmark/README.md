@@ -16,30 +16,31 @@ Use **Quick · 100,000 × 10** for day-to-day comparisons. The full 1,000,000 ×
 
 These apps will not run in Expo Go. New Architecture is required.
 
-## Latest results (2026-11-07, iOS simulator)
+## Latest results (2026-11-08, v0.32.0-beta.0, iOS simulator)
 
-NitromelonDB `master` ([`240f4cb7`](https://github.com/StasDoskalenko/NitromelonDB/commit/240f4cb7)) against WatermelonDB 0.28 with JSI and without JSI (`jsi: false`, the asynchronous bridge many apps still run).
+NitromelonDB v0.32.0-beta.0 ([`aa7e2a1b`](https://github.com/StasDoskalenko/NitromelonDB/commit/aa7e2a1b)) against WatermelonDB 0.28 with JSI and without JSI (`jsi: false`, the asynchronous bridge many apps still run).
 
-- **Setup:** Release builds on an iPhone 18 Pro simulator (iOS 27.1, Xcode 27.1, React Native 0.88), on an Apple M5 Pro. Each WatermelonDB build's engine label ("JSI" / "asynchronous") was checked on screen before running.
-- **Method:** [scripted runs](#scripted-runs), relaunching the app and clearing its database before every run. Two sessions, each with NitromelonDB in it: NitromelonDB against WatermelonDB JSI, then against WatermelonDB non-JSI. Runs within a session are interleaved in random order. Medians; p is a Mann-Whitney test.
-- **Raw data:** [`results/2026-11-07-ios/`](./results/2026-11-07-ios). Re-summarize with `node scripts/summarize-sync.mjs <file> --baseline 'WatermelonDB JSI'` (or `'WatermelonDB non-JSI'`).
+- **Setup:** Release builds on an iPhone 18 Pro simulator (iOS 27.1, Xcode 27.1, React Native 0.88), on an Apple M5 Pro.
+- **Method:** [scripted runs](#scripted-runs) with the launch driver: every run launches the app with a fresh database, runs the card once and reports back, along with the engine it used (every WatermelonDB run reported "JSI" or "asynchronous" as intended). Two sessions, each with NitromelonDB in it: against WatermelonDB JSI, then against WatermelonDB non-JSI. Runs within a session are interleaved in random order. Medians; p is a Mann-Whitney test.
+- **Raw data:** [`results/2026-11-08-ios-v0.32.0-beta.0/`](./results/2026-11-08-ios-v0.32.0-beta.0). Re-summarize with `node scripts/summarize-sync.mjs <file> --baseline 'WatermelonDB JSI'` (or `'WatermelonDB non-JSI'`).
 
 | Benchmark | NitromelonDB | WatermelonDB JSI | WatermelonDB non-JSI |
 | --- | --- | --- | --- |
-| **Realistic sync**: fresh install, 300 pulls, 80 tables (library time) | **524 ms** | 989 ms (**1.9× slower**, p<0.001) | 2,374 ms (**4.9× slower**, p<0.001) |
-| **Incremental sync**: 67 pulls into 12 tables of 2,000 records | **184 ms** | 259 ms (**1.4× slower**, p<0.001) | 434 ms (**2.4× slower**, p<0.001) |
-| **Sync, 5,000 records**: create, update, fetch, push (total) | **145 ms** | 174 ms (**1.2× slower**, p<0.001) | 254 ms (**1.8× slower**, p<0.001) |
-| **Sync, 20,000 records** (total) | **650 ms** | 741 ms (**1.1× slower**, p<0.001) | 1,157 ms (**1.8× slower**, p<0.001) |
-| **Sync, 50,000 records**: initial + update pulls (p<0.001 for each pull) | **1,503 ms** | 2,296 ms (**1.5× slower**) | 3,484 ms (**2.3× slower**) |
-| **Sync, 50,000 records**: one fetch of all records | 2,402 ms | **193 ms** (12× faster) | **1,317 ms** (1.8× faster, p=0.56) |
-| **Stress test**: 100,000 writes + deletes × 10 (ops/s) | **97,960** | 80,647 (**1.2× slower**) | 54,031 (**1.8× slower**) |
+| **Realistic sync**: fresh install, 300 pulls, 80 tables (library time) | **473 ms** | 942 ms (**2.0× slower**, p<0.001) | 2,245 ms (**4.7× slower**, p<0.001) |
+| **Incremental sync**: 67 pulls into 12 tables of 2,000 records | **180 ms** | 250 ms (**1.4× slower**, p<0.001) | 396 ms (**2.3× slower**, p<0.001) |
+| **Sync, 5,000 records**: create, update, fetch, push (total) | **135 ms** | 166 ms (**1.2× slower**, p<0.001) | 255 ms (**1.9× slower**, p<0.001) |
+| **Sync, 20,000 records** (total) | **574 ms** | 680 ms (**1.2× slower**, p<0.001) | 1,194 ms (**2.1× slower**, p<0.001) |
+| **Sync, 50,000 records**: initial + update pulls | **1,381 ms** | 2,144 ms (**1.6× slower**, p<0.001) | 3,298 ms (**2.4× slower**, p<0.001) |
+| **Sync, 50,000 records**: one fetch of all records, right after | **149 ms** | 642 ms (**4.3× slower**, p<0.001) | 782 ms (**5.3× slower**, p<0.001) |
+| **Stress test**: 100,000 writes + deletes × 10 (ops/s) | **118,047** | 82,786 (**1.4× slower**) | 56,574 (**2.1× slower**) |
 
-Each sync row is 8 runs per app, Incremental 10, and the stress test 3, where every NitromelonDB run beat every WatermelonDB run (p=0.081 is the smallest a 3-against-3 test can give). The NitromelonDB column is session 1; session 2 matched it within 7%.
+Each sync row is 8 runs per app, Incremental 10, and the stress test 3, where every NitromelonDB run beat every WatermelonDB run (p=0.081 is the smallest a 3-against-3 test can give). The NitromelonDB column is session 1; session 2 matched it within 5%. Ratios against non-JSI are from session 2.
 
-**Fixed since (#209):** the two places where NitromelonDB was slower above. Re-measured against WatermelonDB JSI with the same setup ([`results/2026-11-07-ios-after-209/`](./results/2026-11-07-ios-after-209)):
+**The 50,000-record fetch depends on what ran before it.** It comes right after syncing 50,000 records, and WatermelonDB's `batchJSON` turns every write batch into one large JSON string, which fragments Hermes' heap: here WatermelonDB JSI spent ~470 ms of its 642 ms in garbage collection, NitromelonDB ~11 ms. NitromelonDB had the same problem until [#209](https://github.com/StasDoskalenko/NitromelonDB/pull/209) switched it to `batchJSI`. With the older Maestro driver, the app sat idle for a few seconds after launch before the benchmark started, and WatermelonDB JSI's fetch took 195 ms against NitromelonDB's 162 ms (1.2×, [`results/2026-11-07-ios-after-209/`](./results/2026-11-07-ios-after-209)). The launch driver starts the benchmark right away, like an app that syncs at launch.
 
-- **One query that returns ~50,000 records at once** (2,402 ms above) now takes **162 ms**, against WatermelonDB JSI's 195 ms (1.2× faster, p<0.001). The cause wasn't the query path: `batchJSON` turned every write batch into one large JSON string, which fragmented Hermes' heap during the sync before it, so the query spent ~2 s in garbage collection. `batch()` now hands the operations to native code straight from the JS arrays (`batchJSI`).
-- **The stress test's query phase** (353 vs 295 ms above) is level with WatermelonDB JSI: 297 vs 298 ms (p=0.08). It was slower because locally created records stored their set columns in `_changed` (#195), which made rows ~20% bigger. Those columns are now inferred when a sync conflict happens instead, which also made writes faster: the stress score is **1.44×** WatermelonDB JSI's (113,426 vs 78,690 ops/s).
+**Where NitromelonDB is slower:** the stress test's query phase (count, filtered fetch, paged queries) against WatermelonDB non-JSI: 281 vs 257 ms, 10% slower, in every run. Against WatermelonDB JSI it's level (276 vs 277 ms).
+
+Earlier results: [`results/2026-11-07-ios/`](./results/2026-11-07-ios) (`240f4cb7`, before #209, with the Maestro driver).
 
 Each app opens on a **Home** tile grid -- one tile per benchmark below -- instead of stacking
 every card into a single long scroll. Tapping a tile opens that benchmark on its own screen with
