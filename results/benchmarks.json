@@ -1108,6 +1108,13 @@
         "realistic": 8,
         "stress": 3
       }
+    },
+    "android": {
+      "iterationCount": 5,
+      "score": 94,
+      "cpu": 29.8,
+      "ram": 181,
+      "fps": 53.3
     }
   }
 ]
