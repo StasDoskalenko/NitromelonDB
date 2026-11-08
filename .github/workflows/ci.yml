@@ -262,13 +262,9 @@ jobs:
         working-directory: examples/NotesApp
         run: yarn expo prebuild --platform android --non-interactive --no-install
       - name: Install Maestro
-        run: |
-          curl -fsSL "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+        run: bash scripts/ci-install-tool.sh Maestro https://get.maestro.mobile.dev "$HOME/.maestro/bin/maestro"
       - name: Install flashlight
-        run: |
-          curl -fsSL "https://get.flashlight.dev" | bash
-          echo "$HOME/.flashlight/bin" >> "$GITHUB_PATH"
+        run: bash scripts/ci-install-tool.sh flashlight https://get.flashlight.dev "$HOME/.flashlight/bin/flashlight"
       # android-emulator-runner runs each YAML line via `sh -c`, so keep this a single command.
       # Runs the real e2e suite (blocking) then a flashlight perf measurement on the
       # same build/emulator (informational only, see scripts/ci-notesapp-android-maestro.sh).
@@ -343,9 +339,7 @@ jobs:
         working-directory: examples/NotesApp/ios
         run: pod install
       - name: Install Maestro
-        run: |
-          curl -fsSL "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+        run: bash scripts/ci-install-tool.sh Maestro https://get.maestro.mobile.dev "$HOME/.maestro/bin/maestro"
       - name: Install xcbeautify
         run: brew install xcbeautify
       - name: run tests

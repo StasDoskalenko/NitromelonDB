@@ -88,15 +88,35 @@ function platformKey() {
   return `${process.platform}-${arch}`
 }
 
-async function download(url) {
-  const response = await fetch(url, {
-    headers: { 'User-Agent': 'NitromelonDB-lint-workflows' },
-    redirect: 'follow',
-  })
-  if (!response.ok) {
-    throw new Error(`Download failed ${response.status} ${url}`)
+// GitHub release assets sometimes answer 5xx for a while: retry those (and network errors) with
+// backoff before failing the lint job over it. A 4xx won't fix itself, so it fails right away.
+async function download(url, attempts = 4) {
+  for (let attempt = 1; ; attempt++) {
+    let failure
+    try {
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'NitromelonDB-lint-workflows' },
+        redirect: 'follow',
+      })
+      if (response.ok) {
+        return Buffer.from(await response.arrayBuffer())
+      }
+      failure = `Download failed ${response.status} ${url}`
+      if (response.status < 500) {
+        throw new Error(failure)
+      }
+    } catch (error) {
+      if (failure) {
+        throw error
+      }
+      failure = `Download failed (${error.message}) ${url}`
+    }
+    if (attempt >= attempts) {
+      throw new Error(failure)
+    }
+    console.log(`${failure}, retrying (attempt ${attempt + 1} of ${attempts})`)
+    await new Promise((resolve) => setTimeout(resolve, attempt * 15_000))
   }
-  return Buffer.from(await response.arrayBuffer())
 }
 
 function assertSha256(buffer, expected, label) {
