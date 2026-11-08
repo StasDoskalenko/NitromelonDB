@@ -13,6 +13,10 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # Read by the Maestro installer (scripts/ci-install-tool.sh); also the Maestro cache key
+  MAESTRO_VERSION: 2.12.1
+
 jobs:
   eslint:
     if: github.event.action != 'closed'
@@ -261,8 +265,20 @@ jobs:
       - name: Expo prebuild Android
         working-directory: examples/NotesApp
         run: yarn expo prebuild --platform android --non-interactive --no-install
+      # Pinned, so it can be cached: the installer downloads from GitHub release assets
+      - name: cache Maestro
+        uses: actions/cache@v5
+        with:
+          path: ~/.maestro
+          key: ${{ runner.os }}-maestro-${{ env.MAESTRO_VERSION }}
       - name: Install Maestro
         run: bash scripts/ci-install-tool.sh Maestro https://get.maestro.mobile.dev "$HOME/.maestro/bin/maestro"
+      # The installer only offers the latest release (v0.18.0, from 2024); bump the key when it changes
+      - name: cache flashlight
+        uses: actions/cache@v5
+        with:
+          path: ~/.flashlight
+          key: ${{ runner.os }}-flashlight-v0.18.0
       - name: Install flashlight
         run: bash scripts/ci-install-tool.sh flashlight https://get.flashlight.dev "$HOME/.flashlight/bin/flashlight"
       # android-emulator-runner runs each YAML line via `sh -c`, so keep this a single command.
@@ -338,6 +354,12 @@ jobs:
       - name: pod install
         working-directory: examples/NotesApp/ios
         run: pod install
+      # Pinned, so it can be cached: the installer downloads from GitHub release assets
+      - name: cache Maestro
+        uses: actions/cache@v5
+        with:
+          path: ~/.maestro
+          key: ${{ runner.os }}-maestro-${{ env.MAESTRO_VERSION }}
       - name: Install Maestro
         run: bash scripts/ci-install-tool.sh Maestro https://get.maestro.mobile.dev "$HOME/.maestro/bin/maestro"
       - name: Install xcbeautify

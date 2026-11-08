@@ -26,5 +26,12 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 24.x
+      # The linter downloads actionlint and action-validator from GitHub release assets; their
+      # versions are pinned in the script, so cache them on its contents
+      - name: cache linter binaries
+        uses: actions/cache@v5
+        with:
+          path: .cache/workflow-lint
+          key: ${{ runner.os }}-workflow-lint-${{ hashFiles('scripts/lint-workflows.mjs') }}
       - name: Lint GitHub workflows
         run: node scripts/lint-workflows.mjs
