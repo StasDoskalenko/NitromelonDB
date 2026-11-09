@@ -7,6 +7,8 @@ import { createFileAdapter, openFileAdapter, cleanupDb } from './helpers'
  * Numbers are stored as REAL unless the app opts into storeWholeNumbersAsIntegers, which also
  * converts rows written before it was turned on.
  */
+const STATE_KEY = '__nitromelondb_number_storage'
+
 export default (it) => {
   it('numbers read back exactly, whole or not', async (_adapter, AdapterClass, _extra, platform) => {
     if (AdapterClass.name === 'LokiJSAdapter') return
@@ -94,10 +96,16 @@ export default (it) => {
     expect(types.timestamp).toBe('integer')
   })
 
-  it('storeWholeNumbersAsIntegers converts rows written before it was turned on', async (_adapter, AdapterClass, _extra, platform) => {
+  it('storeWholeNumbersAsIntegers converts rows written before it was turned on, and back when turned off', async (_adapter, AdapterClass, _extra, platform) => {
     if (AdapterClass.name === 'LokiJSAdapter' || platform === 'web') return
 
-    const { adapter: before, dbName } = await createFileAdapter(platform)
+    // Each step opens another adapter on the same file, keeping the earlier ones open: native can't
+    // reopen a file it closed in the same process. Each adapter has its own connection and option
+    const { adapter: before, underlying: beforeUnderlying, dbName } = await createFileAdapter(platform)
+    // Never turned on: nothing to convert, nothing written
+    expect(await beforeUnderlying.numberStorageConversion).toBe('unchanged')
+    expect(await before.getLocal(STATE_KEY)).toBe(null)
+
     // More rows than one conversion transaction takes, so it walks several rowid ranges
     const count = 4500
     const expected = new Map()
@@ -113,42 +121,82 @@ export default (it) => {
     const statuses = await before.unsafeQueryRaw(
       taskQuery(Q.unsafeSqlQuery('select id, _status, _changed from tasks order by id')),
     )
+    const readAll = (adapter) =>
+      adapter.unsafeQueryRaw(
+        taskQuery(Q.unsafeSqlQuery('select id, num1, typeof(num1) as type from tasks')),
+      )
+    const mismatches = (rows, wholeNumbersAs) =>
+      rows
+        .filter((row) => {
+          const num1 = expected.get(row.id)
+          const isWhole = Number.isInteger(num1) && Math.abs(num1) <= 2 ** 53
+          return row.num1 !== num1 || row.type !== (isWhole ? wholeNumbersAs : 'real')
+        })
+        .slice(0, 3)
 
-    const { adapter, underlying } = await openFileAdapter(dbName, {
-      storeWholeNumbersAsIntegers: true,
-    })
-    await underlying._wholeNumbersConversion
-
-    const rows = await adapter.unsafeQueryRaw(
-      taskQuery(Q.unsafeSqlQuery('select id, num1, typeof(num1) as type from tasks')),
-    )
-    expect(rows.length).toBe(count + 1)
-    const wrong = rows.filter((row) => {
-      const num1 = expected.get(row.id)
-      const type = Number.isInteger(num1) && Math.abs(num1) <= 2 ** 53 ? 'integer' : 'real'
-      return row.num1 !== num1 || row.type !== type
-    })
-    expect(wrong.slice(0, 3)).toEqual([])
-    // Sync doesn't see it as a change
-    expect(
-      await adapter.unsafeQueryRaw(
-        taskQuery(Q.unsafeSqlQuery('select id, _status, _changed from tasks order by id')),
-      ),
-    ).toEqual(statuses)
-    expect(await adapter.getLocal('__nitromelondb_whole_numbers_as_integers')).toBe('done')
-
-    // Done once: rows written as REAL later (the option turned off) aren't converted again. Each
-    // adapter has its own connection (native can't reopen a closed file in the same process)
-    const { adapter: off } = await openFileAdapter(dbName)
-    await off.batch([['create', 'tasks', mockTaskRaw({ id: 'later', num1: 7 })]])
+    // Turned on: converted to INTEGER
     const { adapter: on, underlying: onUnderlying } = await openFileAdapter(dbName, {
       storeWholeNumbersAsIntegers: true,
     })
-    await onUnderlying._wholeNumbersConversion
-    const [later] = await on.unsafeQueryRaw(
-      taskQuery(Q.unsafeSqlQuery("select typeof(num1) as type from tasks where id = 'later'")),
+    expect(await onUnderlying.numberStorageConversion).toBe('converted')
+    const converted = await readAll(on)
+    expect(converted.length).toBe(count + 1)
+    expect(mismatches(converted, 'integer')).toEqual([])
+    // Sync doesn't see it as a change
+    expect(
+      await on.unsafeQueryRaw(
+        taskQuery(Q.unsafeSqlQuery('select id, _status, _changed from tasks order by id')),
+      ),
+    ).toEqual(statuses)
+    expect(await on.getLocal(STATE_KEY)).toBe('integer')
+
+    // Next launch: already done
+    const { underlying: onAgain } = await openFileAdapter(dbName, {
+      storeWholeNumbersAsIntegers: true,
+    })
+    expect(await onAgain.numberStorageConversion).toBe('unchanged')
+
+    // Turned off again (a rolled-back release): converted back, raw SQL sees REAL again
+    const { adapter: off, underlying: offUnderlying } = await openFileAdapter(dbName)
+    expect(await offUnderlying.numberStorageConversion).toBe('converted')
+    expect(mismatches(await readAll(off), 'real')).toEqual([])
+    const [row] = await off.unsafeQueryRaw(
+      taskQuery(Q.unsafeSqlQuery("select num1 / 2 as half from tasks where id = 't1'")),
     )
-    expect(later.type).toBe('real')
+    expect(row.half).toBe((1700000000000 + 1) / 2)
+    expect(await off.getLocal(STATE_KEY)).toBe(null)
+    const { underlying: offAgain } = await openFileAdapter(dbName)
+    expect(await offAgain.numberStorageConversion).toBe('unchanged')
+
+    cleanupDb(dbName, platform)
+  })
+
+  it('storeWholeNumbersAsIntegers finishes an interrupted conversion, in either direction', async (_adapter, AdapterClass, _extra, platform) => {
+    if (AdapterClass.name === 'LokiJSAdapter' || platform === 'web') return
+
+    // Turned on, the app closed before converting finished: it continues on the next launch
+    const { adapter: first, dbName } = await createFileAdapter(platform)
+    await first.batch([['create', 'tasks', mockTaskRaw({ id: 'seven', num1: 7 })]])
+    await first.setLocal(STATE_KEY, 'to-integer')
+    const { adapter: on, underlying: onUnderlying } = await openFileAdapter(dbName, {
+      storeWholeNumbersAsIntegers: true,
+    })
+    expect(await onUnderlying.numberStorageConversion).toBe('converted')
+    const typeOfSeven = async (adapter) =>
+      (
+        await adapter.unsafeQueryRaw(
+          taskQuery(Q.unsafeSqlQuery("select typeof(num1) as type from tasks where id = 'seven'")),
+        )
+      )[0].type
+    expect(await typeOfSeven(on)).toBe('integer')
+
+    // Turned on, interrupted, then turned off before it finished: whatever was converted goes back
+    await on.setLocal(STATE_KEY, 'to-integer')
+    const { adapter: off, underlying: offUnderlying } = await openFileAdapter(dbName)
+    expect(await offUnderlying.numberStorageConversion).toBe('converted')
+    expect(await typeOfSeven(off)).toBe('real')
+    expect(await off.getLocal(STATE_KEY)).toBe(null)
+
     cleanupDb(dbName, platform)
   })
 }

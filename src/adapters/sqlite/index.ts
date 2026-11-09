@@ -39,7 +39,7 @@ import type {
 
 import encodeQuery from './encodeQuery'
 import encodeLocalChangesQueries from './encodeLocalChangesQuery'
-import convertWholeNumbers from './convertWholeNumbers'
+import convertWholeNumbers, { type NumberStorageConversionResult } from './convertWholeNumbers'
 
 import { makeDispatcher, getDispatcherType } from './makeDispatcher'
 
@@ -95,10 +95,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   // (native asserts it's set up), and unsafeResetDatabase() sets the database up instead
   _setUpError: Error | null = null
 
-  // With storeWholeNumbersAsIntegers: converts rows written before it was turned on, in the
-  // background (see convertWholeNumbers). Resolves when done, or when it stopped (it resumes on the
-  // next launch). null without the option, and on web, which ignores it.
-  _wholeNumbersConversion: Promise<void> | null = null
+  _numberStorageConversion: Promise<NumberStorageConversionResult>
 
   // Development builds with storeWholeNumbersAsIntegers: warns about raw SQL that can see it
   _checkStorageSensitiveQuery: ((query: SerializedQuery) => void) | null = null
@@ -158,31 +155,65 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       })
     })
 
-    if (storeWholeNumbersAsIntegers && this._dispatcherType !== 'wa-sqlite') {
-      this._wholeNumbersConversion = this._initPromise.then(
-        () =>
-          convertWholeNumbers(this._dispatcher, this.schema).catch((error: Error) => {
-            // E.g. the connection was closed or the database reset while it ran
-            logger.log(
-              `[🍉] storeWholeNumbersAsIntegers: converting existing rows stopped, it continues on the next launch. ${error.message}`,
-            )
-          }),
-        () => {},
-      )
-      if (process.env.NODE_ENV !== 'production') {
-        const warnings = require('./warnStorageSensitiveSql') as {
-          warnStorageSensitiveQuery: (query: SerializedQuery, schema: AppSchema) => void
-          warnStorageSensitiveSql: (sql: string) => void
-        }
-        this._checkStorageSensitiveQuery = (query) =>
-          warnings.warnStorageSensitiveQuery(query, this.schema)
-        this._checkStorageSensitiveSql = warnings.warnStorageSensitiveSql
+    // Converts the numbers already stored when storeWholeNumbersAsIntegers was turned on, or off
+    // again (see convertWholeNumbers). Without the option, that's one local storage read, in the
+    // background, to check it was never on. Web ignores the option.
+    this._numberStorageConversion =
+      this._dispatcherType === 'wa-sqlite'
+        ? Promise.resolve('unchanged')
+        : this._initPromise.then(
+            () => this._convertWholeNumbers(storeWholeNumbersAsIntegers),
+            () => 'interrupted' as const,
+          )
+
+    if (
+      storeWholeNumbersAsIntegers &&
+      this._dispatcherType !== 'wa-sqlite' &&
+      process.env.NODE_ENV !== 'production'
+    ) {
+      const warnings = require('./warnStorageSensitiveSql') as {
+        warnStorageSensitiveQuery: (query: SerializedQuery, schema: AppSchema) => void
+        warnStorageSensitiveSql: (sql: string) => void
       }
+      this._checkStorageSensitiveQuery = (query) => warnings.warnStorageSensitiveQuery(query, this.schema)
+      this._checkStorageSensitiveSql = warnings.warnStorageSensitiveSql
     }
   }
 
   get initializingPromise(): Promise<void> {
     return this._initPromise
+  }
+
+  // Resolves when the numbers already in the database are stored the way storeWholeNumbersAsIntegers
+  // asks for: right away if they already were, or once they've been converted in the background
+  // after turning the option on or off. 'interrupted' if converting stopped (e.g. the connection was
+  // closed); it continues on the next launch. Never rejects.
+  get numberStorageConversion(): Promise<NumberStorageConversionResult> {
+    return this._numberStorageConversion
+  }
+
+  async _convertWholeNumbers(
+    storeWholeNumbersAsIntegers: boolean,
+  ): Promise<NumberStorageConversionResult> {
+    const start = Date.now()
+    try {
+      const result = await convertWholeNumbers(this._dispatcher, this.schema, storeWholeNumbersAsIntegers)
+      if (result === 'converted') {
+        logger.log(
+          `[🍉] storeWholeNumbersAsIntegers: converted the numbers already stored to ${
+            storeWholeNumbersAsIntegers ? 'INTEGER' : 'REAL'
+          } in ${Date.now() - start} ms`,
+        )
+      }
+      return result
+    } catch (error) {
+      logger.log(
+        `[🍉] storeWholeNumbersAsIntegers: converting the numbers already stored stopped, it continues on the next launch. ${
+          (error as Error).message
+        }`,
+      )
+      return 'interrupted'
+    }
   }
 
   // Which SQLite dispatcher is actually backing this adapter (`_dispatcherType` is an

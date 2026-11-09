@@ -2,34 +2,69 @@ import type { AppSchema } from '../../Schema'
 import { toPromise } from '../../utils/fp/Result'
 import type { SqliteDispatcher, SqliteDispatcherMethod } from './type'
 
-// With storeWholeNumbersAsIntegers, new writes store whole numbers as INTEGER. This converts the
-// rows written before it was turned on (years of data, on some devices), once, in the background:
-// each table is walked in rowid ranges, one small transaction per range, queued behind the app's
-// own writes. Values don't change (42.0 becomes 42, the same JS number), and `_status` / `_changed`
-// aren't touched, so models, observers and sync don't notice. The UPDATE skips rows already
-// converted, so after an interruption (the app is closed, the database is reset) the next launch
-// just walks the table again, which is cheap, until it finishes and records that it's done.
-// Measured on a Mac: 1,000,000 rows with 4 number columns in 1.2 s, at most 11 ms per range.
+// Keeps the numbers already in the database in the format storeWholeNumbersAsIntegers asks for:
+// - turned on: rows written before (years of data, on some devices) get their whole numbers
+//   converted from REAL to INTEGER
+// - turned off again (e.g. an app rolls back a release that turned it on): they're converted back
+//   to REAL, so raw SQL sees exactly what it did before the option was ever on
+// It runs once, in the background, after the database opens: each table is walked in rowid ranges,
+// one small transaction per range, queued behind the app's own work. Values don't change (42.0 and
+// 42 are the same JS number), and `_status` / `_changed` aren't touched, so models, observers and
+// sync don't notice. Rows already in the right format are skipped, so after an interruption (the app
+// is closed, the database is reset) the next launch walks the tables again, cheaply, until it
+// finishes. Measured on a Mac: 1,000,000 rows with 4 number columns in 1.2 s, at most 11 ms per range.
+//
+// Where it stands is kept in local storage, under NUMBER_STORAGE_KEY:
+// - no value: numbers are stored as REAL (the default; nothing to do without the option)
+// - 'integer': whole numbers are stored as INTEGER
+// - 'to-integer' / 'to-real': a conversion started and hasn't finished
 
-export const WHOLE_NUMBERS_CONVERTED_KEY = '__nitromelondb_whole_numbers_as_integers'
+export const NUMBER_STORAGE_KEY = '__nitromelondb_number_storage'
+
+/**
+ * - `unchanged`: the data was already in the right format
+ * - `converted`: this launch finished converting it
+ * - `interrupted`: converting stopped (e.g. the connection was closed); it continues on the next launch
+ */
+export type NumberStorageConversionResult = 'unchanged' | 'converted' | 'interrupted'
+
 const ROWS_PER_TRANSACTION = 2000
 const IGNORE_CACHE = 0
 
-// A REAL with a whole value that a double holds exactly, like bindNumber() in
-// native/shared/Database-sqlite.cpp (except -0, which converts to 0: SQL can't tell them apart)
-const isConvertible = (column: string): string =>
-  `(typeof(${column}) = 'real' and ${column} = cast(${column} as integer) and abs(${column}) <= 9007199254740992)`
+// Same limit as bindNumber() in native/shared/Database-sqlite.cpp: whole numbers a double holds exactly
+const MAX_EXACT = 9007199254740992
+
+// A REAL with a whole value (-0 included: it converts to 0, and SQL can't tell them apart)
+const isWholeReal = (column: string): string =>
+  `(typeof(${column}) = 'real' and ${column} = cast(${column} as integer) and abs(${column}) <= ${MAX_EXACT})`
+
+const isInteger = (column: string): string =>
+  `(typeof(${column}) = 'integer' and abs(${column}) <= ${MAX_EXACT})`
 
 export default async function convertWholeNumbers(
   dispatcher: SqliteDispatcher,
   schema: AppSchema,
-): Promise<void> {
+  storeWholeNumbersAsIntegers: boolean,
+): Promise<NumberStorageConversionResult> {
   const call = <T>(method: SqliteDispatcherMethod, args: unknown[]): Promise<T> =>
     toPromise<T>((callback) => dispatcher.call(method, args, callback))
+  const execute = (sql: string, args: unknown[]): Promise<void> =>
+    call<void>('batch', [[[IGNORE_CACHE, null, sql, [args]]]])
+  const setState = (value: string): Promise<void> =>
+    execute(`insert or replace into "local_storage" ("key", "value") values (?, ?)`, [
+      NUMBER_STORAGE_KEY,
+      value,
+    ])
 
-  if ((await call<string | null>('getLocal', [WHOLE_NUMBERS_CONVERTED_KEY])) === 'done') {
-    return
+  const state = await call<string | null>('getLocal', [NUMBER_STORAGE_KEY])
+  if (storeWholeNumbersAsIntegers ? state === 'integer' : state == null) {
+    return 'unchanged'
   }
+
+  await setState(storeWholeNumbersAsIntegers ? 'to-integer' : 'to-real')
+  const [needsConverting, convertTo] = storeWholeNumbersAsIntegers
+    ? [isWholeReal, 'integer']
+    : [isInteger, 'real']
 
   for (const table of Object.values(schema.tables)) {
     const columns = table.columnArray
@@ -52,29 +87,23 @@ export default async function convertWholeNumbers(
     const sets = columns
       .map(
         (column) =>
-          `${column} = case when ${isConvertible(column)} then cast(${column} as integer) else ${column} end`,
+          `${column} = case when ${needsConverting(column)} then cast(${column} as ${convertTo}) else ${column} end`,
       )
       .join(', ')
     const sql = `update "${table.name}" set ${sets} where rowid > ? and rowid <= ? and (${columns
-      .map(isConvertible)
+      .map(needsConverting)
       .join(' or ')})`
     for (let from = 0; from < maxRowid; from += ROWS_PER_TRANSACTION) {
-      await call<void>('batch', [
-        [[IGNORE_CACHE, null, sql, [[from, from + ROWS_PER_TRANSACTION]]]],
-      ])
+      await execute(sql, [from, from + ROWS_PER_TRANSACTION])
       // Let the app's work run between ranges
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
   }
 
-  await call<void>('batch', [
-    [
-      [
-        IGNORE_CACHE,
-        null,
-        `insert or replace into "local_storage" ("key", "value") values (?, ?)`,
-        [[WHOLE_NUMBERS_CONVERTED_KEY, 'done']],
-      ],
-    ],
-  ])
+  if (storeWholeNumbersAsIntegers) {
+    await setState('integer')
+  } else {
+    await execute(`delete from "local_storage" where "key" = ?`, [NUMBER_STORAGE_KEY])
+  }
+  return 'converted'
 }
