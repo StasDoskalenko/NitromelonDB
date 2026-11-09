@@ -1,9 +1,0 @@
-{
-  "enabled": true,
-  "prefabPath": "/Users/stanislav.doskalenko/.gradle/caches/modules-2/files-2.1/com.google.prefab/cli/2.1.0/aa32fec809c44fa531f01dcfb739b5b3304d3050/cli-2.1.0-all.jar",
-  "packages": [
-    "/Users/stanislav.doskalenko/.gradle/caches/9.3.1/transforms/e5137b1697cb4e6653aa47c453080b3a/transformed/react-android-0.86.2-debug/prefab",
-    "/Users/stanislav.doskalenko/Projects/NitromelonDB/examples/NotesApp/node_modules/react-native-nitro-modules/android/build/intermediates/prefab_package/debug/prefab",
-    "/Users/stanislav.doskalenko/.gradle/caches/9.3.1/transforms/3171d54bac384dcf208251259792f0cf/transformed/fbjni-0.7.0/prefab"
-  ]
-}

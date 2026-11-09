@@ -1,3 +1,0 @@
-/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/.cxx/Debug/2ta3q5a3/arm64-v8a/CMakeFiles/NitromelonDB.dir
-/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/.cxx/Debug/2ta3q5a3/arm64-v8a/CMakeFiles/edit_cache.dir
-/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/.cxx/Debug/2ta3q5a3/arm64-v8a/CMakeFiles/rebuild_cache.dir

@@ -1,3 +1,0 @@
-/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/.cxx/RelWithDebInfo/1k1c3a4i/x86/CMakeFiles/NitromelonDB.dir
-/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/.cxx/RelWithDebInfo/1k1c3a4i/x86/CMakeFiles/edit_cache.dir
-/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/.cxx/RelWithDebInfo/1k1c3a4i/x86/CMakeFiles/rebuild_cache.dir

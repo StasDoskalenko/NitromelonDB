@@ -1,11 +1,12 @@
 /* eslint-disable jest/no-standalone-expect */
 import * as Q from '../../../QueryDescription'
 import { taskQuery, mockTaskRaw } from '../helpers'
-import { createFileAdapter } from './helpers'
+import { toPromise } from '../../../utils/fp/Result'
+import { createFileAdapter, openFileAdapter, cleanupDb } from './helpers'
 
 /**
- * Number columns are declared REAL (encodeSchema), so SQLite stores whole numbers compactly on disk.
- * That must not change anything a query can see: values, types and arithmetic stay those of REAL.
+ * Numbers are stored as REAL unless the app opts into storeWholeNumbersAsIntegers, which also
+ * converts rows written before it was turned on.
  */
 export default (it) => {
   it('numbers read back exactly, whole or not', async (_adapter, AdapterClass, _extra, platform) => {
@@ -47,16 +48,10 @@ export default (it) => {
     expect(byId.negativeZero === 0).toBe(true)
   })
 
-  it('number columns are declared REAL, and behave as REAL in SQL', async (_adapter, AdapterClass, _extra, platform) => {
+  it('numbers behave as REAL in SQL by default', async (_adapter, AdapterClass, _extra, platform) => {
     if (AdapterClass.name === 'LokiJSAdapter') return
 
     const { adapter } = await createFileAdapter(platform)
-    const [table] = await adapter.unsafeQueryRaw(
-      taskQuery(Q.unsafeSqlQuery("select sql from sqlite_master where name = 'tasks'")),
-    )
-    expect(table.sql.includes('"num1" real')).toBe(true)
-    expect(table.sql.includes('"text1" real')).toBe(false)
-
     await adapter.batch([['create', 'tasks', mockTaskRaw({ id: 'seven', num1: 7 })]])
     const [row] = await adapter.unsafeQueryRaw(
       taskQuery(
@@ -65,20 +60,19 @@ export default (it) => {
         ),
       ),
     )
-    // The same as before number columns had a type: stored as REAL, so no integer division
     expect(row.type).toBe('real')
     expect(row.half).toBe(3.5)
     expect(row.text).toBe('7.0')
   })
 
-  it('storeWholeNumbersAsIntegers stores whole numbers as INTEGER (native)', async (_adapter, AdapterClass, _extra, platform) => {
+  it('storeWholeNumbersAsIntegers stores whole numbers as INTEGER', async (_adapter, AdapterClass, _extra, platform) => {
     if (AdapterClass.name === 'LokiJSAdapter') return
 
     const { adapter } = await createFileAdapter(platform, { storeWholeNumbersAsIntegers: true })
     const [table] = await adapter.unsafeQueryRaw(
       taskQuery(Q.unsafeSqlQuery("select sql from sqlite_master where name = 'tasks'")),
     )
-    // A REAL column would turn the INTEGERs back into REAL
+    // Untyped: a REAL column would turn the INTEGERs back into REAL
     expect(table.sql.includes('"num1" real')).toBe(false)
 
     const values = { whole: 42, timestamp: 1700000000123, fraction: 1.5, beyondExact: 2 ** 53 + 2 }
@@ -94,9 +88,74 @@ export default (it) => {
     const types = Object.fromEntries(rows.map((row) => [row.id, row.type]))
     expect(types.fraction).toBe('real')
     expect(types.beyondExact).toBe('real')
-    // The option is native only: the Node and web adapters bind every JS number as REAL
-    if (platform === 'node' || platform === 'web') return
+    // The web adapter ignores the option
+    if (platform === 'web') return
     expect(types.whole).toBe('integer')
     expect(types.timestamp).toBe('integer')
+  })
+
+  it('storeWholeNumbersAsIntegers converts rows written before it was turned on', async (_adapter, AdapterClass, _extra, platform) => {
+    if (AdapterClass.name === 'LokiJSAdapter' || platform === 'web') return
+
+    const {
+      adapter: before,
+      underlying: beforeUnderlying,
+      dbName,
+    } = await createFileAdapter(platform)
+    // More rows than one conversion transaction takes, so it walks several rowid ranges
+    const count = 4500
+    const expected = new Map()
+    const operations = []
+    for (let i = 0; i < count; i += 1) {
+      const num1 = i % 3 === 0 ? i + 0.5 : 1700000000000 + i
+      expected.set(`t${i}`, num1)
+      operations.push(['create', 'tasks', mockTaskRaw({ id: `t${i}`, num1, _status: 'synced' })])
+    }
+    operations.push(['create', 'tasks', mockTaskRaw({ id: 'big', num1: 2 ** 53 + 2 })])
+    expected.set('big', 2 ** 53 + 2)
+    await before.batch(operations)
+    const statuses = await before.unsafeQueryRaw(
+      taskQuery(Q.unsafeSqlQuery('select id, _status, _changed from tasks order by id')),
+    )
+    await toPromise((callback) => beforeUnderlying.unsafeCloseConnection(callback))
+
+    const { adapter, underlying } = await openFileAdapter(dbName, {
+      storeWholeNumbersAsIntegers: true,
+    })
+    await underlying._wholeNumbersConversion
+
+    const rows = await adapter.unsafeQueryRaw(
+      taskQuery(Q.unsafeSqlQuery('select id, num1, typeof(num1) as type from tasks')),
+    )
+    expect(rows.length).toBe(count + 1)
+    const wrong = rows.filter((row) => {
+      const num1 = expected.get(row.id)
+      const type = Number.isInteger(num1) && Math.abs(num1) <= 2 ** 53 ? 'integer' : 'real'
+      return row.num1 !== num1 || row.type !== type
+    })
+    expect(wrong.slice(0, 3)).toEqual([])
+    // Sync doesn't see it as a change
+    expect(
+      await adapter.unsafeQueryRaw(
+        taskQuery(Q.unsafeSqlQuery('select id, _status, _changed from tasks order by id')),
+      ),
+    ).toEqual(statuses)
+    expect(await adapter.getLocal('__nitromelondb_whole_numbers_as_integers')).toBe('done')
+
+    // Done once: rows written as REAL later (the option turned off) aren't converted again
+    await toPromise((callback) => underlying.unsafeCloseConnection(callback))
+    const { adapter: off, underlying: offUnderlying } = await openFileAdapter(dbName)
+    await off.batch([['create', 'tasks', mockTaskRaw({ id: 'later', num1: 7 })]])
+    await toPromise((callback) => offUnderlying.unsafeCloseConnection(callback))
+    const { adapter: on, underlying: onUnderlying } = await openFileAdapter(dbName, {
+      storeWholeNumbersAsIntegers: true,
+    })
+    await onUnderlying._wholeNumbersConversion
+    const [later] = await on.unsafeQueryRaw(
+      taskQuery(Q.unsafeSqlQuery("select typeof(num1) as type from tasks where id = 'later'")),
+    )
+    expect(later.type).toBe('real')
+    await toPromise((callback) => onUnderlying.unsafeCloseConnection(callback))
+    cleanupDb(dbName, platform)
   })
 }

@@ -38,16 +38,16 @@ import type {
 } from './type'
 
 import encodeQuery from './encodeQuery'
-import type { EncodeSchemaOptions } from './encodeSchema'
 import encodeLocalChangesQueries from './encodeLocalChangesQuery'
+import convertWholeNumbers from './convertWholeNumbers'
 
 import { makeDispatcher, getDispatcherType } from './makeDispatcher'
 
 export type { SQL, SQLiteArg, SQLiteQuery }
 
 type EncodeSchemaModule = {
-  encodeSchema: (schema: AppSchema, options?: EncodeSchemaOptions) => SQL
-  encodeMigrationSteps: (steps: MigrationStep[], options?: EncodeSchemaOptions) => SQL
+  encodeSchema: (schema: AppSchema) => SQL
+  encodeMigrationSteps: (steps: MigrationStep[]) => SQL
   encodeDropIndices: (schema: AppSchema) => SQL
   encodeCreateIndices: (schema: AppSchema) => SQL
 }
@@ -95,9 +95,15 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   // (native asserts it's set up), and unsafeResetDatabase() sets the database up instead
   _setUpError: Error | null = null
 
-  // With storeWholeNumbersAsIntegers, number columns stay untyped: a REAL column would turn the
-  // INTEGERs back into REAL (see encodeSchema)
-  _encodeSchemaOptions: EncodeSchemaOptions
+  // With storeWholeNumbersAsIntegers: converts rows written before it was turned on, in the
+  // background (see convertWholeNumbers). Resolves when done, or when it stopped (it resumes on the
+  // next launch). null without the option, and on web, which ignores it.
+  _wholeNumbersConversion: Promise<void> | null = null
+
+  // Development builds with storeWholeNumbersAsIntegers: warns about raw SQL that can see it
+  _checkStorageSensitiveQuery: ((query: SerializedQuery) => void) | null = null
+
+  _checkStorageSensitiveSql: ((sql: string) => void) | null = null
 
   constructor(options: SQLiteAdapterOptions) {
     // console.log(`---> Initializing new adapter (${this._tag})`)
@@ -111,7 +117,6 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       experimentalUnsafeNativeReuse = false,
     } = options
     this.schema = schema
-    this._encodeSchemaOptions = { realNumberColumns: !storeWholeNumbersAsIntegers }
     this.migrations = migrations ?? null
     this._migrationEvents = migrationEvents
     this.dbName = this._getName(dbName)
@@ -152,6 +157,28 @@ export default class SQLiteAdapter implements DatabaseAdapter {
         devSetupCallback(result, options.onSetUpError)
       })
     })
+
+    if (storeWholeNumbersAsIntegers && this._dispatcherType !== 'wa-sqlite') {
+      this._wholeNumbersConversion = this._initPromise.then(
+        () =>
+          convertWholeNumbers(this._dispatcher, this.schema).catch((error: Error) => {
+            // E.g. the connection was closed or the database reset while it ran
+            logger.log(
+              `[🍉] storeWholeNumbersAsIntegers: converting existing rows stopped, it continues on the next launch. ${error.message}`,
+            )
+          }),
+        () => {},
+      )
+      if (process.env.NODE_ENV !== 'production') {
+        const warnings = require('./warnStorageSensitiveSql') as {
+          warnStorageSensitiveQuery: (query: SerializedQuery, schema: AppSchema) => void
+          warnStorageSensitiveSql: (sql: string) => void
+        }
+        this._checkStorageSensitiveQuery = (query) =>
+          warnings.warnStorageSensitiveQuery(query, this.schema)
+        this._checkStorageSensitiveSql = warnings.warnStorageSensitiveSql
+      }
+    }
   }
 
   get initializingPromise(): Promise<void> {
@@ -194,27 +221,23 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     // we're good. If not, we try again, this time sending the compiled schema or a migration set
     // This is to speed up the launch (less to do and pass through bridge), and avoid repeating
     // migration logic inside native code
-    this._dispatcher.call<InitializeStatus>(
-      'initialize',
-      [this.dbName, this.schema.version],
-      (result) => {
-        if (result.error) {
-          callback(result)
-          return
-        }
+    this._dispatcher.call<InitializeStatus>('initialize', [this.dbName, this.schema.version], (result) => {
+      if (result.error) {
+        callback(result)
+        return
+      }
 
-        const status = result.value
-        if (status.code === 'schema_needed') {
-          this._setUpWithSchema(callback)
-        } else if (status.code === 'migrations_needed') {
-          this._setUpWithMigrations(status.databaseVersion, callback)
-        } else if (status.code !== 'ok') {
-          callback({ error: new Error('Invalid database initialization status') })
-        } else {
-          callback({ value: undefined })
-        }
-      },
-    )
+      const status = result.value
+      if (status.code === 'schema_needed') {
+        this._setUpWithSchema(callback)
+      } else if (status.code === 'migrations_needed') {
+        this._setUpWithMigrations(status.databaseVersion, callback)
+      } else if (status.code !== 'ok') {
+        callback({ error: new Error('Invalid database initialization status') })
+      } else {
+        callback({ value: undefined })
+      }
+    })
   }
 
   _setUpWithMigrations(databaseVersion: SchemaVersion, callback: ResultCallback<void>): void {
@@ -234,10 +257,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
         'setUpWithMigrations',
         [
           this.dbName,
-          (require('./encodeSchema') as EncodeSchemaModule).encodeMigrationSteps(
-            migrationSteps,
-            this._encodeSchemaOptions,
-          ),
+          (require('./encodeSchema') as EncodeSchemaModule).encodeMigrationSteps(migrationSteps),
           databaseVersion,
           this.schema.version,
         ],
@@ -282,12 +302,16 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     validateTable(table, this.schema)
     this._dispatcher.call<DirtyFindResult>('find', [table, id], (result) =>
       callback(
-        mapValue((rawRecord) => sanitizeFindResult(rawRecord, this.schema.tables[table]), result),
+        mapValue(
+          (rawRecord) => sanitizeFindResult(rawRecord, this.schema.tables[table]),
+          result,
+        ),
       ),
     )
   }
 
   query(query: SerializedQuery, callback: ResultCallback<CachedQueryResult>): void {
+    this._checkStorageSensitiveQuery?.(query)
     validateTable(query.table, this.schema)
     const { table } = query
     const [sql, args] = encodeQuery(query)
@@ -302,16 +326,19 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   }
 
   queryIds(query: SerializedQuery, callback: ResultCallback<RecordId[]>): void {
+    this._checkStorageSensitiveQuery?.(query)
     validateTable(query.table, this.schema)
     this._dispatcher.call('queryIds', encodeQuery(query), callback)
   }
 
   unsafeQueryRaw(query: SerializedQuery, callback: ResultCallback<unknown[]>): void {
+    this._checkStorageSensitiveQuery?.(query)
     validateTable(query.table, this.schema)
     this._dispatcher.call('unsafeQueryRaw', encodeQuery(query), callback)
   }
 
   count(query: SerializedQuery, callback: ResultCallback<number>): void {
+    this._checkStorageSensitiveQuery?.(query)
     validateTable(query.table, this.schema)
     this._dispatcher.call('count', encodeQuery(query, true), callback)
   }
@@ -377,12 +404,14 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     done(tables)
   }
 
+
   destroyMatching(
     query: SerializedQuery,
     permanently: boolean,
     callback: ResultCallback<RecordId[]>,
   ): void {
     validateTable(query.table, this.schema)
+    this._checkStorageSensitiveQuery?.(query)
     const { table, description, associations } = query
     // "The whole table" -- no predicate at all -- gets a bare delete/update below instead of a
     // `where id in (...)` filter, so SQLite can take its truncate-optimization fast path (see
@@ -470,8 +499,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       return
     }
 
-    const { encodeDropIndices, encodeCreateIndices } =
-      require('./encodeSchema') as EncodeSchemaModule
+    const { encodeDropIndices, encodeCreateIndices } = require('./encodeSchema') as EncodeSchemaModule
     const { schema } = this
     this._dispatcher.call<Record<string, string>>(
       'unsafeLoadFromSync',
@@ -538,6 +566,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     }
     if ('sqls' in operations && operations.sqls) {
       const queries: SQLiteQuery[] = operations.sqls
+      queries.forEach(([sql]) => this._checkStorageSensitiveSql?.(sql))
       const batchOperations: NativeBridgeBatchOperation[] = queries.map(([sql, args]) => [
         IGNORE_CACHE,
         null,
@@ -546,6 +575,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       ])
       this._dispatcher.call('batch', [batchOperations], callback)
     } else if ('sqlString' in operations && operations.sqlString) {
+      this._checkStorageSensitiveSql?.(operations.sqlString)
       this._dispatcher.call('unsafeExecuteMultiple', [operations.sqlString], callback)
     }
   }
@@ -576,10 +606,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   }
 
   _encodedSchema(): SQL {
-    return (require('./encodeSchema') as EncodeSchemaModule).encodeSchema(
-      this.schema,
-      this._encodeSchemaOptions,
-    )
+    return (require('./encodeSchema') as EncodeSchemaModule).encodeSchema(this.schema)
   }
 
   _migrationSteps(fromVersion: SchemaVersion): MigrationStep[] | null | undefined {
