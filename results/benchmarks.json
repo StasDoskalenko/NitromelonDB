@@ -1498,5 +1498,18 @@
       "ram": 182,
       "fps": 55.2
     }
+  },
+  {
+    "sha": "705bd9202a324da2b10a6ff95daee217beb5af43",
+    "date": "2026-11-09T23:01:34.013Z",
+    "prNumber": 222,
+    "subject": "chore: release v0.32.0-beta.1 (#222)",
+    "android": {
+      "iterationCount": 5,
+      "score": 94,
+      "cpu": 30.2,
+      "ram": 179,
+      "fps": 53.2
+    }
   }
 ]
