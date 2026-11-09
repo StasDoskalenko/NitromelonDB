@@ -148,12 +148,62 @@ export function describeDelta(metric, current, previous) {
 }
 
 /**
+ * Runs per rolling-median window. Run-to-run noise on CI emulators/simulators (CPU swings ±3
+ * points, RAM ±2 MB with no code change) is wider than most real changes, so a single run says
+ * little; the median of 7 shrugs off one-off bad runs and still settles onto a real step within
+ * 3-4 runs.
+ */
+export const TREND_WINDOW = 7
+
+/** The key holding a metric's rolling median (the trend line) on a chart row. */
+export const trendKey = (metric) => `${metric.key}Trend`
+
+/** Fewer runs than this and there's no meaningful trend to draw yet. */
+const MIN_TREND_RUNS = 5
+
+function median(values) {
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = sorted.length >> 1
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+}
+
+/**
+ * Per metric, over the runs that have a value:
+ *   - row[trendKey]: centered rolling median (window shrinks at both ends), so a step change
+ *     lines up with the merge that caused it instead of trailing it by half a window.
+ *   - row.prior[key]: { value, runs } median of up to TREND_WINDOW runs before this one, the
+ *     baseline a run's delta is measured against. With one prior run it's just "vs previous".
+ * Computed on the full history so a range filter doesn't starve the window at its left edge.
+ */
+function addTrends(rows, metrics) {
+  const half = TREND_WINDOW >> 1
+  for (const row of rows) row.prior = {}
+  for (const metric of metrics) {
+    const series = rows.filter((row) => row[metric.key] != null)
+    const values = series.map((row) => row[metric.key])
+    series.forEach((row, i) => {
+      if (series.length >= MIN_TREND_RUNS) {
+        row[trendKey(metric)] = median(values.slice(Math.max(0, i - half), i + half + 1))
+      }
+      const before = values.slice(Math.max(0, i - TREND_WINDOW), i)
+      if (before.length > 0) row.prior[metric.key] = { value: median(before), runs: before.length }
+    })
+  }
+  return rows
+}
+
+/** "vs 7-run median" / "vs previous run": what describeDelta's baseline was. */
+export function priorLabel(prior) {
+  return prior.runs === 1 ? 'vs previous run' : `vs ${prior.runs}-run median`
+}
+
+/**
  * History records → chart rows for one source: one row per run that has its results, every
  * metric on the same row so charts share an index.
  */
 export function toRows(history, source) {
   const { metrics, values } = SOURCES[source]
-  return history
+  const rows = history
     .map((record) => ({ record, recordValues: values(record) }))
     .filter(({ recordValues }) => recordValues != null)
     .map(({ record, recordValues }, index) => {
@@ -171,6 +221,7 @@ export function toRows(history, source) {
       }
       return row
     })
+  return addTrends(rows, metrics)
 }
 
 /** Y-axis tick labels: compact for big numbers (114k), so they fit the axis. */

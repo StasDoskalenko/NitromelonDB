@@ -2,7 +2,17 @@ import useDocusaurusContext from '@docusaurus/useDocusaurusContext'
 import useBaseUrl from '@docusaurus/useBaseUrl'
 import React, { useEffect, useMemo, useState } from 'react'
 import { MetricChart } from './MetricChart'
-import { SOURCES, dateTimeFmt, describeDelta, formatValue, toRows } from './metrics'
+import {
+  BASELINE_LABEL,
+  SOURCES,
+  TREND_WINDOW,
+  dateTimeFmt,
+  describeDelta,
+  formatValue,
+  priorLabel,
+  toRows,
+  trendKey,
+} from './metrics'
 import styles from './styles.module.css'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -76,7 +86,7 @@ function CommitLinks({ row, previous, repoUrl }) {
   )
 }
 
-/** The clicked run: what it was, where to read the change, and every metric vs the run before it. */
+/** The clicked run: what it was, where to read the change, and every metric vs the runs before it. */
 function PinnedRun({ row, previous, metrics, repoUrl, onClose }) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -105,7 +115,8 @@ function PinnedRun({ row, previous, metrics, repoUrl, onClose }) {
       </div>
       <dl className={styles.pinnedMetrics}>
         {metrics.map((metric) => {
-          const delta = describeDelta(metric, row[metric.key], previous?.[metric.key])
+          const prior = row.prior?.[metric.key]
+          const delta = prior && describeDelta(metric, row[metric.key], prior.value)
           return (
             <div key={metric.key}>
               <dt>{metric.label}</dt>
@@ -113,7 +124,11 @@ function PinnedRun({ row, previous, metrics, repoUrl, onClose }) {
                 <strong>{formatValue(row[metric.key], metric)}</strong>
                 <span className={styles.latestUnit}>{metric.unit}</span>
                 {delta && delta.direction !== 'flat' && (
-                  <span className={styles.delta} data-direction={delta.direction}>
+                  <span
+                    className={styles.delta}
+                    data-direction={delta.direction}
+                    title={priorLabel(prior)}
+                  >
                     {delta.text} ({delta.direction})
                   </span>
                 )}
@@ -122,6 +137,10 @@ function PinnedRun({ row, previous, metrics, repoUrl, onClose }) {
           )
         })}
       </dl>
+      <p className={styles.pinnedNote}>
+        Changes are against the median of up to {TREND_WINDOW} runs before this one, so one noisy
+        run doesn&apos;t read as a regression.
+      </p>
     </section>
   )
 }
@@ -225,6 +244,7 @@ export default function PerformanceCharts({ source = 'android', empty }) {
   const pinned = pinnedPosition >= 0 ? allRows[pinnedPosition] : null
   const pinnedPrevious = pinnedPosition > 0 ? allRows[pinnedPosition - 1] : null
   const pinnedVisible = pinned != null && rows.includes(pinned)
+  const hasTrend = allRows.some((row) => metrics.some((m) => row[trendKey(m)] != null))
 
   if (error != null) {
     return <p className={styles.empty}>Couldn&apos;t load benchmark history: {error}</p>
@@ -247,6 +267,24 @@ export default function PerformanceCharts({ source = 'android', empty }) {
           every metric, click a run to pin it.
         </p>
       </div>
+      <ul className={styles.legend} aria-label="Chart key">
+        {hasTrend && (
+          <li>
+            <span className={styles.legendTrend} aria-hidden="true" />
+            Trend (median of {TREND_WINDOW} runs)
+          </li>
+        )}
+        <li>
+          <span className={hasTrend ? styles.legendRun : styles.legendTrend} aria-hidden="true" />
+          Each run
+        </li>
+        {metrics.some((m) => m.baseline || m.parity != null) && (
+          <li>
+            <span className={styles.legendBaseline} aria-hidden="true" />
+            {BASELINE_LABEL}
+          </li>
+        )}
+      </ul>
 
       {pinned && (
         <PinnedRun
