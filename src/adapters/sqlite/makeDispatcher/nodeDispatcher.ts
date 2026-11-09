@@ -37,8 +37,9 @@ export const makeDispatcher = (
   _type: DispatcherType,
   tag: ConnectionTag,
   _dbName: string,
-  _options: SqliteDispatcherOptions,
+  options: SqliteDispatcherOptions,
 ): SqliteDispatcher => {
+  DatabaseBridge.setStoreWholeNumbersAsIntegers(tag, options.storeWholeNumbersAsIntegers)
   return new SqliteNodeDispatcher(tag)
 }
 

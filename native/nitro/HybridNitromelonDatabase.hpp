@@ -59,6 +59,9 @@ private:
   jsi::Value queryJSI(jsi::Runtime& runtime, const jsi::Value& thisValue, const jsi::Value* args, size_t count);
   jsi::Value unsafeQueryRawJSI(jsi::Runtime& runtime, const jsi::Value& thisValue, const jsi::Value* args, size_t count);
   jsi::Value batchJSI(jsi::Runtime& runtime, const jsi::Value& thisValue, const jsi::Value* args, size_t count);
+  // Raw rather than in the Nitro spec, so JS can feature-detect it on older native builds
+  jsi::Value setStoreWholeNumbersAsIntegers(jsi::Runtime& runtime, const jsi::Value& thisValue, const jsi::Value* args,
+                                            size_t count);
 
   ::watermelondb::Database& database();
 

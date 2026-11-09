@@ -221,6 +221,8 @@ void HybridNitromelonDatabase::loadHybridMethods() {
     prototype.registerRawHybridMethod("queryJSI", 3, &HybridNitromelonDatabase::queryJSI);
     prototype.registerRawHybridMethod("unsafeQueryRawJSI", 2, &HybridNitromelonDatabase::unsafeQueryRawJSI);
     prototype.registerRawHybridMethod("batchJSI", 1, &HybridNitromelonDatabase::batchJSI);
+    prototype.registerRawHybridMethod("setStoreWholeNumbersAsIntegers", 1,
+                                      &HybridNitromelonDatabase::setStoreWholeNumbersAsIntegers);
   });
 }
 
@@ -272,6 +274,17 @@ jsi::Value HybridNitromelonDatabase::unsafeQueryRawJSI(jsi::Runtime& runtime, co
     result.setValueAtIndex(runtime, i - 1, builder.build(rows[i]));
   }
   return result;
+}
+
+// SQLiteAdapter's storeWholeNumbersAsIntegers (see bindNumber in Database-sqlite.cpp). JS calls it
+// right after createAdapter, before anything is written.
+jsi::Value HybridNitromelonDatabase::setStoreWholeNumbersAsIntegers(jsi::Runtime& runtime, const jsi::Value&,
+                                                                    const jsi::Value* args, size_t count) {
+  if (count != 1 || !args[0].isBool()) {
+    throw jsi::JSError(runtime, "setStoreWholeNumbersAsIntegers(enabled) expects 1 boolean argument");
+  }
+  database().setStoreWholeNumbersAsIntegers(args[0].getBool());
+  return jsi::Value::undefined();
 }
 
 // Reads the encoded batch (see encodeBatch: [cacheBehavior, table | null, sql, argBatches][]) straight

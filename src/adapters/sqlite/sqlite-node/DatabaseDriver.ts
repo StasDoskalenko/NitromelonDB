@@ -7,10 +7,18 @@ const { randomUUID } = require('crypto') as { randomUUID: () => string }
 
 export const RESET_ID_KEY = '__nitromelon_reset_id'
 
-function fixArgs(args: SQLiteArg[]): SQLiteArg[] {
+// storeWholeNumbersAsIntegers: better-sqlite3 binds a JS number as REAL and a BigInt as INTEGER.
+// Same rule as bindNumber() in native/shared/Database-sqlite.cpp
+const isStorableAsInteger = (value: number): boolean =>
+  Number.isInteger(value) && Math.abs(value) <= 2 ** 53 && !Object.is(value, -0)
+
+function fixArgs(args: SQLiteArg[], wholeNumbersAsIntegers: boolean = false): unknown[] {
   return args.map((value) => {
     if (typeof value === 'boolean') {
       return value ? 1 : 0
+    }
+    if (wholeNumbersAsIntegers && typeof value === 'number' && isStorableAsInteger(value)) {
+      return BigInt(value)
     }
     return value
   })
@@ -68,6 +76,9 @@ class DatabaseDriver {
   static sharedMemoryConnections: { [dbName: string]: Database } = {}
 
   database: Database = undefined as unknown as Database
+
+  // SQLiteAdapter's storeWholeNumbersAsIntegers (set by DatabaseBridge)
+  storeWholeNumbersAsIntegers: boolean = false
 
   cachedRecords: { [table: string]: Set<string> } = {}
 
@@ -135,7 +146,7 @@ class DatabaseDriver {
   }
 
   cachedQuery(table: string, query: string, args: SQLiteArg[]): Array<string | Record<string, unknown>> {
-    const results = this.database.queryRaw(query, fixArgs(args))
+    const results = this.database.queryRaw(query, fixArgs(args, this.storeWholeNumbersAsIntegers))
     return results.map((row) => {
       const id = `${row.id}`
       if (this.isCached(table, id)) {
@@ -147,15 +158,15 @@ class DatabaseDriver {
   }
 
   queryIds(query: string, args: SQLiteArg[]): string[] {
-    return this.database.queryRaw(query, fixArgs(args)).map((row) => `${row.id}`)
+    return this.database.queryRaw(query, fixArgs(args, this.storeWholeNumbersAsIntegers)).map((row) => `${row.id}`)
   }
 
   unsafeQueryRaw(query: string, args: SQLiteArg[]): Record<string, unknown>[] {
-    return this.database.queryRaw(query, fixArgs(args))
+    return this.database.queryRaw(query, fixArgs(args, this.storeWholeNumbersAsIntegers))
   }
 
   count(query: string, args: SQLiteArg[]): number {
-    return this.database.count(query, fixArgs(args))
+    return this.database.count(query, fixArgs(args, this.storeWholeNumbersAsIntegers))
   }
 
   batch(operations: NativeBridgeBatchOperation[]): void {
@@ -166,7 +177,7 @@ class DatabaseDriver {
       operations.forEach((operation) => {
         const [cacheBehavior, table, sql, argBatches] = operation
         argBatches.forEach((args) => {
-          this.database.execute(sql, fixArgs(args))
+          this.database.execute(sql, fixArgs(args, this.storeWholeNumbersAsIntegers))
           if (cacheBehavior === 1) {
             newIds.push([table as string, args[0] as string])
           } else if (cacheBehavior === -1) {
@@ -194,7 +205,7 @@ class DatabaseDriver {
     permanently: boolean,
     isUnconditional: boolean,
   ): string[] {
-    const fixedArgs = fixArgs(args)
+    const fixedArgs = fixArgs(args, this.storeWholeNumbersAsIntegers)
     let ids: string[] = []
 
     this.database.inTransaction(() => {

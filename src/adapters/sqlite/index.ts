@@ -39,6 +39,7 @@ import type {
 
 import encodeQuery from './encodeQuery'
 import encodeLocalChangesQueries from './encodeLocalChangesQuery'
+import convertWholeNumbers, { type NumberStorageConversionResult } from './convertWholeNumbers'
 
 import { makeDispatcher, getDispatcherType } from './makeDispatcher'
 
@@ -94,6 +95,16 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   // (native asserts it's set up), and unsafeResetDatabase() sets the database up instead
   _setUpError: Error | null = null
 
+  // Converting the numbers already stored after storeWholeNumbersAsIntegers was turned on or off (see
+  // convertWholeNumbers). Internal (tests await it): nothing an app does needs to wait, since only raw
+  // SQL can tell the two formats apart, and initializingPromise doesn't wait, so launch isn't delayed
+  _numberStorageConversion: Promise<NumberStorageConversionResult>
+
+  // Development builds with storeWholeNumbersAsIntegers: warns about raw SQL that can see it
+  _checkStorageSensitiveQuery: ((query: SerializedQuery) => void) | null = null
+
+  _checkStorageSensitiveSql: ((sql: string) => void) | null = null
+
   constructor(options: SQLiteAdapterOptions) {
     // console.log(`---> Initializing new adapter (${this._tag})`)
     const {
@@ -102,6 +113,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       migrations,
       migrationEvents,
       usesExclusiveLocking = false,
+      storeWholeNumbersAsIntegers = false,
       experimentalUnsafeNativeReuse = false,
     } = options
     this.schema = schema
@@ -113,6 +125,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     // calls to async, synch NativeModule, or JSI implementation w/ type safety in rest of the impl
     const dispatcher = makeDispatcher(this._dispatcherType, this._tag, this.dbName, {
       usesExclusiveLocking,
+      storeWholeNumbersAsIntegers,
       experimentalUnsafeNativeReuse,
       ...(options.web ? { web: options.web } : {}),
     })
@@ -144,10 +157,58 @@ export default class SQLiteAdapter implements DatabaseAdapter {
         devSetupCallback(result, options.onSetUpError)
       })
     })
+
+    // Converts the numbers already stored when storeWholeNumbersAsIntegers was turned on, or off
+    // again (see convertWholeNumbers). Without the option, that's one local storage read, in the
+    // background, to check it was never on. Web ignores the option.
+    this._numberStorageConversion =
+      this._dispatcherType === 'wa-sqlite'
+        ? Promise.resolve('unchanged')
+        : this._initPromise.then(
+            () => this._convertWholeNumbers(storeWholeNumbersAsIntegers),
+            () => 'interrupted' as const,
+          )
+
+    if (
+      storeWholeNumbersAsIntegers &&
+      this._dispatcherType !== 'wa-sqlite' &&
+      process.env.NODE_ENV !== 'production'
+    ) {
+      const warnings = require('./warnStorageSensitiveSql') as {
+        warnStorageSensitiveQuery: (query: SerializedQuery, schema: AppSchema) => void
+        warnStorageSensitiveSql: (sql: string) => void
+      }
+      this._checkStorageSensitiveQuery = (query) => warnings.warnStorageSensitiveQuery(query, this.schema)
+      this._checkStorageSensitiveSql = warnings.warnStorageSensitiveSql
+    }
   }
 
   get initializingPromise(): Promise<void> {
     return this._initPromise
+  }
+
+  async _convertWholeNumbers(
+    storeWholeNumbersAsIntegers: boolean,
+  ): Promise<NumberStorageConversionResult> {
+    const start = Date.now()
+    try {
+      const result = await convertWholeNumbers(this._dispatcher, this.schema, storeWholeNumbersAsIntegers)
+      if (result === 'converted' && process.env.NODE_ENV !== 'production') {
+        logger.log(
+          `[🍉] storeWholeNumbersAsIntegers: converted the numbers already stored to ${
+            storeWholeNumbersAsIntegers ? 'INTEGER' : 'REAL'
+          } in ${Date.now() - start} ms`,
+        )
+      }
+      return result
+    } catch (error) {
+      logger.log(
+        `[🍉] storeWholeNumbersAsIntegers: converting the numbers already stored stopped, it continues on the next launch. ${
+          (error as Error).message
+        }`,
+      )
+      return 'interrupted'
+    }
   }
 
   // Which SQLite dispatcher is actually backing this adapter (`_dispatcherType` is an
@@ -276,6 +337,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   }
 
   query(query: SerializedQuery, callback: ResultCallback<CachedQueryResult>): void {
+    this._checkStorageSensitiveQuery?.(query)
     validateTable(query.table, this.schema)
     const { table } = query
     const [sql, args] = encodeQuery(query)
@@ -290,16 +352,19 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   }
 
   queryIds(query: SerializedQuery, callback: ResultCallback<RecordId[]>): void {
+    this._checkStorageSensitiveQuery?.(query)
     validateTable(query.table, this.schema)
     this._dispatcher.call('queryIds', encodeQuery(query), callback)
   }
 
   unsafeQueryRaw(query: SerializedQuery, callback: ResultCallback<unknown[]>): void {
+    this._checkStorageSensitiveQuery?.(query)
     validateTable(query.table, this.schema)
     this._dispatcher.call('unsafeQueryRaw', encodeQuery(query), callback)
   }
 
   count(query: SerializedQuery, callback: ResultCallback<number>): void {
+    this._checkStorageSensitiveQuery?.(query)
     validateTable(query.table, this.schema)
     this._dispatcher.call('count', encodeQuery(query, true), callback)
   }
@@ -372,6 +437,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     callback: ResultCallback<RecordId[]>,
   ): void {
     validateTable(query.table, this.schema)
+    this._checkStorageSensitiveQuery?.(query)
     const { table, description, associations } = query
     // "The whole table" -- no predicate at all -- gets a bare delete/update below instead of a
     // `where id in (...)` filter, so SQLite can take its truncate-optimization fast path (see
@@ -526,6 +592,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     }
     if ('sqls' in operations && operations.sqls) {
       const queries: SQLiteQuery[] = operations.sqls
+      queries.forEach(([sql]) => this._checkStorageSensitiveSql?.(sql))
       const batchOperations: NativeBridgeBatchOperation[] = queries.map(([sql, args]) => [
         IGNORE_CACHE,
         null,
@@ -534,6 +601,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       ])
       this._dispatcher.call('batch', [batchOperations], callback)
     } else if ('sqlString' in operations && operations.sqlString) {
+      this._checkStorageSensitiveSql?.(operations.sqlString)
       this._dispatcher.call('unsafeExecuteMultiple', [operations.sqlString], callback)
     }
   }

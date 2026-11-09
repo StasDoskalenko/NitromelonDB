@@ -65,7 +65,10 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
   _nitro: Nitromelon
   _unsafeErrorListener: (error: Error) => void
 
-  constructor(dbName: string, { usesExclusiveLocking }: SqliteDispatcherOptions) {
+  constructor(
+    dbName: string,
+    { usesExclusiveLocking, storeWholeNumbersAsIntegers }: SqliteDispatcherOptions,
+  ) {
     this._unsafeErrorListener = () => {}
     const nitro = nitromelonOrNull()
     invariant(
@@ -74,6 +77,13 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
     )
     this._nitro = nitro
     this._db = nitro.createAdapter(dbName, usesExclusiveLocking)
+    // Before anything is written. Native builds older than the option don't have the method; they
+    // keep binding every number as REAL (and the schema leaves number columns untyped either way)
+    if (storeWholeNumbersAsIntegers) {
+      ;(
+        this._db as NitromelonDatabase | NativeDatabase as NativeDatabase
+      ).setStoreWholeNumbersAsIntegers?.(true)
+    }
     ;(this._db as NitromelonDatabase).onMemoryWarning(() => _triggerOnLowMemory())
   }
 

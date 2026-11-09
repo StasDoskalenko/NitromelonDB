@@ -29,6 +29,16 @@ export type SQLiteAdapterOptions = {
   // (JSI only) Sets exclusive file locking mode in sqlite. Use this ONLY if you need to - e.g. seems to fix
   // mysterious "database is malformed" issues on JSI+Android when using Headless JS
   usesExclusiveLocking?: boolean | undefined
+  // (iOS, Android, Windows, Node) Store whole numbers as SQLite INTEGER instead of REAL: smaller
+  // rows and faster queries that scan or sort number columns (about 10% in the benchmarks). Numbers
+  // already stored are converted once, in the background without delaying launch, and converted
+  // back if the option is turned off again. Off by default, because
+  // raw SQL can see the difference: `/` between two whole numbers truncates (`7 / 2` is `3`),
+  // turning one into text gives '42' instead of '42.0', and typeof() returns 'integer'. Queries
+  // built with Q, models and sync behave the same. Turn it on if your raw SQL (Q.unsafeSqlQuery,
+  // Q.unsafeSqlExpr, unsafeExecute) doesn't do arithmetic or text operations on number columns;
+  // development builds warn about raw SQL that might. See docs/Advanced/Performance.
+  storeWholeNumbersAsIntegers?: boolean | undefined
   // Deprecated: Android NativeModule-only. Ignored; SQLite no longer uses NativeModules.
   experimentalUnsafeNativeReuse?: boolean | undefined
   // Browser-only wa-sqlite configuration. Expo Metro uses the packaged worker and
@@ -69,6 +79,7 @@ export type SyncReturn<T> =
 
 export type SqliteDispatcherOptions = {
   usesExclusiveLocking: boolean
+  storeWholeNumbersAsIntegers: boolean
   experimentalUnsafeNativeReuse: boolean
   web?: SQLiteWebOptions | undefined
 }

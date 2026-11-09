@@ -22,6 +22,17 @@ function asTaggedError(error: unknown): TaggedError | null {
 class DatabaseBridge {
   connections: { [key: number]: Connection } = {}
 
+  // Tags of adapters created with storeWholeNumbersAsIntegers
+  wholeNumbersAsIntegers: Set<number> = new Set()
+
+  setStoreWholeNumbersAsIntegers(tag: number, enabled: boolean): void {
+    if (enabled) {
+      this.wholeNumbersAsIntegers.add(tag)
+    } else {
+      this.wholeNumbersAsIntegers.delete(tag)
+    }
+  }
+
   closeAllConnections(): void {
     const connections = Object.values(this.connections)
     this.connections = {}
@@ -41,10 +52,12 @@ class DatabaseBridge {
   // MARK: - Asynchronous connections
 
   connected(tag: number, driver: DatabaseDriver): void {
+    driver.storeWholeNumbersAsIntegers = this.wholeNumbersAsIntegers.has(tag)
     this.connections[tag] = { driver, queue: [], status: 'connected' }
   }
 
   waiting(tag: number, driver: DatabaseDriver): void {
+    driver.storeWholeNumbersAsIntegers = this.wholeNumbersAsIntegers.has(tag)
     this.connections[tag] = { driver, queue: [], status: 'waiting' }
   }
 
@@ -290,6 +303,7 @@ class DatabaseBridge {
   connectDriverAsync(tag: number, driver: DatabaseDriver): void {
     // No connection yet if initialize() failed and the app is now resetting the database
     const { queue = [] } = this.connections[tag] || {}
+    driver.storeWholeNumbersAsIntegers = this.wholeNumbersAsIntegers.has(tag)
     this.connections[tag] = { driver, queue: [], status: 'connected' }
 
     queue.forEach((operation) => operation())
