@@ -52,6 +52,31 @@ export const IOS_SYNC_METRICS = [
   { key: 'stressDeleteMs', label: 'Stress test: deletes', unit: 'ms', better: 'lower' },
 ]
 
+/**
+ * CPU time of the app process while each card ran (user + system, all threads; run-sync-trials.mjs
+ * reads it from the host). Time other VMs take from the runner adds wall time but not CPU time, so
+ * this is steadier on CI. `ps` reports it in centiseconds, so short cards (Sync 5k) are coarse.
+ */
+export const IOS_SYNC_CPU_METRICS = [
+  { key: 'sync5kCpuMs', label: 'Sync 5k records', unit: 'ms', better: 'lower' },
+  { key: 'sync50kCpuMs', label: 'Sync 50k records', unit: 'ms', better: 'lower' },
+  { key: 'realisticCpuMs', label: 'Realistic sync (300 pulls)', unit: 'ms', better: 'lower' },
+  { key: 'stressCpuMs', label: 'Stress test', unit: 'ms', better: 'lower' },
+]
+
+/**
+ * The overall speedup is the geometric mean of these ratios: one metric per workload, so the 50k
+ * sync's sub-phases (which move together) don't outvote the others. A geometric mean, because the
+ * ratios multiply: 2x faster on one and 2x slower on another averages to 1x, and NitromelonDB vs
+ * WatermelonDB is exactly the inverse of WatermelonDB vs NitromelonDB.
+ */
+export const GEOMEAN_METRICS = [
+  'sync5kTotalMs',
+  'sync50kTotalMs',
+  'realisticLibraryMs',
+  'stressScore',
+]
+
 // Where each metric comes from: the runner's file, which runs, and the value in a run's line
 const SOURCES = {
   sync5kTotalMs: ['sync', (r) => r.records === 5000, (r) => r.totalMs],
@@ -66,6 +91,10 @@ const SOURCES = {
   stressWriteMs: ['stress', (r) => !r.cancelled, (r) => r.writeMs],
   stressQueryMs: ['stress', (r) => !r.cancelled, (r) => r.queryMs],
   stressDeleteMs: ['stress', (r) => !r.cancelled, (r) => r.deleteMs],
+  sync5kCpuMs: ['sync', (r) => r.records === 5000, (r) => r.cpuMs],
+  sync50kCpuMs: ['sync', (r) => r.records === 50000, (r) => r.cpuMs],
+  realisticCpuMs: ['real', () => true, (r) => r.cpuMs],
+  stressCpuMs: ['stress', (r) => !r.cancelled, (r) => r.cpuMs],
 }
 
 function median(values) {
@@ -92,23 +121,73 @@ export function speedup(metric, nitromelondb, watermelondb) {
   return metric.better === 'higher' ? nitromelondb / watermelondb : watermelondb / nitromelondb
 }
 
+/** The geometric mean of NitromelonDB's speedups over GEOMEAN_METRICS, or null if one is missing. */
+export function geomeanSpeedup(nitromelondb, watermelondb) {
+  const ratios = GEOMEAN_METRICS.map((key) =>
+    speedup(
+      IOS_SYNC_METRICS.find((metric) => metric.key === key),
+      nitromelondb?.[key],
+      watermelondb?.[key],
+    ),
+  )
+  if (ratios.some((ratio) => ratio == null)) return null
+  return (
+    Math.round(Math.exp(ratios.reduce((sum, r) => sum + Math.log(r), 0) / ratios.length) * 1000) /
+    1000
+  )
+}
+
+/** The best of the runner baselines (scripts/runner-baseline.mjs) saved in `dir`, or null. */
+function readBaseline(dir) {
+  const runs = fs.existsSync(dir)
+    ? fs
+        .readdirSync(dir)
+        .filter((file) => /^baseline.*\.json$/.test(file))
+        .map((file) => JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')))
+    : []
+  if (runs.length === 0) return null
+  return {
+    jsMs: Math.min(...runs.map((run) => run.jsMs)),
+    sqliteMs: Math.min(...runs.map((run) => run.sqliteMs)),
+    cpu: runs[0].cpu,
+    cores: runs[0].cores,
+  }
+}
+
+const round = (value) => (value == null ? null : Math.round(value * 10) / 10)
+
 export function summarizeIosSync(dir, device = null) {
   const files = Object.fromEntries(
     ['sync', 'real', 'stress'].map((card) => [card, readJsonl(path.join(dir, `${card}.jsonl`))]),
   )
-  const summary = { device }
+  // Medians stay at the top level (what older history records have); `best` holds each app's best
+  // run, which is what the comment and the charts compare: slowdowns from other VMs on a CI runner
+  // only ever add time, so the best run is the closest to the real speed
+  const summary = { device, best: {} }
   for (const { key: library, label } of LIBRARIES) {
     summary[library] = {}
-    for (const metric of IOS_SYNC_METRICS) {
+    summary.best[library] = {}
+    for (const metric of [...IOS_SYNC_METRICS, ...IOS_SYNC_CPU_METRICS]) {
       const [card, filter, value] = SOURCES[metric.key]
       const values = files[card]
         .filter((r) => r.label === label && filter(r))
         .map(value)
         .filter((v) => typeof v === 'number' && Number.isFinite(v))
-      const m = median(values)
-      summary[library][metric.key] = m == null ? null : Math.round(m * 10) / 10
+      summary[library][metric.key] = round(median(values))
+      const best =
+        values.length === 0
+          ? null
+          : metric.better === 'higher'
+            ? Math.max(...values)
+            : Math.min(...values)
+      summary.best[library][metric.key] = round(best)
     }
   }
+  summary.geomean = {
+    best: geomeanSpeedup(summary.best.nitromelondb, summary.best.watermelondb),
+    median: geomeanSpeedup(summary.nitromelondb, summary.watermelondb),
+  }
+  summary.baseline = readBaseline(dir)
   // Runs per app (each app runs the same number of times; the runner interleaves them)
   const runsOf = (card, filter) =>
     files[card].filter((r) => r.label === LIBRARIES[0].label && filter(r)).length
@@ -140,7 +219,9 @@ export function checkEngines(dir) {
   for (const card of ['sync', 'real', 'stress']) {
     for (const row of readJsonl(path.join(dir, `${card}.jsonl`))) {
       if (row.label === label && !/\(JSI\)/.test(row.engine ?? '')) {
-        throw new Error(`${label} ran "${row.engine ?? 'an unknown engine'}" in ${card} run ${row.run}, not JSI`)
+        throw new Error(
+          `${label} ran "${row.engine ?? 'an unknown engine'}" in ${card} run ${row.run}, not JSI`,
+        )
       }
     }
   }

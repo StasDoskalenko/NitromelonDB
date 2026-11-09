@@ -104,7 +104,8 @@ export function BenchmarkScreen({
       autorun.onError(setupError ?? 'No database adapter')
       return
     }
-    void start(autorun.size === FULL_WORKLOAD.records ? FULL_WORKLOAD : QUICK_WORKLOAD)
+    const workload = autorun.size === FULL_WORKLOAD.records ? FULL_WORKLOAD : QUICK_WORKLOAD
+    void autorun.ready().then(() => start(workload))
     // Only on mount: a launch autoruns once (see autorun.ts)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

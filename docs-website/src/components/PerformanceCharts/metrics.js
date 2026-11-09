@@ -9,9 +9,10 @@ export const ANDROID_METRICS = [
 /**
  * The iOS sync benchmark metrics we chart (recorded by .github/workflows/perf-ios.yml; the full set
  * is in scripts/ios-sync-summary.mjs). `baseline` charts WatermelonDB JSI from the same CI job as a
- * dashed line. CI machines vary from run to run, so the two "vs WatermelonDB" ratios are the
- * steadiest signal; `parity` draws their 1× line. `digits` and `flat` override the default
- * formatting and no-change threshold.
+ * dashed line. CI machines vary from run to run, so the overall "vs WatermelonDB" speedup (a
+ * geometric mean, see flattenIosSync) is the steadiest signal; `parity` draws its 1× line.
+ * `digits` and `flat` override the default formatting and no-change threshold, and `neutral` (the
+ * runner baseline) skips the better/worse wording.
  */
 export const IOS_SYNC_METRICS = [
   {
@@ -51,22 +52,22 @@ export const IOS_SYNC_METRICS = [
     baseline: true,
   },
   {
-    key: 'speedupSync50k',
-    label: 'Sync 50k vs WatermelonDB JSI',
+    key: 'speedupOverall',
+    label: 'Overall vs WatermelonDB JSI',
     unit: '× faster',
     better: 'higher',
     digits: 2,
     flat: 0.005,
     parity: 1,
   },
+  // How fast the CI machine was (scripts/runner-baseline.mjs), to tell a slower runner apart from a
+  // slower NitromelonDB when comparing absolute times across runs. Not better or worse for us.
   {
-    key: 'speedupRealistic',
-    label: 'Realistic sync vs WatermelonDB JSI',
-    unit: '× faster',
-    better: 'higher',
-    digits: 2,
-    flat: 0.005,
-    parity: 1,
+    key: 'runnerSqliteMs',
+    label: 'Runner baseline (SQLite workload)',
+    unit: 'ms',
+    neutral: true,
+    digits: 0,
   },
 ]
 
@@ -77,16 +78,36 @@ export const baselineKey = (metric) => `${metric.key}Baseline`
 
 const ratio = (faster, slower) => (faster > 0 && slower > 0 ? slower / faster : null)
 
-/** A record's `iosSync` summary → flat chart values, WatermelonDB's under baselineKey(). */
-function flattenIosSync({ nitromelondb = {}, watermelondb = {} }) {
+// The geometric mean of NitromelonDB's speedups on one metric per workload, as in
+// scripts/ios-sync-summary.mjs (for records from before it stored one)
+function geomeanSpeedup(n, w) {
+  const ratios = [
+    ratio(n.sync5kTotalMs, w.sync5kTotalMs),
+    ratio(n.sync50kTotalMs, w.sync50kTotalMs),
+    ratio(n.realisticLibraryMs, w.realisticLibraryMs),
+    n.stressScore > 0 && w.stressScore > 0 ? n.stressScore / w.stressScore : null,
+  ]
+  if (ratios.some((r) => r == null)) return null
+  return Math.exp(ratios.reduce((sum, r) => sum + Math.log(r), 0) / ratios.length)
+}
+
+/**
+ * A record's `iosSync` summary → flat chart values, WatermelonDB's under baselineKey(). Each app's
+ * best run where the record has one (CI runners only ever slow runs down), else its median.
+ */
+function flattenIosSync(sync) {
+  const hasBest = Boolean(sync.best?.nitromelondb)
+  const nitromelondb = (hasBest ? sync.best.nitromelondb : sync.nitromelondb) ?? {}
+  const watermelondb = (hasBest ? sync.best.watermelondb : sync.watermelondb) ?? {}
   const values = {}
   for (const metric of IOS_SYNC_METRICS) {
     if (!metric.baseline) continue
     values[metric.key] = nitromelondb[metric.key] ?? null
     values[baselineKey(metric)] = watermelondb[metric.key] ?? null
   }
-  values.speedupSync50k = ratio(nitromelondb.sync50kTotalMs, watermelondb.sync50kTotalMs)
-  values.speedupRealistic = ratio(nitromelondb.realisticLibraryMs, watermelondb.realisticLibraryMs)
+  values.speedupOverall =
+    (hasBest ? sync.geomean?.best : null) ?? geomeanSpeedup(nitromelondb, watermelondb)
+  values.runnerSqliteMs = sync.baseline?.sqliteMs ?? null
   return values
 }
 
@@ -134,7 +155,7 @@ export function formatValue(value, metric) {
  * or below the metric's own `flat`.
  */
 export function describeDelta(metric, current, previous) {
-  if (current == null || previous == null) return null
+  if (current == null || previous == null || metric.neutral) return null
   const delta = current - previous
   if (Math.abs(delta) < (metric.flat ?? 0.05)) {
     return { delta: 0, text: 'no change', direction: 'flat' }

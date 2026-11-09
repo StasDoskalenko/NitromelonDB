@@ -19,9 +19,11 @@ export default function Performance() {
         <p>
           The <code>examples/benchmark</code> apps&apos; Sync, Realistic sync and Stress cards, as Release builds on
           an iOS simulator on GitHub Actions. Every run also measures WatermelonDB 0.28 with its JSI adapter in the
-          same job (dashed line), interleaved run by run. CI machines vary from run to run, so the &quot;vs
-          WatermelonDB JSI&quot; charts are the steadiest signal. On a pull request, a maintainer can comment{' '}
-          <code>/perf ios</code> to run it.
+          same job (dashed line), interleaved run by run. Other VMs on a CI runner slow runs down at random, so each
+          point is an app&apos;s best run, and the overall speedup over WatermelonDB JSI (a geometric mean over Sync
+          5k, Sync 50k, Realistic sync and the stress test) is the steadiest signal. The runner baseline shows how
+          fast each job&apos;s machine was, to compare absolute times across runs. On a pull request, a maintainer can
+          comment <code>/perf ios</code> to run it.
         </p>
         <PerformanceCharts
           source="iosSync"
