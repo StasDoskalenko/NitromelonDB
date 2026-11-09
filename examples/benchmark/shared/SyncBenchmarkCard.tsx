@@ -55,7 +55,7 @@ export function SyncBenchmarkCard({ theme, run, autorun }: Props) {
 
   useEffect(() => {
     if (autorun) {
-      void start(autorun.size)
+      void autorun.ready().then(() => start(autorun.size))
     }
     // Only on mount: a launch autoruns once (see autorun.ts)
     // eslint-disable-next-line react-hooks/exhaustive-deps

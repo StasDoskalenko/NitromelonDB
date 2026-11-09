@@ -240,10 +240,22 @@ WatermelonDB run didn't use the JSI adapter.
 - **On every merge to master** that touches the library or the benchmark: the result is recorded
   on the `benchmarks` branch and charted on the docs site's Performance page.
 
-CI machines vary a lot from run to run, so the number to watch is **NitromelonDB relative to
-WatermelonDB JSI measured in the same job**. The PR comment shows that ratio for every metric,
-and how it changed from master's latest run (flagged when it drops by more than 10%). A run is
-mostly building: the WatermelonDB app doesn't use this repo's code, so its build is cached and only
+CI runners are noisy, in two ways, and the summary (`scripts/ios-sync-summary.mjs`) handles each:
+
+- **Within a job,** other VMs on the host slow runs down at random, by up to ~30% from one run to
+  the next. Since that only ever adds time, the comment compares each app's **best** run (10 per
+  app for Sync and Realistic sync, 5 for the stress test), with the ratio of medians next to it. It
+  also records each card's **CPU time** (the app process's, from the host, between the app's
+  "starting" message and its result), which time taken by other VMs doesn't inflate.
+- **Between jobs,** runners differ. Within a job, WatermelonDB JSI is the baseline, so the
+  headline is NitromelonDB's speedup over it: the **geometric mean** of the best-run speedups on
+  Sync 5k, Sync 50k, Realistic sync and the stress test score (one metric per workload, so the
+  50k sync's phases don't outvote the rest). To compare absolute times across jobs, every job also
+  runs **`scripts/runner-baseline.mjs`**, a fixed JS and SQLite workload, before and after the
+  cards, and records the best as the runner's speed.
+
+A metric is flagged ⚠️ only when its speedup is more than 5% below every one of master's last 10
+runs, not below a fixed threshold. A run is mostly building: the WatermelonDB app doesn't use this repo's code, so its build is cached and only
 redone when the benchmark app, `shared/` or Xcode changes. It still costs macOS runner minutes,
 which is why it doesn't run on every push.
 

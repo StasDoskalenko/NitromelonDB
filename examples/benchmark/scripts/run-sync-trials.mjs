@@ -258,34 +258,69 @@ function deleteSyncDatabases(platform, device, app) {
   }
 }
 
-// Receives the results apps POST in --driver launch mode (shared/autorun.ts), one run at a time
+// The app process's CPU time so far (user + system, all threads), from the host: a simulator app is
+// a normal macOS process. `ps` reports it in centiseconds as [[dd-]hh:]mm:ss.ss.
+function cpuTimeMs(pid) {
+  try {
+    const text = execFileSync('ps', ['-o', 'time=', '-p', String(pid)], { encoding: 'utf8' }).trim()
+    const [days, clock] = text.includes('-') ? text.split('-') : ['0', text]
+    const seconds = clock
+      .split(':')
+      .map(Number)
+      .reduce((total, part) => total * 60 + part, 0)
+    return (Number(days) * 86400 + seconds) * 1000
+  } catch {
+    return null
+  }
+}
+
+// Receives what apps POST in --driver launch mode (shared/autorun.ts): `{ event: 'start' }` right
+// before the card runs, then the result. It reads the app's CPU time at each, before replying (the
+// app waits for the reply to start), so the run's CPU time doesn't include launching the app.
 function startResultListener() {
   let waiting = null
+  let readCpu = () => null
+  let cpuAtStart = null
   const server = createServer((request, response) => {
     let body = ''
     request.on('data', (chunk) => (body += chunk))
     request.on('end', () => {
-      response.end('ok')
       if (request.method === 'POST' && request.url === '/result' && waiting) {
-        const { resolve } = waiting
-        waiting = null
-        resolve(body)
+        let event = null
+        try {
+          event = JSON.parse(body).event ?? null
+        } catch {
+          // not JSON: let the caller fail on it
+        }
+        if (event === 'start') {
+          cpuAtStart = readCpu()
+        } else {
+          const cpuAtEnd = readCpu()
+          const cpuMs = cpuAtStart != null && cpuAtEnd != null ? cpuAtEnd - cpuAtStart : null
+          const { resolve } = waiting
+          waiting = null
+          resolve({ body, cpuMs })
+        }
       }
+      response.end('ok')
     })
   })
   const ready = new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)))
   return {
     port: ready,
-    next(timeoutMs) {
+    // Resolves with the result's body and the CPU time between the start and the result
+    next(timeoutMs, cpuReader) {
+      readCpu = cpuReader
+      cpuAtStart = null
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           waiting = null
           reject(new Error(`no result within ${timeoutMs / 1000}s`))
         }, timeoutMs)
         waiting = {
-          resolve: (body) => {
+          resolve: (value) => {
             clearTimeout(timer)
-            resolve(body)
+            resolve(value)
           },
         }
       })
@@ -298,17 +333,22 @@ function startResultListener() {
 async function launchAndAwaitResult(device, app, card, size, listener) {
   const port = await listener.port
   const query = `card=${card}&size=${size}&report=${encodeURIComponent(`http://localhost:${port}/result`)}`
-  const result = listener.next(15 * 60 * 1000)
+  const result = listener.next(15 * 60 * 1000, () => {
+    const pid = appPid('ios', device, app)
+    return pid ? cpuTimeMs(pid) : null
+  })
   execFileSync('xcrun', ['simctl', 'launch', '--terminate-running-process', device, app, '-benchAutorun', query], {
     stdio: 'ignore',
   })
-  const report = JSON.parse(await result)
+  const { body, cpuMs } = await result
+  const report = JSON.parse(body)
   execFileSync('xcrun', ['simctl', 'terminate', device, app], { stdio: 'ignore' })
   if (report.error) {
     throw new Error(`the app reported: ${report.error}`)
   }
-  // The engine the app actually ran (WatermelonDB can silently fall back from JSI to the bridge)
-  return { ...report.result, engine: report.engine }
+  // The engine the app actually ran (WatermelonDB can silently fall back from JSI to the bridge),
+  // and the card's CPU time (null if the app is an older build that doesn't send the start event)
+  return { ...report.result, engine: report.engine, cpuMs }
 }
 
 async function runOnce({ platform, card, device, driver }, app, size, flowPath, listener) {
@@ -388,6 +428,7 @@ async function main() {
             `${label} ${size} pulls #${run}: total ${Math.round(result.totalMs)}ms, ` +
               `library ${Math.round(result.libraryMs)}ms, network ${Math.round(result.networkMs)}ms, ` +
               `parse ${Math.round(result.parseMs)}ms, open ${Math.round(result.openMs)}ms, ` +
+              (result.cpuMs != null ? `cpu ${Math.round(result.cpuMs)}ms, ` : '') +
               `rss peak ${Math.round(rssPeakBytes / 1048576)}MB`,
           )
           continue
@@ -404,6 +445,7 @@ async function main() {
           `${label} ${size} #${run}: total ${Math.round(result.totalMs)}ms, ` +
             `gc ${Math.round(result.memory?.gcMs ?? 0)}ms, ` +
             `heap peak ${Math.round((result.memory?.heapPeakBytes ?? 0) / 1048576)}MB, ` +
+            (result.cpuMs != null ? `cpu ${Math.round(result.cpuMs)}ms, ` : '') +
             `rss peak ${Math.round(rssPeakBytes / 1048576)}MB`,
         )
       }

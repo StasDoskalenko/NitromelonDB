@@ -21,9 +21,9 @@ mkdir -p "$OUT"
 # The runner launches the app with a launch argument that runs the card and reports back (its
 # --driver launch, see examples/benchmark/shared/autorun.ts), so a run costs the app launch plus the
 # benchmark itself and more runs are cheap
-SYNC_RUNS=${SYNC_RUNS:-8}
-REAL_RUNS=${REAL_RUNS:-8}
-STRESS_RUNS=${STRESS_RUNS:-3}
+SYNC_RUNS=${SYNC_RUNS:-10}
+REAL_RUNS=${REAL_RUNS:-10}
+STRESS_RUNS=${STRESS_RUNS:-5}
 
 # Realistic sync pulls from the mock server (the simulator reaches the host's localhost directly)
 node "$BENCH/mock-server/server.mjs" > "${RUNNER_TEMP:-/tmp}/mock-server.log" 2>&1 &
@@ -114,9 +114,13 @@ run_card() {
     --runs "$runs" --device "$SIM_UDID" --out "$OUT/$card.jsonl"
   echo "::endgroup::"
 }
+# How fast this runner is, before and after the cards (the summary keeps the best), so results
+# can be compared across jobs, which land on different machines (scripts/runner-baseline.mjs)
+node --no-warnings "$REPO_ROOT/scripts/runner-baseline.mjs" > "$OUT/baseline-before.json"
 run_card sync 5000,50000 "$SYNC_RUNS"
 run_card real 300 "$REAL_RUNS"
 run_card stress 100000 "$STRESS_RUNS"
+node --no-warnings "$REPO_ROOT/scripts/runner-baseline.mjs" > "$OUT/baseline-after.json"
 
 node "$REPO_ROOT/scripts/ios-sync-summary.mjs" "$OUT" "$REPO_ROOT/perf-results/perf-result-ios-sync.json" \
   --device "$SIM_NAME"

@@ -21,6 +21,9 @@ export type Autorun = {
 /** What a card gets when it's the one to autorun. */
 export type AutorunProps = {
   size: number
+  // Resolves once the runner has noted the start (it reads the app's CPU time then, so the
+  // benchmark's CPU time doesn't include launching the app); run the card after it
+  ready: () => Promise<void>
   onResult: (result: unknown) => void
   onError: (message: string) => void
 }
@@ -50,17 +53,19 @@ function parse(raw: unknown): Autorun | null {
 export const AUTORUN: Autorun | null =
   Platform.OS === 'ios' ? parse(Settings.get('benchAutorun')) : null
 
-function report(payload: Record<string, unknown>): void {
+async function report(payload: Record<string, unknown>): Promise<void> {
   if (!AUTORUN) {
     return
   }
-  fetch(AUTORUN.report, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ card: AUTORUN.card, size: AUTORUN.size, ...payload }),
-  }).catch(() => {
+  try {
+    await fetch(AUTORUN.report, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ card: AUTORUN.card, size: AUTORUN.size, ...payload }),
+    })
+  } catch {
     // The runner times out and reports the run as failed
-  })
+  }
 }
 
 /**
@@ -74,7 +79,8 @@ export function autorunFor(card: AutorunCard, engine: string | null): AutorunPro
   }
   return {
     size: AUTORUN.size,
-    onResult: (result) => report({ engine, result }),
-    onError: (message) => report({ engine, error: message }),
+    ready: () => report({ event: 'start' }),
+    onResult: (result) => void report({ engine, result }),
+    onError: (message) => void report({ engine, error: message }),
   }
 }
