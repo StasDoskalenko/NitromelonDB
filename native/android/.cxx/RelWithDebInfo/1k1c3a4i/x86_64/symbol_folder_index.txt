@@ -1,0 +1,1 @@
+/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/build/intermediates/cxx/RelWithDebInfo/1k1c3a4i/obj/x86_64

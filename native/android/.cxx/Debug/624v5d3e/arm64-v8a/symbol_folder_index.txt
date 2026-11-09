@@ -1,0 +1,1 @@
+/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/build/intermediates/cxx/Debug/624v5d3e/obj/arm64-v8a

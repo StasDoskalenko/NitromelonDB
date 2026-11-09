@@ -33,11 +33,11 @@ describe('encodeSchema', () => {
   it('encodes schema', () => {
     expect(encodeSchema(testSchema)).toBe(
       expectedCommonSchema +
-        'create table "tasks" ("id" primary key, "_changed", "_status", "author_id", "order", "created_at");' +
+        'create table "tasks" ("id" primary key, "_changed", "_status", "author_id", "order" real, "created_at" real);' +
         'create index if not exists "tasks_author_id" on "tasks" ("author_id");' +
         'create index if not exists "tasks_order" on "tasks" ("order");' +
         'create index if not exists "tasks__status" on "tasks" ("_status");' +
-        'create table "comments" ("id" primary key, "_changed", "_status", "is_ended", "reactions");' +
+        'create table "comments" ("id" primary key, "_changed", "_status", "is_ended", "reactions" real);' +
         'create index if not exists "comments__status" on "comments" ("_status");',
     )
   })
@@ -129,6 +129,38 @@ describe('encodeIndices', () => {
 })
 
 describe('encodeMigrationSteps', () => {
+  it('declares number columns REAL in new tables and added columns', () => {
+    expect(
+      encodeMigrationSteps([
+        addColumns({ table: 'posts', columns: [{ name: 'likes', type: 'number' }] }),
+        createTable({
+          name: 'ratings',
+          columns: [
+            { name: 'stars', type: 'number', isOptional: true },
+            { name: 'note', type: 'string' },
+          ],
+        }),
+      ]),
+    ).toBe(
+      '' +
+        'alter table "posts" add "likes" real;' +
+        'update "posts" set "likes" = 0;' +
+        'create table "ratings" ("id" primary key, "_changed", "_status", "stars" real, "note");' +
+        'create index if not exists "ratings__status" on "ratings" ("_status");',
+    )
+  })
+  it('leaves number columns untyped with realNumberColumns: false', () => {
+    const options = { realNumberColumns: false }
+    expect(
+      encodeMigrationSteps(
+        [addColumns({ table: 'posts', columns: [{ name: 'likes', type: 'number' }] })],
+        options,
+      ),
+    ).toBe('alter table "posts" add "likes";update "posts" set "likes" = 0;')
+    expect(encodeSchema(testSchema, options)).toContain(
+      'create table "tasks" ("id" primary key, "_changed", "_status", "author_id", "order", "created_at");',
+    )
+  })
   it('encodes migrations', () => {
     const migrationSteps = [
       addColumns({

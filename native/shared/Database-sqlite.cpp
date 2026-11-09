@@ -1,6 +1,7 @@
 #include "Database.h"
 
 #include <cassert>
+#include <cmath>
 #include <stdexcept>
 #include <type_traits>
 
@@ -34,6 +35,20 @@ sqlite3_stmt* Database::prepareQuery(std::string sql) {
     return statement;
 }
 
+// JS numbers are doubles, so they're bound as REAL by default. With SQLiteAdapter's
+// storeWholeNumbersAsIntegers, whole numbers a double holds exactly (|x| <= 2^53, and not -0, which
+// would read back as 0) are bound as INTEGER instead: 0 to 8 bytes instead of 8, and cheaper for
+// SQLite to compare and sort, so scans are faster (columnValue() reads INTEGER back as a double).
+// Opt-in because raw SQL can tell the difference: `/` between INTEGERs truncates, and an INTEGER
+// turns into the text '42', not '42.0'.
+static int bindNumber(sqlite3_stmt *statement, int index, double value, bool wholeNumbersAsIntegers) {
+    if (wholeNumbersAsIntegers && value == std::trunc(value) && std::fabs(value) <= 9007199254740992.0 &&
+        !(value == 0 && std::signbit(value))) {
+        return sqlite3_bind_int64(statement, index, static_cast<sqlite3_int64>(value));
+    }
+    return sqlite3_bind_double(statement, index, value);
+}
+
 void Database::bindArgs(sqlite3_stmt *statement, jsi::Array &arguments) {
     auto &rt = getRt();
     int argsCount = sqlite3_bind_parameter_count(statement);
@@ -52,7 +67,7 @@ void Database::bindArgs(sqlite3_stmt *statement, jsi::Array &arguments) {
         } else if (value.isString()) {
             bindResult = sqlite3_bind_text(statement, i + 1, value.getString(rt).utf8(rt).c_str(), -1, SQLITE_TRANSIENT);
         } else if (value.isNumber()) {
-            bindResult = sqlite3_bind_double(statement, i + 1, value.getNumber());
+            bindResult = bindNumber(statement, i + 1, value.getNumber(), storeWholeNumbersAsIntegers_);
         } else if (value.isBool()) {
             bindResult = sqlite3_bind_int(statement, i + 1, value.getBool());
         } else if (value.isObject()) {
@@ -87,7 +102,7 @@ void Database::bindArgs(sqlite3_stmt *statement, const std::vector<SqliteValue> 
                 } else if constexpr (std::is_same_v<T, bool>) {
                     return sqlite3_bind_int(statement, i + 1, value);
                 } else if constexpr (std::is_same_v<T, double>) {
-                    return sqlite3_bind_double(statement, i + 1, value);
+                    return bindNumber(statement, i + 1, value, storeWholeNumbersAsIntegers_);
                 } else {
                     return sqlite3_bind_text(statement, i + 1, value.c_str(), -1, SQLITE_TRANSIENT);
                 }
@@ -118,7 +133,7 @@ std::string Database::bindArgsAndReturnId(sqlite3_stmt *statement, simdjson::ond
                 returnId = std::string(stringView);
             }
         } else if (type == ondemand::json_type::number) {
-            bindResult = sqlite3_bind_double(statement, i + 1, (double) arg);
+            bindResult = bindNumber(statement, i + 1, (double) arg, storeWholeNumbersAsIntegers_);
         } else if (type == ondemand::json_type::boolean) {
             bindResult = sqlite3_bind_int(statement, i + 1, (bool) arg);
         } else if (type == ondemand::json_type::null) {

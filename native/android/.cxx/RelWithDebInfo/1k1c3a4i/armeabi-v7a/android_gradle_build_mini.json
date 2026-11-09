@@ -1,0 +1,32 @@
+{
+  "buildFiles": [
+    "/Users/stanislav.doskalenko/Projects/NitromelonDB/android/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/Users/stanislav.doskalenko/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/.cxx/RelWithDebInfo/1k1c3a4i/armeabi-v7a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/Users/stanislav.doskalenko/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/.cxx/RelWithDebInfo/1k1c3a4i/armeabi-v7a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "NitromelonDB::@6890427a1f51a3e7e1df": {
+      "artifactName": "NitromelonDB",
+      "abi": "armeabi-v7a",
+      "output": "/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/build/intermediates/cxx/RelWithDebInfo/1k1c3a4i/obj/armeabi-v7a/libNitromelonDB.so",
+      "runtimeFiles": [
+        "/Users/stanislav.doskalenko/.gradle/caches/9.3.1/transforms/3171d54bac384dcf208251259792f0cf/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.armeabi-v7a/libfbjni.so",
+        "/Users/stanislav.doskalenko/.gradle/caches/9.3.1/transforms/e88424997ecf7ed9545c92fde2f71276/transformed/react-android-0.86.2-release/prefab/modules/jsi/libs/android.armeabi-v7a/libjsi.so",
+        "/Users/stanislav.doskalenko/Projects/NitromelonDB/examples/NotesApp/node_modules/react-native-nitro-modules/android/build/intermediates/cxx/RelWithDebInfo/228r1ub5/obj/armeabi-v7a/libNitroModules.so",
+        "/Users/stanislav.doskalenko/.gradle/caches/9.3.1/transforms/e88424997ecf7ed9545c92fde2f71276/transformed/react-android-0.86.2-release/prefab/modules/reactnative/libs/android.armeabi-v7a/libreactnative.so"
+      ]
+    }
+  }
+}

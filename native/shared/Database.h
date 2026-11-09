@@ -87,6 +87,8 @@ public:
     void unsafeResetDatabase(jsi::String &schema, int schemaVersion);
     jsi::Value getLocal(jsi::String &key);
     void executeMultiple(std::string sql);
+    // SQLiteAdapter's storeWholeNumbersAsIntegers: bind whole numbers as INTEGER instead of REAL
+    void setStoreWholeNumbersAsIntegers(bool enabled) { storeWholeNumbersAsIntegers_ = enabled; }
 
     SqliteFindResult find(const std::string &tableName, const std::string &id);
     std::vector<SqliteQueryRecord> query(const std::string &tableName, const std::string &sql, const std::vector<SqliteValue> &arguments);
@@ -113,6 +115,7 @@ public:
 private:
     bool initialized_;
     bool isDestroyed_;
+    bool storeWholeNumbersAsIntegers_ = false;
     std::mutex mutex_;
     jsi::Runtime *runtime_; // TODO: std::shared_ptr would be better than a raw pointer from the JS runtime
     std::unique_ptr<SqliteDb> db_;

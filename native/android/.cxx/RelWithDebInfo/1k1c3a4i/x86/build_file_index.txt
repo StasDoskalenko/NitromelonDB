@@ -1,0 +1,1 @@
+/Users/stanislav.doskalenko/Projects/NitromelonDB/android/CMakeLists.txt

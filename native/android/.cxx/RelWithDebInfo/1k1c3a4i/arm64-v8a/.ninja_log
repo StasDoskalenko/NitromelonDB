@@ -1,0 +1,26 @@
+# ninja log v5
+0	1436	1787511230764531471	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/src/main/cpp/cpp-adapter.cpp.o	ade8f3b01fadf550
+6	1834	1787511231163213774	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/shared/DatabaseBridge.cpp.o	253438aabdb9d3f3
+7	1912	1787511231239610847	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/shared/Sqlite.cpp.o	8d10561e0d9a97af
+2	1954	1787511231283574050	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/shared/Database-jsi.cpp.o	4ce9c9da7211024d
+5	2178	1787511231505139115	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/shared/Database.cpp.o	c896c717ef3857a8
+1	2311	1787511231638716274	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/src/main/cpp/DatabasePlatformAndroid.cpp.o	ea2a44e8b790d530
+1	2548	1787511231874271183	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/shared/Database-sqlite.cpp.o	c9bde035f97b0168
+1	2582	1787511231909373021	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/shared/Database-batch.cpp.o	d1eb6a6229f8646a
+8	2593	1787511231919197057	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/vendor/simdjson/simdjson.cpp.o	3251643a8bc19128
+0	2641	1787511231968712490	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/nitro/HybridNitromelon.cpp.o	ef062d7e8b8d97e2
+8	2666	1787511231992296743	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/nitrogen/generated/shared/c++/HybridNitromelonSpec.cpp.o	46bade37a59acf45
+8	2670	1787511231985259426	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/nitrogen/generated/android/NitromelonDBOnLoad.cpp.o	6529ef89ef4eaca5
+4	2879	1787511232204748734	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/shared/Database-query.cpp.o	4531241585293883
+2	2947	1787511232274362741	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/shared/Database-turboSync.cpp.o	211be98dc8e17b84
+0	3738	1787511233063422688	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/nitro/HybridNitromelonDatabase.cpp.o	19179c3c00b4b904
+8	4418	1787511233739786512	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/nitrogen/generated/shared/c++/HybridNitromelonDatabaseSpec.cpp.o	48416c23e4b7484
+8	13117	1787511242409280897	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/vendor/sqlite/sqlite3.c.o	ad0c66098e982dff
+13117	13177	1787511242497061720	/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/build/intermediates/cxx/RelWithDebInfo/1k1c3a4i/obj/arm64-v8a/libNitromelonDB.so	839dcef02c802ad2
+26	780	1787524503536879092	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/src/main/cpp/cpp-adapter.cpp.o	ade8f3b01fadf550
+26	1346	1787524504101527449	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/nitro/HybridNitromelon.cpp.o	ef062d7e8b8d97e2
+25	1387	1787524504141336591	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/nitrogen/generated/shared/c++/HybridNitromelonSpec.cpp.o	46bade37a59acf45
+25	1401	1787524504157633314	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/nitrogen/generated/android/NitromelonDBOnLoad.cpp.o	6529ef89ef4eaca5
+25	2140	1787524504888683978	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/native/nitro/HybridNitromelonDatabase.cpp.o	19179c3c00b4b904
+25	2781	1787524505530058456	CMakeFiles/NitromelonDB.dir/Users/stanislav.doskalenko/Projects/NitromelonDB/nitrogen/generated/shared/c++/HybridNitromelonDatabaseSpec.cpp.o	48416c23e4b7484
+2782	2970	1787524505695486390	/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/build/intermediates/cxx/RelWithDebInfo/1k1c3a4i/obj/arm64-v8a/libNitromelonDB.so	839dcef02c802ad2

@@ -1,0 +1,45 @@
+{
+  "buildFiles": [
+    "/Users/stanislav.doskalenko/Projects/NitromelonDB/android/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/Users/stanislav.doskalenko/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/.cxx/Debug/2ta3q5a3/arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/Users/stanislav.doskalenko/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/.cxx/Debug/2ta3q5a3/arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "NitromelonDB::@6890427a1f51a3e7e1df": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "NitromelonDB",
+      "output": "/Users/stanislav.doskalenko/Projects/NitromelonDB/native/android/build/intermediates/cxx/Debug/2ta3q5a3/obj/arm64-v8a/libNitromelonDB.so",
+      "runtimeFiles": [
+        "/Users/stanislav.doskalenko/.gradle/caches/9.4.1/transforms/0a502b746dfda44e2480cf51052837b1/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so",
+        "/Users/stanislav.doskalenko/.gradle/caches/9.4.1/transforms/50fee3f010f433a3a374cb67747e9fe5/transformed/react-android-0.88.0-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/Users/stanislav.doskalenko/Projects/NitromelonDB/examples/NotesApp/node_modules/react-native-nitro-modules/android/build/intermediates/cxx/Debug/345i61c3/obj/arm64-v8a/libNitroModules.so",
+        "/Users/stanislav.doskalenko/.gradle/caches/9.4.1/transforms/50fee3f010f433a3a374cb67747e9fe5/transformed/react-android-0.88.0-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so"
+      ]
+    }
+  },
+  "toolchains": {
+    "toolchain": {
+      "cCompilerExecutable": "/Users/stanislav.doskalenko/Library/Android/sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang.lld",
+      "cppCompilerExecutable": "/Users/stanislav.doskalenko/Library/Android/sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++.lld"
+    }
+  },
+  "cFileExtensions": [
+    "c"
+  ],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}

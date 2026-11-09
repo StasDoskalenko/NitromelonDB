@@ -6,9 +6,13 @@
 
 ### New features
 
+- iOS/Android/Windows: `new SQLiteAdapter({ storeWholeNumbersAsIntegers: true })` stores whole numbers as SQLite `INTEGER` instead of `REAL`. Queries that scan or sort a table get faster (10% for the stress test's queries in the benchmark app, now ahead of WatermelonDB there); sync and writes stay within 1 to 2%. Off by default, because raw SQL (`Q.unsafeSqlQuery`, `Q.unsafeSqlExpr`, `unsafeExecute`) can see the difference on rows written with it on: `/` between two whole numbers is integer division, turning one into text gives `'42'` instead of `'42.0'` (this also affects `Q.like` and `Q.includes` on number columns), and `typeof()` returns `integer`. Queries built with `Q`, models and sync behave the same. Nothing is migrated: older rows keep `REAL` until they're written again. See [Performance](https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Performance) for how to check whether it's safe for your app.
+
 ### Fixes
 
 ### Performance
+
+- New tables declare number columns as `REAL`. A column without a type stores every number as an 8-byte REAL; a `REAL` column stores whole numbers in SQLite's compact integer format on disk and reads them back as `REAL`, so databases get smaller (11 to 18% in the benchmark app) while queries see exactly the same values and types. Only tables and columns created from now on get it (a new database, `createTable` and `addColumns` migrations), since SQLite can't change an existing column's type. It doesn't make queries faster: SQLite converts each value back to `REAL` as it reads it.
 
 ### Changes
 
