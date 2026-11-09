@@ -1,0 +1,8 @@
+{
+  "name": "extract-zip",
+  "version": "2.0.1-stub",
+  "private": true,
+  "description": "Stands in for extract-zip (GHSA-7pqw-9j4j-h8q3, GHSA-jmr9-qjv8-65gv; no fixed release). See index.js.",
+  "main": "index.js",
+  "license": "MIT"
+}
