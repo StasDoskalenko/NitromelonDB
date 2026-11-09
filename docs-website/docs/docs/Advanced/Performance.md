@@ -19,7 +19,7 @@ JavaScript numbers are all doubles, so by default every number is stored as a SQ
 
 In the benchmark app (iOS simulator, Release builds, against the same build without the option), queries that scan or sort a table of 100,000 records got **10% faster**, which puts them ahead of WatermelonDB on that test. Sync and writes stayed within 1 to 2%: they spend most of their time elsewhere. So this mostly helps apps that filter or sort large tables on number columns.
 
-iOS, Android, Windows and Node. The web adapter ignores it.
+iOS, Android, Windows and Node. The web adapter ignores it: wa-sqlite already stores whole numbers that fit in 32 bits as `INTEGER`, so on web the raw SQL differences below already apply to those.
 
 ### Is it safe for my app?
 

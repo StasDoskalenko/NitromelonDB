@@ -1,7 +1,6 @@
 /* eslint-disable jest/no-standalone-expect */
 import * as Q from '../../../QueryDescription'
 import { taskQuery, mockTaskRaw } from '../helpers'
-import { toPromise } from '../../../utils/fp/Result'
 import { createFileAdapter, openFileAdapter, cleanupDb } from './helpers'
 
 /**
@@ -49,7 +48,8 @@ export default (it) => {
   })
 
   it('numbers behave as REAL in SQL by default', async (_adapter, AdapterClass, _extra, platform) => {
-    if (AdapterClass.name === 'LokiJSAdapter') return
+    // wa-sqlite already binds 32-bit whole numbers as INTEGER
+    if (AdapterClass.name === 'LokiJSAdapter' || platform === 'web') return
 
     const { adapter } = await createFileAdapter(platform)
     await adapter.batch([['create', 'tasks', mockTaskRaw({ id: 'seven', num1: 7 })]])
@@ -97,11 +97,7 @@ export default (it) => {
   it('storeWholeNumbersAsIntegers converts rows written before it was turned on', async (_adapter, AdapterClass, _extra, platform) => {
     if (AdapterClass.name === 'LokiJSAdapter' || platform === 'web') return
 
-    const {
-      adapter: before,
-      underlying: beforeUnderlying,
-      dbName,
-    } = await createFileAdapter(platform)
+    const { adapter: before, dbName } = await createFileAdapter(platform)
     // More rows than one conversion transaction takes, so it walks several rowid ranges
     const count = 4500
     const expected = new Map()
@@ -117,7 +113,6 @@ export default (it) => {
     const statuses = await before.unsafeQueryRaw(
       taskQuery(Q.unsafeSqlQuery('select id, _status, _changed from tasks order by id')),
     )
-    await toPromise((callback) => beforeUnderlying.unsafeCloseConnection(callback))
 
     const { adapter, underlying } = await openFileAdapter(dbName, {
       storeWholeNumbersAsIntegers: true,
@@ -142,11 +137,10 @@ export default (it) => {
     ).toEqual(statuses)
     expect(await adapter.getLocal('__nitromelondb_whole_numbers_as_integers')).toBe('done')
 
-    // Done once: rows written as REAL later (the option turned off) aren't converted again
-    await toPromise((callback) => underlying.unsafeCloseConnection(callback))
-    const { adapter: off, underlying: offUnderlying } = await openFileAdapter(dbName)
+    // Done once: rows written as REAL later (the option turned off) aren't converted again. Each
+    // adapter has its own connection (native can't reopen a closed file in the same process)
+    const { adapter: off } = await openFileAdapter(dbName)
     await off.batch([['create', 'tasks', mockTaskRaw({ id: 'later', num1: 7 })]])
-    await toPromise((callback) => offUnderlying.unsafeCloseConnection(callback))
     const { adapter: on, underlying: onUnderlying } = await openFileAdapter(dbName, {
       storeWholeNumbersAsIntegers: true,
     })
@@ -155,7 +149,6 @@ export default (it) => {
       taskQuery(Q.unsafeSqlQuery("select typeof(num1) as type from tasks where id = 'later'")),
     )
     expect(later.type).toBe('real')
-    await toPromise((callback) => onUnderlying.unsafeCloseConnection(callback))
     cleanupDb(dbName, platform)
   })
 }
