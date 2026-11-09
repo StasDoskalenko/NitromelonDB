@@ -95,6 +95,9 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   // (native asserts it's set up), and unsafeResetDatabase() sets the database up instead
   _setUpError: Error | null = null
 
+  // Converting the numbers already stored after storeWholeNumbersAsIntegers was turned on or off (see
+  // convertWholeNumbers). Internal (tests await it): nothing an app does needs to wait, since only raw
+  // SQL can tell the two formats apart, and initializingPromise doesn't wait, so launch isn't delayed
   _numberStorageConversion: Promise<NumberStorageConversionResult>
 
   // Development builds with storeWholeNumbersAsIntegers: warns about raw SQL that can see it
@@ -184,21 +187,13 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     return this._initPromise
   }
 
-  // Resolves when the numbers already in the database are stored the way storeWholeNumbersAsIntegers
-  // asks for: right away if they already were, or once they've been converted in the background
-  // after turning the option on or off. 'interrupted' if converting stopped (e.g. the connection was
-  // closed); it continues on the next launch. Never rejects.
-  get numberStorageConversion(): Promise<NumberStorageConversionResult> {
-    return this._numberStorageConversion
-  }
-
   async _convertWholeNumbers(
     storeWholeNumbersAsIntegers: boolean,
   ): Promise<NumberStorageConversionResult> {
     const start = Date.now()
     try {
       const result = await convertWholeNumbers(this._dispatcher, this.schema, storeWholeNumbersAsIntegers)
-      if (result === 'converted') {
+      if (result === 'converted' && process.env.NODE_ENV !== 'production') {
         logger.log(
           `[🍉] storeWholeNumbersAsIntegers: converted the numbers already stored to ${
             storeWholeNumbersAsIntegers ? 'INTEGER' : 'REAL'

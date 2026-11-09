@@ -13,6 +13,7 @@ import type { SqliteDispatcher, SqliteDispatcherMethod } from './type'
 // sync don't notice. Rows already in the right format are skipped, so after an interruption (the app
 // is closed, the database is reset) the next launch walks the tables again, cheaply, until it
 // finishes. Measured on a Mac: 1,000,000 rows with 4 number columns in 1.2 s, at most 11 ms per range.
+// The app's writes meanwhile (seeding, sync, ...) are already in the new format, so it skips them.
 //
 // Where it stands is kept in local storage, under NUMBER_STORAGE_KEY:
 // - no value: numbers are stored as REAL (the default; nothing to do without the option)

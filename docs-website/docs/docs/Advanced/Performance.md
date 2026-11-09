@@ -107,14 +107,7 @@ Data already on your users' devices is converted for you, once, in the backgroun
 - **Safe to interrupt.** If the app is closed, it continues on the next launch.
 - Until it finishes, a table holds both kinds. Queries built with `Q` compare and sort them together, so they don't care; raw SQL arithmetic sees whichever kind a row has.
 
-When it finishes, NitromelonDB logs `[🍉] storeWholeNumbersAsIntegers: converted the numbers already stored to INTEGER in … ms`. If you need to wait for it, for example before raw SQL that relies on the new storage, or in a test:
-
-```js
-const result = await adapter.numberStorageConversion
-// 'unchanged': nothing needed converting (or it had already finished)
-// 'converted': this launch finished converting
-// 'interrupted': it stopped (e.g. the database was closed); it continues on the next launch
-```
+**There's nothing to wait for.** Opening the database, `database.readyPromise`, [seeding](./Seeding.md), sync and your first queries run exactly as before, alongside the conversion. Rows written meanwhile are already stored the new way, so the conversion skips them. Raw SQL that gives the same result either way (step 1) doesn't mind a half-converted table either. In development builds, NitromelonDB logs `[🍉] storeWholeNumbersAsIntegers: converted the numbers already stored to INTEGER in … ms` when it's done.
 
 ### 4. Rolling back
 

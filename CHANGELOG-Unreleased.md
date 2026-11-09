@@ -7,7 +7,7 @@
 ### New features
 
 - `new SQLiteAdapter({ storeWholeNumbersAsIntegers: true })` stores whole numbers as SQLite `INTEGER` instead of `REAL` (iOS, Android, Windows and Node; web ignores it). Queries that scan or sort a table get faster (10% for the stress test's queries in the benchmark app, now ahead of WatermelonDB there); sync and writes stay within 1 to 2%. Off by default, because raw SQL (`Q.unsafeSqlQuery`, `Q.unsafeSqlExpr`, `unsafeExecute`) can see the difference: `/` between two whole numbers is integer division, turning one into text gives `'42'` instead of `'42.0'` (this also affects `Q.like` and `Q.includes` on number columns), and `typeof()` returns `integer`. Queries built with `Q`, models and sync behave the same.
-  - Data already on the device is converted once, in the background, after the database opens: no launch delay, values don't change, records aren't marked as changed, and it continues on the next launch if interrupted. `adapter.numberStorageConversion` resolves when it's done.
+  - Data already on the device is converted once, in the background, after the database opens: no launch delay and nothing to wait for (opening the database, seeding, sync and queries run alongside it), values don't change, records aren't marked as changed, and it continues on the next launch if interrupted.
   - Turning the option off again converts the numbers back to `REAL` the same way, so rolling back a release that turned it on restores exactly the previous behavior.
   - Development builds warn about raw SQL that might be affected.
   - The [Performance](https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Performance) guide walks through checking an app (including a prompt for AI coding agents), turning it on, and rolling back.

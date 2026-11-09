@@ -103,7 +103,7 @@ export default (it) => {
     // reopen a file it closed in the same process. Each adapter has its own connection and option
     const { adapter: before, underlying: beforeUnderlying, dbName } = await createFileAdapter(platform)
     // Never turned on: nothing to convert, nothing written
-    expect(await beforeUnderlying.numberStorageConversion).toBe('unchanged')
+    expect(await beforeUnderlying._numberStorageConversion).toBe('unchanged')
     expect(await before.getLocal(STATE_KEY)).toBe(null)
 
     // More rows than one conversion transaction takes, so it walks several rowid ranges
@@ -138,7 +138,7 @@ export default (it) => {
     const { adapter: on, underlying: onUnderlying } = await openFileAdapter(dbName, {
       storeWholeNumbersAsIntegers: true,
     })
-    expect(await onUnderlying.numberStorageConversion).toBe('converted')
+    expect(await onUnderlying._numberStorageConversion).toBe('converted')
     const converted = await readAll(on)
     expect(converted.length).toBe(count + 1)
     expect(mismatches(converted, 'integer')).toEqual([])
@@ -154,11 +154,11 @@ export default (it) => {
     const { underlying: onAgain } = await openFileAdapter(dbName, {
       storeWholeNumbersAsIntegers: true,
     })
-    expect(await onAgain.numberStorageConversion).toBe('unchanged')
+    expect(await onAgain._numberStorageConversion).toBe('unchanged')
 
     // Turned off again (a rolled-back release): converted back, raw SQL sees REAL again
     const { adapter: off, underlying: offUnderlying } = await openFileAdapter(dbName)
-    expect(await offUnderlying.numberStorageConversion).toBe('converted')
+    expect(await offUnderlying._numberStorageConversion).toBe('converted')
     expect(mismatches(await readAll(off), 'real')).toEqual([])
     const [row] = await off.unsafeQueryRaw(
       taskQuery(Q.unsafeSqlQuery("select num1 / 2 as half from tasks where id = 't1'")),
@@ -166,7 +166,7 @@ export default (it) => {
     expect(row.half).toBe((1700000000000 + 1) / 2)
     expect(await off.getLocal(STATE_KEY)).toBe(null)
     const { underlying: offAgain } = await openFileAdapter(dbName)
-    expect(await offAgain.numberStorageConversion).toBe('unchanged')
+    expect(await offAgain._numberStorageConversion).toBe('unchanged')
 
     cleanupDb(dbName, platform)
   })
@@ -181,7 +181,7 @@ export default (it) => {
     const { adapter: on, underlying: onUnderlying } = await openFileAdapter(dbName, {
       storeWholeNumbersAsIntegers: true,
     })
-    expect(await onUnderlying.numberStorageConversion).toBe('converted')
+    expect(await onUnderlying._numberStorageConversion).toBe('converted')
     const typeOfSeven = async (adapter) =>
       (
         await adapter.unsafeQueryRaw(
@@ -193,9 +193,71 @@ export default (it) => {
     // Turned on, interrupted, then turned off before it finished: whatever was converted goes back
     await on.setLocal(STATE_KEY, 'to-integer')
     const { adapter: off, underlying: offUnderlying } = await openFileAdapter(dbName)
-    expect(await offUnderlying.numberStorageConversion).toBe('converted')
+    expect(await offUnderlying._numberStorageConversion).toBe('converted')
     expect(await typeOfSeven(off)).toBe('real')
     expect(await off.getLocal(STATE_KEY)).toBe(null)
+
+    cleanupDb(dbName, platform)
+  })
+
+  it('storeWholeNumbersAsIntegers: the app reads and writes normally while converting', async (_adapter, AdapterClass, _extra, platform) => {
+    if (AdapterClass.name === 'LokiJSAdapter' || platform === 'web') return
+
+    const { adapter: before, dbName } = await createFileAdapter(platform)
+    const count = 6000
+    await before.batch(
+      Array.from({ length: count }, (_, i) => [
+        'create',
+        'tasks',
+        mockTaskRaw({ id: `t${i}`, num1: i, num2: i + 0.5 }),
+      ]),
+    )
+
+    // Like seeding or sync right after launch: don't wait for the conversion
+    const { adapter, underlying } = await openFileAdapter(dbName, {
+      storeWholeNumbersAsIntegers: true,
+    })
+    const [written, updated, counted, found] = await Promise.all([
+      adapter.batch(
+        Array.from({ length: 500 }, (_, i) => [
+          'create',
+          'tasks',
+          mockTaskRaw({ id: `new${i}`, num1: count + i, num2: 0.25 }),
+        ]),
+      ),
+      adapter.batch([['update', 'tasks', mockTaskRaw({ id: 't5999', num1: -1, num2: 1.5 })]]),
+      adapter.count(taskQuery(Q.where('num1', Q.gte(3000)))),
+      adapter.query(taskQuery(Q.where('num1', 42))),
+    ])
+    expect(written).toBe(undefined)
+    expect(updated).toBe(undefined)
+    // Calls run in order: after both batches (t5999 now -1, plus 500 new rows from 6000)
+    expect(counted).toBe(3499)
+    expect(found.length).toBe(1)
+    expect(await underlying._numberStorageConversion).toBe('converted')
+
+    const rows = await adapter.unsafeQueryRaw(
+      taskQuery(
+        Q.unsafeSqlQuery(
+          'select id, num1, typeof(num1) as type1, num2, typeof(num2) as type2 from tasks',
+        ),
+      ),
+    )
+    expect(rows.length).toBe(count + 500)
+    const wrong = rows
+      .filter((row) => {
+        const expectedNum1 = row.id === 't5999' ? -1 : row.id.startsWith('new') ? count + Number(row.id.slice(3)) : Number(row.id.slice(1))
+        const expectedNum2 = row.id === 't5999' ? 1.5 : row.id.startsWith('new') ? 0.25 : Number(row.id.slice(1)) + 0.5
+        return (
+          row.num1 !== expectedNum1 ||
+          row.type1 !== 'integer' ||
+          row.num2 !== expectedNum2 ||
+          row.type2 !== 'real'
+        )
+      })
+      .slice(0, 3)
+    expect(wrong).toEqual([])
+    expect(await adapter.count(taskQuery(Q.where('num1', Q.gte(3000))))).toBe(3499)
 
     cleanupDb(dbName, platform)
   })
