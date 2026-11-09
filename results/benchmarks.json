@@ -1485,5 +1485,18 @@
         "stress": 5
       }
     }
+  },
+  {
+    "sha": "c8803178601ce84b77adcaebee59f83017c175a5",
+    "date": "2026-11-09T19:38:29.428Z",
+    "prNumber": 221,
+    "subject": "fix(deps): replace extract-zip in NotesApp_windows with a stub (2 high Dependabot alerts) (#221)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 23.5,
+      "ram": 182,
+      "fps": 55.2
+    }
   }
 ]
