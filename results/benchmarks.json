@@ -1282,5 +1282,18 @@
       "ram": 177,
       "fps": 54.8
     }
+  },
+  {
+    "sha": "d29778637090169ab608d4169ee7bd2c0b7d0947",
+    "date": "2026-11-09T17:50:17.565Z",
+    "prNumber": 218,
+    "subject": "perf(sqlite): opt-in storeWholeNumbersAsIntegers, converting existing data in the background (#218)",
+    "android": {
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 30.3,
+      "ram": 179,
+      "fps": 53.4
+    }
   }
 ]
