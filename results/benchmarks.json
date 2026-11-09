@@ -1269,5 +1269,18 @@
         "stress": 3
       }
     }
+  },
+  {
+    "sha": "880e7ece897ea56fb63a3b72db4ea0ef735fb7af",
+    "date": "2026-11-09T03:53:58.497Z",
+    "prNumber": 219,
+    "subject": "docs(perf): draw a rolling-median trend on the performance charts (#219)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 27.5,
+      "ram": 177,
+      "fps": 54.8
+    }
   }
 ]
