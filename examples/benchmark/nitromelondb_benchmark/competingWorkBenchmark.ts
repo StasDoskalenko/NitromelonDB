@@ -23,7 +23,11 @@ const schema = appSchema({
 })
 
 function openDatabase(): Database {
-  const adapter = new SQLiteAdapter({ schema, dbName: 'nitromelon-competing' })
+  const adapter = new SQLiteAdapter({
+    schema,
+    dbName: 'nitromelon-competing',
+    storeWholeNumbersAsIntegers: true,
+  })
   return new Database({ adapter, modelClasses: [PingItem] })
 }
 

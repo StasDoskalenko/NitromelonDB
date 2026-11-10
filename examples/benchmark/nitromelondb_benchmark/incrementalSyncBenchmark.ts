@@ -28,7 +28,11 @@ const schema = appSchema({
 })
 
 function openDatabase(): Promise<IncrementalDatabase> {
-  const adapter = new SQLiteAdapter({ schema, dbName: 'nitromelon-incr' })
+  const adapter = new SQLiteAdapter({
+    schema,
+    dbName: 'nitromelon-incr',
+    storeWholeNumbersAsIntegers: true,
+  })
   const database = new Database({ adapter, modelClasses })
   return Promise.resolve(database as unknown as IncrementalDatabase)
 }

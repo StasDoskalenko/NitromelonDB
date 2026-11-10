@@ -55,6 +55,9 @@ const adapter = new SQLiteAdapter({
   migrations,
   // (optional database name or file system path)
   // dbName: 'myapp',
+  // Recommended for new apps: faster number comparisons and sorting. Adding it to an existing app?
+  // Check its raw SQL first -- see Performance
+  storeWholeNumbersAsIntegers: true,
   // (optional, but you should implement this method)
   onSetUpError: error => {
     // Database failed to load -- offer the user to reload the app or log out.
@@ -83,6 +86,8 @@ const database = new Database({
   // }),
 })
 ```
+
+`storeWholeNumbersAsIntegers` stores whole numbers as SQLite `INTEGER` instead of `REAL`, which SQLite compares and sorts faster. Queries built with `Q`, models and sync work the same either way, but raw SQL can see the difference (for example, `/` divides integers as integers). For an existing app, follow [Performance](./Advanced/Performance.md) to check its raw SQL before turning it on; data already stored converts in the background.
 
 ## Database initialization
 

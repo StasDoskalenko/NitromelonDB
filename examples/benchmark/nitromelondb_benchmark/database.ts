@@ -9,6 +9,9 @@ export function createNitromelonAdapter(): BenchmarkAdapter {
   const sqlite = new SQLiteAdapter({
     schema,
     dbName: 'nitromelon-benchmark',
+    // The configuration the docs recommend for new apps; every adapter in this app sets it, so the
+    // benchmarks measure it (the stress test's query phase is ~10% faster with it)
+    storeWholeNumbersAsIntegers: true,
     onSetUpError: (error) => {
       console.error('[NitromelonDB] Failed to set up SQLite', error)
     },

@@ -27,7 +27,7 @@ const schema = appSchema({
 })
 
 function openDatabase(dbName: string): Promise<RealisticDatabase> {
-  const adapter = new SQLiteAdapter({ schema, dbName })
+  const adapter = new SQLiteAdapter({ schema, dbName, storeWholeNumbersAsIntegers: true })
   const database = new Database({ adapter, modelClasses })
   return Promise.resolve(database as unknown as RealisticDatabase)
 }
