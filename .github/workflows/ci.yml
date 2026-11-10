@@ -430,17 +430,31 @@ jobs:
     runs-on: macos-26
     name: NotesApp iOS (Maestro)
     timeout-minutes: 60
+    env:
+      # How long Maestro waits for its XCTest driver to start (ms). It gave up after ~3 minutes once,
+      # on a simulator still slow from its first boot ("iOS driver not ready in time"); see also
+      # the retry in scripts/ci-notesapp-ios-maestro.sh
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: 300000
     steps:
       - uses: actions/checkout@v6
-      - name: Set Node.js version
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24.x
       # The same Xcode as the build job, so the simulator runtimes match what the app was built for
       - name: Set Xcode version
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
+      # Booted first, so it finishes its first-boot work (data migration took almost 3 minutes once)
+      # while the steps below run, instead of while Maestro starts. scripts/ci-notesapp-ios-maestro.sh
+      # uses SIM_UDID and waits for the boot to finish.
+      - name: Boot a simulator
+        run: |
+          read -r udid name < <(bash scripts/pick-ios-simulator.sh)
+          echo "Booting $name ($udid)"
+          echo "SIM_UDID=$udid" >> "$GITHUB_ENV"
+          xcrun simctl boot "$udid"
+      - name: Set Node.js version
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
       - name: Install the sync server
         working-directory: examples/sync-server
         run: yarn install --immutable
