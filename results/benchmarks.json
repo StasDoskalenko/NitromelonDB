@@ -1721,5 +1721,18 @@
         "stress": 5
       }
     }
+  },
+  {
+    "sha": "cb0dbe2990fd521bb71ee2c2b0aea71587040332",
+    "date": "2026-11-10T22:04:04.706Z",
+    "prNumber": 225,
+    "subject": "docs, examples: turn on storeWholeNumbersAsIntegers in the setup guide and the example apps (#225)",
+    "android": {
+      "iterationCount": 5,
+      "score": 94,
+      "cpu": 32.6,
+      "ram": 178,
+      "fps": 52.5
+    }
   }
 ]
