@@ -10,21 +10,9 @@ start_sync_server
 
 cd examples/NotesApp
 
-SIM_UDID=$(xcrun simctl list devices available --json | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-for devices in data['devices'].values():
-    for d in devices:
-        if d['name'].startswith('iPhone') and d['isAvailable']:
-            print(d['udid'])
-            sys.exit(0)
-sys.exit(1)
-")
-if [ -z "$SIM_UDID" ]; then
-  echo "No available iPhone simulator found"
-  xcrun simctl list devices available
-  exit 1
-fi
+# Waits for a simulator to show up on a fresh runner, and picks the newest iOS runtime
+read -r SIM_UDID SIM_NAME < <(../../scripts/pick-ios-simulator.sh)
+echo "Testing on $SIM_NAME ($SIM_UDID)"
 
 xcrun simctl boot "$SIM_UDID" || true
 xcrun simctl bootstatus "$SIM_UDID" -b

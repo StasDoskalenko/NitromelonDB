@@ -35,25 +35,8 @@ for _ in $(seq 1 50); do
 done
 curl -sf http://127.0.0.1:8787/health > /dev/null || { cat "${RUNNER_TEMP:-/tmp}/mock-server.log"; exit 1; }
 
-# Same pick as scripts/ci-notesapp-ios-maestro.sh, plus the name and runtime for the summary
-SIM_LINE=$(xcrun simctl list devices available --json | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-for runtime, devices in data['devices'].items():
-    for d in devices:
-        if d['name'].startswith('iPhone') and d['isAvailable']:
-            os_name, *version = runtime.split('.')[-1].split('-')  # ...SimRuntime.iOS-26-1
-            print(d['udid'], d['name'] + ', ' + os_name + ' ' + '.'.join(version))
-            sys.exit(0)
-sys.exit(1)
-") || true
-SIM_UDID=${SIM_LINE%% *}
-SIM_NAME=${SIM_LINE#* }
-if [ -z "$SIM_UDID" ]; then
-  echo "No available iPhone simulator found"
-  xcrun simctl list devices available
-  exit 1
-fi
+# Waits for a simulator to show up on a fresh runner; the name and runtime go in the summary
+read -r SIM_UDID SIM_NAME < <("$REPO_ROOT/scripts/pick-ios-simulator.sh")
 # Booting takes a minute or two; let it happen while the apps build (installing waits for it)
 xcrun simctl boot "$SIM_UDID" || true
 

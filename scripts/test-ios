@@ -3,14 +3,20 @@
 set -x
 set -e
 
-# GitHub macos-26 runners ship Xcode 26.x with iPhone 17 / iOS 26 simulators.
-# OS=latest tracks the newest runtime installed for that device.
+# Runs on an available iPhone simulator on the newest iOS runtime (scripts/pick-ios-simulator.sh,
+# which also waits for one to show up on a fresh CI runner). A hardcoded device name broke when a
+# runner image didn't have it. IOS_SIMULATOR_UDID overrides the pick.
 #
 # Optional split (not used in CI yet):
 #   IOS_XCODEBUILD_ACTION=build-for-testing|test-without-building|test (default)
 #   IOS_DERIVED_DATA_PATH=native/iosTest/DerivedData
 ACTION="${IOS_XCODEBUILD_ACTION:-test}"
-DESTINATION='platform=iOS Simulator,name=iPhone 17,OS=latest'
+SIM_UDID="${IOS_SIMULATOR_UDID:-}"
+if [ -z "$SIM_UDID" ]; then
+  read -r SIM_UDID SIM_NAME < <("$(dirname "$0")/pick-ios-simulator.sh")
+  echo "Testing on $SIM_NAME ($SIM_UDID)"
+fi
+DESTINATION="platform=iOS Simulator,id=$SIM_UDID"
 
 args=(
   -workspace native/iosTest/WatermelonTester.xcworkspace
