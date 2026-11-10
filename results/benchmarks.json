@@ -1826,5 +1826,18 @@
         "stress": 5
       }
     }
+  },
+  {
+    "sha": "c129f9f18824923784e5e82e4f40b55fb69c3c5f",
+    "date": "2026-11-10T23:13:50.580Z",
+    "prNumber": 226,
+    "subject": "ci(e2e): boot the iOS simulator first and retry Maestro if its driver didn't start (#226)",
+    "android": {
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 27.2,
+      "ram": 178,
+      "fps": 54.5
+    }
   }
 ]
