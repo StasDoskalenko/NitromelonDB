@@ -1616,5 +1616,18 @@
       "ram": 178,
       "fps": 52.1
     }
+  },
+  {
+    "sha": "af148cd7ba245e1c9ca63490d82d406a147b5f9e",
+    "date": "2026-11-10T07:45:23.965Z",
+    "prNumber": 224,
+    "subject": "ci(e2e): build NotesApp once per platform, and test that build in separate jobs (#224)",
+    "android": {
+      "iterationCount": 5,
+      "score": 94,
+      "cpu": 31.2,
+      "ram": 177,
+      "fps": 52.5
+    }
   }
 ]
