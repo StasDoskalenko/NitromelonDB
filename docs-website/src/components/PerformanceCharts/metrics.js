@@ -11,8 +11,9 @@ export const ANDROID_METRICS = [
  * is in scripts/ios-sync-summary.mjs). `baseline` charts WatermelonDB JSI from the same CI job as a
  * dashed line. CI machines vary from run to run, so the overall "vs WatermelonDB" speedup (a
  * geometric mean, see flattenIosSync) is the steadiest signal; `parity` draws its 1× line.
- * `digits` and `flat` override the default formatting and no-change threshold, and `neutral` (the
- * runner baseline) skips the better/worse wording.
+ * `adjust` metrics are absolute times (or a score), which are adjusted for the CI machine's speed
+ * by default (see addMachineFactors). `digits` and `flat` override the default formatting and
+ * no-change threshold, and `neutral` (the machine factor) skips the better/worse wording.
  */
 export const IOS_SYNC_METRICS = [
   {
@@ -23,6 +24,7 @@ export const IOS_SYNC_METRICS = [
     digits: 0,
     flat: 0.5,
     baseline: true,
+    adjust: true,
   },
   {
     key: 'sync50kFetchAllMs',
@@ -32,6 +34,7 @@ export const IOS_SYNC_METRICS = [
     digits: 0,
     flat: 0.5,
     baseline: true,
+    adjust: true,
   },
   {
     key: 'realisticLibraryMs',
@@ -41,6 +44,7 @@ export const IOS_SYNC_METRICS = [
     digits: 0,
     flat: 0.5,
     baseline: true,
+    adjust: true,
   },
   {
     key: 'stressScore',
@@ -50,6 +54,7 @@ export const IOS_SYNC_METRICS = [
     digits: 0,
     flat: 0.5,
     baseline: true,
+    adjust: true,
   },
   {
     key: 'speedupOverall',
@@ -60,14 +65,14 @@ export const IOS_SYNC_METRICS = [
     flat: 0.005,
     parity: 1,
   },
-  // How fast the CI machine was (scripts/runner-baseline.mjs), to tell a slower runner apart from a
-  // slower NitromelonDB when comparing absolute times across runs. Not better or worse for us.
+  // How slow this job's CI machine was: WatermelonDB's time relative to its usual (see
+  // addMachineFactors). The `adjust` metrics are divided by it. Not better or worse for us.
   {
-    key: 'runnerSqliteMs',
-    label: 'Runner baseline (SQLite workload)',
-    unit: 'ms',
+    key: 'machineFactor',
+    label: 'CI machine speed (WatermelonDB vs its median)',
+    unit: '× its usual time',
     neutral: true,
-    digits: 0,
+    digits: 2,
   },
 ]
 
@@ -92,6 +97,58 @@ function geomeanSpeedup(n, w) {
 }
 
 /**
+ * The workloads that measure a CI job's machine: WatermelonDB 0.28 never changes and runs in the
+ * same simulator, in the same job, so how its times compare with its usual ones says how slow that
+ * job's machine was. (scripts/runner-baseline.mjs times a fixed workload too, but in Node on the
+ * host, outside the simulator; adjusting by it made run-to-run variation larger, not smaller.)
+ */
+const MACHINE_WORKLOADS = [
+  { key: 'sync5kTotalMs', better: 'lower' },
+  { key: 'sync50kTotalMs', better: 'lower' },
+  { key: 'realisticLibraryMs', better: 'lower' },
+  { key: 'stressScore', better: 'higher' },
+]
+
+/**
+ * Sets row.machineFactor: how much slower than usual this job's machine was (1.2 = WatermelonDB
+ * took 1.2× its median time), the geometric mean over MACHINE_WORKLOADS, each against its median
+ * over the whole history. With `adjusted`, the `adjust` metrics (NitromelonDB's and WatermelonDB's)
+ * are divided by it (a score is multiplied), so they read as if every job had run on a machine of
+ * median speed. On recorded runs this halves the run-to-run variation of the 50k sync and fetch
+ * times. Rows without every workload get no factor, and no adjusted values.
+ */
+function addMachineFactors(rows, metrics, workloadsByRow, adjusted) {
+  const medians = Object.fromEntries(
+    MACHINE_WORKLOADS.map(({ key }) => {
+      const values = workloadsByRow.map((w) => w?.[key]).filter((v) => v > 0)
+      return [key, values.length > 0 ? median(values) : null]
+    }),
+  )
+  rows.forEach((row, i) => {
+    const workloads = workloadsByRow[i]
+    const logs = MACHINE_WORKLOADS.map(({ key, better }) => {
+      const value = workloads?.[key]
+      if (!(value > 0) || !(medians[key] > 0)) return null
+      return Math.log(better === 'lower' ? value / medians[key] : medians[key] / value)
+    })
+    const factor = logs.every((l) => l != null)
+      ? Math.exp(logs.reduce((sum, l) => sum + l, 0) / logs.length)
+      : null
+    row.machineFactor = factor
+    if (!adjusted) return
+    for (const metric of metrics) {
+      if (!metric.adjust) continue
+      for (const key of [metric.key, baselineKey(metric)]) {
+        if (row[key] == null) continue
+        row[key] =
+          factor == null ? null : metric.better === 'lower' ? row[key] / factor : row[key] * factor
+      }
+    }
+  })
+  return rows
+}
+
+/**
  * A record's `iosSync` summary → flat chart values, WatermelonDB's under baselineKey(). Each app's
  * best run where the record has one (CI runners only ever slow runs down), else its median.
  */
@@ -107,7 +164,9 @@ function flattenIosSync(sync) {
   }
   values.speedupOverall =
     (hasBest ? sync.geomean?.best : null) ?? geomeanSpeedup(nitromelondb, watermelondb)
-  values.runnerSqliteMs = sync.baseline?.sqliteMs ?? null
+  values.machineWorkloads = Object.fromEntries(
+    MACHINE_WORKLOADS.map(({ key }) => [key, watermelondb[key] ?? null]),
+  )
   return values
 }
 
@@ -220,28 +279,33 @@ export function priorLabel(prior) {
 
 /**
  * History records → chart rows for one source: one row per run that has its results, every
- * metric on the same row so charts share an index.
+ * metric on the same row so charts share an index. For the iOS sync source, `adjusted` (the
+ * default) adjusts absolute times for each CI machine's speed (see addMachineFactors).
  */
-export function toRows(history, source) {
+export function toRows(history, source, { adjusted = true } = {}) {
   const { metrics, values } = SOURCES[source]
-  const rows = history
+  const recorded = history
     .map((record) => ({ record, recordValues: values(record) }))
     .filter(({ recordValues }) => recordValues != null)
-    .map(({ record, recordValues }, index) => {
-      const time = Date.parse(record.date)
-      const row = {
-        index,
-        time: Number.isNaN(time) ? null : time,
-        sha: record.sha ?? '',
-        prNumber: record.prNumber ?? null,
-        subject: record.subject ?? null,
-      }
-      for (const metric of metrics) {
-        row[metric.key] = recordValues[metric.key] ?? null
-        if (metric.baseline) row[baselineKey(metric)] = recordValues[baselineKey(metric)] ?? null
-      }
-      return row
-    })
+  const rows = recorded.map(({ record, recordValues }, index) => {
+    const time = Date.parse(record.date)
+    const row = {
+      index,
+      time: Number.isNaN(time) ? null : time,
+      sha: record.sha ?? '',
+      prNumber: record.prNumber ?? null,
+      subject: record.subject ?? null,
+    }
+    for (const metric of metrics) {
+      row[metric.key] = recordValues[metric.key] ?? null
+      if (metric.baseline) row[baselineKey(metric)] = recordValues[baselineKey(metric)] ?? null
+    }
+    return row
+  })
+  if (metrics.some((metric) => metric.adjust)) {
+    const workloads = recorded.map(({ recordValues }) => recordValues.machineWorkloads)
+    addMachineFactors(rows, metrics, workloads, adjusted)
+  }
   return addTrends(rows, metrics)
 }
 
