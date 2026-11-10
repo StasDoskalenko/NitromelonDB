@@ -8,15 +8,17 @@ set -euo pipefail
 
 APP_ZIP=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 
+# For maestro/sync.yaml (the simulator reaches the host's 127.0.0.1 directly). Started before the
+# simulator boots: booting takes over the runner's CPUs, and the server once didn't come up in
+# time next to it.
+source "$(dirname "$0")/ci-start-sync-server.sh"
+start_sync_server
+
 # Waits for a simulator to show up on a fresh runner, and picks the newest iOS runtime. Booting
-# takes a minute; it happens while the sync server starts and the app unzips.
+# takes a minute; it happens while the app unzips.
 read -r SIM_UDID SIM_NAME < <("$(dirname "$0")/pick-ios-simulator.sh")
 echo "Testing on $SIM_NAME ($SIM_UDID)"
 xcrun simctl boot "$SIM_UDID" || true
-
-# For maestro/sync.yaml (the simulator reaches the host's 127.0.0.1 directly)
-source "$(dirname "$0")/ci-start-sync-server.sh"
-start_sync_server
 
 APP_DIR=$(mktemp -d)
 ditto -x -k "$APP_ZIP" "$APP_DIR"
