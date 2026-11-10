@@ -8,17 +8,18 @@ set -euo pipefail
 
 APP_ZIP=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 
-# For maestro/sync.yaml (the simulator reaches the host's 127.0.0.1 directly). Started before the
-# simulator boots: booting takes over the runner's CPUs, and the server once didn't come up in
-# time next to it.
+# For maestro/sync.yaml (the simulator reaches the host's 127.0.0.1 directly). It waits up to 60 s
+# for the server, which a booting simulator can slow down.
 source "$(dirname "$0")/ci-start-sync-server.sh"
 start_sync_server
 
-# Waits for a simulator to show up on a fresh runner, and picks the newest iOS runtime. Booting
-# takes a minute; it happens while the app unzips.
-read -r SIM_UDID SIM_NAME < <("$(dirname "$0")/pick-ios-simulator.sh")
-echo "Testing on $SIM_NAME ($SIM_UDID)"
-xcrun simctl boot "$SIM_UDID" || true
+# ci.yml boots the simulator at the start of the job (SIM_UDID), so it finishes its first-boot work
+# while the job sets up. Without it, this picks one (newest iOS runtime) and boots it now.
+if [ -z "${SIM_UDID:-}" ]; then
+  read -r SIM_UDID SIM_NAME < <("$(dirname "$0")/pick-ios-simulator.sh")
+  echo "Testing on $SIM_NAME ($SIM_UDID)"
+  xcrun simctl boot "$SIM_UDID" || true
+fi
 
 APP_DIR=$(mktemp -d)
 ditto -x -k "$APP_ZIP" "$APP_DIR"
@@ -32,6 +33,20 @@ xcrun simctl bootstatus "$SIM_UDID" -b
 xcrun simctl install "$SIM_UDID" "$APP_PATH"
 xcrun simctl launch "$SIM_UDID" com.nitromelondb.example
 
-# Screenshots + logs of every flow step, uploaded by the workflow when a flow fails
+# Screenshots + logs of every flow step, uploaded by the workflow when a flow fails.
+#
+# Right after a first boot, the simulator can be slow enough that Maestro's XCTest driver doesn't
+# start at all (a CI run took 76 s to install the app, then the driver timed out). If no flow ran,
+# that's what happened, so it gets one more try; a flow that ran and failed is never retried.
 cd examples/NotesApp
-maestro test maestro/ --debug-output "$GITHUB_WORKSPACE/maestro-debug"
+run_flows() {
+  maestro --device "$SIM_UDID" test maestro/ --debug-output "$GITHUB_WORKSPACE/maestro-debug" 2>&1 |
+    tee "${RUNNER_TEMP:-/tmp}/maestro-output.log"
+}
+if ! run_flows; then
+  if grep -qE '\[(Passed|Failed)\]' "${RUNNER_TEMP:-/tmp}/maestro-output.log"; then
+    exit 1
+  fi
+  echo "::warning::Maestro didn't run any flow (its driver didn't start); trying once more"
+  run_flows
+fi
