@@ -1628,6 +1628,98 @@
       "cpu": 31.2,
       "ram": 177,
       "fps": 52.5
+    },
+    "iosSync": {
+      "device": "iPhone 17 Pro, iOS 26.5",
+      "best": {
+        "nitromelondb": {
+          "sync5kTotalMs": 359.4,
+          "sync50kInitialPullMs": 1134.5,
+          "sync50kUpdatePullMs": 2031.3,
+          "sync50kFetchAllMs": 403.9,
+          "sync50kPushMs": 22.4,
+          "sync50kTotalMs": 3742.1,
+          "sync50kGcMs": 192.2,
+          "realisticLibraryMs": 1279,
+          "stressScore": 57673,
+          "stressWriteMs": 22747.4,
+          "stressQueryMs": 645.3,
+          "stressDeleteMs": 10861.3,
+          "sync5kCpuMs": 430,
+          "sync50kCpuMs": 3730,
+          "realisticCpuMs": 2540,
+          "stressCpuMs": 30540
+        },
+        "watermelondb": {
+          "sync5kTotalMs": 400.4,
+          "sync50kInitialPullMs": 1407.7,
+          "sync50kUpdatePullMs": 2916.7,
+          "sync50kFetchAllMs": 470.1,
+          "sync50kPushMs": 99.6,
+          "sync50kTotalMs": 4918.5,
+          "sync50kGcMs": 200.2,
+          "realisticLibraryMs": 2068,
+          "stressScore": 40652,
+          "stressWriteMs": 31756.9,
+          "stressQueryMs": 614.3,
+          "stressDeleteMs": 16784.3,
+          "sync5kCpuMs": 460,
+          "sync50kCpuMs": 4960,
+          "realisticCpuMs": 3180,
+          "stressCpuMs": 44660
+        }
+      },
+      "nitromelondb": {
+        "sync5kTotalMs": 425.1,
+        "sync50kInitialPullMs": 1449.3,
+        "sync50kUpdatePullMs": 2365.3,
+        "sync50kFetchAllMs": 467.2,
+        "sync50kPushMs": 29.5,
+        "sync50kTotalMs": 4195.4,
+        "sync50kGcMs": 226.2,
+        "realisticLibraryMs": 1395.5,
+        "stressScore": 55331,
+        "stressWriteMs": 23728.3,
+        "stressQueryMs": 660.8,
+        "stressDeleteMs": 12021.3,
+        "sync5kCpuMs": 505,
+        "sync50kCpuMs": 4265,
+        "realisticCpuMs": 2850,
+        "stressCpuMs": 31640
+      },
+      "watermelondb": {
+        "sync5kTotalMs": 475,
+        "sync50kInitialPullMs": 1857.1,
+        "sync50kUpdatePullMs": 3761.4,
+        "sync50kFetchAllMs": 604.4,
+        "sync50kPushMs": 131.6,
+        "sync50kTotalMs": 6384.4,
+        "sync50kGcMs": 271.6,
+        "realisticLibraryMs": 2863.3,
+        "stressScore": 38535,
+        "stressWriteMs": 33575.3,
+        "stressQueryMs": 663.5,
+        "stressDeleteMs": 17615,
+        "sync5kCpuMs": 565,
+        "sync50kCpuMs": 6340,
+        "realisticCpuMs": 4320,
+        "stressCpuMs": 47190
+      },
+      "geomean": {
+        "best": 1.354,
+        "median": 1.496
+      },
+      "baseline": {
+        "jsMs": 713.1,
+        "sqliteMs": 419.6,
+        "cpu": "Apple M1 (Virtual)",
+        "cores": 3
+      },
+      "runs": {
+        "sync": 10,
+        "realistic": 10,
+        "stress": 5
+      }
     }
   }
 ]
