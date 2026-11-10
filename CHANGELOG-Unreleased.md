@@ -12,7 +12,7 @@
 
 ### Changes
 
-- Docs and examples: the setup guide's adapter now sets `storeWholeNumbersAsIntegers: true`, recommended for new apps, with a note to check raw SQL first (Performance guide) when adding it to an existing app; the migration guide from WatermelonDB describes it as an optional step after that check. The library default doesn't change. NotesApp (and NotesApp_windows, which shares its database setup), the TypeScript example and the NitromelonDB benchmark app turn it on, so e2e tests and the benchmarks run the recommended configuration.
+- Docs and examples: the setup guide's adapter now sets `storeWholeNumbersAsIntegers: true`, recommended for new apps, with a note to check raw SQL first (Performance guide) when adding it to an existing app; the migration guide from WatermelonDB recommends it as a step after that check. The library default doesn't change. NotesApp (and NotesApp_windows, which shares its database setup), the TypeScript example and the NitromelonDB benchmark app turn it on, so e2e tests and the benchmarks run the recommended configuration.
 
 ### Internal
 
