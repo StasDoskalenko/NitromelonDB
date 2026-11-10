@@ -24,7 +24,11 @@ const schema = appSchema({
 })
 
 function openDatabase(): Promise<SyncDatabase> {
-  const adapter = new SQLiteAdapter({ schema, dbName: 'nitromelon-sync' })
+  const adapter = new SQLiteAdapter({
+    schema,
+    dbName: 'nitromelon-sync',
+    storeWholeNumbersAsIntegers: true,
+  })
   const database = new Database({ adapter, modelClasses: [SyncItem] })
   return Promise.resolve(database as unknown as SyncDatabase)
 }

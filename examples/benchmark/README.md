@@ -59,6 +59,11 @@ npx expo run:android
 
 Links the local library via `link:../../..`. After native SQLite / Nitro changes, rebuild.
 
+Every adapter in this app sets `storeWholeNumbersAsIntegers: true`, the configuration the setup
+docs recommend for new apps (see the docs' Performance guide). Results recorded before this was
+turned on (CI history before 2026-11-10, and "Latest results" above) used the default, where
+the stress test's query phase is about 10% slower; the other benchmarks are within 2%.
+
 ### Mass delete: old vs new
 
 Below the main comparison, the NitromelonDB app has an extra, self-contained card: "Mass delete:

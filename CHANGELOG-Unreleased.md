@@ -12,6 +12,8 @@
 
 ### Changes
 
+- Docs and examples: the setup guide's adapter now sets `storeWholeNumbersAsIntegers: true`, recommended for new apps, with a note to check raw SQL first (Performance guide) when adding it to an existing app; the migration guide from WatermelonDB describes it as an optional step after that check. The library default doesn't change. NotesApp (and NotesApp_windows, which shares its database setup), the TypeScript example and the NitromelonDB benchmark app turn it on, so e2e tests and the benchmarks run the recommended configuration.
+
 ### Internal
 
 - CI: NotesApp's iOS and Android e2e builds run in their own jobs (`NotesApp iOS (build)`, `NotesApp Android (build)`) and pass the Release app to the jobs that test it as an artifact: `NotesApp iOS (Maestro)`, `NotesApp Android (Maestro)` and the flashlight perf run, now its own job (`NotesApp Android (flashlight)`). A flaky flow or perf run re-runs only its own job instead of the build too, and the Android e2e and flashlight runs no longer wait for each other.
