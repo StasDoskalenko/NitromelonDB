@@ -49,7 +49,7 @@ export default function Performance() {
           empty={
             <>
               No runs recorded yet. Data appears here after the first merge to <code>master</code> runs the perf CI
-              job (see <code>scripts/ci-notesapp-android-maestro.sh</code>).
+              job (see <code>scripts/ci-notesapp-android-flashlight.sh</code>).
             </>
           }
         />

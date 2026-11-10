@@ -16,11 +16,14 @@ start_sync_server() {
   SYNC_SERVER_PID=$!
   trap 'kill "$SYNC_SERVER_PID" 2>/dev/null || true' EXIT
 
-  for _ in $(seq 1 50); do
+  # Up to 60 s: on a busy CI runner (a simulator booting next to it), starting Node and loading
+  # better-sqlite3 once took more than the 10 s this used to allow. Stops waiting if it exits.
+  for _ in $(seq 1 300); do
     if curl -sf http://127.0.0.1:3000/health >/dev/null; then
       echo "Sync server is up (pid $SYNC_SERVER_PID)"
       return 0
     fi
+    kill -0 "$SYNC_SERVER_PID" 2>/dev/null || break
     sleep 0.2
   done
   echo "Sync server didn't start:"

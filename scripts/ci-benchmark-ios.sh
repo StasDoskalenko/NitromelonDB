@@ -40,7 +40,7 @@ read -r SIM_UDID SIM_NAME < <("$REPO_ROOT/scripts/pick-ios-simulator.sh")
 # Booting takes a minute or two; let it happen while the apps build (installing waits for it)
 xcrun simctl boot "$SIM_UDID" || true
 
-# See scripts/ci-notesapp-ios-maestro.sh for the ccache and ONLY_ACTIVE_ARCH overrides.
+# See scripts/ci-notesapp-ios-build.sh for the ccache overrides.
 # COMPILER_INDEX_STORE_ENABLE=NO: nothing reads Xcode's code index here.
 # Sets BUILT_APP to the .app's path.
 build_app() {

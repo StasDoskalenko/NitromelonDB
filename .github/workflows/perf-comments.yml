@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$WORKFLOW" in
-            CI) job="NotesApp Android (Maestro)"; kind=android ;;
+            CI) job="NotesApp Android (flashlight)"; kind=android ;;
             *) job="Benchmark (iOS simulator)"; kind=ios ;;
           esac
           conclusion=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID/jobs?filter=latest" \

@@ -227,21 +227,19 @@ jobs:
           working-directory: ./native/androidTest
           script: ./gradlew connectedAndroidTest
       - run: yarn ktlint
-  notesapp-android:
+  # NotesApp e2e: each platform builds its Release app once, in a build job, and the jobs that test
+  # it (Maestro, and flashlight on Android) install that build. A flaky flow or perf run then
+  # re-runs only its own job ("Re-run failed jobs"), not the build.
+  notesapp-android-build:
     needs: [eslint, typescript, ci-check]
     runs-on: ubuntu-24.04
-    name: NotesApp Android (Maestro)
-    timeout-minutes: 90
+    name: NotesApp Android (build)
+    timeout-minutes: 60
     env:
       CI: true
       EXPO_NO_TELEMETRY: 1
     steps:
       - uses: actions/checkout@v6
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
       - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
@@ -258,14 +256,88 @@ jobs:
       - name: Install NotesApp
         working-directory: examples/NotesApp
         run: yarn install --immutable
-      - name: Install the sync server
-        working-directory: examples/sync-server
-        run: yarn install --immutable
       - uses: gradle/actions/setup-gradle@v5
       - name: Expo prebuild Android
         working-directory: examples/NotesApp
         run: yarn expo prebuild --platform android --non-interactive --no-install
+      - name: Build the release APK
+        run: bash scripts/ci-notesapp-android-build.sh
+      - uses: actions/upload-artifact@v6
+        with:
+          name: notesapp-android-apk
+          path: build-output/notesapp-release.apk
+          if-no-files-found: error
+          retention-days: 3
+  notesapp-android:
+    needs: [notesapp-android-build]
+    runs-on: ubuntu-24.04
+    name: NotesApp Android (Maestro)
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Set Node.js version
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+      - name: Install the sync server
+        working-directory: examples/sync-server
+        run: yarn install --immutable
       # Pinned, so it can be cached: the installer downloads from GitHub release assets
+      - name: cache Maestro
+        uses: actions/cache@v5
+        with:
+          path: ~/.maestro
+          key: ${{ runner.os }}-maestro-${{ env.MAESTRO_VERSION }}
+      - name: Install Maestro
+        run: bash scripts/ci-install-tool.sh Maestro https://get.maestro.mobile.dev "$HOME/.maestro/bin/maestro"
+      - uses: actions/download-artifact@v7
+        with:
+          name: notesapp-android-apk
+          path: build-output
+      # android-emulator-runner runs each YAML line via `sh -c`, so keep this a single command
+      - name: run tests
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: 29
+          profile: pixel
+          disable-animations: true
+          script: bash scripts/ci-notesapp-android-maestro.sh build-output/notesapp-release.apk
+      - name: Upload Maestro diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: notesapp-android-maestro-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          # Maestro writes its screenshots/logs under a hidden .maestro/ directory
+          include-hidden-files: true
+          path: maestro-debug
+  # Informational (a flashlight hiccup warns instead of failing): perf-comments.yml posts the result
+  # on PRs, perf-publish records it on master
+  notesapp-android-flashlight:
+    needs: [notesapp-android-build]
+    runs-on: ubuntu-24.04
+    name: NotesApp Android (flashlight)
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
       - name: cache Maestro
         uses: actions/cache@v5
         with:
@@ -281,36 +353,28 @@ jobs:
           key: ${{ runner.os }}-flashlight-v0.18.0
       - name: Install flashlight
         run: bash scripts/ci-install-tool.sh flashlight https://get.flashlight.dev "$HOME/.flashlight/bin/flashlight"
-      # android-emulator-runner runs each YAML line via `sh -c`, so keep this a single command.
-      # Runs the real e2e suite (blocking) then a flashlight perf measurement on the
-      # same build/emulator (informational only, see scripts/ci-notesapp-android-maestro.sh).
-      - name: run tests
+      - uses: actions/download-artifact@v7
+        with:
+          name: notesapp-android-apk
+          path: build-output
+      - name: Measure with flashlight
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
           api-level: 29
           profile: pixel
           disable-animations: true
-          script: bash scripts/ci-notesapp-android-maestro.sh
-      - name: Upload Maestro diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: notesapp-android-maestro-${{ github.run_attempt }}
-          if-no-files-found: ignore
-          # Maestro writes its screenshots/logs under a hidden .maestro/ directory
-          include-hidden-files: true
-          path: maestro-debug
+          script: bash scripts/ci-notesapp-android-flashlight.sh build-output/notesapp-release.apk
       - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: perf-result-android
           path: perf-results/perf-result-android.json
           if-no-files-found: ignore
-  notesapp-ios:
+  notesapp-ios-build:
     needs: [eslint, typescript, ci-check]
     runs-on: macos-26
-    name: NotesApp iOS (Maestro)
-    timeout-minutes: 90
+    name: NotesApp iOS (build)
+    timeout-minutes: 60
     env:
       CI: true
       EXPO_NO_TELEMETRY: 1
@@ -334,9 +398,6 @@ jobs:
       - name: Install NotesApp
         working-directory: examples/NotesApp
         run: yarn install --immutable
-      - name: Install the sync server
-        working-directory: examples/sync-server
-        run: yarn install --immutable
       - name: Expo prebuild iOS
         working-directory: examples/NotesApp
         # --no-install here only skips the JS install (already done above);
@@ -354,6 +415,35 @@ jobs:
       - name: pod install
         working-directory: examples/NotesApp/ios
         run: pod install
+      - name: Install xcbeautify
+        run: brew install xcbeautify
+      - name: Build the simulator app
+        run: bash scripts/ci-notesapp-ios-build.sh
+      - uses: actions/upload-artifact@v6
+        with:
+          name: notesapp-ios-app
+          path: build-output/NotesApp.app.zip
+          if-no-files-found: error
+          retention-days: 3
+  notesapp-ios:
+    needs: [notesapp-ios-build]
+    runs-on: macos-26
+    name: NotesApp iOS (Maestro)
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set Node.js version
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+      # The same Xcode as the build job, so the simulator runtimes match what the app was built for
+      - name: Set Xcode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Install the sync server
+        working-directory: examples/sync-server
+        run: yarn install --immutable
       # Pinned, so it can be cached: the installer downloads from GitHub release assets
       - name: cache Maestro
         uses: actions/cache@v5
@@ -362,10 +452,12 @@ jobs:
           key: ${{ runner.os }}-maestro-${{ env.MAESTRO_VERSION }}
       - name: Install Maestro
         run: bash scripts/ci-install-tool.sh Maestro https://get.maestro.mobile.dev "$HOME/.maestro/bin/maestro"
-      - name: Install xcbeautify
-        run: brew install xcbeautify
+      - uses: actions/download-artifact@v7
+        with:
+          name: notesapp-ios-app
+          path: build-output
       - name: run tests
-        run: bash scripts/ci-notesapp-ios-maestro.sh
+        run: bash scripts/ci-notesapp-ios-maestro.sh build-output/NotesApp.app.zip
       - name: Upload Maestro diagnostics
         if: failure()
         uses: actions/upload-artifact@v6
@@ -376,7 +468,7 @@ jobs:
           include-hidden-files: true
           path: maestro-debug
   perf-publish:
-    needs: [notesapp-android]
+    needs: [notesapp-android-flashlight]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     name: Publish perf benchmark history
