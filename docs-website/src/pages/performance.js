@@ -21,9 +21,11 @@ export default function Performance() {
           an iOS simulator on GitHub Actions. Every run also measures WatermelonDB 0.28 with its JSI adapter in the
           same job (dashed line), interleaved run by run. Other VMs on a CI runner slow runs down at random, so each
           point is an app&apos;s best run, and the overall speedup over WatermelonDB JSI (a geometric mean over Sync
-          5k, Sync 50k, Realistic sync and the stress test) is the steadiest signal. The runner baseline shows how
-          fast each job&apos;s machine was, to compare absolute times across runs. On a pull request, a maintainer can
-          comment <code>/perf ios</code> to run it.
+          5k, Sync 50k, Realistic sync and the stress test) is the steadiest signal. CI machines also differ a lot
+          in speed from job to job, so absolute times are adjusted for it by default: WatermelonDB 0.28 never changes
+          and runs in the same simulator, so how its times compare with its usual ones says how fast each job&apos;s
+          machine was (the last chart). Switch to raw times to see them as measured. On a pull request, a
+          maintainer can comment <code>/perf ios</code> to run it.
         </p>
         <PerformanceCharts
           source="iosSync"

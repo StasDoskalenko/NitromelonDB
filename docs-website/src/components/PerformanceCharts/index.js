@@ -32,9 +32,34 @@ function loadHistory(url) {
   return historyRequest
 }
 
+const MACHINE_MODES = [
+  { key: 'adjusted', label: 'Adjusted for machine speed' },
+  { key: 'raw', label: 'Raw times' },
+]
+
 function useRepoUrl() {
   const { siteConfig } = useDocusaurusContext()
   return `https://github.com/${siteConfig.organizationName}/${siteConfig.projectName}`
+}
+
+/** Absolute times as recorded, or adjusted for each CI machine's speed (see addMachineFactors). */
+function MachineFilter({ value, onChange }) {
+  return (
+    <div className={styles.filters} role="radiogroup" aria-label="Machine speed">
+      {MACHINE_MODES.map((mode) => (
+        <button
+          key={mode.key}
+          type="button"
+          role="radio"
+          aria-checked={value === mode.key}
+          className={styles.filterButton}
+          onClick={() => onChange(mode.key)}
+        >
+          {mode.label}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 function RangeFilter({ value, onChange }) {
@@ -214,7 +239,9 @@ export default function PerformanceCharts({ source = 'android', empty }) {
   const [history, setHistory] = useState(null)
   const [error, setError] = useState(null)
   const [rangeKey, setRangeKey] = useState('all')
+  const [machineMode, setMachineMode] = useState('adjusted')
   const [pinnedSha, setPinnedSha] = useState(null)
+  const adjustable = metrics.some((metric) => metric.adjust)
 
   useEffect(() => {
     let cancelled = false
@@ -230,7 +257,10 @@ export default function PerformanceCharts({ source = 'android', empty }) {
     }
   }, [dataUrl])
 
-  const allRows = useMemo(() => (history ? toRows(history, source) : []), [history, source])
+  const allRows = useMemo(
+    () => (history ? toRows(history, source, { adjusted: machineMode === 'adjusted' }) : []),
+    [history, source, machineMode],
+  )
 
   const rows = useMemo(() => {
     const range = RANGES.find((r) => r.key === rangeKey)
@@ -262,11 +292,19 @@ export default function PerformanceCharts({ source = 'android', empty }) {
     <div style={{ '--perf-series': color }}>
       <div className={styles.toolbar}>
         <RangeFilter value={rangeKey} onChange={setRangeKey} />
+        {adjustable && <MachineFilter value={machineMode} onChange={setMachineMode} />}
         <p className={styles.caption}>
           {rows.length} of {allRows.length} run{allRows.length === 1 ? '' : 's'} · hover to compare
           every metric, click a run to pin it.
         </p>
       </div>
+      {adjustable && (
+        <p className={styles.caption}>
+          {machineMode === 'adjusted'
+            ? 'Times are adjusted for how fast each CI machine was, measured by WatermelonDB in the same job (the last chart), as if every run had a machine of median speed.'
+            : 'Times as measured. CI machines differ a lot in speed (see the last chart), so a slower machine shows up here as a slowdown.'}
+        </p>
+      )}
       <ul className={styles.legend} aria-label="Chart key">
         {hasTrend && (
           <li>
