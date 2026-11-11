@@ -1839,5 +1839,18 @@
       "ram": 178,
       "fps": 54.5
     }
+  },
+  {
+    "sha": "c20298bf5a1dd139fbc2bb7aada6d051cb3acc53",
+    "date": "2026-11-11T00:29:09.429Z",
+    "prNumber": 227,
+    "subject": "docs(perf): adjust the iOS charts for CI machine speed, measured by WatermelonDB in the same job (#227)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 25,
+      "ram": 179,
+      "fps": 55.1
+    }
   }
 ]
