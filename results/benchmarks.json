@@ -1957,5 +1957,18 @@
         "stress": 5
       }
     }
+  },
+  {
+    "sha": "6c83e6af1c3996d6609a795e8e1674085b56165c",
+    "date": "2026-11-13T05:56:31.220Z",
+    "prNumber": 231,
+    "subject": "chore: release v0.32.0 (#231)",
+    "android": {
+      "iterationCount": 5,
+      "score": 94,
+      "cpu": 31.9,
+      "ram": 178,
+      "fps": 52.7
+    }
   }
 ]
