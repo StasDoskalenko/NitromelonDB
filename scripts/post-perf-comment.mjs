@@ -35,7 +35,7 @@ const MARKER = '<!-- perf-benchmark-comment -->'
 const BODY_FILE = '.perf-comment-body.md'
 // Same window as the iOS sync benchmark comment (scripts/post-ios-sync-comment.mjs)
 const MASTER_RUNS = 10
-// ⚠️ only when a value is worse than every recent master run by more than this share of their
+// 🔴 only when a value is worse than every recent master run by more than this share of their
 // range: with 10 runs, a PR run of unchanged code lands outside the range about 1 time in 11 per
 // side and metric, and a comment shouldn't cry wolf that often
 const FLAG_MARGIN = 0.5
@@ -119,22 +119,28 @@ function format(value, metric) {
   return value == null ? '–' : `${value.toFixed(metric.digits)}${metric.unit}`
 }
 
+/**
+ * The change from master's median, led by a verdict and the direction it moved:
+ * 🟢 better than every recent master run, 🟡 within their range (or only slightly worse),
+ * 🔴 worse than every one by more than FLAG_MARGIN of their range. ⬆️ / ⬇️ is the value itself,
+ * so a lower CPU reads 🟢 ⬇️.
+ */
 function formatChange(value, masterValues, metric) {
   if (value == null || masterValues.length === 0) return '–'
   // From the rounded median, so the cell matches the two columns next to it
   const change = value - Number(median(masterValues).toFixed(metric.digits))
   const rounded = Math.abs(change).toFixed(metric.digits)
-  if (Number(rounded) === 0) return 'same'
-  const text = `${change > 0 ? '+' : '−'}${rounded}`
+  if (Number(rounded) === 0) return '🟡 ➖ same'
+  const text = `${change > 0 ? '⬆️ +' : '⬇️ −'}${rounded}`
 
   const low = Math.min(...masterValues)
   const high = Math.max(...masterValues)
-  if (value >= low && value <= high) return `${text} (within range)`
+  if (value >= low && value <= high) return `🟡 ${text} (within range)`
   const better = metric.better === 'higher' ? value > high : value < low
-  if (better) return `${text} (better)`
+  if (better) return `🟢 ${text} (better)`
   const margin = (high - low) * FLAG_MARGIN
   const clearlyWorse = metric.better === 'higher' ? value < low - margin : value > high + margin
-  return clearlyWorse ? `${text} (worse) ⚠️` : `${text} (worse)`
+  return clearlyWorse ? `🔴 ${text} (worse)` : `🟡 ${text} (slightly worse)`
 }
 
 function formatRange(values, metric) {
@@ -181,7 +187,7 @@ export function buildBody({ repo, summary, reference = null, history = [] }) {
       const commit = (sha) => `[\`${sha.slice(0, 7)}\`](https://github.com/${repo}/commit/${sha})`
       lines.push(
         `Averaged over ${summary.iterationCount ?? '?'} iterations, against the median of master's last ${master.length} run${master.length === 1 ? '' : 's'} (${commit(master[0].sha)} to ${commit(master[master.length - 1].sha)}).` +
-          " A change within master's range is likely noise. ⚠️ marks a value well outside it, on the worse side.",
+          " 🟢 better than all of them, 🟡 within their range (likely noise), 🔴 clearly worse than all of them. ⬆️ / ⬇️ is which way the value moved.",
         '',
         "| Metric | This PR | master (median) | Change | master's range |",
         '| --- | ---: | ---: | --- | ---: |',
