@@ -2075,5 +2075,26 @@
       "ram": 180,
       "fps": 54.1
     }
+  },
+  {
+    "sha": "171ed0606c086a99f145fbc395a04e596f984a9d",
+    "date": "2026-11-13T22:15:56.804Z",
+    "prNumber": 233,
+    "subject": "ci(perf): adjust Android flashlight for CI machine speed with a reference build, and compare with master (#233)",
+    "android": {
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 26.6,
+      "ram": 178,
+      "fps": 54.5
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 27,
+      "ram": 177,
+      "fps": 54
+    }
   }
 ]
