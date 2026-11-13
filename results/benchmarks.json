@@ -2096,5 +2096,26 @@
       "ram": 177,
       "fps": 54
     }
+  },
+  {
+    "sha": "224d22b78f4c1deac2ecae412fae1534a5f96ef1",
+    "date": "2026-11-13T23:19:35.602Z",
+    "prNumber": 168,
+    "subject": "chore: bump vendored SQLite to 3.54.1 (#168)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 27.2,
+      "ram": 178,
+      "fps": 54.8
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 27.5,
+      "ram": 178,
+      "fps": 54.1
+    }
   }
 ]
