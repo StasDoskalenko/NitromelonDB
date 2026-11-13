@@ -69,11 +69,13 @@ appId: com.nitromelondb.example
 - assertNotVisible:
     text: "Note #21"
 
+# Each failed lookup before a swipe takes ~6-8 s on a slow CI simulator, so 25 s once allowed only
+# 4 swipes, which didn't reach the bottom of page 5. It passes in seconds locally.
 - scrollUntilVisible:
     element:
       text: "Note #1"
     direction: DOWN
-    timeout: 25000
+    timeout: 90000
     speed: 40
     visibilityPercentage: 40
 

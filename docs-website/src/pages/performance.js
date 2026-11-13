@@ -21,9 +21,11 @@ export default function Performance() {
           an iOS simulator on GitHub Actions. Every run also measures WatermelonDB 0.28 with its JSI adapter in the
           same job (dashed line), interleaved run by run. Other VMs on a CI runner slow runs down at random, so each
           point is an app&apos;s best run, and the overall speedup over WatermelonDB JSI (a geometric mean over Sync
-          5k, Sync 50k, Realistic sync and the stress test) is the steadiest signal. The runner baseline shows how
-          fast each job&apos;s machine was, to compare absolute times across runs. On a pull request, a maintainer can
-          comment <code>/perf ios</code> to run it.
+          5k, Sync 50k, Realistic sync and the stress test) is the steadiest signal. CI machines also differ a lot
+          in speed from job to job, so absolute times are adjusted for it by default: WatermelonDB 0.28 never changes
+          and runs in the same simulator, so how its times compare with its usual ones says how fast each job&apos;s
+          machine was (the last chart). Switch to raw times to see them as measured. On a pull request, a
+          maintainer can comment <code>/perf ios</code> to run it.
         </p>
         <PerformanceCharts
           source="iosSync"
@@ -42,14 +44,16 @@ export default function Performance() {
             flashlight
           </a>{' '}
           running <code>maestro/pagination-dynamic.yaml</code> on an Android emulator. Every PR gets these as a
-          comment.
+          comment. Like WatermelonDB on iOS, a fixed NotesApp build (v0.32.0) runs in the same job, in turns with
+          each commit&apos;s, and how its CPU, FPS and score compare with their usual values says how fast that
+          job&apos;s machine was (the last chart). CPU, FPS and score are adjusted for it once enough runs have it.
         </p>
         <PerformanceCharts
           source="android"
           empty={
             <>
               No runs recorded yet. Data appears here after the first merge to <code>master</code> runs the perf CI
-              job (see <code>scripts/ci-notesapp-android-maestro.sh</code>).
+              job (see <code>scripts/ci-notesapp-android-flashlight.sh</code>).
             </>
           }
         />

@@ -32,9 +32,37 @@ function loadHistory(url) {
   return historyRequest
 }
 
+// Fewer runs with a machine factor than this, and charts start on raw values
+const MIN_ADJUSTED_RUNS = 5
+
+const MACHINE_MODES = [
+  { key: 'adjusted', label: 'Adjusted for machine speed' },
+  { key: 'raw', label: 'As measured' },
+]
+
 function useRepoUrl() {
   const { siteConfig } = useDocusaurusContext()
   return `https://github.com/${siteConfig.organizationName}/${siteConfig.projectName}`
+}
+
+/** Absolute times as recorded, or adjusted for each CI machine's speed (see addMachineFactors). */
+function MachineFilter({ value, onChange }) {
+  return (
+    <div className={styles.filters} role="radiogroup" aria-label="Machine speed">
+      {MACHINE_MODES.map((mode) => (
+        <button
+          key={mode.key}
+          type="button"
+          role="radio"
+          aria-checked={value === mode.key}
+          className={styles.filterButton}
+          onClick={() => onChange(mode.key)}
+        >
+          {mode.label}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 function RangeFilter({ value, onChange }) {
@@ -208,13 +236,17 @@ function RunsTable({ rows, metrics, repoUrl, onSelect }) {
  * build time. `empty` is shown until the section has its first run.
  */
 export default function PerformanceCharts({ source = 'android', empty }) {
-  const { metrics, color } = SOURCES[source]
+  const { metrics, color, adjustedCaption } = SOURCES[source]
   const dataUrl = useBaseUrl('/data/benchmarks.json')
   const repoUrl = useRepoUrl()
   const [history, setHistory] = useState(null)
   const [error, setError] = useState(null)
   const [rangeKey, setRangeKey] = useState('all')
+  // null until picked: adjusted once enough runs have a machine factor (Android's history mostly
+  // predates its reference build), raw times until then
+  const [pickedMachineMode, setMachineMode] = useState(null)
   const [pinnedSha, setPinnedSha] = useState(null)
+  const adjustable = metrics.some((metric) => metric.adjust)
 
   useEffect(() => {
     let cancelled = false
@@ -230,7 +262,22 @@ export default function PerformanceCharts({ source = 'android', empty }) {
     }
   }, [dataUrl])
 
-  const allRows = useMemo(() => (history ? toRows(history, source) : []), [history, source])
+  const rawRows = useMemo(
+    () => (history ? toRows(history, source, { adjusted: false }) : []),
+    [history, source],
+  )
+  const machineMode =
+    pickedMachineMode ??
+    (rawRows.filter((row) => row.machineFactor != null).length >= MIN_ADJUSTED_RUNS
+      ? 'adjusted'
+      : 'raw')
+  const allRows = useMemo(
+    () =>
+      history && machineMode === 'adjusted'
+        ? toRows(history, source, { adjusted: true })
+        : rawRows,
+    [history, source, machineMode, rawRows],
+  )
 
   const rows = useMemo(() => {
     const range = RANGES.find((r) => r.key === rangeKey)
@@ -262,11 +309,19 @@ export default function PerformanceCharts({ source = 'android', empty }) {
     <div style={{ '--perf-series': color }}>
       <div className={styles.toolbar}>
         <RangeFilter value={rangeKey} onChange={setRangeKey} />
+        {adjustable && <MachineFilter value={machineMode} onChange={setMachineMode} />}
         <p className={styles.caption}>
           {rows.length} of {allRows.length} run{allRows.length === 1 ? '' : 's'} · hover to compare
           every metric, click a run to pin it.
         </p>
       </div>
+      {adjustable && (
+        <p className={styles.caption}>
+          {machineMode === 'adjusted'
+            ? adjustedCaption
+            : 'As measured. CI machines differ a lot in speed (see the last chart), so a slower machine shows up here as a slowdown.'}
+        </p>
+      )}
       <ul className={styles.legend} aria-label="Chart key">
         {hasTrend && (
           <li>

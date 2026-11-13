@@ -1,21 +1,15 @@
 #!/usr/bin/env bash
 # android-emulator-runner invokes `sh -c` per YAML line, so this must be one
-# command from the workflow (`bash scripts/ci-notesapp-android-maestro.sh`).
+# command from the workflow (`bash scripts/ci-notesapp-android-maestro.sh <apk>`).
 #
-# Same shape as native/androidTest `./gradlew connectedAndroidTest`: compile on
-# the emulator job, then run. Release APK embeds JS — do not start Metro.
+# Installs the Release APK from scripts/ci-notesapp-android-build.sh (built in its own CI job) on
+# the emulator and runs the Maestro flows. The flashlight perf run is its own job too
+# (scripts/ci-notesapp-android-flashlight.sh), on the same APK.
+#
+# Usage: bash scripts/ci-notesapp-android-maestro.sh <notesapp-release.apk>
 set -euo pipefail
 
-examples/NotesApp/android/gradlew -p examples/NotesApp/android assembleRelease -PreactNativeArchitectures=x86
-
-APK=$(find examples/NotesApp/android/app/build/outputs/apk -path '*release*.apk' ! -name '*unsigned*' -print -quit)
-if [ -z "$APK" ]; then
-  echo "NotesApp release APK not found"
-  find examples/NotesApp/android/app/build/outputs/apk -type f -print || true
-  exit 1
-fi
-
-adb install -r "$APK"
+adb install -r "$1"
 
 # For maestro/sync.yaml: the app reaches the sync server at 127.0.0.1:3000 through adb reverse
 source "$(dirname "$0")/ci-start-sync-server.sh"
@@ -24,17 +18,3 @@ adb reverse tcp:3000 tcp:3000
 
 # Screenshots + logs of every flow step, uploaded by the workflow when a flow fails
 maestro test examples/NotesApp/maestro/ --debug-output maestro-debug
-
-# Perf measurement reuses this same build/emulator (see .github/workflows/ci.yml)
-# instead of a separate job that would rebuild the APK and boot a second
-# emulator. It's informational only -- `if !` keeps a flashlight hiccup from
-# failing the real e2e suite above, which is what actually gates the build.
-mkdir -p perf-results
-if ! flashlight test \
-  --bundleId com.nitromelondb.example \
-  --testCommand "maestro test examples/NotesApp/maestro/pagination-dynamic.yaml" \
-  --iterationCount 5 \
-  --duration 10000 \
-  --resultsFilePath perf-results/perf-result-android.json; then
-  echo "flashlight perf measurement failed (non-fatal, informational only)"
-fi

@@ -53,7 +53,12 @@ let checksDatabase: Database | undefined
 function getChecksDatabase(): Database {
   if (!checksDatabase) {
     checksDatabase = new Database({
-      adapter: new SQLiteAdapter({ schema, migrations, dbName: 'nitromelon-nested-checks' }),
+      adapter: new SQLiteAdapter({
+        schema,
+        migrations,
+        dbName: 'nitromelon-nested-checks',
+        storeWholeNumbersAsIntegers: true,
+      }),
       modelClasses: [Note],
       experimentalDetectNestedWriters: true,
     })

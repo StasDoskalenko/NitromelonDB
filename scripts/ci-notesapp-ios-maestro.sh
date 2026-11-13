@@ -1,71 +1,52 @@
 #!/usr/bin/env bash
-# Mirrors scripts/ci-notesapp-android-maestro.sh for iOS: build a Release
-# simulator build (JS embedded — do not start Metro), install it on a booted
-# simulator, then run the same Maestro flows.
+# Mirrors scripts/ci-notesapp-android-maestro.sh for iOS: installs the simulator build from
+# scripts/ci-notesapp-ios-build.sh (built in its own CI job and passed in as a zipped .app) on a
+# booted simulator, then runs the Maestro flows.
+#
+# Usage: bash scripts/ci-notesapp-ios-maestro.sh <NotesApp.app.zip>
 set -euo pipefail
 
-# For maestro/sync.yaml (the simulator reaches the host's 127.0.0.1 directly)
+APP_ZIP=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
+
+# For maestro/sync.yaml (the simulator reaches the host's 127.0.0.1 directly). It waits up to 60 s
+# for the server, which a booting simulator can slow down.
 source "$(dirname "$0")/ci-start-sync-server.sh"
 start_sync_server
 
-cd examples/NotesApp
-
-SIM_UDID=$(xcrun simctl list devices available --json | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-for devices in data['devices'].values():
-    for d in devices:
-        if d['name'].startswith('iPhone') and d['isAvailable']:
-            print(d['udid'])
-            sys.exit(0)
-sys.exit(1)
-")
-if [ -z "$SIM_UDID" ]; then
-  echo "No available iPhone simulator found"
-  xcrun simctl list devices available
-  exit 1
+# ci.yml boots the simulator at the start of the job (SIM_UDID), so it finishes its first-boot work
+# while the job sets up. Without it, this picks one (newest iOS runtime) and boots it now.
+if [ -z "${SIM_UDID:-}" ]; then
+  read -r SIM_UDID SIM_NAME < <("$(dirname "$0")/pick-ios-simulator.sh")
+  echo "Testing on $SIM_NAME ($SIM_UDID)"
+  xcrun simctl boot "$SIM_UDID" || true
 fi
 
-xcrun simctl boot "$SIM_UDID" || true
-xcrun simctl bootstatus "$SIM_UDID" -b
-
-# set -o pipefail (part of -euo pipefail above) makes this fail on a real
-# xcodebuild error, not just on xcbeautify's own exit code.
-#
-# CC/CPLUSPLUS route compilation through ccache (see scripts/ccache-clang) —
-# ios/ is Expo-generated fresh every run, so there's no project file to bake
-# this into the way native/iosTest's .xcodeproj does; command-line overrides
-# apply it without touching the generated project.
-#
-# ONLY_ACTIVE_ARCH=YES: the generated project only sets this for Debug, so
-# Release was building both arm64 and x86_64 simulator slices — double the
-# compile work for an arch (x86_64) nothing here ever runs on.
-#
-# GCC_PREPROCESSOR_DEFINITIONS below is single-quoted on purpose: its
-# $(DT_TOOLCHAIN_DIR)/$(inherited) are xcodebuild's own macro syntax, resolved
-# by Xcode, not the shell.
-# shellcheck disable=SC2016
-xcodebuild \
-  -workspace ios/NotesApp.xcworkspace \
-  -scheme NotesApp \
-  -configuration Release \
-  -destination "id=$SIM_UDID" \
-  -derivedDataPath ios/build \
-  CC="$PWD/../../scripts/ccache-clang" \
-  CPLUSPLUS="$PWD/../../scripts/ccache-clang++" \
-  GCC_PREPROCESSOR_DEFINITIONS='CCACHE_HACK_TOOLCHAIN_DIR="$(DT_TOOLCHAIN_DIR)" $(inherited)' \
-  ONLY_ACTIVE_ARCH=YES \
-  build | xcbeautify --renderer github-actions
-
-APP_PATH=$(find ios/build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)
+APP_DIR=$(mktemp -d)
+ditto -x -k "$APP_ZIP" "$APP_DIR"
+APP_PATH=$(find "$APP_DIR" -maxdepth 1 -name '*.app' -print -quit)
 if [ -z "$APP_PATH" ]; then
-  echo "NotesApp.app not found"
-  find ios/build/Build/Products -type d -name '*.app' || true
+  echo "No .app in $APP_ZIP"
   exit 1
 fi
 
+xcrun simctl bootstatus "$SIM_UDID" -b
 xcrun simctl install "$SIM_UDID" "$APP_PATH"
 xcrun simctl launch "$SIM_UDID" com.nitromelondb.example
 
-# Screenshots + logs of every flow step, uploaded by the workflow when a flow fails
-maestro test maestro/ --debug-output "$GITHUB_WORKSPACE/maestro-debug"
+# Screenshots + logs of every flow step, uploaded by the workflow when a flow fails.
+#
+# Right after a first boot, the simulator can be slow enough that Maestro's XCTest driver doesn't
+# start at all (a CI run took 76 s to install the app, then the driver timed out). If no flow ran,
+# that's what happened, so it gets one more try; a flow that ran and failed is never retried.
+cd examples/NotesApp
+run_flows() {
+  maestro --device "$SIM_UDID" test maestro/ --debug-output "$GITHUB_WORKSPACE/maestro-debug" 2>&1 |
+    tee "${RUNNER_TEMP:-/tmp}/maestro-output.log"
+}
+if ! run_flows; then
+  if grep -qE '\[(Passed|Failed)\]' "${RUNNER_TEMP:-/tmp}/maestro-output.log"; then
+    exit 1
+  fi
+  echo "::warning::Maestro didn't run any flow (its driver didn't start); trying once more"
+  run_flows
+fi

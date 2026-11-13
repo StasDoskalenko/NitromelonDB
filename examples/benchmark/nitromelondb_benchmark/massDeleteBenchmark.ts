@@ -25,7 +25,7 @@ function now(): number {
 }
 
 async function makeDatabase(dbName: string): Promise<ItemDatabase> {
-  const adapter = new SQLiteAdapter({ schema, dbName })
+  const adapter = new SQLiteAdapter({ schema, dbName, storeWholeNumbersAsIntegers: true })
   const database = new Database({ adapter, modelClasses: [Item] })
   return { database, items: database.get<Item>(ITEMS_TABLE) }
 }

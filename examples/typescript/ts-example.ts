@@ -72,6 +72,7 @@ const adapter = new SQLiteAdapter({
       },
     ],
   }),
+  storeWholeNumbersAsIntegers: true,
   onSetUpError: (error): void => { },
 })
 

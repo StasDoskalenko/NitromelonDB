@@ -104,6 +104,10 @@ npx expo prebuild --clean
 npx expo run:ios
 ```
 
+## Recommended: store whole numbers as integers
+
+Once the app runs on NitromelonDB, turn on `new SQLiteAdapter({ storeWholeNumbersAsIntegers: true })`: number comparisons and sorting get faster. It's off by default only because an app's raw SQL (`Q.unsafeSqlQuery`, `unsafeExecute`) can see the difference: for example, `sum(total) / count(*)` divides integers as integers. So check your raw SQL first with [Performance](./Advanced/Performance.md), which walks through it step by step. Apps without raw SQL can turn it on right away. Data already on users' devices converts in the background.
+
 ## Optional: standard decorators
 
 WatermelonDB models use legacy decorators, which are also NitromelonDB's default, so the steps above are all a migration needs. NitromelonDB also supports standard decorators (TC39 2023-11), the version TypeScript 5+ uses without `experimentalDecorators`. If you'd like to use them, here's the switch:

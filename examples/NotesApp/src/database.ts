@@ -19,6 +19,9 @@ export function createExampleDatabase(): ExampleDatabase {
     schema,
     migrations,
     dbName: Platform.OS === 'windows' ? 'nitromelon-windows' : 'nitromelon-example',
+    // Recommended for new apps: faster number comparisons and sorting. This app has no raw SQL it
+    // could change (see the Performance guide). Existing installs convert in the background.
+    storeWholeNumbersAsIntegers: true,
     onSetUpError: (error) => {
       console.error('[NitromelonDB] Failed to set up SQLite', error)
     },

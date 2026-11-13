@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$WORKFLOW" in
-            CI) job="NotesApp Android (Maestro)"; kind=android ;;
+            CI) job="NotesApp Android (flashlight)"; kind=android ;;
             *) job="Benchmark (iOS simulator)"; kind=ios ;;
           esac
           conclusion=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID/jobs?filter=latest" \
@@ -71,6 +71,13 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 24.x
+      # Both comments compare with master's recent runs, recorded there by ci-publish-benchmark.sh
+      - name: Get master's recorded runs
+        if: steps.target.outputs.pr
+        run: |
+          git fetch origin benchmarks --depth=1 > /dev/null 2>&1 \
+            && git show origin/benchmarks:results/benchmarks.json > "$RUNNER_TEMP/benchmarks.json" \
+            || echo "[]" > "$RUNNER_TEMP/benchmarks.json"
       # post-perf-comment.mjs summarizes flashlight results with @perf-profiler/reporter
       - uses: actions/cache@v5
         if: steps.target.outputs.kind == 'android'
@@ -85,13 +92,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ steps.target.outputs.pr }}
-        run: node scripts/post-perf-comment.mjs "$REPO" "$PR" "$RUNNER_TEMP/perf-results/perf-result-android.json"
-      - name: Get master's latest recorded iOS run
-        if: steps.target.outputs.kind == 'ios'
         run: |
-          git fetch origin benchmarks --depth=1 > /dev/null 2>&1 \
-            && git show origin/benchmarks:results/benchmarks.json > "$RUNNER_TEMP/benchmarks.json" \
-            || echo "[]" > "$RUNNER_TEMP/benchmarks.json"
+          node scripts/post-perf-comment.mjs "$REPO" "$PR" \
+            "$RUNNER_TEMP/perf-results/perf-result-android.json" "$RUNNER_TEMP/benchmarks.json"
       - name: Post the iOS comment
         if: steps.target.outputs.kind == 'ios'
         env:
