@@ -14,4 +14,4 @@
 
 ### Internal
 
-- CI: the Android flashlight comment on PRs shows each metric next to the median and range of master's last 10 runs, and flags a value well outside that range on the worse side
+- CI: the Android flashlight benchmark adjusts CPU, FPS and score for the CI machine's speed, like the iOS benchmark does with WatermelonDB: a fixed NotesApp build (v0.32.0, built once and cached) runs in turns with each commit's, and how it compares with its usual values is that job's machine factor. The PR comment compares the adjusted values with the median and range of master's last 10 runs, and the performance page charts them (once enough runs have the reference)
