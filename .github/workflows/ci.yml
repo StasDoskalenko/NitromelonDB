@@ -16,6 +16,10 @@ permissions:
 env:
   # Read by the Maestro installer (scripts/ci-install-tool.sh); also the Maestro cache key
   MAESTRO_VERSION: 2.12.1
+  # The fixed NotesApp build the flashlight job measures next to each commit's own, as a yardstick
+  # for the CI machine's speed (scripts/ci-notesapp-android-reference.sh). Bumping it starts a new
+  # reference history: machine factors only compare runs measured with the same tag.
+  ANDROID_REFERENCE_TAG: v0.32.0
 
 jobs:
   eslint:
@@ -268,6 +272,45 @@ jobs:
           path: build-output/notesapp-release.apk
           if-no-files-found: error
           retention-days: 3
+  # Built once per tag and cached (a cache hit takes seconds), for the flashlight job. Informational
+  # like that job: without it, flashlight measures without adjusting for machine speed.
+  notesapp-android-reference:
+    needs: [eslint, typescript, ci-check]
+    runs-on: ubuntu-24.04
+    name: NotesApp Android (reference build)
+    timeout-minutes: 60
+    continue-on-error: true
+    env:
+      CI: true
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@v6
+      - id: cache
+        uses: actions/cache@v5
+        with:
+          path: build-output/reference
+          key: notesapp-android-reference-${{ env.ANDROID_REFERENCE_TAG }}-${{ hashFiles('scripts/ci-notesapp-android-reference.sh') }}
+      - uses: actions/setup-java@v5
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Set Node.js version
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+      - uses: gradle/actions/setup-gradle@v5
+        if: steps.cache.outputs.cache-hit != 'true'
+      - name: Build the reference APK
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash scripts/ci-notesapp-android-reference.sh "$ANDROID_REFERENCE_TAG"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: notesapp-android-reference
+          path: build-output/reference
+          if-no-files-found: error
+          retention-days: 3
   notesapp-android:
     needs: [notesapp-android-build]
     runs-on: ubuntu-24.04
@@ -321,12 +364,14 @@ jobs:
           include-hidden-files: true
           path: maestro-debug
   # Informational (a flashlight hiccup warns instead of failing): perf-comments.yml posts the result
-  # on PRs, perf-publish records it on master
+  # on PRs, perf-publish records it on master. Measures the reference build too, in turns with this
+  # commit's, to adjust for the machine's speed (scripts/ci-notesapp-android-flashlight.sh).
   notesapp-android-flashlight:
-    needs: [notesapp-android-build]
+    needs: [notesapp-android-build, notesapp-android-reference]
+    if: ${{ !cancelled() && needs.notesapp-android-build.result == 'success' }}
     runs-on: ubuntu-24.04
     name: NotesApp Android (flashlight)
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
       - name: Enable KVM
@@ -357,18 +402,25 @@ jobs:
         with:
           name: notesapp-android-apk
           path: build-output
+      - uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: notesapp-android-reference
+          path: build-output/reference
       - name: Measure with flashlight
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
           api-level: 29
           profile: pixel
           disable-animations: true
-          script: bash scripts/ci-notesapp-android-flashlight.sh build-output/notesapp-release.apk
+          script: bash scripts/ci-notesapp-android-flashlight.sh build-output/notesapp-release.apk build-output/reference
       - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: perf-result-android
-          path: perf-results/perf-result-android.json
+          path: |
+            perf-results/perf-result-android.json
+            perf-results/perf-result-android-reference.json
           if-no-files-found: ignore
   notesapp-ios-build:
     needs: [eslint, typescript, ci-check]

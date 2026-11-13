@@ -14,6 +14,11 @@
  * the Android flashlight run (ci.yml) and the iOS sync benchmark (perf-ios.yml)
  * publish separately, so each fills in its own key on the commit's record,
  * creating the record if the other hasn't yet.
+ *
+ * The flashlight job also measures a fixed reference build (scripts/ci-notesapp-android-reference.sh)
+ * and writes it next to the Android result, as <androidResultFile minus .json>-reference.json. It's
+ * recorded as `androidReference`: the charts and the PR comment compare it with its median over the
+ * history to adjust for each CI machine's speed (scripts/android-machine-factor.mjs).
  */
 
 import fs from 'node:fs'
@@ -46,7 +51,11 @@ function main() {
     }
     history.push(record)
   }
-  if (androidFile) record.android = summarizePerfResult(androidFile)
+  if (androidFile) {
+    record.android = summarizePerfResult(androidFile)
+    const referenceFile = androidFile.replace(/\.json$/, '-reference.json')
+    if (fs.existsSync(referenceFile)) record.androidReference = summarizePerfResult(referenceFile)
+  }
   if (iosSyncFile) record.iosSync = readIosSyncSummary(iosSyncFile)
 
   fs.mkdirSync(path.dirname(resultsFile) || '.', { recursive: true })
