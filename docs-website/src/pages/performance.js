@@ -44,7 +44,9 @@ export default function Performance() {
             flashlight
           </a>{' '}
           running <code>maestro/pagination-dynamic.yaml</code> on an Android emulator. Every PR gets these as a
-          comment.
+          comment. Like WatermelonDB on iOS, a fixed NotesApp build (v0.32.0) runs in the same job, in turns with
+          each commit&apos;s, and how its CPU, FPS and score compare with their usual values says how fast that
+          job&apos;s machine was (the last chart). CPU, FPS and score are adjusted for it once enough runs have it.
         </p>
         <PerformanceCharts
           source="android"

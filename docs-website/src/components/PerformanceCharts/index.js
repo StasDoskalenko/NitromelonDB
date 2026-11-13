@@ -32,9 +32,12 @@ function loadHistory(url) {
   return historyRequest
 }
 
+// Fewer runs with a machine factor than this, and charts start on raw values
+const MIN_ADJUSTED_RUNS = 5
+
 const MACHINE_MODES = [
   { key: 'adjusted', label: 'Adjusted for machine speed' },
-  { key: 'raw', label: 'Raw times' },
+  { key: 'raw', label: 'As measured' },
 ]
 
 function useRepoUrl() {
@@ -233,13 +236,15 @@ function RunsTable({ rows, metrics, repoUrl, onSelect }) {
  * build time. `empty` is shown until the section has its first run.
  */
 export default function PerformanceCharts({ source = 'android', empty }) {
-  const { metrics, color } = SOURCES[source]
+  const { metrics, color, adjustedCaption } = SOURCES[source]
   const dataUrl = useBaseUrl('/data/benchmarks.json')
   const repoUrl = useRepoUrl()
   const [history, setHistory] = useState(null)
   const [error, setError] = useState(null)
   const [rangeKey, setRangeKey] = useState('all')
-  const [machineMode, setMachineMode] = useState('adjusted')
+  // null until picked: adjusted once enough runs have a machine factor (Android's history mostly
+  // predates its reference build), raw times until then
+  const [pickedMachineMode, setMachineMode] = useState(null)
   const [pinnedSha, setPinnedSha] = useState(null)
   const adjustable = metrics.some((metric) => metric.adjust)
 
@@ -257,9 +262,21 @@ export default function PerformanceCharts({ source = 'android', empty }) {
     }
   }, [dataUrl])
 
+  const rawRows = useMemo(
+    () => (history ? toRows(history, source, { adjusted: false }) : []),
+    [history, source],
+  )
+  const machineMode =
+    pickedMachineMode ??
+    (rawRows.filter((row) => row.machineFactor != null).length >= MIN_ADJUSTED_RUNS
+      ? 'adjusted'
+      : 'raw')
   const allRows = useMemo(
-    () => (history ? toRows(history, source, { adjusted: machineMode === 'adjusted' }) : []),
-    [history, source, machineMode],
+    () =>
+      history && machineMode === 'adjusted'
+        ? toRows(history, source, { adjusted: true })
+        : rawRows,
+    [history, source, machineMode, rawRows],
   )
 
   const rows = useMemo(() => {
@@ -301,8 +318,8 @@ export default function PerformanceCharts({ source = 'android', empty }) {
       {adjustable && (
         <p className={styles.caption}>
           {machineMode === 'adjusted'
-            ? 'Times are adjusted for how fast each CI machine was, measured by WatermelonDB in the same job (the last chart), as if every run had a machine of median speed.'
-            : 'Times as measured. CI machines differ a lot in speed (see the last chart), so a slower machine shows up here as a slowdown.'}
+            ? adjustedCaption
+            : 'As measured. CI machines differ a lot in speed (see the last chart), so a slower machine shows up here as a slowdown.'}
         </p>
       )}
       <ul className={styles.legend} aria-label="Chart key">

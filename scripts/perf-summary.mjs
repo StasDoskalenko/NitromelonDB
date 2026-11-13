@@ -27,6 +27,8 @@ export function summarizePerfResult(file) {
   const measures = averaged.average.measures
 
   return {
+    // A reference app's result (scripts/merge-flashlight-results.mjs): the tag it was built from
+    ...(typeof raw.reference === 'string' ? { reference: raw.reference.slice(0, 40) } : {}),
     iterationCount: raw.iterations.length,
     score: getScore(averaged),
     cpu: Math.round(getAverageCpuUsage(measures) * 10) / 10,

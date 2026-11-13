@@ -1,9 +1,22 @@
-/** The flashlight metrics we chart, in display order. `better` drives the delta wording. */
+/**
+ * The flashlight metrics we chart, in display order. `better` drives the delta wording. `adjust`
+ * metrics are adjusted for the CI machine's speed by default (see addReferenceFactors); RAM
+ * doesn't depend on it.
+ */
 export const ANDROID_METRICS = [
-  { key: 'score', label: 'Flashlight score', unit: '/100', better: 'higher' },
-  { key: 'cpu', label: 'CPU usage', unit: '%', better: 'lower' },
+  { key: 'score', label: 'Flashlight score', unit: '/100', better: 'higher', adjust: true },
+  { key: 'cpu', label: 'CPU usage', unit: '%', better: 'lower', adjust: true },
   { key: 'ram', label: 'RAM usage', unit: 'MB', better: 'lower' },
-  { key: 'fps', label: 'FPS', unit: 'fps', better: 'higher' },
+  { key: 'fps', label: 'FPS', unit: 'fps', better: 'higher', adjust: true },
+  // How slow this job's CI machine was: the reference build's CPU relative to its usual (see
+  // addReferenceFactors). Not better or worse for us.
+  {
+    key: 'machineFactor',
+    label: 'CI machine speed (reference build’s CPU vs its median)',
+    unit: '× its usual CPU',
+    neutral: true,
+    digits: 2,
+  },
 ]
 
 /**
@@ -149,6 +162,52 @@ function addMachineFactors(rows, metrics, workloadsByRow, adjusted) {
 }
 
 /**
+ * The Android counterpart of addMachineFactors, as in scripts/android-machine-factor.mjs (which the
+ * PR comment uses). The flashlight job measures a fixed reference build (a NotesApp tag, recorded
+ * as `androidReference`) in turns with each commit's, on the same emulator. Per `adjust` metric,
+ * the factor is the reference's value against its median over every run measured with the same
+ * tag (1.1 = it used 1.1× its usual CPU, or got 1/1.1 of its usual FPS), and the commit's value is
+ * divided by it (FPS and score multiplied). Each metric gets its own factor: a slow machine moves
+ * CPU much more than FPS. row.machineFactor is the CPU one. Rows without a reference get no factor,
+ * and no adjusted values.
+ */
+function addReferenceFactors(rows, metrics, references, adjusted) {
+  const adjustMetrics = metrics.filter((metric) => metric.adjust)
+  const medians = {}
+  for (const reference of references) {
+    if (!reference?.reference) continue
+    medians[reference.reference] ??= {}
+  }
+  for (const tag of Object.keys(medians)) {
+    const sameTag = references.filter((reference) => reference?.reference === tag)
+    for (const { key } of adjustMetrics) {
+      const values = sameTag.map((reference) => reference[key]).filter((v) => v > 0)
+      medians[tag][key] = values.length > 0 ? median(values) : null
+    }
+  }
+  rows.forEach((row, i) => {
+    const reference = references[i]
+    const usual = reference?.reference ? medians[reference.reference] : null
+    const factors = Object.fromEntries(
+      adjustMetrics.map(({ key, better }) => {
+        const value = reference?.[key]
+        if (!(value > 0) || !(usual?.[key] > 0)) return [key, null]
+        return [key, better === 'lower' ? value / usual[key] : usual[key] / value]
+      }),
+    )
+    row.machineFactor = factors.cpu ?? null
+    if (!adjusted) return
+    for (const { key, better } of adjustMetrics) {
+      if (row[key] == null) continue
+      const factor = factors[key]
+      row[key] = factor == null ? null : better === 'lower' ? row[key] / factor : row[key] * factor
+      if (key === 'score' && row[key] != null) row[key] = Math.min(100, row[key])
+    }
+  })
+  return rows
+}
+
+/**
  * A record's `iosSync` summary → flat chart values, WatermelonDB's under baselineKey(). Each app's
  * best run where the record has one (CI runners only ever slow runs down), else its median.
  */
@@ -175,12 +234,31 @@ export const SOURCES = {
   android: {
     metrics: ANDROID_METRICS,
     color: 'var(--perf-chart-android)',
-    values: (record) => record.android ?? null,
+    values: (record) =>
+      record.android ? { ...record.android, machineReference: record.androidReference ?? null } : null,
+    adjustRows: (rows, metrics, recordValues, adjusted) =>
+      addReferenceFactors(
+        rows,
+        metrics,
+        recordValues.map((values) => values.machineReference),
+        adjusted,
+      ),
+    adjustedCaption:
+      'CPU, FPS and score are adjusted for how fast each CI machine was, measured by a fixed NotesApp build in the same job (the last chart), as if every run had a machine of median speed. RAM doesn’t depend on machine speed. Runs from before the reference build was measured have no adjusted values.',
   },
   iosSync: {
     metrics: IOS_SYNC_METRICS,
     color: 'var(--perf-chart-ios)',
     values: (record) => (record.iosSync ? flattenIosSync(record.iosSync) : null),
+    adjustRows: (rows, metrics, recordValues, adjusted) =>
+      addMachineFactors(
+        rows,
+        metrics,
+        recordValues.map((values) => values.machineWorkloads),
+        adjusted,
+      ),
+    adjustedCaption:
+      'Times are adjusted for how fast each CI machine was, measured by WatermelonDB in the same job (the last chart), as if every run had a machine of median speed.',
   },
 }
 
@@ -279,11 +357,11 @@ export function priorLabel(prior) {
 
 /**
  * History records → chart rows for one source: one row per run that has its results, every
- * metric on the same row so charts share an index. For the iOS sync source, `adjusted` (the
- * default) adjusts absolute times for each CI machine's speed (see addMachineFactors).
+ * metric on the same row so charts share an index. `adjusted` (the default) adjusts values for
+ * each CI machine's speed (addMachineFactors for iOS sync, addReferenceFactors for Android).
  */
 export function toRows(history, source, { adjusted = true } = {}) {
-  const { metrics, values } = SOURCES[source]
+  const { metrics, values, adjustRows } = SOURCES[source]
   const recorded = history
     .map((record) => ({ record, recordValues: values(record) }))
     .filter(({ recordValues }) => recordValues != null)
@@ -302,9 +380,13 @@ export function toRows(history, source, { adjusted = true } = {}) {
     }
     return row
   })
-  if (metrics.some((metric) => metric.adjust)) {
-    const workloads = recorded.map(({ recordValues }) => recordValues.machineWorkloads)
-    addMachineFactors(rows, metrics, workloads, adjusted)
+  if (adjustRows) {
+    adjustRows(
+      rows,
+      metrics,
+      recorded.map(({ recordValues }) => recordValues),
+      adjusted,
+    )
   }
   return addTrends(rows, metrics)
 }
