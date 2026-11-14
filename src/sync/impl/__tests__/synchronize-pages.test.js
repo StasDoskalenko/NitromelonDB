@@ -1,4 +1,5 @@
 import { expectToRejectWithMessage } from '../../../__tests__/utils'
+import { logger } from '../../../utils/common'
 import { makeDatabase, makeChangeSet, getRaw, expectSyncedAndMatches } from './helpers'
 
 import { synchronize } from '../../index'
@@ -53,6 +54,50 @@ describe('synchronize - paginated pulls', () => {
     expect(pullChanges.mock.calls).toEqual([
       [{ lastPulledAt: null, schemaVersion: 1, migration: null }],
     ])
+  })
+
+  it.each([[null], [undefined], [false], ['']])(
+    'treats nextCursor %p as the last page',
+    async (nextCursor) => {
+      const { database } = makeDatabase()
+      const pullChanges = jest.fn(async () => ({
+        ...projectPage(['p1'], 1000),
+        nextCursor,
+      }))
+      await synchronize({ database, pullChanges })
+      expect(pullChanges).toHaveBeenCalledTimes(1)
+      expect(await getLastPulledAt(database)).toBe(1000)
+      expect(await getSavedPullCursor(database)).toBe(null)
+    },
+  )
+
+  it('warns about experimentalHasMore, and pulls only that page', async () => {
+    const { database } = makeDatabase()
+    const warn = jest.spyOn(logger, 'warn').mockImplementation(() => {})
+    try {
+      const pullChanges = jest.fn(async () => ({
+        ...projectPage(['p1'], 1000),
+        experimentalHasMore: true,
+      }))
+      await synchronize({ database, pullChanges })
+      expect(pullChanges).toHaveBeenCalledTimes(1)
+      expect(await getLastPulledAt(database)).toBe(1000)
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('experimentalHasMore'))
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('accepts a number, an object or an array as a cursor', async () => {
+    const { database } = makeDatabase()
+    const cursors = [0, { after: ['p1', 1000] }, ['p2']]
+    let call = 0
+    const pullChanges = jest.fn(async () => {
+      call += 1
+      return projectPage([`p${call}`], 1000, call <= cursors.length ? cursors[call - 1] : null)
+    })
+    await synchronize({ database, pullChanges })
+    expect(pullChanges.mock.calls.map(([args]) => args.cursor)).toEqual([undefined, ...cursors])
   })
 
   it('applies each page in its own write, and moves lastPulledAt only after the last one', async () => {

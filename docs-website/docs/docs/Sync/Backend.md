@@ -123,6 +123,10 @@ A pull that would be too large for one response can be sent in pages. The app pa
 4. Pages MUST be ordered by something unique that doesn't change while a record isn't changed, like `(last_modified, id)`. A timestamp alone isn't enough: many records can share one, and a page boundary could fall between them.
 5. A cursor SHOULD still work later: the app saves it and continues an interrupted pull from it on its next sync, possibly days later. If the server can't continue from a cursor anymore (it expired, or the server changed how it pages), it MUST start over instead of failing: answer as if there were no cursor, with the first page of a pull since `lastPulledAt` and a new timestamp. The pages the app already applied come again, which is harmless. An error would make the app fail every sync, since it continues from the same cursor each time.
 6. A cursor is only for the `lastPulledAt` it was made for. The app never sends it with another one, so the server MAY reject that as a bad request.
+7. The last page MUST have `nextCursor` set to `null` (or leave it out). `false` and `''` also count as the last page. A server that doesn't page MUST NOT return a `nextCursor`.
+8. The app passes the same `migration` with every page: the records a migration sync needs (rule 6 above) are paged like the others, and each is sent once.
+
+Why a cursor, and not just a timestamp per page? Paging by `lastPulledAt` alone (each page asking for changes since the previous page's `timestamp`) breaks in two ways: records that share a timestamp can be split by a page boundary and skipped, and in a migration sync the records needed for added columns don't depend on time, so every page would send them again.
 
 The [example sync server](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/sync-server) does this with `SYNC_SERVER_PAGE_SIZE`: pages go through the tables in order, and through each table by `(last_modified, id)`.
 

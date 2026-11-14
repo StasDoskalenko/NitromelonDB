@@ -1,4 +1,4 @@
-import { invariant } from '../../utils/common'
+import { invariant, logger } from '../../utils/common'
 
 import {
   applyRemoteChanges,
@@ -27,6 +27,19 @@ function isChangesResult(
   result: SyncPullResult,
 ): result is Extract<SyncPullResult, { changes: unknown; timestamp: Timestamp }> {
   return 'changes' in result
+}
+
+// Only a string, number, object or array is a cursor for the next page. Anything else (null, a
+// missing field, false, '') means this is the last page, so a server or pullChanges() that already
+// returned some other `nextCursor` value before paginated pulls existed keeps working as before.
+function asCursor(value: unknown): SyncPullCursor | null {
+  if (typeof value === 'string') {
+    return value === '' ? null : value
+  }
+  if (typeof value === 'number' || (typeof value === 'object' && value !== null)) {
+    return value as SyncPullCursor
+  }
+  return null
 }
 
 function usesReplacement(strategy: SyncPullStrategy | undefined): boolean {
@@ -113,9 +126,18 @@ export default async function synchronize({
     log && (log.pulledPages = pageCount)
     log && (log.phase = 'pulled')
 
-    const nextCursor: SyncPullCursor | null = isChangesResult(pullResult)
-      ? (pullResult.nextCursor ?? null)
-      : null
+    const nextCursor = isChangesResult(pullResult) ? asCursor(pullResult.nextCursor) : null
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      nextCursor === null &&
+      (pullResult as { experimentalHasMore?: unknown }).experimentalHasMore === true
+    ) {
+      // The flag of a WatermelonDB pull request (Nozbe/WatermelonDB#1965) that was never released.
+      // It's ignored: the rest of the changes come with the next sync, starting at this timestamp.
+      logger.warn(
+        '[Sync] pullChanges() returned experimentalHasMore, which NitromelonDB does not support. Only this page was pulled. Return nextCursor for paginated pulls instead (see Sync / Frontend, Paginated pulls)',
+      )
+    }
     const isLastPage = nextCursor === null
     const isPaginated = !isLastPage || pageCount > 1 || cursor !== null
     if (!isLastPage) {

@@ -59,8 +59,9 @@ export type SyncPullResult =
       // pullChanges() again with `cursor: nextCursor` (and the same lastPulledAt, schemaVersion and
       // migration) for the next one. Each page is applied in its own write. lastPulledAt only moves to
       // `timestamp` of the last page (the one without nextCursor) once every page is applied; if a
-      // sync stops halfway, the next one continues from the saved cursor. See docs for details.
-      nextCursor?: SyncPullCursor | null | undefined
+      // sync stops halfway, the next one continues from the saved cursor. null, a missing field,
+      // false or '' mean this is the last page. See docs for details.
+      nextCursor?: SyncPullCursor | null | false | undefined
     }
   | { syncJson: string }
   | { syncJsonId: number }

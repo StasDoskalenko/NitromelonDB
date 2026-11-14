@@ -21,8 +21,9 @@ export type PullParams = {
   lastPulledAt: number | null
   schemaVersion: number
   migration: Migration | null
-  // The `nextCursor` of the previous page of a paginated pull
-  cursor: string | null
+  // The `nextCursor` of the previous page of a paginated pull (none for the first page, and for
+  // servers that don't page)
+  cursor?: string | null
 }
 // `nextCursor` is only there when the server pages pulls: a string for the next page, or null on
 // the last one
