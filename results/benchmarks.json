@@ -2435,5 +2435,26 @@
         "stress": 5
       }
     }
+  },
+  {
+    "sha": "d44ca38c18ad24565342e00b83b3cab533d96913",
+    "date": "2026-11-14T03:42:41.042Z",
+    "prNumber": 235,
+    "subject": "feat(sync): paginated pulls with a cursor (opt-in) (#235)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 20.2,
+      "ram": 189,
+      "fps": 55
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 21.8,
+      "ram": 187,
+      "fps": 54.8
+    }
   }
 ]
