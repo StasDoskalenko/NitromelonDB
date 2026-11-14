@@ -16,10 +16,19 @@ export type SyncDatabaseChangeSet = { [tableName: TableName]: SyncTableChangeSet
 
 export type SyncLocalChanges = { changes: SyncDatabaseChangeSet; affectedRecords: Model[] }
 
+// Where a paginated pull continues: whatever the server put in `nextCursor` (a string, a number, or a
+// JSON object), passed back as it is. It's saved in the local database between pages, so it must
+// survive JSON.stringify.
+export type SyncPullCursor = string | number | { [key: string]: unknown } | unknown[]
+
 export type SyncPullArgs = {
   lastPulledAt?: Timestamp | null | undefined
   schemaVersion: SchemaVersion
   migration: MigrationSyncChanges
+  // Only with `paginatedPulls: true`, for the second and later pages of a paginated pull (including
+  // the first pull of a sync that continues one that was interrupted): the `nextCursor` of the
+  // previous page
+  cursor?: SyncPullCursor | undefined
 }
 export type SyncPullStrategyType =
   // Standard sync strategy (default)
@@ -47,6 +56,14 @@ export type SyncPullResult =
       changes: SyncDatabaseChangeSet
       timestamp: Timestamp
       experimentalStrategy?: SyncPullStrategy | undefined
+      // Paginated pulls (only with `paginatedPulls: true`, ignored otherwise): if set, this is one
+      // page of the changes, and synchronize() calls
+      // pullChanges() again with `cursor: nextCursor` (and the same lastPulledAt, schemaVersion and
+      // migration) for the next one. Each page is applied in its own write. lastPulledAt only moves to
+      // `timestamp` of the last page (the one without nextCursor) once every page is applied; if a
+      // sync stops halfway, the next one continues from the saved cursor. null, a missing field,
+      // false or '' mean this is the last page. See docs for details.
+      nextCursor?: SyncPullCursor | null | false | undefined
     }
   | { syncJson: string }
   | { syncJsonId: number }
@@ -68,6 +85,10 @@ export type SyncLog = {
   rejectedIds?: SyncRejectedIds | undefined
   finishedAt?: Date | undefined
   remoteChangeCount?: number | undefined
+  // Number of pullChanges() calls (more than 1 for a paginated pull)
+  pulledPages?: number | undefined
+  // The first pull continued a paginated pull that an earlier sync didn't finish
+  resumedPullCursor?: boolean | undefined
   localChangeCount?: number | undefined
   phase?: string | undefined // NOTE: an textual information, not a stable API!
   error?: Error | undefined
@@ -106,13 +127,19 @@ export type SyncArgs = {
   // See documentation for more details.
   unsafeTurbo?: boolean | undefined
   // Called after changes are pulled with whatever was returned by pullChanges, minus `changes`. Useful
-  // when using turbo mode
+  // when using turbo mode. Called once per page in a paginated pull, after that page is applied
   onDidPullChanges?: ((payload: Record<string, unknown>) => Promise<void>) | undefined
   // Called after pullChanges is done, but before these changes are applied. Some stats about the pulled
   // changes are passed as arguments. An advanced user can use this for example to show some UI to the user
   // when processing a very large sync (could be useful for replacement syncs). Note that remote change count
-  // is NaN in turbo mode.
+  // is NaN in turbo mode. Called once per page in a paginated pull, with that page's count.
   onWillApplyRemoteChanges?: ((info: { remoteChangeCount: number }) => Promise<void>) | undefined
+  // Opt-in: if true, a `nextCursor` returned by pullChanges() means more pages follow, and
+  // synchronize() pulls them one after another (each applied in its own write, lastPulledAt moved
+  // after the last one, an interrupted pull continued next time). Without it, nextCursor is ignored.
+  // Your server should also only page when the app asks for it. See docs (Sync / Frontend,
+  // Paginated pulls) for details.
+  paginatedPulls?: boolean | undefined
 }
 
 /**
@@ -140,7 +167,7 @@ export async function synchronize(args: SyncArgs): Promise<void> {
  * Use this to check if you can safely log out (delete the database)
  */
 export function hasUnsyncedChanges({ database }: { database: Database }): Promise<boolean> {
-  return (require('./impl') as { hasUnsyncedChanges: (db: Database) => Promise<boolean> }).hasUnsyncedChanges(
-    database,
-  )
+  return (
+    require('./impl') as { hasUnsyncedChanges: (db: Database) => Promise<boolean> }
+  ).hasUnsyncedChanges(database)
 }
