@@ -28,6 +28,7 @@ yarn start              # http://127.0.0.1:3000, data in sync.db
 | `DATABASE`                 | `sync.db`   | SQLite file, or `:memory:`                                               |
 | `SYNC_SERVER_SCHEMA`       | `default`   | `notes-app` syncs the example NotesApp's `notes` table instead           |
 | `SYNC_SERVER_SEND_CREATED` | unset       | `1` splits pulled records into `created` and `updated` (see below first) |
+| `SYNC_SERVER_CORS_ORIGIN`  | unset       | Lets a web app on this origin call it from the browser (`*`: any)        |
 | `SYNC_SERVER_TEST_HOOKS`   | unset       | `1` enables the `/__test/*` endpoints the tests use. Never in production |
 
 The Android emulator reaches your computer at `10.0.2.2`, or run `adb reverse tcp:3000 tcp:3000` and use

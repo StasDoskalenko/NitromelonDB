@@ -12,6 +12,7 @@ import { schemas } from './schema.ts'
 //                           tests) or "notes-app" (the example NotesApp)
 //   SYNC_SERVER_SEND_CREATED  "1" splits pulled records into `created` and `updated` instead of
 //                           sending everything as `updated` (see README.md before using it)
+//   SYNC_SERVER_CORS_ORIGIN lets a web app on this origin call the server ("*" for any origin)
 //   SYNC_SERVER_TEST_HOOKS  "1" enables the /__test endpoints used by the end-to-end tests
 const port = Number(process.env.PORT ?? 3000)
 const hostname = process.env.HOST ?? '127.0.0.1'
@@ -26,6 +27,7 @@ const db = openDatabase(process.env.DATABASE ?? 'sync.db', schema)
 const app = createApp(db, schema, {
   testHooks: process.env.SYNC_SERVER_TEST_HOOKS === '1',
   sendCreatedAsUpdated: process.env.SYNC_SERVER_SEND_CREATED !== '1',
+  corsOrigin: process.env.SYNC_SERVER_CORS_ORIGIN || null,
 })
 
 const server = serve({ fetch: app.fetch, port, hostname }, (info) => {

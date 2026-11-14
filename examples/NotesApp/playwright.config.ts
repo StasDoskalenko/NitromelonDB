@@ -8,9 +8,25 @@ export default defineConfig({
     browserName: 'chromium',
     ...(process.env.CI ? {} : { channel: 'msedge' }),
   },
-  webServer: {
-    command: 'node scripts/serve-dist.mjs',
-    port: 4177,
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: [
+    {
+      command: 'node scripts/serve-dist.mjs',
+      port: 4177,
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      // The reference sync server (examples/sync-server) for web-tests/sync.spec.ts, on the URL the
+      // app syncs with by default (src/sync.ts). Needs `yarn install` in examples/sync-server.
+      command: 'node ../sync-server/src/main.ts',
+      url: 'http://127.0.0.1:3000/health',
+      reuseExistingServer: !process.env.CI,
+      env: {
+        PORT: '3000',
+        DATABASE: ':memory:',
+        SYNC_SERVER_SCHEMA: 'notes-app',
+        SYNC_SERVER_TEST_HOOKS: '1',
+        SYNC_SERVER_CORS_ORIGIN: 'http://127.0.0.1:4177',
+      },
+    },
+  ],
 })
