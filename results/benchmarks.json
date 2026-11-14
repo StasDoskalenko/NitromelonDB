@@ -2548,5 +2548,26 @@
         "stress": 5
       }
     }
+  },
+  {
+    "sha": "7c660c37c20fdf83933a41e66d676ac861cfcc5c",
+    "date": "2026-11-14T06:14:13.997Z",
+    "prNumber": 240,
+    "subject": "ci(e2e): retry iOS Maestro flows once when the XCTest driver dies mid-run (#240)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 20.5,
+      "ram": 179,
+      "fps": 55.1
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 21,
+      "ram": 179,
+      "fps": 54.7
+    }
   }
 ]
