@@ -267,6 +267,20 @@ describe.each(ADAPTERS)('Paginated pulls end-to-end (%s)', (adapterKind) => {
     await expectConverged(server, [alice])
   })
 
+  it("sends everything at once to an app that doesn't ask for pages", async () => {
+    await seedServer()
+    // An app that doesn't pass paginatedPulls (or an older version of it) doesn't send
+    // paginated=true. If the server paged anyway, it would store the first page's timestamp and
+    // never get the rest.
+    const oldApp = makeClient(server, adapterKind)
+    oldApp.paginated = false
+    await oldApp.sync()
+    expect(oldApp.pulls).toHaveLength(1)
+    expect(oldApp.pulls[0].result).not.toHaveProperty('nextCursor')
+    expect(pulledIds(oldApp.pulls[0])).toHaveLength(19)
+    await expectConverged(server, [oldApp])
+  })
+
   it('refuses a cursor from a pull with another last_pulled_at', async () => {
     await seedServer()
     const alice = makeClient(server, adapterKind)

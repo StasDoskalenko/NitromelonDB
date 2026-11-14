@@ -108,27 +108,29 @@ Expected response:
 
 ### Paginated pulls
 
-A pull that would be too large for one response can be sent in pages. The app passes the cursor of each page back to get the next one (see [Frontend: paginated pulls](./Frontend.md#paginated-pulls)):
+A pull that would be too large for one response can be sent in pages, to apps that ask for them. The app passes the cursor of each page back to get the next one (see [Frontend: paginated pulls](./Frontend.md#paginated-pulls)). Paging is optional for a server, and recommended for large datasets.
 
 ```js
-// Request: the same parameters as above, plus the cursor from the previous page (none for the first)
-{ lastPulledAt, schemaVersion, migration, cursor }
+// Request: the same parameters as above, plus `paginated` (the app can take pages) and the cursor
+// from the previous page (none for the first)
+{ lastPulledAt, schemaVersion, migration, paginated: true, cursor }
 // Response: nextCursor is null on the last page
 { changes: Changes, timestamp: Timestamp, nextCursor: string | null }
 ```
 
+0. The server MUST only send pages to an app that asked for them (`paginated` above, or however your API says it). An app that didn't ask (an older version, or one without `paginatedPulls: true`) MUST get everything in one response, without `nextCursor`: it would store the first page's timestamp and never get the rest.
 1. All pages together MUST be what one response would be (rules 2 to 13), and each record MUST be in only one page.
 2. Every page MUST return the same `timestamp`: the server's time when the first page was made. Put it in the cursor.
 3. Every page MUST only read changes up to that timestamp (for example `last_modified <= timestamp`). Records changed after it go to the next sync, and if one was already sent in an earlier page, the next sync sends it again. Nothing is lost that way, without locking anything between pages.
 4. Pages MUST be ordered by something unique that doesn't change while a record isn't changed, like `(last_modified, id)`. A timestamp alone isn't enough: many records can share one, and a page boundary could fall between them.
 5. A cursor SHOULD still work later: the app saves it and continues an interrupted pull from it on its next sync, possibly days later. If the server can't continue from a cursor anymore (it expired, or the server changed how it pages), it MUST start over instead of failing: answer as if there were no cursor, with the first page of a pull since `lastPulledAt` and a new timestamp. The pages the app already applied come again, which is harmless. An error would make the app fail every sync, since it continues from the same cursor each time.
 6. A cursor is only for the `lastPulledAt` it was made for. The app never sends it with another one, so the server MAY reject that as a bad request.
-7. The last page MUST have `nextCursor` set to `null` (or leave it out). `false` and `''` also count as the last page. A server that doesn't page MUST NOT return a `nextCursor`.
+7. The last page MUST have `nextCursor` set to `null` (or leave it out). `false` and `''` also count as the last page. A server that doesn't page ignores `paginated`, and MUST NOT return a `nextCursor`.
 8. The app passes the same `migration` with every page: the records a migration sync needs (rule 6 above) are paged like the others, and each is sent once.
 
 Why a cursor, and not just a timestamp per page? Paging by `lastPulledAt` alone (each page asking for changes since the previous page's `timestamp`) breaks in two ways: records that share a timestamp can be split by a page boundary and skipped, and in a migration sync the records needed for added columns don't depend on time, so every page would send them again.
 
-The [example sync server](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/sync-server) does this with `SYNC_SERVER_PAGE_SIZE`: pages go through the tables in order, and through each table by `(last_modified, id)`.
+The [example sync server](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/sync-server) pages pulls for apps that send `paginated=true`, 1000 records per page by default (`SYNC_SERVER_PAGE_SIZE`; `0` turns it off). Pages go through the tables in order, and through each table by `(last_modified, id)`. In `src/sync.ts`, `pull()` only pages when given a `pageSize`, so it's opt-in there too.
 
 ### Implementing push endpoint
 

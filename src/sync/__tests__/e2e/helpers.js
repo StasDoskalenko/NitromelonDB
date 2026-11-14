@@ -135,7 +135,8 @@ export class SyncHttpError extends Error {
 // Starts the reference server on a free port with an in-memory database. By default the server sends
 // every pulled record as `updated` (and clients pass sendCreatedAsUpdated); `sendCreated: true`
 // splits them into `created` and `updated` instead. `pageSize` makes it send pulls in pages of at
-// most that many records.
+// most that many records, to clients that ask for pages (clients of such a server do, see
+// Client#sync). Without it, the server never pages.
 export async function startServer({ sendCreated = false, pageSize = null } = {}) {
   if (!fs.existsSync(path.join(serverDir, 'node_modules', 'hono'))) {
     throw new Error(
@@ -151,7 +152,7 @@ export async function startServer({ sendCreated = false, pageSize = null } = {})
       DATABASE: ':memory:',
       SYNC_SERVER_TEST_HOOKS: '1',
       SYNC_SERVER_SEND_CREATED: sendCreated ? '1' : '0',
-      SYNC_SERVER_PAGE_SIZE: pageSize ? String(pageSize) : '',
+      SYNC_SERVER_PAGE_SIZE: pageSize ? String(pageSize) : '0',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -267,6 +268,8 @@ export class Client {
     this.comments = database.get('comments')
     // Set to true to make every request fail, like a device without network
     this.offline = false
+    // Asks for paginated pulls (both in synchronize() and in the request), if the server pages
+    this.paginated = !!server.pageSize
     this.pulls = []
     this.pushes = []
     // Hooks to run code at a precise point of a sync: afterPull runs between pulling and pushing
@@ -285,6 +288,9 @@ export class Client {
       schema_version: String(schemaVersion),
       migration: JSON.stringify(migration),
     })
+    if (this.paginated) {
+      query.set('paginated', 'true')
+    }
     if (cursor !== undefined) {
       query.set('cursor', cursor)
     }
@@ -318,6 +324,7 @@ export class Client {
       pushChanges: (args) => this.pushChanges(args),
       migrationsEnabledAtVersion: 1,
       sendCreatedAsUpdated: this.server.sendCreatedAsUpdated,
+      paginatedPulls: this.paginated,
       ...extraArgs,
     })
   }

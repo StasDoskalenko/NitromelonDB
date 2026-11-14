@@ -21,20 +21,23 @@ export type PullParams = {
   lastPulledAt: number | null
   schemaVersion: number
   migration: Migration | null
-  // The `nextCursor` of the previous page of a paginated pull (none for the first page, and for
-  // servers that don't page)
+  // The app supports paginated pulls (it passes `paginatedPulls: true` to synchronize()). Pulls are
+  // only sent in pages when it says so: an app that doesn't would store the first page's timestamp
+  // and never ask for the rest.
+  paginated?: boolean
+  // The `nextCursor` of the previous page of a paginated pull (none for the first page)
   cursor?: string | null
 }
-// `nextCursor` is only there when the server pages pulls: a string for the next page, or null on
-// the last one
+// `nextCursor` is only there when the pull is paginated (the server has a page size and the app asked
+// for pages): a string for the next page, or null on the last one
 export type PullResult = { changes: Changes; timestamp: number; nextCursor?: string | null }
 export type PullOptions = {
   // Send every changed record as `updated`, never `created` (Backend.md, last tips). The app must
   // then pass `sendCreatedAsUpdated: true` to synchronize(). This is the default in this server; see
   // README.md for why splitting `created` and `updated` by server_created_at goes wrong.
   sendCreatedAsUpdated: boolean
-  // At most this many records per pull response (Backend.md, "Paginated pulls"). null sends
-  // everything in one response.
+  // At most this many records per pull response, for apps that ask for pages (Backend.md,
+  // "Paginated pulls"). null (the default) sends everything in one response to every app.
   pageSize?: number | null
 }
 export type PushParams = { changes: unknown; lastPulledAt: unknown }
@@ -82,7 +85,9 @@ export function pull(
 ): PullResult {
   const { lastPulledAt, migration } = params
   const { sendCreatedAsUpdated } = options
-  const pageSize = options.pageSize ?? null
+  // Paginated only if both sides opted in: a cursor means the app asked for the first page already
+  const isPaginated = !!options.pageSize && (!!params.paginated || !!params.cursor)
+  const pageSize = isPaginated ? (options.pageSize as number) : null
 
   // better-sqlite3 runs the whole transaction synchronously on one connection, so no push can
   // commit between reading the timestamp and reading the rows. That's the consistent view pull 5
@@ -458,6 +463,7 @@ export function parsePullParams(query: {
   last_pulled_at?: string
   schema_version?: string
   migration?: string
+  paginated?: string
   cursor?: string
 }): PullParams {
   const lastPulledAt = query.last_pulled_at ? Number(query.last_pulled_at) : null
@@ -497,5 +503,11 @@ export function parsePullParams(query: {
     migration = candidate as Migration
   }
 
-  return { lastPulledAt, schemaVersion, migration, cursor: query.cursor || null }
+  return {
+    lastPulledAt,
+    schemaVersion,
+    migration,
+    paginated: query.paginated === 'true' || query.paginated === '1',
+    cursor: query.cursor || null,
+  }
 }

@@ -75,6 +75,7 @@ export default async function synchronize({
   conflictResolver,
   _unsafeBatchPerCollection,
   unsafeTurbo,
+  paginatedPulls = false,
 }: SyncArgs): Promise<void> {
   const resetCount = database._resetCount
   log && (log.startedAt = new Date())
@@ -100,9 +101,9 @@ export default async function synchronize({
   log && (log.phase = 'ready to pull')
 
   // It continues where it stopped, unless something it depends on changed since (lastPulledAt, or
-  // the schema after an app update)
+  // the schema after an app update), or paginated pulls were turned off since
   let savedCursor = initialSavedCursor
-  const resumable = parseSavedPullCursor(savedCursor)
+  const resumable = paginatedPulls ? parseSavedPullCursor(savedCursor) : null
   let cursor: SyncPullCursor | null =
     resumable &&
     resumable.lastPulledAt === (lastPulledAt ?? null) &&
@@ -126,7 +127,14 @@ export default async function synchronize({
     log && (log.pulledPages = pageCount)
     log && (log.phase = 'pulled')
 
-    const nextCursor = isChangesResult(pullResult) ? asCursor(pullResult.nextCursor) : null
+    const returnedCursor = isChangesResult(pullResult) ? asCursor(pullResult.nextCursor) : null
+    // Paginated pulls are opt-in: without paginatedPulls, nextCursor is ignored, as it was before
+    const nextCursor = paginatedPulls ? returnedCursor : null
+    if (process.env.NODE_ENV !== 'production' && !paginatedPulls && returnedCursor !== null) {
+      logger.warn(
+        '[Sync] pullChanges() returned nextCursor, but paginatedPulls is not enabled, so only this page was pulled. If your server sends pulls in pages, pass `paginatedPulls: true` to synchronize() (see Sync / Frontend, Paginated pulls)',
+      )
+    }
     if (
       process.env.NODE_ENV !== 'production' &&
       nextCursor === null &&

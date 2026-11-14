@@ -2,8 +2,11 @@ import { expectToRejectWithMessage } from '../../../__tests__/utils'
 import { logger } from '../../../utils/common'
 import { makeDatabase, makeChangeSet, getRaw, expectSyncedAndMatches } from './helpers'
 
-import { synchronize } from '../../index'
+import { synchronize as synchronizeWithoutFlag } from '../../index'
 import { getLastPulledAt, getSavedPullCursor } from '../index'
+
+// Paginated pulls are opt-in
+const synchronize = (args) => synchronizeWithoutFlag({ paginatedPulls: true, ...args })
 
 const projectPage = (ids, timestamp, nextCursor) => ({
   changes: makeChangeSet({
@@ -70,6 +73,38 @@ describe('synchronize - paginated pulls', () => {
       expect(await getSavedPullCursor(database)).toBe(null)
     },
   )
+
+  it('ignores nextCursor without paginatedPulls, as before, and warns', async () => {
+    const { database } = makeDatabase()
+    const warn = jest.spyOn(logger, 'warn').mockImplementation(() => {})
+    try {
+      const pullChanges = pagedServer([
+        { ids: ['p1'], timestamp: 1000 },
+        { ids: ['p2'], timestamp: 1000 },
+      ])
+      await synchronizeWithoutFlag({ database, pullChanges })
+      expect(pullChanges).toHaveBeenCalledTimes(1)
+      expect(await getLastPulledAt(database)).toBe(1000)
+      expect(await getSavedPullCursor(database)).toBe(null)
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('paginatedPulls is not enabled'))
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it("doesn't continue a saved pull once paginatedPulls is turned off, and forgets it", async () => {
+    const { database, adapter } = makeDatabase()
+    await adapter.setLocal(
+      '__watermelon_pull_cursor',
+      JSON.stringify({ lastPulledAt: null, schemaVersion: 1, cursor: 1 }),
+    )
+    const pullChanges = jest.fn(async () => projectPage(['p1'], 1000, null))
+    await synchronizeWithoutFlag({ database, pullChanges })
+    expect(pullChanges.mock.calls).toEqual([
+      [{ lastPulledAt: null, schemaVersion: 1, migration: null }],
+    ])
+    expect(await getSavedPullCursor(database)).toBe(null)
+  })
 
   it('warns about experimentalHasMore, and pulls only that page', async () => {
     const { database } = makeDatabase()

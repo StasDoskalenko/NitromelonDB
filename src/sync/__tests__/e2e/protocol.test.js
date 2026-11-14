@@ -219,4 +219,12 @@ describe('Sync server protocol', () => {
       timestamp = next.timestamp
     }
   })
+
+  it("ignores paginated=true when it doesn't page (paginated pulls 7)", async () => {
+    const { timestamp: t0 } = await pull(null)
+    await push(t0, { projects: { ...empty, created: [project('a'), project('b')] } })
+    const result = await pull(null, { paginated: 'true' })
+    expect(Object.keys(result).sort()).toEqual(['changes', 'timestamp'])
+    expect(result.changes.projects.updated).toHaveLength(2)
+  })
 })

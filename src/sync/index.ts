@@ -25,8 +25,9 @@ export type SyncPullArgs = {
   lastPulledAt?: Timestamp | null | undefined
   schemaVersion: SchemaVersion
   migration: MigrationSyncChanges
-  // Only for the second and later pages of a paginated pull (including the first pull of a sync
-  // that continues one that was interrupted): the `nextCursor` of the previous page
+  // Only with `paginatedPulls: true`, for the second and later pages of a paginated pull (including
+  // the first pull of a sync that continues one that was interrupted): the `nextCursor` of the
+  // previous page
   cursor?: SyncPullCursor | undefined
 }
 export type SyncPullStrategyType =
@@ -55,7 +56,8 @@ export type SyncPullResult =
       changes: SyncDatabaseChangeSet
       timestamp: Timestamp
       experimentalStrategy?: SyncPullStrategy | undefined
-      // Paginated pulls: if set, this is one page of the changes, and synchronize() calls
+      // Paginated pulls (only with `paginatedPulls: true`, ignored otherwise): if set, this is one
+      // page of the changes, and synchronize() calls
       // pullChanges() again with `cursor: nextCursor` (and the same lastPulledAt, schemaVersion and
       // migration) for the next one. Each page is applied in its own write. lastPulledAt only moves to
       // `timestamp` of the last page (the one without nextCursor) once every page is applied; if a
@@ -132,6 +134,12 @@ export type SyncArgs = {
   // when processing a very large sync (could be useful for replacement syncs). Note that remote change count
   // is NaN in turbo mode. Called once per page in a paginated pull, with that page's count.
   onWillApplyRemoteChanges?: ((info: { remoteChangeCount: number }) => Promise<void>) | undefined
+  // Opt-in: if true, a `nextCursor` returned by pullChanges() means more pages follow, and
+  // synchronize() pulls them one after another (each applied in its own write, lastPulledAt moved
+  // after the last one, an interrupted pull continued next time). Without it, nextCursor is ignored.
+  // Your server should also only page when the app asks for it. See docs (Sync / Frontend,
+  // Paginated pulls) for details.
+  paginatedPulls?: boolean | undefined
 }
 
 /**
