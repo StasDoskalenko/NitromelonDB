@@ -2569,5 +2569,26 @@
       "ram": 179,
       "fps": 54.7
     }
+  },
+  {
+    "sha": "3788f4a3f91adabad49b44f8a567bac6278f9bba",
+    "date": "2026-11-14T08:26:39.283Z",
+    "prNumber": 236,
+    "subject": "build(windows): bump React Native Windows to 0.85.2 in NotesApp_windows (#236)",
+    "android": {
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 23.4,
+      "ram": 180,
+      "fps": 53.7
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 23.9,
+      "ram": 178,
+      "fps": 54
+    }
   }
 ]
