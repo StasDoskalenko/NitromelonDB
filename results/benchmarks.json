@@ -2724,5 +2724,26 @@
         "stress": 5
       }
     }
+  },
+  {
+    "sha": "53ff816c1d8b11a34896d5fb2ea9e355fa60559e",
+    "date": "2026-11-14T21:40:26.435Z",
+    "prNumber": 243,
+    "subject": "ci: longer Yarn HTTP timeout, more retries, and a Yarn cache for the sync server (#243)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 25.4,
+      "ram": 178,
+      "fps": 55.3
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 27,
+      "ram": 179,
+      "fps": 55.1
+    }
   }
 ]
