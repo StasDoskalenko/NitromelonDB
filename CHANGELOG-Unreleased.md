@@ -18,6 +18,7 @@
 
 ### Internal
 
+- CI: Yarn waits 3 minutes per download (was 1) and retries 5 times (was 3), and the jobs that install the sync server cache Yarn's downloads. A timed-out download from npm crashed Yarn and failed the NotesApp iOS (Maestro) job on master
 - NotesApp web: a Playwright test where two devices on wa-sqlite (two browser profiles) sync through the reference sync server: first syncs in both directions, a note reaching the other device, both syncing at once (a rejected push resolved by syncing again), and synced data surviving a reload. The sync server gets an optional `SYNC_SERVER_CORS_ORIGIN` so web apps can call it (`yarn start:notes-app` allows any origin)
 - CI: the iOS Maestro job recovers when Maestro's XCTest driver dies mid-run (an XCTest screenshot timeout under load ends the driver, and every remaining flow fails; mobile-dev-inc/maestro#3538, not fixed in Maestro 2.12.1). If the driver's logs show it died, the flows that didn't pass run once more with a freshly installed driver, with a warning on the job. A run where the driver stayed up is never retried. Each attempt keeps its own diagnostics folder
 - Sync end-to-end tests for paginated pulls on SQLite and LokiJS: first and incremental syncs in pages, server changes and local edits between pages, an interrupted pull continuing from its cursor, an app update in the middle of one, a push conflict with a change made during the pull, and batched pulls. The random convergence test also runs against a server sending pages of 7, with pulls interrupted halfway
