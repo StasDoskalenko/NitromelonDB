@@ -1,7 +1,7 @@
 ---
 title: Frontend
 hide_title: true
-description: "Call synchronize() in the app: pullChanges / pushChanges, unsynced changes, migration syncs, Turbo Login, logging, and replacement sync."
+description: "Call synchronize() in the app: pullChanges / pushChanges, paginated pulls, unsynced changes, migration syncs, Turbo Login, logging, and replacement sync."
 ---
 
 ## Implementing sync in frontend
@@ -16,17 +16,23 @@ import { synchronize } from 'nitromelondb/sync'
 async function mySync() {
   await synchronize({
     database,
-    pullChanges: async ({ lastPulledAt, schemaVersion, migration }) => {
-      const urlParams = `last_pulled_at=${lastPulledAt}&schema_version=${schemaVersion}&migration=${encodeURIComponent(
-        JSON.stringify(migration),
-      )}`
-      const response = await fetch(`https://my.backend/sync?${urlParams}`)
+    pullChanges: async ({ lastPulledAt, schemaVersion, migration, cursor }) => {
+      const params = new URLSearchParams({
+        last_pulled_at: lastPulledAt ?? '',
+        schema_version: schemaVersion,
+        migration: JSON.stringify(migration),
+        paginated: 'true', // large pulls may come in pages (see paginatedPulls below)
+      })
+      if (cursor !== undefined) {
+        params.set('cursor', cursor) // the next page of a paginated pull
+      }
+      const response = await fetch(`https://my.backend/sync?${params}`)
       if (!response.ok) {
         throw new Error(await response.text())
       }
 
-      const { changes, timestamp } = await response.json()
-      return { changes, timestamp }
+      const { changes, timestamp, nextCursor } = await response.json()
+      return { changes, timestamp, nextCursor }
     },
     pushChanges: async ({ changes, lastPulledAt }) => {
       const response = await fetch(`https://my.backend/sync?last_pulled_at=${lastPulledAt}`, {
@@ -38,9 +44,12 @@ async function mySync() {
       }
     },
     migrationsEnabledAtVersion: 1,
+    paginatedPulls: true,
   })
 }
 ```
+
+`paginated`, `cursor`, `nextCursor` and `paginatedPulls: true` are for [paginated pulls](#paginated-pulls). They're optional, but we recommend them: a backend that doesn't page ignores `paginated` and never returns a `nextCursor`, so the same code works with it, and keeps working once it starts sending large pulls in pages.
 
 #### Who calls `synchronize()`?
 
@@ -68,6 +77,85 @@ This function should fetch from the server the list of ALL changes in all collec
    }
    ```
 4. You MUST NOT store the object returned in `pullChanges()`. If you need to do any processing on it, do it before returning the object. Watermelon treats this object as "consumable" and can mutate it (for performance reasons)
+
+#### Paginated pulls
+
+A large pull (a first sync, or a user who was offline for weeks) can come in pages, so the app never holds all of it in memory at once. It's opt-in on both sides:
+
+- **The app** passes `paginatedPulls: true` to `synchronize()`, and tells the server it can take pages (here with `paginated=true` in the request; any way your API likes works).
+- **The server** only sends pages to apps that asked. An older app version, or one without `paginatedPulls`, gets everything in one response, as before. (If the server paged anyway, that app would store the first page's timestamp and never ask for the rest.)
+
+A page comes with a `nextCursor`. `synchronize()` then calls `pullChanges()` again, with the same `lastPulledAt`, `schemaVersion` and `migration` plus `cursor`, until a page comes without one:
+
+```js
+await synchronize({
+  database,
+  pullChanges: async ({ lastPulledAt, schemaVersion, migration, cursor }) => {
+    const params = new URLSearchParams({
+      last_pulled_at: lastPulledAt ?? '',
+      schema_version: schemaVersion,
+      migration: JSON.stringify(migration),
+      paginated: 'true',
+    })
+    if (cursor !== undefined) {
+      params.set('cursor', cursor)
+    }
+    const response = await fetch(`https://my.backend/sync?${params}`)
+    if (!response.ok) {
+      throw new Error(await response.text())
+    }
+    const { changes, timestamp, nextCursor } = await response.json()
+    return { changes, timestamp, nextCursor } // nextCursor: null (or missing) on the last page
+  },
+  pushChanges,
+  paginatedPulls: true,
+})
+```
+
+Without `paginatedPulls: true`, `synchronize()` ignores `nextCursor`, exactly as before paginated pulls existed: it applies that one page, and development builds warn that the rest wasn't pulled.
+
+**What happens during a paginated pull**
+
+1. The first call has no `cursor` (unless the sync continues an interrupted pull, see below). Each next call gets the previous page's `nextCursor`.
+2. Each page is applied in its own write, as soon as it arrives. Only one page is in memory at a time, and observers are notified once per page, so the UI can show records while the rest is still coming.
+3. `onWillApplyRemoteChanges` is called before each page is applied, with that page's `remoteChangeCount`, and `onDidPullChanges` after each page, with that page's response minus `changes`. You can use them to show progress.
+4. `lastPulledAt` only moves once every page is applied, to the last page's `timestamp`. Until then, the database has the pages so far, but the next sync still asks for changes since the old `lastPulledAt`.
+5. Local changes are pushed once, after the last page, with that `timestamp` as `lastPulledAt`.
+6. Local changes made between pages (the user keeps using the app) are kept. A page that brings a record changed locally resolves the conflict like any pull: local changes win per column.
+
+**Interrupted pulls continue where they stopped**
+
+The cursor of the next page is saved in the local database, in the same write as each page (under the Local Storage key `__watermelon_pull_cursor`). If a sync fails halfway (no network, a server error, the app is closed), the pages it applied stay, and the next sync starts with that cursor instead of the first page.
+
+It starts over from the first page instead when:
+
+- `lastPulledAt` changed since the cursor was saved, or
+- the schema version changed (an app update with a migration: the pull is then a migration sync, and the cursor was for a regular one).
+
+Pages applied before are then pulled again, which is harmless. `unsafeResetDatabase()` clears the saved cursor along with everything else.
+
+If your server can't continue from an old cursor (it expired, or the server changed how it pages), it should start over too: answer with the first page, as if there were no cursor. See [Backend: paginated pulls](./Backend.md#paginated-pulls).
+
+**What counts as a cursor**
+
+- A string, a number, or a plain object or array of those. It's saved as JSON, so it must not be a `Date`, `Map`, class instance or function (that's an error).
+- `null`, a missing `nextCursor`, `false` and `''` all mean this is the last page.
+- A page returning the same `nextCursor` it was called with is an error, since it would never finish.
+
+**Not available together with** `unsafeTurbo` (Turbo Login is for one big first sync), or the `replacement` strategy (each page would delete the records of the others). Both are errors if a pull has pages. `_unsafeBatchPerCollection` works: it splits each page into batches.
+
+**Logs.** With a [sync log](#adding-logging-to-your-sync), `log.pulledPages` is the number of `pullChanges()` calls, `log.resumedPullCursor` is `true` if the sync continued an interrupted pull, and `log.remoteChangeCount` counts the changes of every page.
+
+**Turning it on in an existing app.**
+
+1. Make the server page only when the request asks for it, following [Backend: paginated pulls](./Backend.md#paginated-pulls). App versions already installed don't ask, so they keep getting single responses.
+2. In the app, ask for pages in `pullChanges()`, pass `cursor` through, return `nextCursor`, and pass `paginatedPulls: true`.
+
+The two can ship in either order: an app that asks gets single responses until the server pages.
+
+Turning `paginatedPulls` off again is safe too: a saved cursor is then ignored, and the next sync pulls everything since `lastPulledAt` in one response. `experimentalHasMore`, the flag of an unreleased WatermelonDB pull request, isn't supported: development builds warn about it, and only that page is pulled.
+
+The server's side is in [Backend: paginated pulls](./Backend.md#paginated-pulls), and the [example sync server](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/sync-server) implements it (`SYNC_SERVER_PAGE_SIZE`).
 
 ### Implementing `pushChanges()`
 
@@ -247,6 +335,8 @@ console.log(log.startedAt)
 console.log(log.finishedAt)
 ```
 
+Fields include `startedAt`, `finishedAt`, `lastPulledAt`, `newLastPulledAt`, `migration`, `remoteChangeCount`, `localChangeCount`, `resolvedConflicts`, `rejectedIds` and `error`. For [paginated pulls](#paginated-pulls), `pulledPages` is the number of `pullChanges()` calls and `resumedPullCursor` tells whether the sync continued an interrupted pull. `phase` describes how far the sync got, as text that may change between versions.
+
 ⚠️ Remember to act responsibly with logs, since they might contain your user's private information. Don't display, save, or send the log unless you censor the log.
 
 ## Debugging `changes`
@@ -312,5 +402,6 @@ In `pullChanges`, return an object with an extra `strategy` field
   - If it sets a column to something other than `remote`'s value, it must mark that column as changed (add it to `_changed`, and set `_status` to `'updated'` if it was `'synced'`). Otherwise nothing is pushed, and the device keeps a value the server doesn't have.
   - It isn't called for deletions: a record deleted on either side stays deleted.
 - `onWillApplyRemoteChanges` - called after pullChanges is done, but before these changes are applied. Some stats about the pulled changes are passed as arguments. An advanced user can use this for example to show some UI to the user when processing a very large sync (could be useful for replacement syncs). Note that remote change count is NaN in turbo mode.
+- `paginatedPulls: boolean` - opt-in. If true, a `nextCursor` returned by `pullChanges()` means more pages follow, and `synchronize()` pulls them one after another. See [Paginated pulls](#paginated-pulls)
 
 

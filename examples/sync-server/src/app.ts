@@ -10,27 +10,35 @@ export type AppOptions = {
   testHooks?: boolean
   // See PullOptions in sync.ts. Defaults to true.
   sendCreatedAsUpdated?: boolean
+  // At most this many records per pull response, the rest in further pages, for apps that ask for
+  // pages with `paginated=true` (see PullOptions in sync.ts). Defaults to null: everything in one
+  // response, to every app.
+  pageSize?: number | null
 }
 
 // HTTP layer only: the sync logic is in sync.ts.
 //
-//   GET  /sync/pull?last_pulled_at=&schema_version=&migration=  ->  { changes, timestamp }
+//   GET  /sync/pull?last_pulled_at=&schema_version=&migration=&paginated=&cursor=
+//                                         ->  { changes, timestamp, nextCursor? }
 //   POST /sync/push   { changes, lastPulledAt }                 ->  { ok: true }
 //
 // A real app would also authenticate the user here and scope every query to what they may access.
 export function createApp(db: Db, schema: ServerSchema, options: AppOptions = {}): Hono {
   const app = new Hono()
   const sendCreatedAsUpdated = options.sendCreatedAsUpdated ?? true
+  const pageSize = options.pageSize ?? null
 
-  app.get('/health', (c) => c.json({ ok: true, sendCreatedAsUpdated }))
+  app.get('/health', (c) => c.json({ ok: true, sendCreatedAsUpdated, pageSize }))
 
   app.get('/sync/pull', (c) => {
     const params = parsePullParams({
       last_pulled_at: c.req.query('last_pulled_at'),
       schema_version: c.req.query('schema_version'),
       migration: c.req.query('migration'),
+      paginated: c.req.query('paginated'),
+      cursor: c.req.query('cursor'),
     })
-    return c.json(pull(db, schema, params, { sendCreatedAsUpdated }))
+    return c.json(pull(db, schema, params, { sendCreatedAsUpdated, pageSize }))
   })
 
   app.post('/sync/push', async (c) => {

@@ -18,6 +18,7 @@ const STEPS = Number(process.env.SYNC_E2E_STEPS || 150)
 const servers = [
   ['updated', setUpServer()],
   ['created', setUpServer({ sendCreated: true })],
+  ['updated, in pages of 7', setUpServer({ pageSize: 7 })],
 ]
 
 function mulberry32(seed) {
@@ -215,8 +216,17 @@ async function randomSync(client, random, history) {
     }
   }
   if (random.chance(0.05)) {
-    // Someone else pushes between this device's pull and push
+    // Someone else pushes between this device's pull and push (between two pages, if paginated)
     client.afterPull = () => randomServerChange(client.server, random, -1, history)
+  }
+  // Paginated pulls: the network goes away after the first page, and the next sync continues from
+  // the saved cursor. (Only drawn in that mode, so the other modes keep their random sequence.)
+  let interrupted = false
+  if (client.server.pageSize && !client.afterPull && random.chance(0.05)) {
+    client.afterPull = () => {
+      client.offline = true
+      interrupted = true
+    }
   }
   try {
     await client.syncUntilDone({ maxAttempts: 10 })
@@ -227,6 +237,9 @@ async function randomSync(client, random, history) {
   } finally {
     client.afterPush = null
     client.afterPull = null
+    if (interrupted) {
+      client.offline = false
+    }
   }
 }
 

@@ -1,7 +1,7 @@
 ---
 title: FAQ
 hide_title: true
-description: "Sync FAQ: building your own sync from the primitives, and local vs remote IDs."
+description: "Sync FAQ: building your own sync from the primitives, syncing a lot of data, and local vs remote IDs."
 ---
 
 # Frequently Asked Questions
@@ -10,6 +10,12 @@ description: "Sync FAQ: building your own sync from the primitives, and local vs
 
 See: [Sync implementation details](../Implementation/SyncImpl.md)
 
+
+### Syncing a lot of data
+
+- **First sync of a large dataset:** [Turbo Login](./Frontend.md#advanced-adopting-turbo-login) is the fastest, on SQLite with JSI.
+- **Pulls too big for one response, or for memory:** [paginated pulls](./Frontend.md#paginated-pulls) (`paginatedPulls: true`, and a server that pages for apps that ask). Each page is applied as it arrives, and an interrupted pull continues where it stopped.
+- **Too many records for one native batch:** `_unsafeBatchPerCollection` (see [Additional `synchronize()` flags](./Frontend.md#additional-synchronize-flags)). It doesn't reduce JS memory; paginated pulls do.
 
 ### Local vs Remote IDs
 
