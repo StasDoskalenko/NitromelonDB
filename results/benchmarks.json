@@ -2611,5 +2611,26 @@
       "ram": 179,
       "fps": 55.4
     }
+  },
+  {
+    "sha": "39f3b0924a803c3f59cb699983eaed02ed647629",
+    "date": "2026-11-14T19:21:21.430Z",
+    "prNumber": 238,
+    "subject": "build: use Nitro 0.37.2 everywhere (#238)",
+    "android": {
+      "iterationCount": 5,
+      "score": 94,
+      "cpu": 30.2,
+      "ram": 177,
+      "fps": 53.2
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 28.7,
+      "ram": 178,
+      "fps": 53.7
+    }
   }
 ]
