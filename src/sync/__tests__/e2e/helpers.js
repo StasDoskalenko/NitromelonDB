@@ -134,8 +134,9 @@ export class SyncHttpError extends Error {
 
 // Starts the reference server on a free port with an in-memory database. By default the server sends
 // every pulled record as `updated` (and clients pass sendCreatedAsUpdated); `sendCreated: true`
-// splits them into `created` and `updated` instead.
-export async function startServer({ sendCreated = false } = {}) {
+// splits them into `created` and `updated` instead. `pageSize` makes it send pulls in pages of at
+// most that many records.
+export async function startServer({ sendCreated = false, pageSize = null } = {}) {
   if (!fs.existsSync(path.join(serverDir, 'node_modules', 'hono'))) {
     throw new Error(
       'The sync server dependencies are not installed. Run: yarn --cwd examples/sync-server install',
@@ -150,6 +151,7 @@ export async function startServer({ sendCreated = false } = {}) {
       DATABASE: ':memory:',
       SYNC_SERVER_TEST_HOOKS: '1',
       SYNC_SERVER_SEND_CREATED: sendCreated ? '1' : '0',
+      SYNC_SERVER_PAGE_SIZE: pageSize ? String(pageSize) : '',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -190,6 +192,7 @@ export async function startServer({ sendCreated = false } = {}) {
   return {
     url,
     sendCreatedAsUpdated: !sendCreated,
+    pageSize,
     request,
     reset: () => request('POST', '/__test/reset', {}),
     // A change made on the server itself (admin panel, another service...), not through sync
@@ -273,7 +276,7 @@ export class Client {
     this.afterPush = null
   }
 
-  async pullChanges({ lastPulledAt, schemaVersion, migration }) {
+  async pullChanges({ lastPulledAt, schemaVersion, migration, cursor }) {
     if (this.offline) {
       throw new TypeError('Network request failed')
     }
@@ -282,8 +285,11 @@ export class Client {
       schema_version: String(schemaVersion),
       migration: JSON.stringify(migration),
     })
+    if (cursor !== undefined) {
+      query.set('cursor', cursor)
+    }
     const result = await this.server.request('GET', `/sync/pull?${query}`)
-    this.pulls.push({ lastPulledAt, schemaVersion, migration, result })
+    this.pulls.push({ lastPulledAt, schemaVersion, migration, cursor, result })
     if (this.afterPull) {
       const hook = this.afterPull
       this.afterPull = null

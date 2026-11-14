@@ -69,6 +69,37 @@ This function should fetch from the server the list of ALL changes in all collec
    ```
 4. You MUST NOT store the object returned in `pullChanges()`. If you need to do any processing on it, do it before returning the object. Watermelon treats this object as "consumable" and can mutate it (for performance reasons)
 
+#### Paginated pulls
+
+If your server sends large pulls in pages, return its cursor for the next page as `nextCursor`. `synchronize()` then calls `pullChanges()` again, with the same arguments plus `cursor`, until a page comes without one:
+
+```js
+pullChanges: async ({ lastPulledAt, schemaVersion, migration, cursor }) => {
+  const params = new URLSearchParams({
+    last_pulled_at: lastPulledAt ?? '',
+    schema_version: schemaVersion,
+    migration: JSON.stringify(migration),
+  })
+  if (cursor !== undefined) {
+    params.set('cursor', cursor)
+  }
+  const response = await fetch(`https://my.backend/sync?${params}`)
+  if (!response.ok) {
+    throw new Error(await response.text())
+  }
+  const { changes, timestamp, nextCursor } = await response.json()
+  return { changes, timestamp, nextCursor } // nextCursor: null (or missing) on the last page
+}
+```
+
+- Each page is applied in its own write, so only one page is in memory at a time, and observers are notified once per page. `onWillApplyRemoteChanges` and `onDidPullChanges` are called for every page.
+- `lastPulledAt` only moves (to the last page's `timestamp`) once every page is applied. Local changes are pushed after that, once.
+- If a sync stops halfway (no network, the app is closed), the pages it applied stay, and the next sync continues from the next page: the cursor is saved with each page. It starts over instead if `lastPulledAt` or the schema version changed since (after an app update with a migration, for example).
+- The cursor can be a string, a number, or a plain object or array of those, since it's saved as JSON. A page returning the same `nextCursor` it was called with is an error.
+- Not available with `unsafeTurbo` or the `replacement` strategy.
+
+The server's side of this is in [Backend: paginated pulls](./Backend.md#paginated-pulls), and the [example sync server](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/sync-server) implements it (`SYNC_SERVER_PAGE_SIZE`).
+
 ### Implementing `pushChanges()`
 
 Watermelon will call this function with a list of changes that happened locally since the last push so you can post it to your backend.

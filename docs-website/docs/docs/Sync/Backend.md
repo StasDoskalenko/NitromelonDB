@@ -106,6 +106,26 @@ Expected response:
     - NOTE: This is true for WatermelonDB v0.17 and above. If you support clients using earlier versions, you MUST NOT return collections not known by them.
 13. Changes MUST NOT contain collections with arbitrary names, as they may be unsafe. You should whitelist acceptable collection names.
 
+### Paginated pulls
+
+A pull that would be too large for one response can be sent in pages. The app passes the cursor of each page back to get the next one (see [Frontend: paginated pulls](./Frontend.md#paginated-pulls)):
+
+```js
+// Request: the same parameters as above, plus the cursor from the previous page (none for the first)
+{ lastPulledAt, schemaVersion, migration, cursor }
+// Response: nextCursor is null on the last page
+{ changes: Changes, timestamp: Timestamp, nextCursor: string | null }
+```
+
+1. All pages together MUST be what one response would be (rules 2 to 13), and each record MUST be in only one page.
+2. Every page MUST return the same `timestamp`: the server's time when the first page was made. Put it in the cursor.
+3. Every page MUST only read changes up to that timestamp (for example `last_modified <= timestamp`). Records changed after it go to the next sync, and if one was already sent in an earlier page, the next sync sends it again. Nothing is lost that way, without locking anything between pages.
+4. Pages MUST be ordered by something unique that doesn't change while a record isn't changed, like `(last_modified, id)`. A timestamp alone isn't enough: many records can share one, and a page boundary could fall between them.
+5. A cursor SHOULD still work later: the app saves it and continues an interrupted pull from it on its next sync, possibly days later. If the server can't continue from a cursor anymore (it expired, or the server changed how it pages), it MUST start over instead of failing: answer as if there were no cursor, with the first page of a pull since `lastPulledAt` and a new timestamp. The pages the app already applied come again, which is harmless. An error would make the app fail every sync, since it continues from the same cursor each time.
+6. A cursor is only for the `lastPulledAt` it was made for. The app never sends it with another one, so the server MAY reject that as a bad request.
+
+The [example sync server](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/sync-server) does this with `SYNC_SERVER_PAGE_SIZE`: pages go through the tables in order, and through each table by `(last_modified, id)`.
+
 ### Implementing push endpoint
 
 1. The push endpoint MUST apply local changes (passed as a `changes` object) to the database. Specifically:

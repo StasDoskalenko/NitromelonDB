@@ -28,6 +28,7 @@ yarn start              # http://127.0.0.1:3000, data in sync.db
 | `DATABASE`                 | `sync.db`   | SQLite file, or `:memory:`                                               |
 | `SYNC_SERVER_SCHEMA`       | `default`   | `notes-app` syncs the example NotesApp's `notes` table instead           |
 | `SYNC_SERVER_SEND_CREATED` | unset       | `1` splits pulled records into `created` and `updated` (see below first) |
+| `SYNC_SERVER_PAGE_SIZE`    | unset       | Send pulls in pages of at most this many records (see Paginated pulls)   |
 | `SYNC_SERVER_TEST_HOOKS`   | unset       | `1` enables the `/__test/*` endpoints the tests use. Never in production |
 
 The Android emulator reaches your computer at `10.0.2.2`, or run `adb reverse tcp:3000 tcp:3000` and use
@@ -103,6 +104,13 @@ missed.
 The first pull (`lastPulledAt` empty) returns everything that isn't deleted. After a migration, the app
 sends the tables and columns it added; the server then also returns every record of a new table, and
 every record where a new column has something other than its default value.
+
+**Paginated pulls.** With `SYNC_SERVER_PAGE_SIZE`, a pull returns at most that many records, and a
+`nextCursor` for the rest (the app passes it back as `cursor`; see the Sync docs). Pages go through the
+tables in order, and through each table by `(last_modified, id)`. The cursor holds the first page's
+`timestamp`, and every page only reads records with `last_modified` up to it, so all pages together
+are the same consistent view one response would be. A record changed between two pages simply comes
+with the next sync. Cursors don't expire, since they only hold a position.
 
 **Push** applies everything in one transaction. If any record it touches changed on the server after
 `lastPulledAt` (someone else pushed in between), the whole push is rejected with `409` and a list of
