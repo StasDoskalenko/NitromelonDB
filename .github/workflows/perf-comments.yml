@@ -85,7 +85,7 @@ jobs:
           path: 'node_modules'
           key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
       - if: steps.target.outputs.kind == 'android'
-        run: yarn install --immutable
+        run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - name: Post the Android comment
         if: steps.target.outputs.kind == 'android'
         env:

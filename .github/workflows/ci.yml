@@ -36,7 +36,7 @@ jobs:
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
-      - run: yarn install --immutable
+      - run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - run: yarn eslint
   typescript:
     if: github.event.action != 'closed'
@@ -52,7 +52,7 @@ jobs:
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
-      - run: yarn install --immutable
+      - run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - name: Typecheck library
         run: yarn typecheck
       - name: Typecheck examples
@@ -71,7 +71,7 @@ jobs:
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
-      - run: yarn install --immutable
+      - run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - run: yarn test
       - run: yarn test:native-unit
       - run: yarn test:metro-transform
@@ -98,10 +98,10 @@ jobs:
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
-      - run: yarn install --immutable
+      - run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - name: Install the sync server
         working-directory: examples/sync-server
-        run: yarn install --immutable
+        run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - name: Typecheck the sync server
         working-directory: examples/sync-server
         run: yarn typecheck
@@ -122,7 +122,8 @@ jobs:
         with:
           node-version: 24.x
           cache: yarn
-      - run: yarn install --immutable
+      - run: bash scripts/ci-yarn-install.sh
+        shell: bash
       - run: yarn test
   notesapp-web:
     needs: [eslint, typescript, ci-check]
@@ -138,19 +139,19 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 24.x
-      - run: yarn install --immutable
+      - run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - name: Verify vendored wa-sqlite matches upstream + the documented patch
         run: node scripts/vendor-wa-sqlite.mjs --verify
       - name: Install NotesApp
         working-directory: examples/NotesApp
-        run: yarn install --immutable
+        run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - name: Check the Babel configs in the Installation docs
         # Needs both installs: @react-native/babel-preset from the root, babel-preset-expo from NotesApp.
         run: yarn test:babel-docs
       - name: Install the sync server
         # Playwright starts it for web-tests/sync.spec.ts
         working-directory: examples/sync-server
-        run: yarn install --immutable
+        run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - name: Install Chromium
         working-directory: examples/NotesApp
         run: yarn playwright install --with-deps chromium
@@ -188,7 +189,7 @@ jobs:
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
-      - run: yarn install --immutable
+      - run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - name: cache Pods
         uses: actions/cache@v5
         id: pods-cache
@@ -223,7 +224,7 @@ jobs:
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
-      - run: yarn install --immutable
+      - run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - run: yarn dev:native &
       - uses: gradle/actions/setup-gradle@v5
       # See: https://github.com/android/compose-samples/actions/runs/27015993/workflow for ideas for caching
@@ -260,10 +261,10 @@ jobs:
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
-      - run: yarn install --immutable
+      - run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - name: Install NotesApp
         working-directory: examples/NotesApp
-        run: yarn install --immutable
+        run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - uses: gradle/actions/setup-gradle@v5
       - name: Expo prebuild Android
         working-directory: examples/NotesApp
@@ -337,7 +338,7 @@ jobs:
           node-version: 24.x
       - name: Install the sync server
         working-directory: examples/sync-server
-        run: yarn install --immutable
+        run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       # Pinned, so it can be cached: the installer downloads from GitHub release assets
       - name: cache Maestro
         uses: actions/cache@v5
@@ -450,10 +451,10 @@ jobs:
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
-      - run: yarn install --immutable
+      - run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - name: Install NotesApp
         working-directory: examples/NotesApp
-        run: yarn install --immutable
+        run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - name: Expo prebuild iOS
         working-directory: examples/NotesApp
         # --no-install here only skips the JS install (already done above);
@@ -513,7 +514,7 @@ jobs:
           node-version: 24.x
       - name: Install the sync server
         working-directory: examples/sync-server
-        run: yarn install --immutable
+        run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       # Pinned, so it can be cached: the installer downloads from GitHub release assets
       - name: cache Maestro
         uses: actions/cache@v5
@@ -562,7 +563,7 @@ jobs:
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
-      - run: yarn install --immutable
+      - run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
@@ -600,7 +601,8 @@ jobs:
             ${{ github.workspace }}/examples/NotesApp_windows/windows/packages
           key: nuget-notesapp-windows-${{ hashFiles('examples/NotesApp_windows/windows/**/*.vcxproj', 'native/windows/**/*.vcxproj') }}
       - name: Install NotesApp Windows
-        run: yarn install --immutable
+        run: bash ../../scripts/ci-yarn-install.sh
+        shell: bash
       - name: Set display resolution
         # GitHub-hosted Windows runners default to a 1024x768 virtual
         # display (actions/runner-images#2935) — smaller than the app's own

@@ -87,7 +87,7 @@ jobs:
 
       - name: Install JS dependencies
         if: matrix.build-mode == 'manual'
-        run: yarn install --immutable
+        run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
 
       - name: Set up Android SDK
         if: matrix.language == 'java-kotlin'

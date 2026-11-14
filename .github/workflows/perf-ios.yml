@@ -146,11 +146,11 @@ jobs:
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
-      - run: yarn install --immutable
+      - run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - name: Install the benchmark apps
         run: |
           for app in ${{ steps.apps.outputs.list }}; do
-            (cd "examples/benchmark/$app" && yarn install --immutable)
+            (cd "examples/benchmark/$app" && bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh")
           done
       - name: Expo prebuild iOS
         # --no-install only skips the JS install; pods are installed below, after restoring their cache
@@ -209,7 +209,7 @@ jobs:
         with:
           path: 'node_modules'
           key: ${{ runner.os }}-node-24.x-modules-${{ hashFiles('**/yarn.lock') }}
-      - run: yarn install --immutable
+      - run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"

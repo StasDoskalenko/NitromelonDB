@@ -18,8 +18,10 @@ SRC="${RUNNER_TEMP:-$(mktemp -d)}/notesapp-reference-src"
 git fetch --depth 1 origin "refs/tags/$TAG:refs/tags/$TAG"
 git worktree add --detach "$SRC" "$TAG"
 
-(cd "$SRC" && yarn install --immutable)
-(cd "$SRC/examples/NotesApp" && yarn install --immutable \
+# This commit's install script, not the tag's: the tag may predate it
+YARN_INSTALL="$PWD/scripts/ci-yarn-install.sh"
+(cd "$SRC" && bash "$YARN_INSTALL")
+(cd "$SRC/examples/NotesApp" && bash "$YARN_INSTALL" \
   && yarn expo prebuild --platform android --non-interactive --no-install)
 # The tag's own build script, so the reference is built the way that version was
 (cd "$SRC" && bash scripts/ci-notesapp-android-build.sh)

@@ -44,7 +44,7 @@ jobs:
           cache: yarn
           cache-dependency-path: docs-website/yarn.lock
       - name: Install docs dependencies
-        run: yarn install --immutable
+        run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
         working-directory: docs-website
       - name: Sync markdown into Docusaurus
         run: ./scripts/update-docusaurus

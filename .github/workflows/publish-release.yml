@@ -115,7 +115,7 @@ jobs:
           fi
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: bash "$GITHUB_WORKSPACE/scripts/ci-yarn-install.sh"
 
       - name: Build package
         run: yarn build
