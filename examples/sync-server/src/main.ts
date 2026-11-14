@@ -12,6 +12,7 @@ import { schemas } from './schema.ts'
 //                           tests) or "notes-app" (the example NotesApp)
 //   SYNC_SERVER_SEND_CREATED  "1" splits pulled records into `created` and `updated` instead of
 //                           sending everything as `updated` (see README.md before using it)
+//   SYNC_SERVER_CORS_ORIGIN lets a web app on this origin call the server ("*" for any origin)
 //   SYNC_SERVER_PAGE_SIZE   records per page for apps that ask for paginated pulls, default 1000;
 //                           0 sends everything in one response to every app
 //   SYNC_SERVER_TEST_HOOKS  "1" enables the /__test endpoints used by the end-to-end tests
@@ -33,6 +34,7 @@ const db = openDatabase(process.env.DATABASE ?? 'sync.db', schema)
 const app = createApp(db, schema, {
   testHooks: process.env.SYNC_SERVER_TEST_HOOKS === '1',
   sendCreatedAsUpdated: process.env.SYNC_SERVER_SEND_CREATED !== '1',
+  corsOrigin: process.env.SYNC_SERVER_CORS_ORIGIN || null,
   pageSize,
 })
 
