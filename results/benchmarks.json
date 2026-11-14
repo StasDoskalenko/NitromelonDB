@@ -2209,5 +2209,26 @@
         "stress": 5
       }
     }
+  },
+  {
+    "sha": "f757d1fdf7cb8b06dcf0145774e1f92753cade64",
+    "date": "2026-11-14T00:27:06.556Z",
+    "prNumber": 167,
+    "subject": "chore: bump vendored simdjson to 5.1.1 (#167)",
+    "android": {
+      "iterationCount": 5,
+      "score": 94,
+      "cpu": 30.3,
+      "ram": 177,
+      "fps": 53
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 94,
+      "cpu": 30.5,
+      "ram": 180,
+      "fps": 53
+    }
   }
 ]
