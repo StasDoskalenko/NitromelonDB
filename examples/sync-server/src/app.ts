@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { cors } from 'hono/cors'
 
 import { nextTimestamp, type Db } from './db.ts'
 import type { ServerSchema } from './schema.ts'
@@ -10,6 +11,9 @@ export type AppOptions = {
   testHooks?: boolean
   // See PullOptions in sync.ts. Defaults to true.
   sendCreatedAsUpdated?: boolean
+  // Lets a web app on this origin call the server from the browser ("*" for any). Without it,
+  // browsers block requests from other origins; native apps don't need it.
+  corsOrigin?: string | null
   // At most this many records per pull response, the rest in further pages, for apps that ask for
   // pages with `paginated=true` (see PullOptions in sync.ts). Defaults to null: everything in one
   // response, to every app.
@@ -27,6 +31,10 @@ export function createApp(db: Db, schema: ServerSchema, options: AppOptions = {}
   const app = new Hono()
   const sendCreatedAsUpdated = options.sendCreatedAsUpdated ?? true
   const pageSize = options.pageSize ?? null
+
+  if (options.corsOrigin) {
+    app.use('*', cors({ origin: options.corsOrigin }))
+  }
 
   app.get('/health', (c) => c.json({ ok: true, sendCreatedAsUpdated, pageSize }))
 
