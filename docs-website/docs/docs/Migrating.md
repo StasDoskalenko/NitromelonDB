@@ -12,6 +12,16 @@ Your existing SQLite files, schema version, migrations, and models keep working.
 
 **Before you start:** the app must be on the React Native **New Architecture**, React Native **0.83+**, iOS **15.1+**, and Android **minSdk 24**. The old architecture is not supported.
 
+## Let a coding agent do it
+
+The steps below are also packaged as an [agent skill](./AgentSkills.md). From the root of your app:
+
+```bash
+npx skills add StasDoskalenko/NitromelonDB --skill nitromelondb-migrate-from-watermelondb
+```
+
+Then ask your agent (Claude Code, Cursor, Codex, ...) to migrate the app from WatermelonDB to NitromelonDB, or run `/nitromelondb-migrate-from-watermelondb`. It checks the requirements above, does steps 1 to 4, fixes the Babel decorators setup, and lists what it couldn't do. The native rebuild (step 5) is still yours to run.
+
 ## 1. Swap the packages
 
 ```bash
@@ -121,55 +131,7 @@ The decorators setting applies to the whole app, including decorators from other
 
 Models you haven't updated yet keep working after step 1, and in development NitromelonDB logs a warning naming each field that still needs `accessor`. So you can do step 3 one model at a time.
 
-### Let a coding agent do it
-
-Copy this prompt into Claude Code, Cursor or another coding agent, from the root of your app:
-
-```text
-Migrate this app's NitromelonDB models from legacy decorators to standard (TC39 2023-11)
-decorators. Reference: https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/StandardDecorators
-
-0. First, check whether the app uses decorators from any other library (for example MobX,
-   TypeORM, class-validator, Angular). The decorators mode applies to the whole app. If another
-   library only supports legacy/experimental decorators, stop and tell me before changing anything.
-
-1. Babel config:
-   - Expo (babel-preset-expo): set the preset option `decorators: { version: '2023-11' }`, as in
-     presets: [['babel-preset-expo', { decorators: { version: '2023-11' } }]]
-     and remove @babel/plugin-proposal-decorators from `plugins` if it's there.
-   - Bare React Native (@react-native/babel-preset): replace @babel/plugin-proposal-decorators
-     ({ legacy: true }) and the class-properties, private-methods and private-property-in-object
-     plugins with:
-       ['@babel/plugin-proposal-decorators', { version: '2023-11' }],
-       '@babel/plugin-transform-class-static-block',
-     and add @babel/plugin-transform-class-static-block as a dev dependency.
-
-2. TypeScript: remove `experimentalDecorators` and `emitDecoratorMetadata` from every tsconfig
-   that compiles model files. Make sure TypeScript is 5.0 or newer.
-
-3. In every class that extends Model from 'nitromelondb', add the `accessor` keyword to each
-   property decorated with @field, @text, @date, @json, @relation, @immutableRelation, @children,
-   @nochange or @readonly. Keep the decorators, their arguments and their order, and keep the `!`
-   and the type annotation. Example:
-     @text('title') title!: string   ->   @text('title') accessor title!: string
-     @readonly @date('created_at') createdAt!: Date   ->   @readonly @date('created_at') accessor createdAt!: Date
-
-4. Turn @lazy fields into getters, which stay lazy with standard decorators:
-     @lazy recent = this.comments.extend(Q.take(5))
-     ->
-     @lazy get recent() { return this.comments.extend(Q.take(5)) }
-
-5. Leave @writer, @reader and @action methods as they are. If anything uses @experimentalFailsafe,
-   don't change it and tell me: it only supports legacy decorators so far.
-
-6. Don't touch node_modules or generated files.
-
-7. Restart the bundler with a cleared cache (npx expo start --clear, or
-   npx react-native start --reset-cache), then run the type checker and the tests. In development,
-   NitromelonDB logs a warning naming any model field that still needs `accessor`. Fix those too.
-
-When you're done, list the files you changed and anything you couldn't migrate.
-```
+To let a coding agent do the switch, see [Decorators: let a coding agent do it](./Advanced/StandardDecorators.md#let-a-coding-agent-do-it).
 
 ## Things that may need attention
 

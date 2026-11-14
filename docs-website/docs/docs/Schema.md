@@ -98,6 +98,8 @@ In general, most `_id` fields are indexed. Occasionally, `boolean` fields are wo
 
 ⚠️ Do not mark all columns as indexed to "make Watermelon faster". Indexing has a real performance cost and should be used only when appropriate.
 
+Adding `isIndexed` to a column that already shipped needs a [migration](./Advanced/Migrations.md) as well, or only fresh installs get the index. The [`nitromelondb-indexes` agent skill](./AgentSkills.md) goes through your queries, proposes the indexes worth having, and writes that migration.
+
 ## Advanced
 
 ### Unsafe SQL schema

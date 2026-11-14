@@ -10,4 +10,5 @@ Things to get right when writing code with NitromelonDB:
 - Every create, update and delete must run inside a writer: `database.write(async () => ...)` or a `@writer` method on a model.
 - Don't call `database.write()` / `database.read()` (or a `@writer` / `@reader` method) from inside another writer or reader and wait for it; that deadlocks. Use `writer.callWriter(() => ...)` / `reader.callReader(() => ...)`. Pass `experimentalDetectNestedWriters: __DEV__` to `new Database()` to turn the mistake into an error during development.
 - For UI, observe instead of fetching once: `withObservables` or the hooks in `nitromelondb/hooks` (`useQuery`, `useRecord`, `useWriter`).
+- For whole jobs there are agent skills in the repository's `skills/` folder (`npx skills add StasDoskalenko/NitromelonDB`): `nitromelondb-migrate-from-watermelondb`, `nitromelondb-migrate-decorators`, `nitromelondb-audit` (setup gaps and misuse) and `nitromelondb-indexes` (missing indexes, with the migration). See Agent skills.
 - Each link below points to a plain Markdown version of the page. `llms-full.txt` next to this file has the full text of every page except the Optional section.
