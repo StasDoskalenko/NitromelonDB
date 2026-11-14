@@ -420,14 +420,19 @@ describe('synchronize', () => {
     await makeLocalChanges(database)
     const localChanges = await fetchLocalChanges(database)
 
-    const pullChanges = jest.fn(async () => ({
-      changes: makeChangeSet({
-        mock_projects: {
-          created: [{ id: 'new_project', name: 'remote' }],
-        },
-      }),
-      timestamp: 1500,
-    }))
+    // The pull starts a local change, which runs before the pulled changes are applied
+    let beforeApplyAction
+    const pullChanges = jest.fn(async () => {
+      database.write(beforeApplyAction, 'beforeApplyAction')
+      return {
+        changes: makeChangeSet({
+          mock_projects: {
+            created: [{ id: 'new_project', name: 'remote' }],
+          },
+        }),
+        timestamp: 1500,
+      }
+    })
 
     let betweenFetchAndMarkAction
     const pushChanges = jest.fn(
@@ -465,12 +470,11 @@ describe('synchronize', () => {
 
     // run this before applyRemoteChanges
     let project1
-    const beforeApplyAction = jest.fn(async () => {
+    beforeApplyAction = jest.fn(async () => {
       await expectDoesNotExist(projects, 'new_project')
       project1 = (await createProject('project1'))._raw
       database.write(betweenApplyAndFetchAction, 'betweenApplyAndFetchAction')
     })
-    database.write(beforeApplyAction, 'beforeApplyAction')
 
     // we sync successfully and have received an object
     await sync

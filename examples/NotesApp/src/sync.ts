@@ -19,12 +19,17 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
 export async function syncNotes(database: Database): Promise<void> {
   await synchronize({
     database,
-    pullChanges: async ({ lastPulledAt, schemaVersion, migration }) => {
+    pullChanges: async ({ lastPulledAt, schemaVersion, migration, cursor }) => {
       const query = new URLSearchParams({
         last_pulled_at: lastPulledAt ? String(lastPulledAt) : '',
         schema_version: String(schemaVersion),
         migration: JSON.stringify(migration),
+        // Ask for large pulls in pages (see paginatedPulls below)
+        paginated: 'true',
       })
+      if (cursor !== undefined) {
+        query.set('cursor', String(cursor))
+      }
       const response = await request(`/sync/pull?${query}`)
       return response.json()
     },
@@ -37,5 +42,8 @@ export async function syncNotes(database: Database): Promise<void> {
     },
     // The server sends every pulled record as `updated` (see examples/sync-server/README.md)
     sendCreatedAsUpdated: true,
+    // Large pulls come in pages (SYNC_SERVER_PAGE_SIZE records, 1000 by default), each applied as it
+    // arrives, and an interrupted pull continues where it stopped
+    paginatedPulls: true,
   })
 }
