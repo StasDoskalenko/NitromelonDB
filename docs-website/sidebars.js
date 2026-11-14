@@ -17,6 +17,7 @@ const sidebars = {
     About: [
       'docs/README',
       'docs/Migrating',
+      'docs/AgentSkills',
       // 'docs/Why',
       // 'docs/WhoUses',
       // 'docs/Example',

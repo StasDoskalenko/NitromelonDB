@@ -80,3 +80,5 @@ Full API: **[Logging](./Logging.md)**.
 - Pass a `description` on long `database.write()` / `database.read()` blocks (sync, imports, migrations).
 - Forward the NitromelonDB logger into the same system you use for app errors.
 - When a screen hangs on a write, read the nested-writer throw or the queue warning before assuming SQLite is slow.
+
+To have a coding agent check this list (and nested writers, slow work inside writers, and more) against your code, use the [`nitromelondb-audit` agent skill](../AgentSkills.md).

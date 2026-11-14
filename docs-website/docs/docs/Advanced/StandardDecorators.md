@@ -130,7 +130,63 @@ With legacy decorators, `@lazy` on a field (`@lazy verified = this.comments.exte
 
 Step 1 switches every file at once, because Babel compiles the whole app with one decorators version (and the legacy plugin can't parse `accessor`). Models you haven't updated yet keep working: plain fields get their getter and setter on each record when the record is created, instead of once on the class. That's slower, about 2 µs per record with five fields in a Node benchmark (about 100 ms for 50,000 records), so development builds log a warning once per field, naming the field that needs `accessor`. You can update models one at a time, starting with the tables you load the most records from.
 
-To let a coding agent do the switch, copy the prompt from the migration guide: [Let a coding agent do it](../Migrating.md#let-a-coding-agent-do-it).
+### Let a coding agent do it
+
+The switch is packaged as an [agent skill](../AgentSkills.md). From the root of your app:
+
+```bash
+npx skills add StasDoskalenko/NitromelonDB --skill nitromelondb-migrate-decorators
+```
+
+Then ask your agent (Claude Code, Cursor, Codex, ...) to move the models to standard decorators, or run `/nitromelondb-migrate-decorators`.
+
+Or, without installing anything, copy this prompt into your coding agent:
+
+```text
+Migrate this app's NitromelonDB models from legacy decorators to standard (TC39 2023-11)
+decorators. Reference: https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/StandardDecorators
+
+0. First, check whether the app uses decorators from any other library (for example MobX,
+   TypeORM, class-validator, Angular). The decorators mode applies to the whole app. If another
+   library only supports legacy/experimental decorators, stop and tell me before changing anything.
+
+1. Babel config:
+   - Expo (babel-preset-expo): set the preset option `decorators: { version: '2023-11' }`, as in
+     presets: [['babel-preset-expo', { decorators: { version: '2023-11' } }]]
+     and remove @babel/plugin-proposal-decorators from `plugins` if it's there.
+   - Bare React Native (@react-native/babel-preset): replace @babel/plugin-proposal-decorators
+     ({ legacy: true }) and the class-properties, private-methods and private-property-in-object
+     plugins with:
+       ['@babel/plugin-proposal-decorators', { version: '2023-11' }],
+       '@babel/plugin-transform-class-static-block',
+     and add @babel/plugin-transform-class-static-block as a dev dependency.
+
+2. TypeScript: remove `experimentalDecorators` and `emitDecoratorMetadata` from every tsconfig
+   that compiles model files. Make sure TypeScript is 5.0 or newer.
+
+3. In every class that extends Model from 'nitromelondb', add the `accessor` keyword to each
+   property decorated with @field, @text, @date, @json, @relation, @immutableRelation, @children,
+   @nochange or @readonly. Keep the decorators, their arguments and their order, and keep the `!`
+   and the type annotation. Example:
+     @text('title') title!: string   ->   @text('title') accessor title!: string
+     @readonly @date('created_at') createdAt!: Date   ->   @readonly @date('created_at') accessor createdAt!: Date
+
+4. Turn @lazy fields into getters, which stay lazy with standard decorators:
+     @lazy recent = this.comments.extend(Q.take(5))
+     ->
+     @lazy get recent() { return this.comments.extend(Q.take(5)) }
+
+5. Leave @writer, @reader and @action methods as they are. If anything uses @experimentalFailsafe,
+   don't change it and tell me: it only supports legacy decorators so far.
+
+6. Don't touch node_modules or generated files.
+
+7. Restart the bundler with a cleared cache (npx expo start --clear, or
+   npx react-native start --reset-cache), then run the type checker and the tests. In development,
+   NitromelonDB logs a warning naming any model field that still needs `accessor`. Fix those too.
+
+When you're done, list the files you changed and anything you couldn't migrate.
+```
 
 ## When decorators don't work
 

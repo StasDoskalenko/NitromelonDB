@@ -61,7 +61,7 @@ The fixes work with the option on or off, so you can make them first:
 
 #### Asking an AI coding agent to check
 
-Paste this into your coding agent (Claude Code, Cursor, Copilot, …) from your app's repository:
+The [`nitromelondb-audit` agent skill](../AgentSkills.md) runs this check as part of a wider review. For this check alone, paste this into your coding agent (Claude Code, Cursor, Copilot, …) from your app's repository:
 
 ````text
 I want to turn on NitromelonDB's `storeWholeNumbersAsIntegers` option on SQLiteAdapter. With it,

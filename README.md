@@ -39,7 +39,7 @@ Expo apps also add `"nitromelondb"` to `plugins` in `app.json`. Expo needs no Ba
 
 **Requirements:** React Native 0.83+ on the New Architecture, iOS 15.1+, Android minSdk 24, React Native Windows 0.84+, Node.js 22+ (for Node, Electron and tooling).
 
-Using an AI coding agent? Point it at [llms.txt](https://stasdoskalenko.github.io/NitromelonDB/llms.txt) (an index of the docs as Markdown) or [llms-full.txt](https://stasdoskalenko.github.io/NitromelonDB/llms-full.txt) (all of it in one file).
+Using an AI coding agent? Point it at [llms.txt](https://stasdoskalenko.github.io/NitromelonDB/llms.txt) (an index of the docs as Markdown) or [llms-full.txt](https://stasdoskalenko.github.io/NitromelonDB/llms-full.txt) (all of it in one file). There are also [agent skills](https://stasdoskalenko.github.io/NitromelonDB/docs/AgentSkills) that migrate an app from WatermelonDB, audit its setup and find missing indexes: `npx skills add StasDoskalenko/NitromelonDB`.
 
 ## A quick look
 
