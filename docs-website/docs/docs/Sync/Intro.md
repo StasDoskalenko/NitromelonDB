@@ -14,3 +14,5 @@ Note that Watermelon is only a local database — you need to **bring your own b
 - **Built-in sync adapter** — You can use the sync engine Watermelon provides out of the box, and you only need to provide two API endpoints on your backend that conform to Watermelon sync protocol
 
 To implement synchronization between your client side database (WatermelonDB) and your server, you need to implement synchronization in the [frontend](../Sync/Frontend.md) & the [backend](../Sync/Backend.md).
+
+The repository has a complete [example sync server](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/sync-server) that follows every rule in the backend docs, including [paginated pulls](../Sync/Frontend.md#paginated-pulls) for large syncs.

@@ -33,20 +33,62 @@ xcrun simctl bootstatus "$SIM_UDID" -b
 xcrun simctl install "$SIM_UDID" "$APP_PATH"
 xcrun simctl launch "$SIM_UDID" com.nitromelondb.example
 
-# Screenshots + logs of every flow step, uploaded by the workflow when a flow fails.
+# Screenshots + logs of every flow step, uploaded by the workflow when a flow fails. Each attempt
+# below gets its own folder, so the first attempt's diagnostics are kept when a retry follows.
 #
-# Right after a first boot, the simulator can be slow enough that Maestro's XCTest driver doesn't
-# start at all (a CI run took 76 s to install the app, then the driver timed out). If no flow ran,
-# that's what happened, so it gets one more try; a flow that ran and failed is never retried.
+# Two ways Maestro's XCTest driver can fail on a CI simulator, unrelated to the app:
+# - Right after a first boot, the simulator can be slow enough that the driver doesn't start at all
+#   (a CI run took 76 s to install the app, then the driver timed out). No flow runs.
+# - Under load, an XCTest call inside the driver times out ("Failed to get screenshot: Timed out
+#   while requesting screenshot"). XCTest records that as a test failure, which ends the driver's
+#   HTTP server: the flow running at that moment fails, and so does every flow after it, in
+#   seconds, with DeviceUnreachableException (mobile-dev-inc/maestro#3538, open; still happens
+#   with Maestro 2.12.1).
+# In both cases, the flows that didn't pass get one more try with a freshly installed driver. A run
+# where the driver stayed up is never retried: a flow that fails on its own fails the job.
 cd examples/NotesApp
+DEBUG_ROOT="${GITHUB_WORKSPACE:-$PWD}/maestro-debug"
+OUTPUT_LOG="${RUNNER_TEMP:-/tmp}/maestro-output.log"
+
+# run_flows <attempt> <maestro test arguments...>
 run_flows() {
-  maestro --device "$SIM_UDID" test maestro/ --debug-output "$GITHUB_WORKSPACE/maestro-debug" 2>&1 |
-    tee "${RUNNER_TEMP:-/tmp}/maestro-output.log"
+  local attempt=$1
+  shift
+  maestro --device "$SIM_UDID" test "$@" --debug-output "$DEBUG_ROOT/attempt-$attempt" 2>&1 |
+    tee "$OUTPUT_LOG"
 }
-if ! run_flows; then
-  if grep -qE '\[(Passed|Failed)\]' "${RUNNER_TEMP:-/tmp}/maestro-output.log"; then
+
+# The flows of the last run that didn't pass, as maestro/<name>.yaml (all of them if none ran)
+flows_to_retry() {
+  local failed
+  failed=$(sed -nE 's/.*\[Failed\] ([A-Za-z0-9_-]+) .*/maestro\/\1.yaml/p' "$OUTPUT_LOG")
+  if grep -qE '\[(Passed|Failed)\]' "$OUTPUT_LOG"; then
+    echo "$failed"
+  else
+    echo "maestro/"
+  fi
+}
+
+# Whether the driver died during attempt <attempt>, going by its own logs
+driver_died() {
+  grep -rqE 'Restarting after unexpected exit|DeviceUnreachableException|Transport unreachable' \
+    "$DEBUG_ROOT/attempt-$1" 2>/dev/null
+}
+
+if run_flows 1 maestro/; then
+  exit 0
+fi
+if grep -qE '\[(Passed|Failed)\]' "$OUTPUT_LOG"; then
+  if ! driver_died 1; then
     exit 1
   fi
+  echo "::warning::Maestro's iOS driver died mid-run (mobile-dev-inc/maestro#3538); retrying the flows that didn't pass"
+else
   echo "::warning::Maestro didn't run any flow (its driver didn't start); trying once more"
-  run_flows
 fi
+RETRY=$(flows_to_retry)
+if [ -z "$RETRY" ]; then
+  exit 1
+fi
+# shellcheck disable=SC2086 # one flow file per word
+run_flows 2 --reinstall-driver $RETRY

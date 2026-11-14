@@ -147,6 +147,10 @@ jobs:
       - name: Check the Babel configs in the Installation docs
         # Needs both installs: @react-native/babel-preset from the root, babel-preset-expo from NotesApp.
         run: yarn test:babel-docs
+      - name: Install the sync server
+        # Playwright starts it for web-tests/sync.spec.ts
+        working-directory: examples/sync-server
+        run: yarn install --immutable
       - name: Install Chromium
         working-directory: examples/NotesApp
         run: yarn playwright install --with-deps chromium

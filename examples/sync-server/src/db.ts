@@ -41,7 +41,7 @@ export function openDatabase(filename: string, schema: ServerSchema): Db {
         "server_created_at" integer not null,
         "deleted" integer not null default 0
       );
-      create index if not exists "${table.name}_last_modified" on "${table.name}" ("last_modified");
+      create index if not exists "${table.name}_last_modified_id" on "${table.name}" ("last_modified", "id");
     `)
     for (const relation of table.belongsTo ?? []) {
       db.exec(
