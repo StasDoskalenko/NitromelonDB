@@ -95,7 +95,17 @@
         $(NitromelonNativeDir)vendor\sqlite;
         $(NitromelonNativeDir)vendor\simdjson;
         $(NitromelonNativeDir)..\nitrogen\generated\shared\c++;
+        <!-- Nitro 0.37 moved cpp/* under cpp/core/*; 0.35-0.36 keep the flat layout. Listing both is harmless: MSVC ignores include directories that do not exist. -->
         $(NitroModulesDir)cpp\core;
+        $(NitroModulesDir)cpp\core\core;
+        $(NitroModulesDir)cpp\core\entrypoint;
+        $(NitroModulesDir)cpp\core\jsi;
+        $(NitroModulesDir)cpp\core\platform;
+        $(NitroModulesDir)cpp\core\prototype;
+        $(NitroModulesDir)cpp\core\registry;
+        $(NitroModulesDir)cpp\core\templates;
+        $(NitroModulesDir)cpp\core\threading;
+        $(NitroModulesDir)cpp\core\utils;
         $(NitroModulesDir)cpp\entrypoint;
         $(NitroModulesDir)cpp\jsi;
         $(NitroModulesDir)cpp\platform;
@@ -170,21 +180,9 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
     </ClCompile>
-    <ClCompile Include="$(NitroModulesDir)cpp\core\AnyMap.cpp" />
-    <ClCompile Include="$(NitroModulesDir)cpp\core\ArrayBuffer.cpp" />
-    <ClCompile Include="$(NitroModulesDir)cpp\core\BoxedHybridObject.cpp" />
-    <ClCompile Include="$(NitroModulesDir)cpp\core\HybridObject.cpp" />
-    <ClCompile Include="$(NitroModulesDir)cpp\core\Promise.cpp" />
-    <ClCompile Include="$(NitroModulesDir)cpp\entrypoint\HybridNitroModulesProxy.cpp" />
-    <ClCompile Include="$(NitroModulesDir)cpp\entrypoint\InstallNitro.cpp" />
-    <ClCompile Include="$(NitroModulesDir)cpp\jsi\JSICache.cpp" />
-    <ClCompile Include="$(NitroModulesDir)cpp\prototype\HybridObjectPrototype.cpp" />
-    <ClCompile Include="$(NitroModulesDir)cpp\registry\HybridObjectRegistry.cpp" />
-    <ClCompile Include="$(NitroModulesDir)cpp\threading\Dispatcher.cpp" />
-    <ClCompile Include="$(NitroModulesDir)cpp\threading\ThreadPool.cpp" />
-    <ClCompile Include="$(NitroModulesDir)cpp\utils\CommonGlobals.cpp" />
-    <ClCompile Include="$(NitroModulesDir)cpp\utils\NitroTypeInfo.cpp" />
-    <ClCompile Include="$(NitroModulesDir)cpp\utils\PropNameIDCache.cpp" />
+    <!-- Every portable Nitro source, whichever layout the installed version uses (flat cpp/<dir> up to 0.36,
+         cpp/core/<dir> from 0.37). cpp/views holds React Native view components, which this module does not use. -->
+    <ClCompile Include="$(NitroModulesDir)cpp\**\*.cpp" Exclude="$(NitroModulesDir)cpp\views\**" />
   </ItemGroup>
   <ItemGroup>
     <Midl Include="ReactPackageProvider.idl" />
