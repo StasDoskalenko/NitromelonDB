@@ -2322,5 +2322,26 @@
         "stress": 5
       }
     }
+  },
+  {
+    "sha": "a7fc000aa59668710c90c1bf778757f4ce7ffbb3",
+    "date": "2026-11-14T02:04:05.708Z",
+    "prNumber": 234,
+    "subject": "test(sync): end-to-end tests for a custom conflictResolver with retries, and late migration syncs (#234)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 25.4,
+      "ram": 179,
+      "fps": 55.2
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 26.3,
+      "ram": 179,
+      "fps": 55.3
+    }
   }
 ]
