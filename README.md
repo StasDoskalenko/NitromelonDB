@@ -27,6 +27,16 @@ It continues [WatermelonDB](https://github.com/Nozbe/WatermelonDB) by [Nozbe](ht
 
 ## Install
 
+**With a coding agent** (Claude Code, Cursor, Codex and others). From the root of your app:
+
+```bash
+npx skills add StasDoskalenko/NitromelonDB --skill nitromelondb-install
+```
+
+Then ask your agent to add NitromelonDB to the app, or run `/nitromelondb-install`. It checks the requirements, installs the packages, sets up decorators and the Expo plugin for your platform, designs the schema with you, writes the models, the database and a data layer on hooks, and checks the build. Coming from `@nozbe/watermelondb`, use `--skill nitromelondb-migrate-from-watermelondb` instead. There are also skills for schema changes, sync, audits and indexes: [Agent skills](https://stasdoskalenko.github.io/NitromelonDB/docs/AgentSkills).
+
+**By hand:**
+
 ```bash
 # Expo (development build, EAS Build or EAS Update; not Expo Go)
 npx expo install nitromelondb react-native-nitro-modules
@@ -39,7 +49,7 @@ Expo apps also add `"nitromelondb"` to `plugins` in `app.json`. Expo needs no Ba
 
 **Requirements:** React Native 0.83+ on the New Architecture, iOS 15.1+, Android minSdk 24, React Native Windows 0.84+, Node.js 22+ (for Node, Electron and tooling).
 
-Using an AI coding agent? Point it at [llms.txt](https://stasdoskalenko.github.io/NitromelonDB/llms.txt) (an index of the docs as Markdown) or [llms-full.txt](https://stasdoskalenko.github.io/NitromelonDB/llms-full.txt) (all of it in one file).
+For anything else, point your agent at [llms.txt](https://stasdoskalenko.github.io/NitromelonDB/llms.txt) (an index of the docs as Markdown) or [llms-full.txt](https://stasdoskalenko.github.io/NitromelonDB/llms-full.txt) (all of it in one file).
 
 ## A quick look
 

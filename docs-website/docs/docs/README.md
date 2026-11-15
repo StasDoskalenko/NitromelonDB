@@ -33,13 +33,22 @@ description: "What NitromelonDB is, why the fork exists, how to install it, and 
 
 **On the roadmap:** [SQLCipher](https://github.com/StasDoskalenko/NitromelonDB/issues/60) (including existing databases), [VACUUM](https://github.com/StasDoskalenko/NitromelonDB/issues/59), [macOS](https://github.com/StasDoskalenko/NitromelonDB/issues/49), [wa-sqlite on the web](https://github.com/StasDoskalenko/NitromelonDB/issues/44), [paginated sync](https://github.com/StasDoskalenko/NitromelonDB/issues/50), [more reliable migrations](https://github.com/StasDoskalenko/NitromelonDB/issues/57), and [clearer critical-error handling](https://github.com/StasDoskalenko/NitromelonDB/issues/61).
 
+**Install with a coding agent** (Claude Code, Cursor, Codex and others), from the root of your app:
+
 ```bash
-yarn add nitromelondb react-native-nitro-modules
+npx skills add StasDoskalenko/NitromelonDB --skill nitromelondb-install
 ```
 
-Then enable Babel decorators and rebuild the native app. On Expo, also add `"nitromelondb"` to `plugins` in `app.json`. Full steps: [Installation](https://stasdoskalenko.github.io/NitromelonDB/docs/Installation). Coming from WatermelonDB: [Migrating](https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating).
+Then ask it to add NitromelonDB to the app, or run `/nitromelondb-install`. It installs and configures everything for your platform, designs the schema with you, and writes the models, the database and a data layer on hooks. Coming from WatermelonDB: `--skill nitromelondb-migrate-from-watermelondb`. All skills: [Agent skills](./AgentSkills.md).
 
-Using an AI coding agent? Point it at [llms.txt](https://stasdoskalenko.github.io/NitromelonDB/llms.txt) (an index of the docs as Markdown) or [llms-full.txt](https://stasdoskalenko.github.io/NitromelonDB/llms-full.txt) (all of it in one file).
+**Or by hand:**
+
+```bash
+npx expo install nitromelondb react-native-nitro-modules   # Expo
+yarn add nitromelondb react-native-nitro-modules           # bare React Native
+```
+
+On Expo, add `"nitromelondb"` to `plugins` in `app.json` (no Babel setup needed). Bare React Native needs four Babel plugins for decorators. Then rebuild the native app. Full steps: [Installation](./Installation.mdx). Coming from WatermelonDB: [Migrating](./Migrating.md). For anything else, point your agent at [llms.txt](https://stasdoskalenko.github.io/NitromelonDB/llms.txt) or [llms-full.txt](https://stasdoskalenko.github.io/NitromelonDB/llms-full.txt).
 
 ```js
 import { Database } from 'nitromelondb'

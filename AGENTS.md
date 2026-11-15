@@ -17,6 +17,7 @@ Never run Expo, Metro, or Maestro from the library root. NotesApp is not the pub
 - `src/` — library TypeScript (this is what apps import)
 - `native/` — C++ / iOS / Android / Windows SQLite + Nitro
 - `examples/` — demo apps, each with its own `package.json`
+- `skills/` — agent skills for apps that *use* the library (`npx skills add StasDoskalenko/NitromelonDB`), not for working on this repo. One folder per skill, named like its `name:`. Keep them in step with the docs they follow, and list new ones in `docs-website/docs/docs/AgentSkills.md`
 - `dist/` and `nitrogen/` — generated; do not hand-edit (`yarn build`, `yarn specs`)
 
 ## Library (git root)

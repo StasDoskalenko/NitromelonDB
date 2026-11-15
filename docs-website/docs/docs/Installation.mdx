@@ -8,6 +8,28 @@ description: "Install NitromelonDB on bare React Native, Expo (including Expo we
 Use the [migration guide](./Migrating.md) instead. It covers everything on this page.
 :::
 
+## With a coding agent (recommended)
+
+This page, [Setup](./Setup.md) and [Schema](./Schema.md) are packaged as an [agent skill](./AgentSkills.md) for Claude Code, Cursor, Codex and other agents. From the root of your app:
+
+```bash
+npx skills add StasDoskalenko/NitromelonDB --skill nitromelondb-install
+```
+
+Then ask your agent to add NitromelonDB to the app ("Add NitromelonDB to this app, with tables for projects and tasks"), or run `/nitromelondb-install`. It:
+
+- works out your platform (Expo, Expo web, bare React Native, Vite, Webpack, Node, Electron, Windows) and checks the requirements below
+- installs the packages and sets up decorators, TypeScript and the Expo plugin the right way for that platform
+- works out the schema with you from your app's types and API, and writes the schema, migrations and models (with the [`nitromelondb-schema`](./AgentSkills.md) skill, if you add it too)
+- creates the database with the recommended options, `DatabaseProvider`, and a data layer that follows [Building a fast app](./Advanced/Performance.md#building-a-fast-app): observing hooks, batched writers, `seed`
+- type-checks, runs your tests, and checks a first write and read
+
+Start from a clean working copy (everything committed) and review the diff. The native build is left to you unless you ask the agent to run it. All skills, including schema changes, sync, audits and indexes: [Agent skills](./AgentSkills.md).
+
+## By hand
+
+Check the requirements, then follow the section for your platform, then [Setup](./Setup.md).
+
 ## Requirements
 
 | | Minimum |
@@ -26,8 +48,10 @@ Expo Go is not supported. Use a development build.
 
    ```bash
    yarn add nitromelondb react-native-nitro-modules
-   yarn add --dev @babel/plugin-proposal-decorators @babel/plugin-transform-class-properties @babel/plugin-transform-private-methods @babel/plugin-transform-private-property-in-object
+   yarn add --dev @babel/plugin-proposal-decorators@^7 @babel/plugin-transform-class-properties@^7 @babel/plugin-transform-private-methods@^7 @babel/plugin-transform-private-property-in-object@^7
    ```
+
+   Keep the `@^7`: React Native's Babel preset is on Babel 7, and npm's `latest` for these plugins is Babel 8. Without it, npm fails with `ERESOLVE` and Yarn installs plugins that don't match the app's `@babel/core`.
 
 2. Enable decorators in `babel.config.js`. Keep all four plugins, in this order, with these options:
 
@@ -161,10 +185,14 @@ Limitations, multi-tab behavior, and SSR notes are in [wa-sqlite web adapter](./
 
 ## Web without Expo (Webpack, Vite)
 
-Install the Babel plugins:
+:::note Vite 8
+Vite 8 (with `@vitejs/plugin-react` 6) has no Babel step, so the Babel setup below doesn't apply. Its compiler reads decorators from your `tsconfig` (`tsconfig.app.json` in Vite's templates): set `"experimentalDecorators": true` and `"useDefineForClassFields": false` there. If your `package.json` has `"type": "module"`, also add `legacy: { inconsistentCjsInterop: true }` to `vite.config`. Without it, default imports such as `import LokiJSAdapter from 'nitromelondb/adapters/lokijs'` fail with `... is not a constructor`.
+:::
+
+For Webpack, or Vite 7 and older, install the Babel plugins (`@^7` matches the `@babel/core` most apps use; with Babel 8, drop it):
 
 ```bash
-yarn add --dev @babel/plugin-proposal-decorators @babel/plugin-transform-class-properties
+yarn add --dev @babel/plugin-proposal-decorators@^7 @babel/plugin-transform-class-properties@^7
 ```
 
 Use this Babel config. Decorators must come first, and class properties must use `loose` mode:
@@ -201,7 +229,7 @@ Use this Babel config. Decorators must come first, and class properties must use
 
 Standard (TC39) decorators work too. See [Decorators](./Advanced/StandardDecorators.md#standard-decorators).
 
-Then pick an adapter in [Setup](./Setup.md): SQLite (wa-sqlite) or LokiJS.
+Then set up the database with the LokiJS adapter, see [Setup](./Setup.md#web-lokijs). The SQLite adapter's browser build (wa-sqlite) is picked automatically on Expo web only; with Vite or Webpack it needs a hand-made worker and WASM setup, see [wa-sqlite web adapter](./Implementation/WaSQLiteAdapter.md).
 
 ## Windows
 

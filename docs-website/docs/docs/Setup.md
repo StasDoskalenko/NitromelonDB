@@ -8,6 +8,10 @@ description: "Create the adapter and the Database for React Native, Node.js, Ele
 
 Make sure you [installed Watermelon](./Installation.mdx) before proceeding. Coming from `@nozbe/watermelondb`? See [Migrating from WatermelonDB](./Migrating.md).
 
+:::tip With a coding agent
+The [`nitromelondb-install`](./AgentSkills.md) agent skill does this page for you, with the recommended options: `npx skills add StasDoskalenko/NitromelonDB --skill nitromelondb-install`, then ask your agent to add NitromelonDB to the app.
+:::
+
 ## Common
 
 Create `model/schema.js` in your project. You'll need it for [the next step](./Schema.md).

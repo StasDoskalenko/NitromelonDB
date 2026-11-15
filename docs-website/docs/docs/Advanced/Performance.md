@@ -1,10 +1,48 @@
 ---
 title: Performance
 hide_title: true
-description: "Make SQLite faster: store whole numbers as integers (opt-in), and how to turn it on safely."
+description: "Build a fast NitromelonDB app: observing, lists, writes, batching, indexes, setup and sync patterns, and storing whole numbers as integers (opt-in)."
 ---
 
 # Performance
+
+## Building a fast app
+
+Most of an app's speed comes from how it reads and writes, not from the database engine. These are the patterns to follow. The [agent skills](../AgentSkills.md) apply them when they install NitromelonDB, design a schema or set up sync, and the audit checks an existing app against them.
+
+### Setup
+
+- **One `Database`**, created once at module level (or once per logged-in user, each with its own `dbName`). Never in a component body or per screen.
+- **`storeWholeNumbersAsIntegers: true`** on `SQLiteAdapter` in new apps (see [below](#store-whole-numbers-as-integers-opt-in) for existing ones).
+- **`migrations` from day one**, even an empty list, so the first schema change after release doesn't need a reset.
+- **`experimentalDetectNestedWriters: __DEV__`**, and on unconditionally in the Jest setup, so a forgotten `callWriter()` throws instead of hanging. See [Detect nested writers](./DetectNestedWriters.md).
+- **Initial data with [`seed`](./Seeding.md)**, not from an effect that checks whether a table is empty.
+- **Gate on readiness only if launch does work** that reads or writes (auth listeners, sync on start): `database.readyPromise`, or `useDatabaseReady(database)` in React. Reads and writes queue on their own otherwise.
+
+### Reading in the UI
+
+- **Observe, don't fetch into state.** `useQuery(query)` / `useRecord(record)` from `nitromelondb/hooks` (or `withObservables`). A `fetch()` in an effect shows stale data after the next write or sync.
+- **Lists: the list observes the set, each row observes its record.** `useQuery(query)` in the list re-renders when records join or leave, `useRecord(record)` in the row re-renders only that row when it changes. When the order depends on a field, pass it instead: `useQuery(query, ['position'])`. Components observing the same query with the same columns share one subscription.
+- **Counts and IDs:** `observeCount()` / `fetchCount()` and `fetchIds()`, never `fetch()` and `.length`.
+- **Long lists: page in the query.** `Q.sortBy(...)` with `Q.take(n)` (and `Q.skip`), not the whole table sliced in JavaScript.
+- **Watch the queries that re-run on every change.** A query with `Q.on`, `Q.sortBy`, `Q.take`, `Q.skip` or raw SQL can't be checked against a changed record in JavaScript, so it runs again whenever its table changes. Keep them few on busy tables, and back them with indexes.
+- **Avoid a query per row.** `post.comments.observeCount()` in every row of a 200-row list is 200 queries that re-run on writes. Load what the screen needs once, or store the count on the parent if it's shown everywhere.
+- **Index what queries filter and join on**: foreign keys (`_id` columns) above all, and columns looked up by equality. Nothing else. The [`nitromelondb-indexes`](../AgentSkills.md) skill finds them from your queries.
+- **A record that may not exist** (deleted, not synced yet): `collection.findAndObserveOrNull(id)` instead of `findAndObserve(id)`.
+- **`database.get(Post)`** (the class) instead of `database.get('posts')`: typed, and a typo can't compile.
+
+### Writing
+
+- **One writer per user action**, and inside it **one `batch()`**: `prepareCreate` / `prepareUpdate` / `prepareMarkAsDeleted` for every record, then `batch(...)` once. Never `await create()` in a loop. See [Batch updates](../Writers.md#batch-updates).
+- **Keep writers short.** Writers run one at a time, app-wide, sync included. Network requests, file work and prompts go before or after the writer, never inside.
+- **Pick the narrowest tool:** `useAtomicWriter(Model, record, builder)` to set fields on one record (it can't contain slow work), `useWriter(record, fn)` for an action anchored to a record that touches others, `@writer` methods on models for domain logic, `database.write()` for the rest. A writer calling another uses `callWriter()`. See [Hooks](../Hooks.md).
+- **Delete in bulk with the query:** `query.markAllAsDeleted()` (synced data) or `query.destroyAllPermanently()` (local-only data), not a fetch and a loop. In a table that syncs, deletes the user makes use `markAsDeleted()`: a permanent delete is never pushed.
+
+### Sync
+
+- **One sync at a time**, started from one function that returns the running sync, retried once after a failure, and debounced when it's triggered by local changes. See [Sync frontend](../Sync/Frontend.md).
+- **`paginatedPulls: true`**, so a first sync arrives in pages and is applied as it comes (versions after 0.32.0).
+- **A backend that sends every record as `updated`**, with `sendCreatedAsUpdated: true`. See [Sync backend](../Sync/Backend.md).
 
 ## Store whole numbers as integers (opt-in)
 
@@ -61,7 +99,7 @@ The fixes work with the option on or off, so you can make them first:
 
 #### Asking an AI coding agent to check
 
-Paste this into your coding agent (Claude Code, Cursor, Copilot, …) from your app's repository:
+The [`nitromelondb-audit` agent skill](../AgentSkills.md) runs this check as part of a wider review. For this check alone, paste this into your coding agent (Claude Code, Cursor, Copilot, …) from your app's repository:
 
 ````text
 I want to turn on NitromelonDB's `storeWholeNumbersAsIntegers` option on SQLiteAdapter. With it,

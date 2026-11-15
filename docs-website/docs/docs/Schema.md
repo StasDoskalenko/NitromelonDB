@@ -4,6 +4,10 @@ description: "Define the database schema: tables, column types, naming conventio
 
 # Schema
 
+:::tip With a coding agent
+The [`nitromelondb-schema`](./AgentSkills.md) agent skill designs the schema from your app's own types, API and stored state, proposes it, and writes the schema, migrations and typed models. It also makes every later change with its migration. `npx skills add StasDoskalenko/NitromelonDB --skill nitromelondb-schema`, then ask your agent to design the database schema, or to add a table.
+:::
+
 When using WatermelonDB, you're dealing with **Models** and **Collections**. However, underneath Watermelon sits an **underlying database** (SQLite or LokiJS) which speaks a different language: **tables and columns**. Together, those are called a **database schema** and we must define it first.
 
 ## Defining a Schema
@@ -97,6 +101,8 @@ However, if you rarely query all comments by its author, indexing `author_id` is
 In general, most `_id` fields are indexed. Occasionally, `boolean` fields are worth indexing (but it's a "low quality index"). However, you should almost never index date (`_at`) columns or `string` columns. You definitely do not want to index long-form user text.
 
 ⚠️ Do not mark all columns as indexed to "make Watermelon faster". Indexing has a real performance cost and should be used only when appropriate.
+
+Adding `isIndexed` to a column that already shipped needs a [migration](./Advanced/Migrations.md) as well, or only fresh installs get the index. The [`nitromelondb-indexes` agent skill](./AgentSkills.md) goes through your queries, proposes the indexes worth having, and writes that migration.
 
 ## Advanced
 
