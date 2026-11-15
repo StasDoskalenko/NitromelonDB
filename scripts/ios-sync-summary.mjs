@@ -168,20 +168,6 @@ export function steadyGeomean(sync) {
   return geomean(GEOMEAN_METRICS.map((key) => speedups[key]))
 }
 
-/** The hardware probes (scripts/machine-probe.mjs) before and after the cards, or null. */
-function readProbes(dir) {
-  const read = (name) => {
-    try {
-      return JSON.parse(fs.readFileSync(path.join(dir, `probe-${name}.json`), 'utf8'))
-    } catch {
-      return null
-    }
-  }
-  const before = read('before')
-  const after = read('after')
-  return before || after ? { before, after } : null
-}
-
 /** The best of the runner baselines (scripts/runner-baseline.mjs) saved in `dir`, or null. */
 function readBaseline(dir) {
   const runs = fs.existsSync(dir)
@@ -267,10 +253,9 @@ export function summarizeIosSync(dir, device = null) {
     median: geomeanSpeedup(summary.nitromelondb, summary.watermelondb),
   }
   summary.baseline = readBaseline(dir)
-  // How well the machine-speed sampler tracked the runs (scripts/machine-speed-analysis.mjs), and
-  // the full hardware probes before and after the cards; null for jobs without them
+  // How well the machine-speed sampler tracked the runs (scripts/machine-speed-analysis.mjs); null
+  // for jobs without it
   summary.machineSpeed = analyzeMachineSpeed(dir)
-  summary.machineProbe = readProbes(dir)
   // Runs per app (each app runs the same number of times; the runner interleaves them)
   const runsOf = (card, filter) =>
     files[card].filter((r) => r.label === LIBRARIES[0].label && filter(r)).length
