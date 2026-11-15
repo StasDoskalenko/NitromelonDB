@@ -6,6 +6,10 @@ description: "Implement the pull and push endpoints on your server: the changes 
 
 ## Implementing your Sync backend
 
+:::tip With a coding agent
+The [`nitromelondb-sync`](../AgentSkills.md) agent skill builds both sides from these pages: the backend's pull and push endpoints (starting from the [reference server](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/sync-server)), and the app's sync engine around `synchronize()` (one sync at a time, retry, triggers, logout), with tests of two devices converging. `npx skills add StasDoskalenko/NitromelonDB --skill nitromelondb-sync`, then ask your agent to add sync.
+:::
+
 :::tip Reference implementation
 [`examples/sync-server`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/sync-server) is a complete sync backend in TypeScript (Hono and SQLite) that follows every rule on this page. The library's end-to-end sync tests run against it, so it's checked with real NitromelonDB databases on every change. Its `src/sync.ts` has no framework dependencies, so you can copy it into your own backend.
 :::

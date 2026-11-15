@@ -8,9 +8,27 @@ description: "Install NitromelonDB on bare React Native, Expo (including Expo we
 Use the [migration guide](./Migrating.md) instead. It covers everything on this page.
 :::
 
-:::tip Let a coding agent do it
-This page and [Setup](./Setup.md) are also packaged as an [agent skill](./AgentSkills.md). From the root of your app, run `npx skills add StasDoskalenko/NitromelonDB --skill nitromelondb-install`, then ask your agent to add NitromelonDB to the app, or run `/nitromelondb-install`. It installs the packages, sets up decorators for your platform, and creates the schema, models and `Database`.
-:::
+## With a coding agent (recommended)
+
+This page, [Setup](./Setup.md) and [Schema](./Schema.md) are packaged as an [agent skill](./AgentSkills.md) for Claude Code, Cursor, Codex and other agents. From the root of your app:
+
+```bash
+npx skills add StasDoskalenko/NitromelonDB --skill nitromelondb-install
+```
+
+Then ask your agent to add NitromelonDB to the app ("Add NitromelonDB to this app, with tables for projects and tasks"), or run `/nitromelondb-install`. It:
+
+- works out your platform (Expo, Expo web, bare React Native, Vite, Webpack, Node, Electron, Windows) and checks the requirements below
+- installs the packages and sets up decorators, TypeScript and the Expo plugin the right way for that platform
+- works out the schema with you from your app's types and API, and writes the schema, migrations and models (with the [`nitromelondb-schema`](./AgentSkills.md) skill, if you add it too)
+- creates the database with the recommended options, `DatabaseProvider`, and a data layer that follows [Building a fast app](./Advanced/Performance.md#building-a-fast-app): observing hooks, batched writers, `seed`
+- type-checks, runs your tests, and checks a first write and read
+
+Start from a clean working copy (everything committed) and review the diff. The native build is left to you unless you ask the agent to run it. All skills, including schema changes, sync, audits and indexes: [Agent skills](./AgentSkills.md).
+
+## By hand
+
+Check the requirements, then follow the section for your platform, then [Setup](./Setup.md).
 
 ## Requirements
 

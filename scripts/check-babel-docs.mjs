@@ -214,7 +214,7 @@ const configs = [
   },
   {
     label: 'Standard decorators, web',
-    text: () => between(standardSection(), 'StandardDecorators.md', '**Web', '**Vite:**'),
+    text: () => between(standardSection(), 'StandardDecorators.md', '**Web', '**Vite 7 and older:**'),
     kind: 'web',
     standard: true,
   },

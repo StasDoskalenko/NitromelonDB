@@ -4,6 +4,10 @@ description: "Define the database schema: tables, column types, naming conventio
 
 # Schema
 
+:::tip With a coding agent
+The [`nitromelondb-schema`](./AgentSkills.md) agent skill designs the schema from your app's own types, API and stored state, proposes it, and writes the schema, migrations and typed models. It also makes every later change with its migration. `npx skills add StasDoskalenko/NitromelonDB --skill nitromelondb-schema`, then ask your agent to design the database schema, or to add a table.
+:::
+
 When using WatermelonDB, you're dealing with **Models** and **Collections**. However, underneath Watermelon sits an **underlying database** (SQLite or LokiJS) which speaks a different language: **tables and columns**. Together, those are called a **database schema** and we must define it first.
 
 ## Defining a Schema

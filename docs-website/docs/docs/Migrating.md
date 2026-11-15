@@ -20,7 +20,7 @@ The steps below are also packaged as an [agent skill](./AgentSkills.md). From th
 npx skills add StasDoskalenko/NitromelonDB --skill nitromelondb-migrate-from-watermelondb
 ```
 
-Then ask your agent (Claude Code, Cursor, Codex, ...) to migrate the app from WatermelonDB to NitromelonDB, or run `/nitromelondb-migrate-from-watermelondb`. It checks the requirements above, does steps 1 to 4, fixes the Babel decorators setup, and lists what it couldn't do. The native rebuild (step 5) is still yours to run.
+Then ask your agent (Claude Code, Cursor, Codex, ...) to migrate the app from WatermelonDB to NitromelonDB, or run `/nitromelondb-migrate-from-watermelondb`. It checks the requirements above, does steps 1 to 4, fixes the Babel decorators setup, and lists what it couldn't do. Then it proposes what NitromelonDB adds (hooks, batched writers, nested-writer detection, integer storage, paginated sync), with `file:line`, and applies what you pick. The native rebuild (step 5) is still yours to run.
 
 ## 1. Swap the packages
 

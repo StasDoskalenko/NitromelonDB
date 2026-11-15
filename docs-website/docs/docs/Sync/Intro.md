@@ -6,6 +6,10 @@ description: "Overview of syncing NitromelonDB with your own backend, and where 
 
 # Synchronization
 
+:::tip With a coding agent
+The [`nitromelondb-sync`](../AgentSkills.md) agent skill builds both sides from these pages: the backend's pull and push endpoints (starting from the [reference server](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/sync-server)), and the app's sync engine around `synchronize()` (one sync at a time, retry, triggers, logout), with tests of two devices converging. `npx skills add StasDoskalenko/NitromelonDB --skill nitromelondb-sync`, then ask your agent to add sync.
+:::
+
 WatermelonDB has been designed from scratch to be able to seamlessly synchronize with a remote database (and, therefore, keep multiple copies of data synced with each other).
 
 Note that Watermelon is only a local database — you need to **bring your own backend**. What Watermelon provides are:

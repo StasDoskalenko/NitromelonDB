@@ -6,6 +6,10 @@ description: "Call synchronize() in the app: pullChanges / pushChanges, paginate
 
 ## Implementing sync in frontend
 
+:::tip With a coding agent
+The [`nitromelondb-sync`](../AgentSkills.md) agent skill builds both sides from these pages: the backend's pull and push endpoints (starting from the [reference server](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/sync-server)), and the app's sync engine around `synchronize()` (one sync at a time, retry, triggers, logout), with tests of two devices converging. `npx skills add StasDoskalenko/NitromelonDB --skill nitromelondb-sync`, then ask your agent to add sync.
+:::
+
 ## Using `synchronize()` in your app
 
 To synchronize, you need to pass `pullChanges` and `pushChanges` _(optional)_ that talk to your backend and are compatible with Watermelon Sync Protocol. The frontend code will look something like this:
