@@ -1,7 +1,7 @@
 ---
 title: Agent skills
 hide_title: true
-description: "Skills for AI coding agents (Claude Code, Cursor, Codex and others): migrate from WatermelonDB, move to standard decorators, audit an app's NitromelonDB setup, and find missing indexes."
+description: "Skills for AI coding agents (Claude Code, Cursor, Codex and others): install NitromelonDB in an app, migrate from WatermelonDB, move to standard decorators, audit an app's NitromelonDB setup, and find missing indexes."
 ---
 
 # Agent skills
@@ -10,6 +10,7 @@ NitromelonDB ships skills for AI coding agents: step-by-step procedures an agent
 
 | Skill | What it does | Changes your code? |
 | --- | --- | --- |
+| [`nitromelondb-install`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/skills/nitromelondb-install) | Adds NitromelonDB to an app that doesn't use it yet: checks the requirements, installs the packages, sets up Babel decorators, TypeScript and the Expo plugin for the platform, creates the schema, migrations, models and `Database` with the recommended options, wires up `DatabaseProvider`, and checks the build. Follows [Installation](./Installation.mdx) and [Setup](./Setup.md). | Yes |
 | [`nitromelondb-migrate-from-watermelondb`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/skills/nitromelondb-migrate-from-watermelondb) | Moves an app from `@nozbe/watermelondb` to `nitromelondb`: packages, imports, Jest mocks, old native linking, adapter options, Babel decorators setup. Follows [Migrating from WatermelonDB](./Migrating.md). | Yes |
 | [`nitromelondb-migrate-decorators`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/skills/nitromelondb-migrate-decorators) | Moves models from legacy decorators to [standard decorators](./Advanced/StandardDecorators.md): Babel config, `tsconfig`, `accessor` on fields, `@lazy` getters. Stops first if another library still needs legacy decorators. | Yes |
 | [`nitromelondb-audit`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/skills/nitromelondb-audit) | Reviews how the app uses NitromelonDB and reports problems by severity, with `file:line`: nested writers that deadlock, slow work inside writers, unbatched writes, missing migrations, startup work that races database readiness (early listeners, observers and writes), models that drifted from the schema, fetching where the UI should observe, unsafe raw SQL, sync mistakes. | Only what you pick from the report |
@@ -33,6 +34,7 @@ It copies the skill into your project, in the folder your agent reads (`.claude/
 
 Ask for the task in your own words. The agent picks the skill from its description:
 
+- "Add NitromelonDB to this app, with tables for projects and tasks."
 - "Migrate this app from WatermelonDB to NitromelonDB."
 - "Move our models to standard decorators."
 - "Audit how we use NitromelonDB."
@@ -49,7 +51,7 @@ for this app.
 
 ## What to expect
 
-- **The two migrations edit files.** Run them on a clean git working tree, so the diff is only theirs, and review it. Neither touches your data: SQLite files, the schema and migrations stay as they are.
+- **The install and the two migrations edit files.** Run them on a clean git working tree, so the diff is only theirs, and review it. The migrations don't touch your data: SQLite files, the schema and migrations stay as they are. The install asks what your app stores before it creates tables, and leaves the native build to you unless you ask it to run it.
 - **The audit and the index review report first.** They change nothing until you say which findings to act on. Adding an index is a schema change with a migration, so test it like one: an upgrade from the previous build, and a fresh install. See [Migrations](./Advanced/Migrations.md#step-4-test-your-migrations).
 - **They read your code, not your users' data.** The index review can read a database file from your own simulator or emulator to count rows and check query plans. It works on a copy.
 - A skill is instructions, not a program. Your agent may still get something wrong, so read the report and the diff.
