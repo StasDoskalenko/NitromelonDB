@@ -3,14 +3,14 @@
 
 /**
  * A short hardware probe of the machine running the iOS benchmark, with open-source tools: how fast
- * its CPU, memory, disk and GPU are at this moment. examples/benchmark/scripts/run-sync-trials.mjs
- * runs it before the first round and after every round (--probe), so each run of the apps has a
- * probe taken a minute or two before and after it. Other VMs on a CI runner slow the machine down
- * for minutes at a time, so a probe only says something about runs close to it in time (two runs
- * of scripts/runner-baseline.mjs in one job differed by up to 2x). scripts/machine-probe-analysis.mjs
- * then checks how well each part tracks the apps' run-to-run swings.
+ * its CPU, memory, disk and GPU are at this moment. scripts/ci-benchmark-ios.sh runs it before and
+ * after the cards, to record what kind of machine the job got. It can't adjust individual runs:
+ * run before and after every round of one job, it showed the runner's speed changes within a
+ * minute (probes ~65 s apart didn't correlate, while single-core CPU ranged 4.5x), so a probe says
+ * nothing about a run it didn't overlap. scripts/machine-sampler measures during each run instead.
  *
- * Each part takes 1-4 s; a probe takes ~15 s. Every number is higher = faster:
+ * Each part takes 1-4 s on a Mac; a probe takes ~15 s (~30 s on a runner). Every number is
+ * higher = faster:
  * - cpu1Mips, cpuAllMips: 7-Zip's built-in benchmark (LZMA compression and decompression, integer
  *   and memory-latency heavy like a database), on one thread and on every core. (sysbench's CPU
  *   test is broken on Apple silicon: the loop gets optimized away.)

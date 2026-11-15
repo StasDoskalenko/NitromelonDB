@@ -32,7 +32,8 @@ on:
       - 'scripts/ci-benchmark-ios.sh'
       - 'scripts/ios-sync-summary.mjs'
       - 'scripts/machine-probe.mjs'
-      - 'scripts/machine-probe-analysis.mjs'
+      - 'scripts/machine-speed-analysis.mjs'
+      - 'scripts/machine-sampler/**'
       - 'scripts/machine-probe/**'
       - '.github/workflows/perf-ios.yml'
   workflow_dispatch:

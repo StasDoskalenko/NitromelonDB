@@ -265,16 +265,22 @@ CI runners are noisy, in two ways, and the summary (`scripts/ios-sync-summary.mj
   in Node on the host, before and after the cards. It's recorded but not used for adjusting: it
   barely tracks the simulator (r = 0-0.46 with WatermelonDB) and its two runs in one job differ by
   up to 2x.
-- **A hardware probe, next to every round.** WatermelonDB runs mostly on the JS thread, so it
-  may miss a slow disk or GPU. `scripts/machine-probe.mjs` measures the machine with open-source
-  tools in ~15 s: 7-Zip's benchmark on one core and on all (CPU), sysbench (memory bandwidth), fio
-  (4k random writes with fsync, like SQLite's commits, and direct 4k random reads), and a small
-  Metal kernel (GPU). The runner (`--probe`) runs it before the first round of each card and after
-  every round, since a probe only says something about runs close to it in time.
-  `scripts/machine-probe-analysis.mjs` then checks, per workload, how well each part tracks
-  WatermelonDB's run-to-run swings (which are the machine's, since it never changes) and whether
-  adjusting NitromelonDB by it beats pairing with WatermelonDB. Its result goes in the summary
-  (`machineProbe`), so jobs can be compared before anything uses it for adjusting.
+- **The machine's own speed, during every run.** WatermelonDB runs mostly on the JS thread, so as
+  a reference it may miss a slow disk or GPU. `scripts/machine-probe.mjs` measures the hardware
+  with open-source tools in ~30 s on a runner: 7-Zip's benchmark on one core and on all (CPU),
+  sysbench (memory bandwidth), fio (4k random writes with fsync, like SQLite's commits, and direct
+  4k random reads), and a small Metal kernel (GPU). Run before and after every round of one job,
+  it showed why no probe between runs can adjust them: single-core CPU ranged 1,250-5,591 MIPS
+  (4.5x) and disk 285-1,234 fsyncs/s, but probes ~65 s apart didn't correlate at all (lag-1
+  autocorrelation -0.19 to +0.01), so the machine's speed changes within a minute. CPU, memory and
+  disk moved together (r = 0.76-0.83): one host-wide slowdown, not separate bottlenecks. The GPU
+  barely moved (1.5%). So the runner (`--sampler`) runs `scripts/machine-sampler` alongside every
+  run instead: a fixed CPU+memory workload every 100 ms and a 4 KiB write + fsync every second
+  (~1% of a core), recorded on the row as `machine`. `scripts/machine-speed-analysis.mjs` checks,
+  per workload, how well it tracks WatermelonDB's run-to-run swings (which are the machine's) and
+  whether adjusting NitromelonDB by it beats pairing. The full probe still runs before and after
+  the cards, to record what kind of machine the job got. Both go in the summary
+  (`machineSpeed`, `machineProbe`), so jobs can be compared before anything adjusts by them.
 
 A metric is flagged ⚠️ only when its speedup is more than 5% below every one of master's last 10
 runs, not below a fixed threshold. A run is mostly building: the WatermelonDB app doesn't use this repo's code, so its build is cached and only

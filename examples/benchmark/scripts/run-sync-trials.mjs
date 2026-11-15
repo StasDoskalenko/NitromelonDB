@@ -32,10 +32,11 @@
 // macOS process, so `ps` can see it. RSS here is a proxy, not the phys_footprint iOS uses for
 // memory limits on a device. On Android it's VmRSS from /proc via adb.
 //
-// --probe <command> runs a machine probe (CI: scripts/machine-probe.mjs, CPU/memory/disk/GPU)
-// before the first round and after every round, and appends its JSON line, with the round it
-// followed (0 = before the first), to --probe-out. Each row also records when the run started and
-// ended (`startedAt`, `endedAt`, ms since the epoch), so runs can be lined up with the probes.
+// --sampler <command> runs a machine-speed sampler alongside every run (CI: scripts/machine-sampler,
+// a fixed CPU+memory workload every 100 ms and a 4 KiB write + fsync every second, ~1% of a core)
+// and records its medians on the row as `machine`. On a CI runner the machine's speed changes
+// within a minute, so only a measure taken during a run describes it. Each row also records when
+// the run started and ended (`startedAt`, `endedAt`, ms since the epoch).
 
 import { execFileSync, spawn } from 'node:child_process'
 import { createServer } from 'node:http'
@@ -89,21 +90,37 @@ function parseArgs(argv) {
       .split(',')
       .map(Number),
     runs: Number(args.runs ?? 5),
-    probe: args.probe ?? null,
-    probeOut: args['probe-out'] ?? null,
+    sampler: args.sampler ?? null,
   }
 }
 
-// One machine probe (--probe): a shell command printing one JSON line, appended to --probe-out
-function runProbe(options, round) {
-  if (!options.probe || !options.probeOut) {
-    return
+// --sampler: a machine-speed sampler that runs alongside each run (CI: scripts/machine-sampler),
+// printing `c <us>` (a fixed CPU+memory workload) and `f <us>` (a 4 KiB write + fsync) lines.
+// Returns stop(), which ends it and resolves to the medians, or null without --sampler.
+function startSampler(options) {
+  if (!options.sampler) {
+    return null
   }
-  try {
-    const out = execFileSync('/bin/sh', ['-c', options.probe], { encoding: 'utf8' }).trim().split('\n').pop()
-    appendFileSync(options.probeOut, `${JSON.stringify({ card: options.card, round, ...JSON.parse(out) })}\n`)
-  } catch (error) {
-    console.log(`Machine probe after round ${round} failed: ${String(error).split('\n')[0]}`)
+  const child = spawn('/bin/sh', ['-c', `exec ${options.sampler}`], { stdio: ['ignore', 'pipe', 'ignore'] })
+  let out = ''
+  child.stdout.on('data', (chunk) => {
+    out += chunk
+  })
+  const exited = new Promise((resolve) => child.on('close', resolve))
+  return async () => {
+    child.kill('SIGTERM')
+    await exited
+    const samples = (kind) =>
+      out
+        .split('\n')
+        .filter((line) => line.startsWith(`${kind} `))
+        .map((line) => Number(line.slice(2)))
+        .filter((value) => value > 0)
+        .sort((a, b) => a - b)
+    const median = (values) => (values.length ? values[values.length >> 1] : null)
+    const cpu = samples('c')
+    const fsync = samples('f')
+    return { cpuUs: median(cpu), fsyncUs: median(fsync), cpuSamples: cpu.length, fsyncSamples: fsync.length }
   }
 }
 
@@ -414,15 +431,17 @@ async function main() {
   const options = parseArgs(process.argv.slice(2))
   const flowPath = path.join(mkdtempSync(path.join(tmpdir(), 'sync-trials-')), 'flow.yaml')
   const listener = options.driver === 'launch' ? startResultListener() : null
-  runProbe(options, 0)
   for (let run = 1; run <= options.runs; run += 1) {
     for (const size of options.sizes) {
       for (const { label, app } of shuffled(options.apps)) {
         // A flow can fail before the benchmark starts (a system prompt in the way). Retry once, so
         // one flaky launch doesn't end the session, and log it so no run is dropped silently.
         let outcome
-        const startedAt = Date.now()
+        let machine = null
+        let startedAt = null
         for (let attempt = 1; !outcome; attempt += 1) {
+          startedAt = Date.now()
+          const stopSampler = startSampler(options)
           try {
             // eslint-disable-next-line no-await-in-loop
             outcome = await runOnce(options, app, size, flowPath, listener)
@@ -431,6 +450,9 @@ async function main() {
               throw error
             }
             console.log(`${label} ${size} #${run}: attempt ${attempt} failed, retrying (${String(error).split('\n')[0]})`)
+          } finally {
+            // eslint-disable-next-line no-await-in-loop
+            machine = stopSampler ? await stopSampler() : null
           }
         }
         const { result, rssPeakBytes, rssEndBytes } = outcome
@@ -444,6 +466,7 @@ async function main() {
           rssEndBytes,
           startedAt,
           endedAt: Date.now(),
+          ...(machine ? { machine } : {}),
         }
         appendFileSync(options.out, `${JSON.stringify(row)}\n`)
         if (result.kind === 'stress' || result.kind === 'mass') {
@@ -482,7 +505,6 @@ async function main() {
         )
       }
     }
-    runProbe(options, run)
   }
   listener?.close()
 }

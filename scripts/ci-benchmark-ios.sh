@@ -90,29 +90,41 @@ xcrun simctl install "$SIM_UDID" "$NITRO_APP"
 xcrun simctl install "$SIM_UDID" "$WM_APP"
 
 APPS='NitromelonDB=com.nitromelondb.benchmark;WatermelonDB JSI=com.watermelondb.benchmark'
-# A hardware probe (CPU, memory, disk, GPU; scripts/machine-probe.mjs) before the first round of
-# each card and after every round, ~15 s each, so every run has one taken a minute or two before
-# and after it. scripts/machine-probe-analysis.mjs checks how well it tracks the runs.
+# A machine-speed sampler alongside every run (scripts/machine-sampler: a fixed CPU+memory workload
+# every 100 ms, a 4 KiB write + fsync every second, ~1% of a core), recorded on each row. The
+# runner's speed changes within a minute (hardware probes ~65 s apart didn't correlate), so only a
+# measure taken during a run describes it. scripts/machine-speed-analysis.mjs checks how well it
+# tracks the runs.
+SAMPLER_DIR="${RUNNER_TEMP:-/tmp}/machine-sampler"
+mkdir -p "$SAMPLER_DIR"
+clang -O2 "$REPO_ROOT/scripts/machine-sampler/sampler.c" -o "$SAMPLER_DIR/machine-sampler"
+SAMPLER="'$SAMPLER_DIR/machine-sampler' '$SAMPLER_DIR/scratch'"
+# A full hardware probe (CPU, memory, disk, GPU with open-source tools; scripts/machine-probe.mjs)
+# before and after the cards, to record what kind of machine the job got
 PROBE_DIR="${RUNNER_TEMP:-/tmp}/machine-probe"
-PROBE="node --no-warnings '$REPO_ROOT/scripts/machine-probe.mjs' '$PROBE_DIR' $(sysctl -n hw.ncpu)"
+probe() {
+  node --no-warnings "$REPO_ROOT/scripts/machine-probe.mjs" "$PROBE_DIR" "$(sysctl -n hw.ncpu)" > "$OUT/probe-$1.json" || true
+}
 run_card() {
   local card=$1 sizes=$2 runs=$3
   echo "::group::$card ($sizes, $runs runs per app)"
   node "$BENCH/scripts/run-sync-trials.mjs" --card "$card" --apps "$APPS" --sizes "$sizes" \
     --runs "$runs" --device "$SIM_UDID" --out "$OUT/$card.jsonl" \
-    --probe "$PROBE" --probe-out "$OUT/probes.jsonl"
+    --sampler "$SAMPLER"
   echo "::endgroup::"
 }
 # How fast this runner is, before and after the cards (the summary keeps the best), so results
 # can be compared across jobs, which land on different machines (scripts/runner-baseline.mjs)
 node --no-warnings "$REPO_ROOT/scripts/runner-baseline.mjs" > "$OUT/baseline-before.json"
+probe before
 run_card sync 5000,50000 "$SYNC_RUNS"
 run_card real 300 "$REAL_RUNS"
 run_card stress 100000 "$STRESS_RUNS"
 node --no-warnings "$REPO_ROOT/scripts/runner-baseline.mjs" > "$OUT/baseline-after.json"
+probe after
 
-echo "::group::Machine probe vs the runs"
-node "$REPO_ROOT/scripts/machine-probe-analysis.mjs" "$OUT" "$OUT/probe-analysis.json" || true
+echo "::group::Machine-speed sampler vs the runs"
+node "$REPO_ROOT/scripts/machine-speed-analysis.mjs" "$OUT" "$OUT/machine-speed.json" || true
 echo "::endgroup::"
 
 node "$REPO_ROOT/scripts/ios-sync-summary.mjs" "$OUT" "$REPO_ROOT/perf-results/perf-result-ios-sync.json" \
