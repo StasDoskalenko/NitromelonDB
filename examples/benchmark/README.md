@@ -247,17 +247,24 @@ WatermelonDB run didn't use the JSI adapter.
 
 CI runners are noisy, in two ways, and the summary (`scripts/ios-sync-summary.mjs`) handles each:
 
-- **Within a job,** other VMs on the host slow runs down at random, by up to ~30% from one run to
-  the next. Since that only ever adds time, the comment compares each app's **best** run (10 per
-  app for Sync and Realistic sync, 5 for the stress test), with the ratio of medians next to it. It
-  also records each card's **CPU time** (the app process's, from the host, between the app's
-  "starting" message and its result), which time taken by other VMs doesn't inflate.
-- **Between jobs,** runners differ. Within a job, WatermelonDB JSI is the baseline, so the
-  headline is NitromelonDB's speedup over it: the **geometric mean** of the best-run speedups on
-  Sync 5k, Sync 50k, Realistic sync and the stress test score (one metric per workload, so the
-  50k sync's phases don't outvote the rest). To compare absolute times across jobs, every job also
-  runs **`scripts/runner-baseline.mjs`**, a fixed JS and SQLite workload, before and after the
-  cards, and records the best as the runner's speed.
+- **Within a job,** other VMs on the host slow the machine down at random, by up to ~30%, for
+  minutes at a time. The runner interleaves the apps run by run (10 runs per app for Sync and
+  Realistic sync, 5 for the stress test), so each NitromelonDB run has a WatermelonDB run next to
+  it, on the same machine at nearly the same moment. Each metric's speedup is the **median of
+  those pairs' speedups** (`paired` in the summary). Over master's history it varies 2.5% from job
+  to job for the stress test and 4.2% for the 50k sync, against 8.1% and 7.8% when comparing each
+  app's best run. The summary also keeps each app's median and best run, and each card's **CPU
+  time** (the app process's, from the host, between the app's "starting" message and its result).
+  On these runners CPU time moves with wall time (r = 0.99), so it doesn't filter out other VMs.
+- **Between jobs,** runners differ. The headline is NitromelonDB's speedup over WatermelonDB JSI:
+  the **geometric mean** of the paired speedups on Sync 5k, Sync 50k, Realistic sync and the stress
+  test score (one metric per workload, so the 50k sync's phases don't outvote the rest). For
+  absolute values, the Performance page uses WatermelonDB 0.28 as the reference: it never changes,
+  so each metric is NitromelonDB's speedup applied to WatermelonDB's usual value on the same
+  workload. Every job also runs **`scripts/runner-baseline.mjs`**, a fixed JS and SQLite workload
+  in Node on the host, before and after the cards. It's recorded but not used for adjusting: it
+  barely tracks the simulator (r = 0-0.46 with WatermelonDB) and its two runs in one job differ by
+  up to 2x.
 
 A metric is flagged ⚠️ only when its speedup is more than 5% below every one of master's last 10
 runs, not below a fixed threshold. A run is mostly building: the WatermelonDB app doesn't use this repo's code, so its build is cached and only

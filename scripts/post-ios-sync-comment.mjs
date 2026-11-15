@@ -7,10 +7,12 @@
  * marker so the two comments don't overwrite each other.
  *
  * CI runners are noisy: other VMs on the host slow runs down at random, by up to ~30% within one
- * job. So the comment compares each app's best run (slowdowns only ever add time), headlines the
- * geometric mean of NitromelonDB's speedups over one metric per workload, and flags a metric only
- * when its speedup is clearly below every one of master's recent runs (MASTER_RUNS of them, from
- * the `benchmarks` branch), rather than below a fixed threshold. Medians are shown alongside.
+ * job. So the comment compares NitromelonDB with WatermelonDB run by run: each metric's speedup is
+ * the median of the speedups of the runs side by side (`paired`, see scripts/ios-sync-summary.mjs;
+ * the ratio of medians for older records). It headlines the geometric mean over one metric per
+ * workload, and flags a metric only when its speedup is clearly below every one of master's recent
+ * runs (MASTER_RUNS of them, from the `benchmarks` branch), rather than below a fixed threshold.
+ * The absolute values shown are each app's median run.
  *
  * Usage:
  *   node scripts/post-ios-sync-comment.mjs <owner/repo> <prNumber> <sha> <summaryFile> <benchmarksJson> <runUrl>
@@ -23,12 +25,11 @@ import fs from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import {
-  GEOMEAN_METRICS,
   IOS_SYNC_CPU_METRICS,
   IOS_SYNC_METRICS,
-  geomeanSpeedup,
   readIosSyncSummary,
-  speedup,
+  steadyGeomean,
+  steadySpeedups,
 } from './ios-sync-summary.mjs'
 
 const MARKER = '<!-- perf-ios-sync-comment -->'
@@ -59,10 +60,7 @@ export function sanitizeSummary(summary) {
     },
     nitromelondb: metrics(summary.nitromelondb),
     watermelondb: metrics(summary.watermelondb),
-    best: {
-      nitromelondb: metrics(summary.best?.nitromelondb),
-      watermelondb: metrics(summary.best?.watermelondb),
-    },
+    paired: summary.paired ? metrics(summary.paired) : null,
     baseline: summary.baseline
       ? {
           jsMs: number(summary.baseline.jsMs),
@@ -86,14 +84,6 @@ function formatSpeedup(ratio) {
   if (Math.abs(ratio - 1) < 0.03) return 'about the same'
   if (ratio >= 1) return `**${ratio.toFixed(2)}× faster**`
   return `${(1 / ratio).toFixed(2)}× slower`
-}
-
-/** A record's best runs if it has them (newer records), otherwise its medians. */
-function bestOf(record) {
-  const sync = record.iosSync
-  return sync.best?.nitromelondb
-    ? { nitromelondb: sync.best.nitromelondb, watermelondb: sync.best.watermelondb }
-    : { nitromelondb: sync.nitromelondb, watermelondb: sync.watermelondb }
 }
 
 export function masterRuns(benchmarksFile) {
@@ -121,23 +111,14 @@ function flag(ratio, masterRange) {
 }
 
 function metricRows(metrics, summary, master) {
+  const speedups = steadySpeedups(summary)
+  const masterSpeedups = master.map((record) => steadySpeedups(record.iosSync))
   return metrics.map((metric) => {
-    const n = summary.best.nitromelondb[metric.key]
-    const w = summary.best.watermelondb[metric.key]
-    const ratio = speedup(metric, n, w)
-    const medianRatio = speedup(
-      metric,
-      summary.nitromelondb[metric.key],
-      summary.watermelondb[metric.key],
-    )
-    const masterRange = range(
-      master.map((record) => {
-        const best = bestOf(record)
-        return speedup(metric, best.nitromelondb?.[metric.key], best.watermelondb?.[metric.key])
-      }),
-    )
-    const median = medianRatio == null ? '' : ` (median ${medianRatio.toFixed(2)}×)`
-    return `| ${metric.label} | ${formatValue(n, metric.unit)} | ${formatValue(w, metric.unit)} | ${formatSpeedup(ratio)}${median}${flag(ratio, masterRange)} | ${formatRange(masterRange)} |`
+    const n = summary.nitromelondb[metric.key]
+    const w = summary.watermelondb[metric.key]
+    const ratio = speedups[metric.key]
+    const masterRange = range(masterSpeedups.map((values) => values[metric.key]))
+    return `| ${metric.label} | ${formatValue(n, metric.unit)} | ${formatValue(w, metric.unit)} | ${formatSpeedup(ratio)}${flag(ratio, masterRange)} | ${formatRange(masterRange)} |`
   })
 }
 
@@ -147,40 +128,30 @@ export function buildBody({ repo, sha, summary, master = [], runUrl }) {
   if (!summary) {
     lines.push(`The benchmark didn't produce a result. See the [workflow run](${runUrl}).`)
   } else {
-    // Older summaries (before best runs were recorded) only have medians
-    if (!summary.best.nitromelondb.sync50kTotalMs) {
-      summary.best = { nitromelondb: summary.nitromelondb, watermelondb: summary.watermelondb }
-    }
-    const overall = geomeanSpeedup(summary.best.nitromelondb, summary.best.watermelondb)
-    const overallMedian = geomeanSpeedup(summary.nitromelondb, summary.watermelondb)
-    const overallRange = range(
-      master.map((record) => {
-        const best = bestOf(record)
-        return geomeanSpeedup(best.nitromelondb, best.watermelondb)
-      }),
-    )
+    const overall = steadyGeomean(summary)
+    const overallRange = range(master.map((record) => steadyGeomean(record.iosSync)))
     const latest = master[master.length - 1]
     const labels = 'Sync 5k, Sync 50k, Realistic sync and the stress test score'
     lines.push(
       `**Overall: ${overall == null ? '–' : `${overall.toFixed(2)}×`} faster than WatermelonDB 0.28 JSI**${flag(overall, overallRange)}` +
-        ` (master's last ${master.length || 'no'} run${master.length === 1 ? '' : 's'}: ${formatRange(overallRange)}; medians: ${overallMedian == null ? '–' : `${overallMedian.toFixed(2)}×`}).` +
-        ` Geometric mean of the best-run speedups on ${labels}.`,
+        ` (master's last ${master.length || 'no'} run${master.length === 1 ? '' : 's'}: ${formatRange(overallRange)}).` +
+        ` Geometric mean of the speedups on ${labels}.`,
       '',
       `Release builds on a GitHub Actions macOS runner (simulator: ${summary.device ?? 'unknown'}), NitromelonDB and WatermelonDB interleaved run by run:` +
         ` ${summary.runs?.sync ?? '?'} runs per app for Sync, ${summary.runs?.realistic ?? '?'} for Realistic sync, ${summary.runs?.stress ?? '?'} for the stress test.` +
-        " Other VMs on the runner slow runs down at random, so the table compares each app's **best** run, with the ratio of medians next to it." +
+        ' Other VMs on the runner slow the machine down at random for minutes at a time, so each speedup compares the runs side by side: the median of the speedups of NitromelonDB run 1 vs WatermelonDB run 1, run 2 vs run 2, and so on. The times are each app’s median run.' +
         ` ⚠️ marks a speedup more than ${FLAG_MARGIN * 100}% below every one of master's recent runs (last column).`,
       '',
-      "| Metric | NitromelonDB (best) | WatermelonDB JSI (best) | vs WatermelonDB | master's recent runs |",
+      "| Metric | NitromelonDB (median) | WatermelonDB JSI (median) | vs WatermelonDB | master's recent runs |",
       '| --- | ---: | ---: | --- | ---: |',
       ...metricRows(IOS_SYNC_METRICS, summary, master),
     )
-    if (IOS_SYNC_CPU_METRICS.some((metric) => summary.best.nitromelondb[metric.key] != null)) {
+    if (IOS_SYNC_CPU_METRICS.some((metric) => summary.nitromelondb[metric.key] != null)) {
       lines.push(
         '',
-        '<details><summary>CPU time per run (app process, all threads; steadier than wall time on CI)</summary>',
+        '<details><summary>CPU time per run (app process, all threads)</summary>',
         '',
-        "| Card | NitromelonDB (best) | WatermelonDB JSI (best) | vs WatermelonDB | master's recent runs |",
+        "| Card | NitromelonDB (median) | WatermelonDB JSI (median) | vs WatermelonDB | master's recent runs |",
         '| --- | ---: | ---: | --- | ---: |',
         ...metricRows(IOS_SYNC_CPU_METRICS, summary, master),
         '',

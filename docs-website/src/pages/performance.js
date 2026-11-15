@@ -19,12 +19,14 @@ export default function Performance() {
         <p>
           The <code>examples/benchmark</code> apps&apos; Sync, Realistic sync and Stress cards, as Release builds on
           an iOS simulator on GitHub Actions. Every run also measures WatermelonDB 0.28 with its JSI adapter in the
-          same job (dashed line), interleaved run by run. Other VMs on a CI runner slow runs down at random, so each
-          point is an app&apos;s best run, and the overall speedup over WatermelonDB JSI (a geometric mean over Sync
-          5k, Sync 50k, Realistic sync and the stress test) is the steadiest signal. CI machines also differ a lot
-          in speed from job to job, so absolute times are adjusted for it by default: WatermelonDB 0.28 never changes
-          and runs in the same simulator, so how its times compare with its usual ones says how fast each job&apos;s
-          machine was (the last chart). Switch to raw times to see them as measured. On a pull request, a
+          same job (dashed line), interleaved run by run. Each point is an app&apos;s median run. Other VMs on a CI
+          runner slow the machine down at random for minutes at a time, so the steadiest signal is NitromelonDB&apos;s
+          speedup over WatermelonDB JSI from the runs side by side (the median over run 1 vs run 1, run 2 vs run 2,
+          and so on), and the overall speedup is its geometric mean over Sync 5k, Sync 50k, Realistic sync and the
+          stress test. Absolute values are adjusted for each job&apos;s machine by default: WatermelonDB 0.28 never
+          changes, so each metric is NitromelonDB&apos;s speedup on it applied to WatermelonDB&apos;s usual value on the
+          same workload (which makes the dashed line flat). The last chart shows how fast each job&apos;s machine
+          was. Switch to raw values to see them as measured. On a pull request, a
           maintainer can comment <code>/perf ios</code> to run it.
         </p>
         <PerformanceCharts
