@@ -15,6 +15,7 @@
 
 ### Changes
 
+- Docs (Installation): the Babel decorator plugins are installed as `@^7`, since npm's `latest` is Babel 8 and React Native's preset is on 7 (npm failed with `ERESOLVE`). New notes for Vite 8, which has no Babel step: decorators come from `tsconfig`, apps with `"type": "module"` need `legacy.inconsistentCjsInterop` for default imports from `nitromelondb`, and standard decorators go through `@rolldown/plugin-babel`. Web apps without Expo are pointed at the LokiJS adapter
 - Sync: `log.newLastPulledAt` is now set once the pulled changes are applied, not before
 
 ### Internal
