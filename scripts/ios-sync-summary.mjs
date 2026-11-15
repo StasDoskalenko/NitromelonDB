@@ -5,7 +5,8 @@
  * Turns the benchmark runner's JSONL from scripts/ci-benchmark-ios.sh (sync.jsonl, real.jsonl,
  * stress.jsonl: one line per run, NitromelonDB and WatermelonDB JSI interleaved) into the small
  * summary the PR comment and the `benchmarks` branch history store: the median of each metric
- * per library.
+ * per library, each library's best run, and `paired`, NitromelonDB's speedup per metric from
+ * runs side by side (see pairedSpeedups).
  *
  * Shared by scripts/post-ios-sync-comment.mjs and scripts/publish-perf-results.mjs, which read
  * the summary back with readIosSyncSummary().
@@ -54,8 +55,9 @@ export const IOS_SYNC_METRICS = [
 
 /**
  * CPU time of the app process while each card ran (user + system, all threads; run-sync-trials.mjs
- * reads it from the host). Time other VMs take from the runner adds wall time but not CPU time, so
- * this is steadier on CI. `ps` reports it in centiseconds, so short cards (Sync 5k) are coarse.
+ * reads it from the host). On GitHub's macOS runners it moves with wall time (r = 0.99 for the
+ * stress test across jobs), so it doesn't filter out other VMs; it's kept for reference. `ps`
+ * reports it in centiseconds, so short cards (Sync 5k) are coarse.
  */
 export const IOS_SYNC_CPU_METRICS = [
   { key: 'sync5kCpuMs', label: 'Sync 5k records', unit: 'ms', better: 'lower' },
@@ -121,20 +123,48 @@ export function speedup(metric, nitromelondb, watermelondb) {
   return metric.better === 'higher' ? nitromelondb / watermelondb : watermelondb / nitromelondb
 }
 
-/** The geometric mean of NitromelonDB's speedups over GEOMEAN_METRICS, or null if one is missing. */
-export function geomeanSpeedup(nitromelondb, watermelondb) {
-  const ratios = GEOMEAN_METRICS.map((key) =>
-    speedup(
-      IOS_SYNC_METRICS.find((metric) => metric.key === key),
-      nitromelondb?.[key],
-      watermelondb?.[key],
-    ),
-  )
-  if (ratios.some((ratio) => ratio == null)) return null
+/** The geometric mean of speedups (> 1 = NitromelonDB faster), or null if one is missing. */
+export function geomean(ratios) {
+  if (ratios.length === 0 || ratios.some((ratio) => !(ratio > 0))) return null
   return (
     Math.round(Math.exp(ratios.reduce((sum, r) => sum + Math.log(r), 0) / ratios.length) * 1000) /
     1000
   )
+}
+
+/** The geometric mean of NitromelonDB's speedups over GEOMEAN_METRICS, or null if one is missing. */
+export function geomeanSpeedup(nitromelondb, watermelondb) {
+  return geomean(
+    GEOMEAN_METRICS.map((key) =>
+      speedup(
+        IOS_SYNC_METRICS.find((metric) => metric.key === key),
+        nitromelondb?.[key],
+        watermelondb?.[key],
+      ),
+    ),
+  )
+}
+
+/**
+ * NitromelonDB's speedup per metric from a summary, the steadiest estimate the record has:
+ * `paired` (records from this script since it stored them), else the ratio of the medians (every
+ * record has those). Never the best runs: a best run is one extreme sample, and across master's
+ * history the ratio of best runs varied 3x more from job to job (stress test: 8.1% vs 2.5%).
+ */
+export function steadySpeedups(sync) {
+  return Object.fromEntries(
+    [...IOS_SYNC_METRICS, ...IOS_SYNC_CPU_METRICS].map((metric) => [
+      metric.key,
+      sync?.paired?.[metric.key] ??
+        speedup(metric, sync?.nitromelondb?.[metric.key], sync?.watermelondb?.[metric.key]),
+    ]),
+  )
+}
+
+/** The geometric mean of steadySpeedups over GEOMEAN_METRICS, or null if one is missing. */
+export function steadyGeomean(sync) {
+  const speedups = steadySpeedups(sync)
+  return geomean(GEOMEAN_METRICS.map((key) => speedups[key]))
 }
 
 /** The best of the runner baselines (scripts/runner-baseline.mjs) saved in `dir`, or null. */
@@ -156,13 +186,45 @@ function readBaseline(dir) {
 
 const round = (value) => (value == null ? null : Math.round(value * 10) / 10)
 
+/**
+ * NitromelonDB's speedup per metric from the runs side by side: the runner interleaves the apps
+ * run by run (NitromelonDB run 1, WatermelonDB run 1, NitromelonDB run 2, ...), so each pair ran
+ * within a minute or two of each other, on the same machine at nearly the same moment. Other VMs
+ * on a CI runner slow the machine down for minutes at a time, so a pair shares most of that
+ * slowdown, and the median of the pairs' speedups cancels most of what's left. Over master's
+ * history it's the steadiest number from job to job (stress test 2.5%, 50k sync 4.2%, vs 3.1% /
+ * 4.4% for the ratio of medians and 8.1% / 7.8% for the ratio of best runs). Pairs are matched by
+ * run number (and sync size); a run missing on either side drops its pair.
+ */
+function pairedSpeedups(files) {
+  const [nitromelondb, watermelondb] = LIBRARIES.map(({ label }) => label)
+  const paired = {}
+  for (const metric of [...IOS_SYNC_METRICS, ...IOS_SYNC_CPU_METRICS]) {
+    const [card, filter, value] = SOURCES[metric.key]
+    const byRun = (label) =>
+      new Map(
+        files[card]
+          .filter((r) => r.label === label && filter(r))
+          .map((r) => [`${r.records ?? ''}:${r.run}`, value(r)])
+          .filter(([, v]) => typeof v === 'number' && Number.isFinite(v)),
+      )
+    const others = byRun(watermelondb)
+    const ratios = [...byRun(nitromelondb)]
+      .map(([run, n]) => speedup(metric, n, others.get(run)))
+      .filter((ratio) => ratio != null)
+    const ratio = median(ratios)
+    paired[metric.key] = ratio == null ? null : Math.round(ratio * 1000) / 1000
+  }
+  return paired
+}
+
 export function summarizeIosSync(dir, device = null) {
   const files = Object.fromEntries(
     ['sync', 'real', 'stress'].map((card) => [card, readJsonl(path.join(dir, `${card}.jsonl`))]),
   )
-  // Medians stay at the top level (what older history records have); `best` holds each app's best
-  // run, which is what the comment and the charts compare: slowdowns from other VMs on a CI runner
-  // only ever add time, so the best run is the closest to the real speed
+  // Medians stay at the top level (every history record has them), and the charts and the comment
+  // use them for absolute values. `best` holds each app's best run, kept for reference: it's the
+  // closest to the machine's real speed, but as one extreme sample it's too noisy to compare jobs
   const summary = { device, best: {} }
   for (const { key: library, label } of LIBRARIES) {
     summary[library] = {}
@@ -183,7 +245,9 @@ export function summarizeIosSync(dir, device = null) {
       summary.best[library][metric.key] = round(best)
     }
   }
+  summary.paired = pairedSpeedups(files)
   summary.geomean = {
+    paired: geomean(GEOMEAN_METRICS.map((key) => summary.paired[key])),
     best: geomeanSpeedup(summary.best.nitromelondb, summary.best.watermelondb),
     median: geomeanSpeedup(summary.nitromelondb, summary.watermelondb),
   }

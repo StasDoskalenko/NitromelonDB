@@ -25,7 +25,8 @@ export const ANDROID_METRICS = [
  * dashed line. CI machines vary from run to run, so the overall "vs WatermelonDB" speedup (a
  * geometric mean, see flattenIosSync) is the steadiest signal; `parity` draws its 1× line.
  * `adjust` metrics are absolute times (or a score), which are adjusted for the CI machine's speed
- * by default (see addMachineFactors). `digits` and `flat` override the default formatting and
+ * by default, each by WatermelonDB's result on the same workload, or on `machineWorkload` (see
+ * addMachineFactors). `digits` and `flat` override the default formatting and
  * no-change threshold, and `neutral` (the machine factor) skips the better/worse wording.
  */
 export const IOS_SYNC_METRICS = [
@@ -48,6 +49,11 @@ export const IOS_SYNC_METRICS = [
     flat: 0.5,
     baseline: true,
     adjust: true,
+    // WatermelonDB's fetch alone is a poor measure of the machine: in some jobs most of its fetches
+    // took 2-4x the others (1-1.9 s vs ~0.4 s) while the rest of the sync didn't. The whole 50k
+    // sync of the same runs, which the fetch is part of, varies 6.9% from job to job this way, vs
+    // 16.8% by the fetch itself.
+    machineWorkload: 'sync50kTotalMs',
   },
   {
     key: 'realisticLibraryMs',
@@ -78,8 +84,9 @@ export const IOS_SYNC_METRICS = [
     flat: 0.005,
     parity: 1,
   },
-  // How slow this job's CI machine was: WatermelonDB's time relative to its usual (see
-  // addMachineFactors). The `adjust` metrics are divided by it. Not better or worse for us.
+  // How slow this job's CI machine was: WatermelonDB's time relative to its usual, over the four
+  // workloads (see addMachineFactors). Each `adjust` metric uses its own workload's instead. Not
+  // better or worse for us.
   {
     key: 'machineFactor',
     label: 'CI machine speed (WatermelonDB vs its median)',
@@ -96,24 +103,18 @@ export const baselineKey = (metric) => `${metric.key}Baseline`
 
 const ratio = (faster, slower) => (faster > 0 && slower > 0 ? slower / faster : null)
 
-// The geometric mean of NitromelonDB's speedups on one metric per workload, as in
-// scripts/ios-sync-summary.mjs (for records from before it stored one)
-function geomeanSpeedup(n, w) {
-  const ratios = [
-    ratio(n.sync5kTotalMs, w.sync5kTotalMs),
-    ratio(n.sync50kTotalMs, w.sync50kTotalMs),
-    ratio(n.realisticLibraryMs, w.realisticLibraryMs),
-    n.stressScore > 0 && w.stressScore > 0 ? n.stressScore / w.stressScore : null,
-  ]
-  if (ratios.some((r) => r == null)) return null
-  return Math.exp(ratios.reduce((sum, r) => sum + Math.log(r), 0) / ratios.length)
-}
+/** NitromelonDB's speedup on one metric (> 1 = faster), from two values of it. */
+const speedupOf = (metric, n, w) =>
+  metric.better === 'higher' ? (n > 0 && w > 0 ? n / w : null) : ratio(n, w)
+
+const geomean = (ratios) =>
+  ratios.length > 0 && ratios.every((r) => r > 0)
+    ? Math.exp(ratios.reduce((sum, r) => sum + Math.log(r), 0) / ratios.length)
+    : null
 
 /**
- * The workloads that measure a CI job's machine: WatermelonDB 0.28 never changes and runs in the
- * same simulator, in the same job, so how its times compare with its usual ones says how slow that
- * job's machine was. (scripts/runner-baseline.mjs times a fixed workload too, but in Node on the
- * host, outside the simulator; adjusting by it made run-to-run variation larger, not smaller.)
+ * The workloads the overall speedup averages and that measure a CI job's machine, one metric per
+ * workload (as GEOMEAN_METRICS in scripts/ios-sync-summary.mjs).
  */
 const MACHINE_WORKLOADS = [
   { key: 'sync5kTotalMs', better: 'lower' },
@@ -123,38 +124,83 @@ const MACHINE_WORKLOADS = [
 ]
 
 /**
- * Sets row.machineFactor: how much slower than usual this job's machine was (1.2 = WatermelonDB
- * took 1.2× its median time), the geometric mean over MACHINE_WORKLOADS, each against its median
- * over the whole history. With `adjusted`, the `adjust` metrics (NitromelonDB's and WatermelonDB's)
- * are divided by it (a score is multiplied), so they read as if every job had run on a machine of
- * median speed. On recorded runs this halves the run-to-run variation of the 50k sync and fetch
- * times. Rows without every workload get no factor, and no adjusted values.
+ * NitromelonDB's speedup over WatermelonDB on `metric` in one record, the steadiest estimate it
+ * has, as steadySpeedups in scripts/ios-sync-summary.mjs: `paired` (the median of the speedups of
+ * runs side by side), else the ratio of the medians. Never the best runs: one extreme sample per
+ * app, which across master's history varied 3x more from job to job.
  */
-function addMachineFactors(rows, metrics, workloadsByRow, adjusted) {
-  const medians = Object.fromEntries(
-    MACHINE_WORKLOADS.map(({ key }) => {
-      const values = workloadsByRow.map((w) => w?.[key]).filter((v) => v > 0)
-      return [key, values.length > 0 ? median(values) : null]
-    }),
+function steadySpeedup(sync, metric) {
+  return (
+    sync.paired?.[metric.key] ??
+    speedupOf(metric, sync.nitromelondb?.[metric.key], sync.watermelondb?.[metric.key])
+  )
+}
+
+/**
+ * Adjusts the iOS values for each CI job's machine. WatermelonDB 0.28 never changes and runs in
+ * turns with NitromelonDB in the same simulator, in the same job, so it measures that job's
+ * machine. Each metric is adjusted by WatermelonDB's own result on the same workload (or its
+ * `machineWorkload`, from the same runs), never by a mix of workloads: a slow moment for the sync
+ * cards says little about the stress test minutes later (WatermelonDB's stress and sync results
+ * correlate at r = 0.15-0.28 across jobs).
+ *
+ * WatermelonDB's usual value for a metric is the median of its per-job medians over the history.
+ * (Medians, because every record has them; records from before #220 have no best runs, and mixing
+ * the two made later jobs look like faster machines.) A job's adjusted NitromelonDB value is that
+ * usual value divided by its speedup (a score multiplied): what NitromelonDB would have measured
+ * on a machine where WatermelonDB measured its usual. WatermelonDB's adjusted value is then its
+ * usual one, so its dashed line is flat. A metric with a `machineWorkload` has both apps' values
+ * divided by WatermelonDB's factor on that workload instead (its value vs its usual).
+ *
+ * row.machineFactor: how much slower than usual the job's machine was (1.2 = WatermelonDB took
+ * 1.2x its usual time), the geometric mean over MACHINE_WORKLOADS. Shown for reference, not used
+ * for adjusting. Rows without every workload get no factor.
+ */
+function addMachineFactors(rows, metrics, recordValues, adjusted) {
+  const usual = (key) => {
+    const values = recordValues.map((values) => values.watermelondb?.[key]).filter((v) => v > 0)
+    return values.length > 0 ? median(values) : null
+  }
+  const keys = [
+    ...MACHINE_WORKLOADS.map(({ key }) => key),
+    ...metrics.flatMap(({ key, machineWorkload }) => [key, machineWorkload]),
+  ]
+  const usuals = Object.fromEntries(
+    [...new Set(keys.filter(Boolean))].map((key) => [key, usual(key)]),
   )
   rows.forEach((row, i) => {
-    const workloads = workloadsByRow[i]
-    const logs = MACHINE_WORKLOADS.map(({ key, better }) => {
-      const value = workloads?.[key]
-      if (!(value > 0) || !(medians[key] > 0)) return null
-      return Math.log(better === 'lower' ? value / medians[key] : medians[key] / value)
+    const { watermelondb, speedups } = recordValues[i]
+    const factors = MACHINE_WORKLOADS.map(({ key, better }) => {
+      const value = watermelondb?.[key]
+      if (!(value > 0) || !(usuals[key] > 0)) return null
+      return better === 'lower' ? value / usuals[key] : usuals[key] / value
     })
-    const factor = logs.every((l) => l != null)
-      ? Math.exp(logs.reduce((sum, l) => sum + l, 0) / logs.length)
-      : null
-    row.machineFactor = factor
+    row.machineFactor = factors.every((f) => f != null) ? geomean(factors) : null
     if (!adjusted) return
     for (const metric of metrics) {
       if (!metric.adjust) continue
-      for (const key of [metric.key, baselineKey(metric)]) {
-        if (row[key] == null) continue
-        row[key] =
-          factor == null ? null : metric.better === 'lower' ? row[key] / factor : row[key] * factor
+      const reference = metric.machineWorkload ?? metric.key
+      if (reference !== metric.key) {
+        // Adjusted by another workload's factor: both apps' values divided by it (a score multiplied)
+        const value = watermelondb?.[reference]
+        const factor = value > 0 && usuals[reference] > 0 ? value / usuals[reference] : null
+        for (const key of [metric.key, baselineKey(metric)]) {
+          if (row[key] == null) continue
+          row[key] =
+            factor == null
+              ? null
+              : metric.better === 'lower'
+                ? row[key] / factor
+                : row[key] * factor
+        }
+        continue
+      }
+      const speedup = speedups?.[metric.key]
+      const base = usuals[metric.key]
+      const known = speedup > 0 && base > 0 && row[metric.key] != null
+      row[metric.key] = known ? (metric.better === 'lower' ? base / speedup : base * speedup) : null
+      if (metric.baseline && row[baselineKey(metric)] != null) {
+        row[baselineKey(metric)] = known ? base : null
       }
     }
   })
@@ -209,23 +255,25 @@ function addReferenceFactors(rows, metrics, references, adjusted) {
 
 /**
  * A record's `iosSync` summary → flat chart values, WatermelonDB's under baselineKey(). Each app's
- * best run where the record has one (CI runners only ever slow runs down), else its median.
+ * median run: every record has those, so the history compares like with like (best runs only
+ * exist from #220 on). `speedups` and `watermelondb` feed addMachineFactors.
  */
 function flattenIosSync(sync) {
-  const hasBest = Boolean(sync.best?.nitromelondb)
-  const nitromelondb = (hasBest ? sync.best.nitromelondb : sync.nitromelondb) ?? {}
-  const watermelondb = (hasBest ? sync.best.watermelondb : sync.watermelondb) ?? {}
+  const nitromelondb = sync.nitromelondb ?? {}
+  const watermelondb = sync.watermelondb ?? {}
   const values = {}
   for (const metric of IOS_SYNC_METRICS) {
     if (!metric.baseline) continue
     values[metric.key] = nitromelondb[metric.key] ?? null
     values[baselineKey(metric)] = watermelondb[metric.key] ?? null
   }
-  values.speedupOverall =
-    (hasBest ? sync.geomean?.best : null) ?? geomeanSpeedup(nitromelondb, watermelondb)
-  values.machineWorkloads = Object.fromEntries(
-    MACHINE_WORKLOADS.map(({ key }) => [key, watermelondb[key] ?? null]),
-  )
+  const speedups = {}
+  for (const metric of [...IOS_SYNC_METRICS, ...MACHINE_WORKLOADS]) {
+    if (metric.better) speedups[metric.key] = steadySpeedup(sync, metric)
+  }
+  values.speedupOverall = geomean(MACHINE_WORKLOADS.map(({ key }) => speedups[key]))
+  values.speedups = speedups
+  values.watermelondb = watermelondb
   return values
 }
 
@@ -235,7 +283,9 @@ export const SOURCES = {
     metrics: ANDROID_METRICS,
     color: 'var(--perf-chart-android)',
     values: (record) =>
-      record.android ? { ...record.android, machineReference: record.androidReference ?? null } : null,
+      record.android
+        ? { ...record.android, machineReference: record.androidReference ?? null }
+        : null,
     adjustRows: (rows, metrics, recordValues, adjusted) =>
       addReferenceFactors(
         rows,
@@ -250,15 +300,9 @@ export const SOURCES = {
     metrics: IOS_SYNC_METRICS,
     color: 'var(--perf-chart-ios)',
     values: (record) => (record.iosSync ? flattenIosSync(record.iosSync) : null),
-    adjustRows: (rows, metrics, recordValues, adjusted) =>
-      addMachineFactors(
-        rows,
-        metrics,
-        recordValues.map((values) => values.machineWorkloads),
-        adjusted,
-      ),
+    adjustRows: addMachineFactors,
     adjustedCaption:
-      'Times are adjusted for how fast each CI machine was, measured by WatermelonDB in the same job (the last chart), as if every run had a machine of median speed.',
+      'Medians per job. Each metric is adjusted by how WatermelonDB 0.28, which never changes, did on the same workload in the same job: NitromelonDB’s speedup over WatermelonDB (runs side by side) applied to WatermelonDB’s usual value, as if every job had a machine on which WatermelonDB measured its usual. So WatermelonDB’s dashed line is flat. The last chart shows how fast each job’s machine was.',
   },
 }
 
@@ -359,6 +403,7 @@ export function priorLabel(prior) {
  * History records → chart rows for one source: one row per run that has its results, every
  * metric on the same row so charts share an index. `adjusted` (the default) adjusts values for
  * each CI machine's speed (addMachineFactors for iOS sync, addReferenceFactors for Android).
+ * The adjusters get each record's values (SOURCES[source].values) alongside the rows.
  */
 export function toRows(history, source, { adjusted = true } = {}) {
   const { metrics, values, adjustRows } = SOURCES[source]
