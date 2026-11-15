@@ -31,6 +31,11 @@
 // the app process's resident memory from the host every 100ms. On a simulator the app is a normal
 // macOS process, so `ps` can see it. RSS here is a proxy, not the phys_footprint iOS uses for
 // memory limits on a device. On Android it's VmRSS from /proc via adb.
+//
+// --probe <command> runs a machine probe (CI: scripts/machine-probe.mjs, CPU/memory/disk/GPU)
+// before the first round and after every round, and appends its JSON line, with the round it
+// followed (0 = before the first), to --probe-out. Each row also records when the run started and
+// ended (`startedAt`, `endedAt`, ms since the epoch), so runs can be lined up with the probes.
 
 import { execFileSync, spawn } from 'node:child_process'
 import { createServer } from 'node:http'
@@ -84,6 +89,21 @@ function parseArgs(argv) {
       .split(',')
       .map(Number),
     runs: Number(args.runs ?? 5),
+    probe: args.probe ?? null,
+    probeOut: args['probe-out'] ?? null,
+  }
+}
+
+// One machine probe (--probe): a shell command printing one JSON line, appended to --probe-out
+function runProbe(options, round) {
+  if (!options.probe || !options.probeOut) {
+    return
+  }
+  try {
+    const out = execFileSync('/bin/sh', ['-c', options.probe], { encoding: 'utf8' }).trim().split('\n').pop()
+    appendFileSync(options.probeOut, `${JSON.stringify({ card: options.card, round, ...JSON.parse(out) })}\n`)
+  } catch (error) {
+    console.log(`Machine probe after round ${round} failed: ${String(error).split('\n')[0]}`)
   }
 }
 
@@ -394,12 +414,14 @@ async function main() {
   const options = parseArgs(process.argv.slice(2))
   const flowPath = path.join(mkdtempSync(path.join(tmpdir(), 'sync-trials-')), 'flow.yaml')
   const listener = options.driver === 'launch' ? startResultListener() : null
+  runProbe(options, 0)
   for (let run = 1; run <= options.runs; run += 1) {
     for (const size of options.sizes) {
       for (const { label, app } of shuffled(options.apps)) {
         // A flow can fail before the benchmark starts (a system prompt in the way). Retry once, so
         // one flaky launch doesn't end the session, and log it so no run is dropped silently.
         let outcome
+        const startedAt = Date.now()
         for (let attempt = 1; !outcome; attempt += 1) {
           try {
             // eslint-disable-next-line no-await-in-loop
@@ -412,7 +434,17 @@ async function main() {
           }
         }
         const { result, rssPeakBytes, rssEndBytes } = outcome
-        const row = { label, app, run, platform: options.platform, ...result, rssPeakBytes, rssEndBytes }
+        const row = {
+          label,
+          app,
+          run,
+          platform: options.platform,
+          ...result,
+          rssPeakBytes,
+          rssEndBytes,
+          startedAt,
+          endedAt: Date.now(),
+        }
         appendFileSync(options.out, `${JSON.stringify(row)}\n`)
         if (result.kind === 'stress' || result.kind === 'mass') {
           console.log(
@@ -450,6 +482,7 @@ async function main() {
         )
       }
     }
+    runProbe(options, run)
   }
   listener?.close()
 }

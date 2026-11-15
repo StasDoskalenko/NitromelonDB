@@ -31,6 +31,9 @@ on:
       - 'yarn.lock'
       - 'scripts/ci-benchmark-ios.sh'
       - 'scripts/ios-sync-summary.mjs'
+      - 'scripts/machine-probe.mjs'
+      - 'scripts/machine-probe-analysis.mjs'
+      - 'scripts/machine-probe/**'
       - '.github/workflows/perf-ios.yml'
   workflow_dispatch:
 
@@ -171,8 +174,11 @@ jobs:
           for app in ${{ steps.apps.outputs.list }}; do
             (cd "examples/benchmark/$app/ios" && pod install)
           done
-      - name: Install xcbeautify
-        run: brew install xcbeautify
+      # xcbeautify for the build log; 7-Zip, sysbench and fio for the machine probe
+      - name: Install tools
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+        run: brew install xcbeautify sevenzip sysbench fio
       - name: Run the benchmark
         env:
           WM_APP_CACHE: perf-cache/watermelondb

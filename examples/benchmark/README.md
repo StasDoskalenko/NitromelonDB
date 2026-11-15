@@ -265,6 +265,16 @@ CI runners are noisy, in two ways, and the summary (`scripts/ios-sync-summary.mj
   in Node on the host, before and after the cards. It's recorded but not used for adjusting: it
   barely tracks the simulator (r = 0-0.46 with WatermelonDB) and its two runs in one job differ by
   up to 2x.
+- **A hardware probe, next to every round.** WatermelonDB runs mostly on the JS thread, so it
+  may miss a slow disk or GPU. `scripts/machine-probe.mjs` measures the machine with open-source
+  tools in ~15 s: 7-Zip's benchmark on one core and on all (CPU), sysbench (memory bandwidth), fio
+  (4k random writes with fsync, like SQLite's commits, and direct 4k random reads), and a small
+  Metal kernel (GPU). The runner (`--probe`) runs it before the first round of each card and after
+  every round, since a probe only says something about runs close to it in time.
+  `scripts/machine-probe-analysis.mjs` then checks, per workload, how well each part tracks
+  WatermelonDB's run-to-run swings (which are the machine's, since it never changes) and whether
+  adjusting NitromelonDB by it beats pairing with WatermelonDB. Its result goes in the summary
+  (`machineProbe`), so jobs can be compared before anything uses it for adjusting.
 
 A metric is flagged ⚠️ only when its speedup is more than 5% below every one of master's last 10
 runs, not below a fixed threshold. A run is mostly building: the WatermelonDB app doesn't use this repo's code, so its build is cached and only

@@ -18,6 +18,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { analyzeProbes } from './machine-probe-analysis.mjs'
 
 export const LIBRARIES = [
   { key: 'nitromelondb', label: 'NitromelonDB' },
@@ -252,6 +253,9 @@ export function summarizeIosSync(dir, device = null) {
     median: geomeanSpeedup(summary.nitromelondb, summary.watermelondb),
   }
   summary.baseline = readBaseline(dir)
+  // The hardware probe's medians over the job, and how well each part tracked the runs
+  // (scripts/machine-probe-analysis.mjs); null for jobs without it
+  summary.machineProbe = analyzeProbes(dir)
   // Runs per app (each app runs the same number of times; the runner interleaves them)
   const runsOf = (card, filter) =>
     files[card].filter((r) => r.label === LIBRARIES[0].label && filter(r)).length

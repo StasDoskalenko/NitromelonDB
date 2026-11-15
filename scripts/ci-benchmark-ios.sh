@@ -90,11 +90,17 @@ xcrun simctl install "$SIM_UDID" "$NITRO_APP"
 xcrun simctl install "$SIM_UDID" "$WM_APP"
 
 APPS='NitromelonDB=com.nitromelondb.benchmark;WatermelonDB JSI=com.watermelondb.benchmark'
+# A hardware probe (CPU, memory, disk, GPU; scripts/machine-probe.mjs) before the first round of
+# each card and after every round, ~15 s each, so every run has one taken a minute or two before
+# and after it. scripts/machine-probe-analysis.mjs checks how well it tracks the runs.
+PROBE_DIR="${RUNNER_TEMP:-/tmp}/machine-probe"
+PROBE="node --no-warnings '$REPO_ROOT/scripts/machine-probe.mjs' '$PROBE_DIR' $(sysctl -n hw.ncpu)"
 run_card() {
   local card=$1 sizes=$2 runs=$3
   echo "::group::$card ($sizes, $runs runs per app)"
   node "$BENCH/scripts/run-sync-trials.mjs" --card "$card" --apps "$APPS" --sizes "$sizes" \
-    --runs "$runs" --device "$SIM_UDID" --out "$OUT/$card.jsonl"
+    --runs "$runs" --device "$SIM_UDID" --out "$OUT/$card.jsonl" \
+    --probe "$PROBE" --probe-out "$OUT/probes.jsonl"
   echo "::endgroup::"
 }
 # How fast this runner is, before and after the cards (the summary keeps the best), so results
@@ -104,6 +110,10 @@ run_card sync 5000,50000 "$SYNC_RUNS"
 run_card real 300 "$REAL_RUNS"
 run_card stress 100000 "$STRESS_RUNS"
 node --no-warnings "$REPO_ROOT/scripts/runner-baseline.mjs" > "$OUT/baseline-after.json"
+
+echo "::group::Machine probe vs the runs"
+node "$REPO_ROOT/scripts/machine-probe-analysis.mjs" "$OUT" "$OUT/probe-analysis.json" || true
+echo "::endgroup::"
 
 node "$REPO_ROOT/scripts/ios-sync-summary.mjs" "$OUT" "$REPO_ROOT/perf-results/perf-result-ios-sync.json" \
   --device "$SIM_NAME"
