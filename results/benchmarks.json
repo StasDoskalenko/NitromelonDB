@@ -2745,5 +2745,26 @@
       "ram": 179,
       "fps": 55.1
     }
+  },
+  {
+    "sha": "2cd3edb774ac017359bdab91a72f98fe52d7f4fc",
+    "date": "2026-11-15T02:00:19.936Z",
+    "prNumber": 239,
+    "subject": "build(windows): pin Hermes 2610.28001 in NotesApp_windows (#239)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 24.8,
+      "ram": 180,
+      "fps": 55.5
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 25.4,
+      "ram": 178,
+      "fps": 55.2
+    }
   }
 ]
