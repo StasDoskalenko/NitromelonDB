@@ -33,11 +33,13 @@
 
     <!--
       RNW 0.85.x (checked through 0.85.2) defaults to Hermes 0.0.0-2608.12001-35d34796, which crashes with an access
-      violation in hermes::vm::HadesGC::OldGen::search during e2e/pagination-dynamic. Stay on
-      the Hermes that RNW 0.84 shipped until a fixed build is out. JSEngine.props only sets
+      violation in hermes::vm::HadesGC::OldGen::search during e2e/pagination-dynamic
+      (microsoft/hermes-windows#392: WeakRef.deref() skipped the GC read barrier). The fix landed in
+      hermes-windows#395, first published as 0.0.0-2610.28001-08ee40a5, so pin that build. Drop this
+      pin once RNW's own default is at 0.0.0-2610.28001 or newer. JSEngine.props only sets
       HermesVersion when it is empty, and this file is imported before it.
     -->
-    <HermesVersion>0.0.0-2605.6002-2279da22</HermesVersion>
+    <HermesVersion>0.0.0-2610.28001-08ee40a5</HermesVersion>
   </PropertyGroup>
 
 </Project>
