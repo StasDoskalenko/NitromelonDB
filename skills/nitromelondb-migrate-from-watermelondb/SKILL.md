@@ -6,8 +6,10 @@ description: >
   mocks, deletes the old manual native linking (Podfile, Gradle,
   MainApplication, Expo plugin), updates the SQLite adapter options and fixes
   the Babel decorators setup. Existing schema, models, migrations and SQLite
-  files are kept as they are. Invoke with
-  `/nitromelondb-migrate-from-watermelondb`.
+  files are kept as they are. Then proposes what NitromelonDB adds (hooks,
+  batched writers, nested-writer detection, integer storage, readiness,
+  paginated sync) with file:line, and applies what the user picks. Invoke
+  with `/nitromelondb-migrate-from-watermelondb`.
 license: MIT
 metadata:
   author: StasDoskalenko
@@ -187,7 +189,43 @@ npx expo run:ios
 
 Before starting a bundler, check whether one is already running on port 8081 and reuse it.
 
-### 9. Report
+### 9. Adopt what NitromelonDB adds
+
+The migration is done once the app builds and runs as before. NitromelonDB also has features WatermelonDB didn't, and the app gets faster and safer with them. Scan the app for each item below, and **list what applies, with `file:line` and the change, as a proposal**. Make the changes only for the items the user picks, one at a time, after the migration has been committed or reviewed, so the two diffs stay apart.
+
+Rules behind these: https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Performance.md ("Building a fast app").
+
+**Setup**
+
+- `experimentalDetectNestedWriters: __DEV__` on `new Database(...)`, and `true` in the Jest setup: a writer called from another writer without `callWriter()` throws with both names instead of hanging the app.
+- `storeWholeNumbersAsIntegers: true` on the SQLite adapter: faster number comparisons and sorting. Check the app's raw SQL first (Performance page, step 1): it's the only thing that can tell the difference. Data on devices converts in the background.
+- Hand-made readiness (a `setTimeout` before the first query, an `isDbReady` flag, a warm-up query, reads of adapter internals) becomes `database.readyPromise`, or `useDatabaseReady(database)` in React. If the app has no such code and does nothing database-related at launch, add nothing.
+- Data created from the UI on first launch ("if the table is empty, insert defaults") can move to the `seed` option with `databaseSeed()`. **On databases carried over from WatermelonDB every seed step runs once**, so each step must check whether its data is already there (see the Seeding page). Propose it; don't move it without the user's yes.
+
+**Reads**
+
+- A component that `fetch()`es into `useState` (in an effect) shows stale data after the next write or sync: `useQuery(query)` / `useRecord(record)` from `nitromelondb/hooks`.
+- Existing `withObservables` code keeps working, and doesn't need to be rewritten. New components can use the hooks. For a function component that only wraps `withObservables` to observe one record or one query, the hook is shorter; propose it only where the user is already changing that code.
+- A list re-rendered whole for one row's change: each row observes its own record (`useRecord`, or `withObservables` per row). A sorted list that doesn't re-sort: `useQuery(query, ['column'])` / `observeWithColumns`.
+- `(await query.fetch()).length` → `fetchCount()`, `.map(r => r.id)` → `fetchIds()`, a long list sliced in JavaScript → `Q.sortBy` + `Q.take`.
+- `findAndObserve(id)` for a record that may not exist (deep links, records arriving by sync) → `findAndObserveOrNull(id)`.
+- `database.get('posts')` → `database.get(Post)`: typed, and a typo can't compile.
+
+**Writes**
+
+- Several `await create()` / `update()` in one writer, or in a loop: one `batch()` of `prepareCreate` / `prepareUpdate` / `prepareMarkAsDeleted`.
+- A component that opens `database.write()` to set a few fields of one record: `useAtomicWriter(Model, record, builder)`, which also gives `isPending` and `error`. Writers anchored to a record with more logic: `useWriter(record, fn)`, as long as `fn` doesn't call a `@writer` method (it already runs inside a writer).
+- Fetching records to delete them one by one: `query.markAllAsDeleted()` (synced) or `query.destroyAllPermanently()` (local only).
+
+**Sync** (if the app calls `synchronize()`)
+
+- `paginatedPulls: true`, once the backend pages for apps that ask (it's opt-in on both sides; the app can ship first).
+- `sendCreatedAsUpdated: true` if the backend sends every record as `updated`.
+- One sync at a time, retry once, debounced triggers: the `nitromelondb-sync` skill has the full engine, and checks the backend too.
+
+Then hand over: the `nitromelondb-audit` skill reviews the rest (writer deadlocks, schema drift, sync mistakes), and `nitromelondb-indexes` finds missing indexes.
+
+### 10. Report
 
 Finish with a summary:
 
@@ -202,7 +240,7 @@ Then tell the user about these, without doing them:
 
 - **Android Studio's Database Inspector no longer shows the database.** NitromelonDB ships its own SQLite build. To open the file: https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/ProTips.md
 - **`seed`**: on a database carried over from WatermelonDB, every seed step runs, even if the tables already have user data. Read https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Seeding.md before adding it.
-- **Recommended next:** `storeWholeNumbersAsIntegers: true` on the adapter (faster number comparisons and sorting), after checking the app's raw SQL, and `experimentalDetectNestedWriters: __DEV__` on the database. The `nitromelondb-audit` skill checks both.
+- **The proposals from step 9**, with the ones the user picked and what was changed for them.
 
 ## Checklist
 
@@ -216,3 +254,4 @@ Then tell the user about these, without doing them:
 - [ ] Babel decorators set up for the platform (Expo: no decorators plugin; bare React Native: four plugins in order)
 - [ ] Type checker and tests pass, or the remaining failures are listed
 - [ ] Full native rebuild done or handed to the user
+- [ ] Step 9 proposals listed with `file:line`; only the picked ones applied, separately from the migration

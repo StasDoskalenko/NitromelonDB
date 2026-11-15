@@ -7,8 +7,9 @@ description: >
   requirements, installs the packages, sets up Babel decorators and
   TypeScript for the platform, adds the Expo config plugin, creates the
   schema, migrations, models and the Database with the recommended options,
-  wires up DatabaseProvider, and checks that it all builds. Invoke with
-  `/nitromelondb-install`.
+  wires up DatabaseProvider, adds a data layer on the fast path (observing
+  hooks, batched writers, seed), and checks that it all builds and runs.
+  Invoke with `/nitromelondb-install`.
 license: MIT
 metadata:
   author: StasDoskalenko
@@ -30,7 +31,7 @@ Follow the steps in order. Steps 1 and 2 change nothing.
 Read `package.json`.
 
 - **`@nozbe/watermelondb` is a dependency:** stop. This is a migration, not an install. Use the `nitromelondb-migrate-from-watermelondb` skill (or the [migration guide](https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating.md)), which keeps the existing data.
-- **`nitromelondb` is already a dependency:** don't install it again. Tell the user, and offer the `nitromelondb-audit` skill to check the setup. If they want more tables or models, go to step 6 and add them with a migration (see "Adding to an existing schema" there).
+- **`nitromelondb` is already a dependency:** don't install it again. Tell the user, and offer the `nitromelondb-audit` skill to check the setup. If they want more tables or models, use the `nitromelondb-schema` skill: it adds them with a migration.
 
 ### 2. Find out what the app is, and check the requirements
 
@@ -126,7 +127,7 @@ Keep any plugins the app already has (Reanimated / Worklets must stay **last**).
 
 - **Webpack with Babel:** the same two plugins, in `babel.config.js` / `.babelrc`.
 
-If the app uses `@vitejs/plugin-react-swc`, or Next.js with SWC, don't guess a config: tell the user, and offer the TypeScript setup below, which those compilers follow. Check the result with the smoke test in step 9.
+If the app uses `@vitejs/plugin-react-swc`, or Next.js with SWC, don't guess a config: tell the user, and offer the TypeScript setup below, which those compilers follow. Check the result with the smoke test in step 10.
 
 **TypeScript.** In `tsconfig.json` `compilerOptions`, for legacy decorators:
 
@@ -185,7 +186,7 @@ module.exports = {
 
 Put these in one folder that fits the app's layout, for example `src/db/` (`model/` is the docs' name and fine too). Use `.ts` in TypeScript apps.
 
-**Which tables?** If the user described their data, model that. If not, ask what the app stores. Don't invent example tables (posts, comments, tasks) in a real app. If the user only wants the library installed for now, create one small table they agree on, so the setup can be checked in step 9, and say it can be renamed before the first release.
+**Which tables?** Use the `nitromelondb-schema` skill for this step (steps 2 to 5 there): it works the tables out from the app's own types, API and stored state, proposes them, and writes the schema, migrations and models. Without it, follow the short version below. If the user only wants the library installed for now, create one small table they agree on, so the setup can be checked in step 10, and say it can be renamed before the first release. Don't invent example tables (posts, comments, tasks) in a real app.
 
 Schema rules for each table:
 
@@ -364,9 +365,72 @@ With Expo Router, put it in the root `app/_layout.tsx`, around the `<Stack>` / `
 
 Reads and writes made before the database is ready are queued, so the app can render right away. Gate on readiness with `useDatabaseReady(database)` (from `nitromelondb/hooks`) only if the app does work at launch that shouldn't wait silently (a splash screen it already has, auth checks that read the database, sync started on launch).
 
-For reading data in components, point the user at `useQuery` / `useRecord` (`nitromelondb/hooks`) or `withObservables` (`nitromelondb/react`). Don't rewrite existing screens to use the database unless asked.
+If launch can fail visibly, add a failure state too: `useDatabaseReady` stays `false` forever when setup fails, so let `onSetUpError` switch the app to an error screen (a small store or state the root reads), instead of an endless splash screen.
 
-### 9. Check that it works
+### 9. Give the app an efficient data layer
+
+Write the database code the app's screens will use, so they start out on the fast path (rules: https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Performance.md, "Building a fast app"). Wire it into existing screens only if the user asks; otherwise create it and show how to use it.
+
+**Reads: hooks that observe.** Next to the models, a few domain hooks built on `nitromelondb/hooks`:
+
+```ts
+// db/hooks.ts
+import { useMemo } from 'react'
+import { Q } from 'nitromelondb'
+import { useDatabase } from 'nitromelondb/react'
+import { useQuery, useRecord, useObservable } from 'nitromelondb/hooks'
+import Post from './model/Post'
+import type Comment from './model/Comment'
+
+// A list observes which records match; each row observes its own record (useRecord), so editing one
+// comment re-renders one row. Paged in the query, never sliced in JavaScript.
+export function usePostComments(post: Post, pageSize = 50) {
+  const query = useMemo(() => post.comments.extend(Q.take(pageSize)), [post, pageSize])
+  return useQuery(query)
+}
+
+export function useComment(comment: Comment) {
+  return useRecord(comment)
+}
+
+// Sorted by a field that changes in place: pass the column, so the list re-sorts
+export function usePinnedFirstPosts(pageSize = 50) {
+  const database = useDatabase()
+  const query = useMemo(
+    () =>
+      database
+        .get(Post)
+        .query(Q.sortBy('is_pinned', Q.desc), Q.sortBy('created_at', Q.desc), Q.take(pageSize)),
+    [database, pageSize],
+  )
+  return useQuery(query, ['is_pinned'])
+}
+
+// Counts are counted by the database, not by fetching records
+export function usePinnedCount() {
+  const database = useDatabase()
+  const count$ = useMemo(
+    () => database.get(Post).query(Q.where('is_pinned', true)).observeCount(),
+    [database],
+  )
+  return useObservable(count$, 0)[0]
+}
+```
+
+- A record that may not exist yet (deep link, not synced): `database.get(Post).findAndObserveOrNull(id)` through `useObservable`.
+- No `fetch()` stored in `useState` for anything on screen.
+
+**Writes: one writer per action, batched.**
+
+- Field changes on one record from a component: `useAtomicWriter(Post, post, (p) => { p.isPinned = !p.isPinned })`. It can't contain slow work, and gives `isPending` to disable the button.
+- Domain logic that belongs to a record: a `@writer` method on the model (`@writer async addComment(body)`), called directly: `await post.addComment(body)`. Or a plain (not `@writer`) method run through `useWriter(post, (p) => p.addComment(body))`, which gives `isPending` and `error`. Never both: `useWriter` already runs inside a writer, so a `@writer` method called from it waits for itself and hangs.
+- Several records in one action: one `database.write()` with one `database.batch(...)` of `prepareCreate` / `prepareUpdate` / `prepareMarkAsDeleted`. Never `await create()` in a loop.
+- Network requests, file work and prompts happen before or after the writer, never inside it.
+- Deleting many: `query.markAllAsDeleted()` (data that will sync) or `query.destroyAllPermanently()` (local only).
+
+**Initial data:** reference data the app ships with (categories, a sample project) goes in the `seed` option with `databaseSeed()` (`nitromelondb/Database/seed`), not in an effect that checks for an empty table.
+
+### 10. Check that it works
 
 1. Run the type checker and the linter. Decorator or tsconfig mistakes show up here first.
 2. Run the existing tests. Don't change unrelated failures: list them.
@@ -420,7 +484,7 @@ For reading data in components, point the user at `useQuery` / `useRecord` (`nit
 
    `undefined` here, or a dev error saying decorators aren't working, means step 4 is wrong for this compiler. See "Model fields read undefined" in https://stasdoskalenko.github.io/NitromelonDB/docs/Installation.md (Troubleshooting).
 
-### 10. Report
+### 11. Report
 
 Finish with a summary:
 
@@ -435,7 +499,7 @@ Then tell the user, without doing it:
 - **Before the first release** the schema can still change at version 1: reinstall the app (or clear its data) after each change, so the local database is created again. **After the release**, every schema change needs a migration and a version bump.
 - **Expo Go** no longer runs the app. Use the development build, or EAS Build.
 - **EAS Update** ships model, schema and migration changes over the air. Upgrading `nitromelondb` or `react-native-nitro-modules` needs a new build.
-- **Next:** `nitromelondb-audit` once there's real data code, and `nitromelondb-indexes` once tables grow. Sync with a backend: https://stasdoskalenko.github.io/NitromelonDB/docs/Sync/Intro.md
+- **Next:** `nitromelondb-schema` for every schema change from now on (it writes the migration), `nitromelondb-sync` to sync with a backend, `nitromelondb-indexes` once tables hold real data, and `nitromelondb-audit` once there's real data code.
 
 ## Checklist
 
@@ -446,5 +510,6 @@ Then tell the user, without doing it:
 - [ ] Expo: `"nitromelondb"` in plugins. Bare React Native: no manual native linking added
 - [ ] Schema with `version: 1`, an empty `schemaMigrations` passed to the adapter, one model per table in `modelClasses`
 - [ ] One `Database`, with `onSetUpError` implemented, `storeWholeNumbersAsIntegers: true` (SQLite), `experimentalDetectNestedWriters` in development. Web without Expo uses `LokiJSAdapter` with its callbacks implemented
-- [ ] `DatabaseProvider` at the root (React apps)
+- [ ] `DatabaseProvider` at the root (React apps), and a failed setup shows an error instead of an endless splash
+- [ ] Data layer: observing hooks (`useQuery` + `useRecord` per row, `observeCount`), paging with `Q.take`, `useAtomicWriter` / `@writer` methods, one batch per action, `seed` for shipped data
 - [ ] Type check, tests and a build pass, and the smoke test reads back real values (or what's left is handed to the user)
