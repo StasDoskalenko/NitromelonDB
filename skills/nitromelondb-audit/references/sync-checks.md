@@ -58,7 +58,7 @@ Also check it isn't subscribed to tables that sync itself writes in a way that l
 
 ## Y9. Paginated pulls
 
-Without `paginatedPulls: true`, a first sync or a sync after weeks offline arrives as one response and is held in memory at once. Low, informational: recommend paginated pulls when the app has large tables.
+Without `paginatedPulls: true`, a first sync or a sync after weeks offline arrives as one response and is held in memory at once. Low, informational: recommend paginated pulls when the app has large tables. They need a nitromelondb release newer than 0.32.0 (`SyncPullArgs` has a `cursor`): on older versions, recommend the upgrade first.
 
 It's opt-in on both sides. The app passes `paginatedPulls: true` and tells the server it can take pages, and the server pages only for apps that asked. Don't turn it on in the app without checking that the backend returns `nextCursor` only to clients that asked for pages: an app version without `paginatedPulls` that gets a page stores that page's timestamp and never asks for the rest.
 

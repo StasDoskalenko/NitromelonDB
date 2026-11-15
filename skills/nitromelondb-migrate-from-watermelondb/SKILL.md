@@ -219,7 +219,7 @@ Rules behind these: https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/
 
 **Sync** (if the app calls `synchronize()`)
 
-- `paginatedPulls: true`, once the backend pages for apps that ask (it's opt-in on both sides; the app can ship first).
+- `paginatedPulls: true`, once the backend pages for apps that ask (it's opt-in on both sides; the app can ship first). It needs a nitromelondb release newer than 0.32.0: if `SyncPullArgs` in `node_modules/nitromelondb/sync/index.d.ts` has no `cursor`, leave it for later.
 - `sendCreatedAsUpdated: true` if the backend sends every record as `updated`.
 - One sync at a time, retry once, debounced triggers: the `nitromelondb-sync` skill has the full engine, and checks the backend too.
 

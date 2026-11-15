@@ -41,7 +41,7 @@ Most of an app's speed comes from how it reads and writes, not from the database
 ### Sync
 
 - **One sync at a time**, started from one function that returns the running sync, retried once after a failure, and debounced when it's triggered by local changes. See [Sync frontend](../Sync/Frontend.md).
-- **`paginatedPulls: true`**, so a first sync arrives in pages and is applied as it comes.
+- **`paginatedPulls: true`**, so a first sync arrives in pages and is applied as it comes (versions after 0.32.0).
 - **A backend that sends every record as `updated`**, with `sendCreatedAsUpdated: true`. See [Sync backend](../Sync/Backend.md).
 
 ## Store whole numbers as integers (opt-in)

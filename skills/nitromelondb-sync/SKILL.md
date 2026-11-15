@@ -202,11 +202,13 @@ export async function resetAfterLogout(database: Database, stopSync: () => void)
 
 Adapt it to the app:
 
+- **Paginated pulls need a nitromelondb release newer than 0.32.0.** Check `node_modules/nitromelondb/sync/index.d.ts`: if `SyncPullArgs` has no `cursor`, leave out `paginated`, the `cursor` lines and `paginatedPulls` (the type checker rejects them), and say so in the report. The backend can page already: it only pages for apps that ask.
 - **`migrationsEnabledAtVersion`:** for an app that hasn't shipped, `1` (or the schema version it will ship with). For an app that already shipped without sync, the **current** schema version, and it must be set before the next schema change. Never lower it later. The adapter must be given `migrations`.
 - **`sendCreatedAsUpdated: true`** only if the backend sends everything as `updated` (recommended). If it splits `created` / `updated`, leave it out.
 - **`paginatedPulls: true`** works with any backend: one that doesn't page never returns `nextCursor`.
 - **Web without React Native:** replace `AppState` with `document.visibilitychange`. Node / Electron main: drop it.
 - **Triggers to add if the app has them:** pull to refresh (`await sync(database)`), connectivity coming back (`@react-native-community/netinfo`), a push notification that says "data changed". All go through `sync()`.
+- **More than one `Database`** (one per logged-in user): keep `running` and `again` per database (a `WeakMap` keyed by the database), so one user's sync doesn't wait for another's.
 - **Where to start it:** once, where the app knows the user is logged in (after auth, not at module load): `const stop = startSync(database, [...])`, and `stop()` on logout.
 - **Showing status:** a `hasUnsyncedChanges({ database })` check for a "not synced yet" badge, and before logging out ("you have changes that haven't synced, log out anyway?").
 - **Logs:** to debug, pass `log: {}` to `synchronize()` and read counts from it afterwards (`remoteChangeCount`, `pulledPages`, errors). It contains user data: never send it to an error reporter as is, and never log `changes` in production.
@@ -228,10 +230,11 @@ Leave these off unless there's a reason, and read their docs first if there is: 
 
 1. A record created on device A shows up on B after A syncs, then B syncs.
 2. An update and a delete on A reach B. The delete uses `markAsDeleted()`.
-3. Both edit the same record, different columns: after both sync (B's push gets `409`, the retry pulls and pushes), both have both edits.
-4. A device offline for several changes, then syncing: nothing lost.
-5. A first sync larger than one page (set the server's page size low): every record arrives.
-6. After a schema migration that adds a column (if the backend implements migration syncs): an upgraded device pulls the column's values.
+3. Both edit the same record, different columns: A syncs, then B syncs, then A again. Both have both edits. (No `409` here: `synchronize()` pulls before it pushes, so B merges A's change on its pull, its own columns winning, and then pushes.)
+4. **A real `409`:** a change reaches the server between B's pull and B's push. Wrap `global.fetch` in the test so that right after B's first pull response, it pushes an edit of the same record straight to the backend (with a `lastPulledAt` in the future, so that push isn't rejected). Expect B's requests to go pull 200, push 409, pull 200, push 200 (the engine's retry), and both edits on every device afterwards.
+5. A device offline for several changes, then syncing: nothing lost.
+6. A first sync larger than one page (set the server's page size low): every record arrives. Only with paginated pulls (see above).
+7. After a schema migration that adds a column (if the backend implements migration syncs): an upgraded device pulls the column's values.
 
 Run `sync()` from the engine in these tests, not `synchronize()` directly, so the retry and single-flight logic are tested too. If `fetch` isn't available in the test environment, use Node's global `fetch` (Node 18+).
 
@@ -254,4 +257,4 @@ Run `sync()` from the engine in these tests, not `synchronize()` directly, so th
 - [ ] App: `pushChanges` rejects on failure; `sendCreatedAsUpdated`, `migrationsEnabledAtVersion`, `paginatedPulls` set
 - [ ] One sync at a time, retry once, debounced local-change trigger, launch and foreground triggers, `401` stops
 - [ ] Logout waits for sync, then `unsafeResetDatabase()`; user deletes are `markAsDeleted()`
-- [ ] Two-device convergence tests pass, including a conflict and a paged first sync
+- [ ] Two-device convergence tests pass, including merged edits, a forced `409` with its retry, and (with paginated pulls) a paged first sync
