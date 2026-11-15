@@ -73,9 +73,11 @@ With the app's package manager. Pin nothing by hand beyond what's listed.
 | Bare React Native, Windows | `nitromelondb`, `react-native-nitro-modules` | `@babel/plugin-proposal-decorators`, `@babel/plugin-transform-class-properties`, `@babel/plugin-transform-private-methods`, `@babel/plugin-transform-private-property-in-object` |
 | Expo | `nitromelondb`, `react-native-nitro-modules` (with `npx expo install`, so the versions match the SDK) | none |
 | Expo web, without Expo Router | also `@expo/metro-runtime` (with `npx expo install`) | none |
-| Web without Expo | `nitromelondb` | `@babel/plugin-proposal-decorators`, `@babel/plugin-transform-class-properties` |
+| Web without Expo, Vite 8+ | `nitromelondb` | none |
+| Web without Expo, Webpack or Vite 7 and older | `nitromelondb` | `@babel/plugin-proposal-decorators`, `@babel/plugin-transform-class-properties` |
 | Node.js, Electron | `nitromelondb`, `better-sqlite3` | none |
 
+- **Babel plugins: match the app's `@babel/core` major version.** Babel 8 is the npm `latest`, but React Native's preset is on Babel 7. Without a version, npm stops with `ERESOLVE` (`peer @babel/core@"^8.0.0"`) and Yarn installs Babel 8 plugins that don't work with the app's Babel 7. With `@babel/core` 7 in the lockfile, add each plugin as `@babel/plugin-...@^7`.
 - `react-native-nitro-modules` must be **0.35.2 or newer**. If the app already has it, check the version and upgrade it if it's older. Don't add it twice.
 - Don't add `rxjs`, `lokijs` or `wa-sqlite`. NitromelonDB brings what it needs.
 - Don't add `expo-dev-client` unless the user asks. `npx expo run:*` builds a development build without it.
@@ -106,20 +108,25 @@ module.exports = {
 
 Keep any plugins the app already has (Reanimated / Worklets must stay **last**).
 
-**Web without Expo:** decorators first, then class properties in `loose` mode. Webpack: in `babel.config.js` / `.babelrc`. Vite + React: in `@vitejs/plugin-react`:
+**Web without Expo.** Check the `vite` and `@vitejs/plugin-react` versions first:
 
-```js
-react({
-  babel: {
-    plugins: [
-      ['@babel/plugin-proposal-decorators', { legacy: true }],
-      ['@babel/plugin-transform-class-properties', { loose: true }],
-    ],
-  },
-})
-```
+- **Vite 8+** (`@vitejs/plugin-react` 6+): there's no Babel, and `react()` has no `babel` option. Vite's compiler (Oxc) reads decorators settings from the `tsconfig` the app's source uses (`tsconfig.app.json` in Vite's templates): set the two TypeScript options below there. Nothing else for decorators. Then see step 5 for Vite 8: it needs one more setting, or every default import from `nitromelondb` fails.
+- **Vite 7 and older** with `@vitejs/plugin-react` 5 or older: decorators first, then class properties in `loose` mode:
 
-If the Vite app uses `@vitejs/plugin-react-swc` (no Babel), or Next.js with SWC, don't guess a config: tell the user, and offer the TypeScript setup below, which those compilers follow.
+  ```js
+  react({
+    babel: {
+      plugins: [
+        ['@babel/plugin-proposal-decorators', { legacy: true }],
+        ['@babel/plugin-transform-class-properties', { loose: true }],
+      ],
+    },
+  })
+  ```
+
+- **Webpack with Babel:** the same two plugins, in `babel.config.js` / `.babelrc`.
+
+If the app uses `@vitejs/plugin-react-swc`, or Next.js with SWC, don't guess a config: tell the user, and offer the TypeScript setup below, which those compilers follow. Check the result with the smoke test in step 9.
 
 **TypeScript.** In `tsconfig.json` `compilerOptions`, for legacy decorators:
 
@@ -135,7 +142,7 @@ If the Vite app uses `@vitejs/plugin-react-swc` (no Babel), or Next.js with SWC,
 
 ### 5. Native and bundler setup
 
-**Expo:** add the config plugin to `app.json` / `app.config.*`, keeping existing plugins:
+**Expo:** `npx expo install` usually adds the config plugin to `app.json` on its own. Check, and add it only if it's missing, keeping existing plugins:
 
 ```json
 { "expo": { "plugins": ["nitromelondb"] } }
@@ -147,6 +154,17 @@ Only if an iOS simulator build on Apple Silicon fails with `No such module 'Expo
 
 - Without Expo Router, load `@expo/metro-runtime` on web only: create `webRuntime.web.ts` with `import '@expo/metro-runtime'`, an empty `webRuntime.ts`, and `import './webRuntime'` at the top of the entry file. Expo Router already does this.
 - If the app has its own `metro.config.js`, make sure it starts from `getDefaultConfig` from `expo/metro-config`, and that `wasm` is in `config.resolver.assetExts` (push it if it's missing).
+
+**Vite 8+:** if `package.json` has `"type": "module"` (Vite's templates do), Vite 8 treats `nitromelondb`'s CommonJS files the way Node does, and a default import (`import LokiJSAdapter from 'nitromelondb/adapters/lokijs'`) gets the whole module instead of the class: `LokiJSAdapter is not a constructor`, in the dev server and in the build. Until NitromelonDB ships an ES module build, turn Vite's previous behavior back on in `vite.config.*`:
+
+```js
+export default defineConfig({
+  plugins: [react()],
+  legacy: { inconsistentCjsInterop: true },
+})
+```
+
+Tell the user why it's there. Named imports (`import { Database, Q } from 'nitromelondb'`) work either way.
 
 **Bare React Native:** nothing. Autolinking links everything. Don't add Podfile lines, Gradle lines, `MainApplication` code or ProGuard rules.
 
@@ -305,7 +323,27 @@ export const database = new Database({
 - Don't add `jsi: true` / `jsi: false`. They're WatermelonDB options: `jsi: false` throws.
 - Don't add `seed` unless the user wants demo or fixture data. On a database that already has data, every seed step still runs. See https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Seeding.md.
 
-**Web without Expo:** use `SQLiteAdapter` (wa-sqlite) by default, as above. Use `LokiJSAdapter` only if the user asks, or the app must support browsers without workers. Its options are in https://stasdoskalenko.github.io/NitromelonDB/docs/Setup.md (section "Web (LokiJS)"), including `onQuotaExceededError` and the multi-tab callbacks, which should be implemented, not left empty.
+**Web without Expo (Vite, Webpack):** use `LokiJSAdapter`. `nitromelondb/adapters/sqlite` picks its browser build (wa-sqlite) through Metro's `.web.js` files, which Vite and Webpack don't read: there it loads the Node build and fails on `better-sqlite3`. wa-sqlite on those bundlers needs hand-made worker and WASM setup and isn't a supported target yet ([wa-sqlite web adapter](https://stasdoskalenko.github.io/NitromelonDB/docs/Implementation/WaSQLiteAdapter.md)). Don't attempt it unless the user asks.
+
+```ts
+import LokiJSAdapter from 'nitromelondb/adapters/lokijs'
+
+const adapter = new LokiJSAdapter({
+  schema,
+  migrations,
+  dbName: 'app',
+  useWebWorker: false,
+  useIncrementalIndexedDB: true,
+  onSetUpError: (error) => { /* report it, offer a reload */ },
+  onQuotaExceededError: (error) => { /* the browser is out of storage: tell the user */ },
+  extraIncrementalIDBOptions: {
+    onDidOverwrite: () => { /* another tab overwrote this one's data: sync now, or warn */ },
+    onversionchange: () => { /* the database was deleted in another tab (logout): reload */ },
+  },
+})
+```
+
+Implement those callbacks for the app; don't leave them empty. More in https://stasdoskalenko.github.io/NitromelonDB/docs/Setup.md (section "Web (LokiJS)"). Leave out `storeWholeNumbersAsIntegers`: it's a SQLite option.
 
 **Electron:** the renderer creates the `Database` with `RemoteAdapter` (step 5). The models and `modelClasses` stay on the renderer side.
 
@@ -332,11 +370,38 @@ For reading data in components, point the user at `useQuery` / `useRecord` (`nit
 
 1. Run the type checker and the linter. Decorator or tsconfig mistakes show up here first.
 2. Run the existing tests. Don't change unrelated failures: list them.
+
+   **Jest in React Native and Expo apps.** Jest has no native modules, so any test that imports the database module now fails with `SQLiteAdapter requires react-native-nitro-modules` (the template's `App.test.tsx` does, through `App`). Give Jest an in-memory adapter for the same schema and models, in a setup file:
+
+   ```js
+   // jest.setup.js (add it to `setupFiles` in the Jest config)
+   jest.mock('nitromelondb/adapters/sqlite', () => {
+     const LokiJSAdapter = jest.requireActual('nitromelondb/adapters/lokijs').default
+     return {
+       __esModule: true,
+       default: class InMemoryAdapter extends LokiJSAdapter {
+         constructor({ schema, migrations, dbName }) {
+           super({
+             schema,
+             migrations,
+             dbName,
+             useWebWorker: false,
+             useIncrementalIndexedDB: false,
+             // Loki's autosave timer would keep Jest from exiting
+             extraLokiOptions: { autosave: false },
+           })
+         }
+       },
+     }
+   })
+   ```
+
+   If the app already has a setup file, add the mock to it. Don't mock the database away entirely: with this, tests that read and write records keep working.
 3. Build:
    - **Expo:** `npx expo run:ios` / `npx expo run:android`. A Metro reload isn't enough. With committed `ios/` and `android/`, autolinking is all it needs: don't run `npx expo prebuild` for NitromelonDB (it rewrites those folders), unless the user uses `excludeSimArch`.
    - **Bare React Native:** `npx react-native run-ios` (runs `pod install`) / `npx react-native run-android`.
    - **Expo web:** `npx expo export -p web`, then check that the output has a worker bundle and a `.wasm` file.
-   - **Web:** the app's build command.
+   - **Web:** the app's build command, and load the page in a browser: the smoke test below must pass in the dev server and in the production build (Vite 8 interop problems show up only at runtime).
    - **Node.js:** run a script that imports the database module.
 
    Before starting a bundler, check whether one is already running on port 8081 and reuse it. Native builds take minutes: ask the user whether to run them, or hand them over.
@@ -377,9 +442,9 @@ Then tell the user, without doing it:
 - [ ] Not a WatermelonDB app (else the migration skill), not already installed
 - [ ] Requirements met: RN 0.83+, New Architecture, iOS 15.1+, minSdk 24+, development build (not Expo Go)
 - [ ] `nitromelondb` (and `react-native-nitro-modules` 0.35.2+ / `better-sqlite3` where needed) installed with the app's package manager
-- [ ] Decorators: Expo has no decorators plugin of its own; bare React Native has the four plugins in order; web has decorators then loose class properties; `tsconfig` has `experimentalDecorators` and `useDefineForClassFields: false`
+- [ ] Decorators: Expo has no decorators plugin of its own; bare React Native has the four plugins in order; web has decorators then loose class properties (Vite 8: `tsconfig` only, plus `legacy.inconsistentCjsInterop`); `tsconfig` has `experimentalDecorators` and `useDefineForClassFields: false`
 - [ ] Expo: `"nitromelondb"` in plugins. Bare React Native: no manual native linking added
 - [ ] Schema with `version: 1`, an empty `schemaMigrations` passed to the adapter, one model per table in `modelClasses`
-- [ ] One `Database`, with `onSetUpError` implemented, `storeWholeNumbersAsIntegers: true`, `experimentalDetectNestedWriters` in development
+- [ ] One `Database`, with `onSetUpError` implemented, `storeWholeNumbersAsIntegers: true` (SQLite), `experimentalDetectNestedWriters` in development. Web without Expo uses `LokiJSAdapter` with its callbacks implemented
 - [ ] `DatabaseProvider` at the root (React apps)
 - [ ] Type check, tests and a build pass, and the smoke test reads back real values (or what's left is handed to the user)

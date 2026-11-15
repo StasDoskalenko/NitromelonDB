@@ -142,7 +142,7 @@ Find every `new SQLiteAdapter({ ... })`.
 WatermelonDB's install guide had apps add `@babel/plugin-proposal-decorators` by hand. What's right now depends on the platform:
 
 - **Expo:** remove `@babel/plugin-proposal-decorators` (and the class-properties plugins added for it) from `babel.config.js`. `babel-preset-expo` already turns legacy decorators on, and since SDK 56 a decorators plugin of your own runs before the preset's and breaks fields declared with `!` (`Definitely assigned fields cannot be initialized here`). If `babel.config.js` has nothing else in it, it can go.
-- **Bare React Native:** keep these four plugins, in this order, with these options, and add the missing ones as dev dependencies:
+- **Bare React Native:** keep these four plugins, in this order, with these options, and add the missing ones as dev dependencies, on the app's `@babel/core` major version (`@babel/plugin-...@^7` with Babel 7: npm's `latest` is Babel 8, which React Native's preset doesn't use yet):
 
   ```js
   plugins: [
