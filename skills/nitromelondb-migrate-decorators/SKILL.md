@@ -71,7 +71,23 @@ module.exports = {
 }
 ```
 
-**Vite:** pass `['@babel/plugin-proposal-decorators', { version: '2023-11' }]` to `@vitejs/plugin-react`'s `babel.plugins`.
+**Vite 7 and older** (`@vitejs/plugin-react` 5 or older): pass `['@babel/plugin-proposal-decorators', { version: '2023-11' }]` to `@vitejs/plugin-react`'s `babel.plugins`.
+
+**Vite 8+** (`@vitejs/plugin-react` 6+): `react()` has no `babel` option, and Vite's own compiler (Oxc) only compiles legacy decorators. Left to it, standard decorators reach the browser as they are and fail with `Invalid or unexpected token`. Add `@rolldown/plugin-babel` and `@babel/core` (same major as the decorators plugin) as dev dependencies, and:
+
+```js
+// vite.config.ts
+import babel from '@rolldown/plugin-babel'
+
+export default defineConfig({
+  plugins: [
+    react(),
+    babel({ plugins: [['@babel/plugin-proposal-decorators', { version: '2023-11' }]] }),
+  ],
+})
+```
+
+Keep `legacy: { inconsistentCjsInterop: true }` if the app already has it (see the `nitromelondb-install` skill). Check in a browser, in the dev server and the production build: a type check passes either way.
 
 Keep other plugins the app has. If Jest uses a separate Babel config, update it the same way.
 

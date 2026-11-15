@@ -115,6 +115,7 @@ Skip this step if the app never calls `synchronize()`. Otherwise see [references
 | Y7 | Sync logs (`log`) or raw `changes` are stored or sent uncensored | Medium |
 | Y8 | The pulled `changes` object, or `pushChanges` arguments, are stored or mutated | Medium |
 | Y9 | Large pulls without `paginatedPulls` | Low |
+| Y10 | Records the user deletes are destroyed permanently in a synced table, so the delete never syncs | High |
 
 ### 6. Write the report
 

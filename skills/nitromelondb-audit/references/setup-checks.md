@@ -79,7 +79,7 @@ Also look for:
 - **Hand-made waiting:** `setTimeout` before the first query, a polling loop, an `isDbReady` flag set from an adapter callback, a "warm-up" query. Replace with `database.readyPromise`, `database.isReady` or `useDatabaseReady(database)`.
 - **Adapter internals:** reading `adapter._initPromise` or other underscore members to detect readiness. Use `database.readyPromise`.
 - **Seeding from the UI:** an effect or a first-render check that creates default records ("if the table is empty, insert..."). It races with sync and with other screens, and can run twice. Use the `seed` option with `databaseSeed()`. On a database that already has user data, read the Seeding page first, and flag this for the user rather than moving it yourself.
-- **A failed setup.** If setup fails, every queued call fails with the setup error. Code that waits on `readyPromise` should handle that, together with `onSetUpError` (S4).
+- **A failed setup.** If setup fails (a migration that throws, a damaged file), `readyPromise` rejects and every queued call fails with the setup error. `useDatabaseReady(database)` then stays `false` for good: an app that shows a splash screen until it's `true` shows it forever, with nothing in the UI and nothing reported. Check that `onSetUpError` (S4) switches the app to an error screen (or the gate catches `readyPromise`), so a failed setup is visible. Medium.
 - **The dev warning** about an access that had to wait for the database is not an error, but it names exactly this: something touched the database before it was ready. If the user mentions it, find what did, and check it against the list above.
 
 ## S7. Leftovers from WatermelonDB

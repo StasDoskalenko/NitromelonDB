@@ -64,6 +64,10 @@ It's opt-in on both sides. The app passes `paginatedPulls: true` and tells the s
 
 If you see `nextCursor` in the backend's response and no `paginatedPulls: true` in the app, that's High: the app applies the first page only.
 
+## Y10. Permanent deletes in synced tables
+
+`destroyPermanently()`, `prepareDestroyPermanently()` and `query.destroyAllPermanently()` remove the row with no record that it existed, so the deletion is never pushed. The record stays on the server and on every other device, and can come back on a later pull. In a table that syncs, deletes the user makes should use `markAsDeleted()` / `prepareMarkAsDeleted()` / `query.markAllAsDeleted()`. High, unless the code shows it's deliberate (local-only data, or a reset that's followed by a full pull).
+
 ## Other things worth a line
 
 - `synchronize()` pointed at a backend the team doesn't control. The database trusts what `pullChanges` returns.

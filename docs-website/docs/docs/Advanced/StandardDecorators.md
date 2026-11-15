@@ -77,7 +77,9 @@ module.exports = {
 }
 ```
 
-**Vite:** pass `['@babel/plugin-proposal-decorators', { version: '2023-11' }]` to `@vitejs/plugin-react`'s `babel.plugins`. Vite compiles TypeScript itself, so that's all it needs.
+**Vite 7 and older:** pass `['@babel/plugin-proposal-decorators', { version: '2023-11' }]` to `@vitejs/plugin-react`'s `babel.plugins`. Vite compiles TypeScript itself, so that's all it needs.
+
+**Vite 8+:** `@vitejs/plugin-react` 6 has no `babel` option, and Vite's own compiler only handles legacy decorators. Add `@rolldown/plugin-babel` and `@babel/core` as dev dependencies, and pass the same plugin through it: `plugins: [react(), babel({ plugins: [['@babel/plugin-proposal-decorators', { version: '2023-11' }]] })]`.
 
 **TypeScript:** 5.0 or newer, with `experimentalDecorators` (and `emitDecoratorMetadata`) off.
 
