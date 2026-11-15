@@ -3162,5 +3162,26 @@
       "ram": 179,
       "fps": 53.8
     }
+  },
+  {
+    "sha": "2def6bfe271f1a517fed22ddb6edaad34343ae3a",
+    "date": "2026-11-15T18:05:17.205Z",
+    "prNumber": 244,
+    "subject": "ci(perf): compare iOS runs side by side, and adjust each metric by its own workload (#244)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 19.7,
+      "ram": 180,
+      "fps": 55.5
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 20.3,
+      "ram": 178,
+      "fps": 55.2
+    }
   }
 ]
