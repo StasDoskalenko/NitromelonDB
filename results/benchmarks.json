@@ -2766,5 +2766,26 @@
       "ram": 178,
       "fps": 55.2
     }
+  },
+  {
+    "sha": "660e13b67ce603c60ccfa7e3bbf60fd3af12411a",
+    "date": "2026-11-15T06:52:28.625Z",
+    "prNumber": 241,
+    "subject": "feat(skills): agent skills for migrating, auditing and indexing apps (#241)",
+    "android": {
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 23.7,
+      "ram": 179,
+      "fps": 53.9
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 24.1,
+      "ram": 179,
+      "fps": 53.8
+    }
   }
 ]
