@@ -3567,6 +3567,21 @@
         "realistic": 10,
         "stress": 5
       }
+    },
+    "android": {
+      "iterationCount": 5,
+      "score": 94,
+      "cpu": 29.4,
+      "ram": 179,
+      "fps": 53.2
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 30.1,
+      "ram": 178,
+      "fps": 53.6
     }
   }
 ]
