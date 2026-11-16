@@ -31,6 +31,8 @@ on:
       - 'yarn.lock'
       - 'scripts/ci-benchmark-ios.sh'
       - 'scripts/ios-sync-summary.mjs'
+      - 'scripts/machine-speed-analysis.mjs'
+      - 'scripts/machine-sampler/**'
       - '.github/workflows/perf-ios.yml'
   workflow_dispatch:
 

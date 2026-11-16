@@ -90,11 +90,24 @@ xcrun simctl install "$SIM_UDID" "$NITRO_APP"
 xcrun simctl install "$SIM_UDID" "$WM_APP"
 
 APPS='NitromelonDB=com.nitromelondb.benchmark;WatermelonDB JSI=com.watermelondb.benchmark'
+# A machine-speed sampler alongside every run (scripts/machine-sampler: a fixed CPU+memory workload
+# every 100 ms, a 4 KiB write + fsync every second, ~1% of a core), recorded on each row. The
+# runner's speed changes within a minute (hardware probes ~65 s apart didn't correlate, see #245),
+# so only a measure taken during a run can describe it. scripts/machine-speed-analysis.mjs checks
+# how well it tracks the runs; nothing adjusts by it yet. Optional: without it, the runs are the same.
+SAMPLER_DIR="${RUNNER_TEMP:-/tmp}/machine-sampler"
+SAMPLER_ARGS=()
+if mkdir -p "$SAMPLER_DIR" &&
+  clang -O2 "$REPO_ROOT/scripts/machine-sampler/sampler.c" -o "$SAMPLER_DIR/machine-sampler"; then
+  SAMPLER_ARGS=(--sampler "'$SAMPLER_DIR/machine-sampler' '$SAMPLER_DIR/scratch'")
+else
+  echo "::warning::Couldn't build the machine-speed sampler; running without it"
+fi
 run_card() {
   local card=$1 sizes=$2 runs=$3
   echo "::group::$card ($sizes, $runs runs per app)"
   node "$BENCH/scripts/run-sync-trials.mjs" --card "$card" --apps "$APPS" --sizes "$sizes" \
-    --runs "$runs" --device "$SIM_UDID" --out "$OUT/$card.jsonl"
+    --runs "$runs" --device "$SIM_UDID" --out "$OUT/$card.jsonl" ${SAMPLER_ARGS[@]+"${SAMPLER_ARGS[@]}"}
   echo "::endgroup::"
 }
 # How fast this runner is, before and after the cards (the summary keeps the best), so results
@@ -104,6 +117,10 @@ run_card sync 5000,50000 "$SYNC_RUNS"
 run_card real 300 "$REAL_RUNS"
 run_card stress 100000 "$STRESS_RUNS"
 node --no-warnings "$REPO_ROOT/scripts/runner-baseline.mjs" > "$OUT/baseline-after.json"
+
+echo "::group::Machine-speed sampler vs the runs"
+node "$REPO_ROOT/scripts/machine-speed-analysis.mjs" "$OUT" "$OUT/machine-speed.json" || true
+echo "::endgroup::"
 
 node "$REPO_ROOT/scripts/ios-sync-summary.mjs" "$OUT" "$REPO_ROOT/perf-results/perf-result-ios-sync.json" \
   --device "$SIM_NAME"
