@@ -4,14 +4,15 @@
 /**
  * Reminds agents that the git root is the library and NotesApp is a separate example.
  *
+ * Used by .cursor/hooks.json. Claude Code gets the same guidance from
+ * AGENTS.md (imported by CLAUDE.md), so it has no hook.
+ *
  * Formats:
- *   claude-session  — SessionStart stdout (plain text)
- *   claude-prompt   — UserPromptSubmit JSON additionalContext
  *   cursor-session  — sessionStart JSON additional_context
  *   cursor-shell    — beforeShellExecution permission + optional agent_message
  */
 
-const format = process.argv[2] || 'claude-session'
+const format = process.argv[2] || 'cursor-session'
 
 async function readStdin() {
   const chunks = []
@@ -73,8 +74,7 @@ async function main() {
   const text = reminder(cwd)
 
   if (format === 'cursor-shell') {
-    const wrongDir =
-      isAppCommand(command) && !isNotesAppCwd(cwd) && !alreadyCdsToApp(command)
+    const wrongDir = isAppCommand(command) && !isNotesAppCwd(cwd) && !alreadyCdsToApp(command)
     if (wrongDir) {
       print({
         permission: 'allow',
@@ -99,22 +99,7 @@ async function main() {
     return
   }
 
-  if (format === 'cursor-session') {
-    print({ additional_context: text })
-    return
-  }
-
-  if (format === 'claude-prompt') {
-    print({
-      hookSpecificOutput: {
-        hookEventName: 'UserPromptSubmit',
-        additionalContext: text,
-      },
-    })
-    return
-  }
-
-  process.stdout.write(`${text}\n`)
+  print({ additional_context: text })
 }
 
 main().catch(() => {
