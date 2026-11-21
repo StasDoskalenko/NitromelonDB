@@ -5,7 +5,7 @@
  * Reminds agents that the git root is the library and NotesApp is a separate example.
  *
  * Used by .cursor/hooks.json. Claude Code gets the same guidance from
- * AGENTS.md (imported by CLAUDE.md), so it has no hook.
+ * CLAUDE.md, so it has no hook.
  *
  * Formats:
  *   cursor-session  — sessionStart JSON additional_context
