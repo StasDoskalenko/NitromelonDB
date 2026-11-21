@@ -1,28 +1,40 @@
-# You are in the EXAMPLE APP
+# examples/NotesApp — Expo example app (iOS/Android), not the library
 
-Folder: `examples/NotesApp`
-Library (do not pretend this is it): `../..` → `src/` and `native/`
+The library is `../..` (`src/`, `native/`). Database changes go there, then rebuild this app. This is a development build, not Expo Go: rebuild after native/Nitro changes; JS-only changes just need a Metro reload.
 
-This app consumes the library. It is not the library.
+## Run (from this folder)
 
-## Commands (run here)
-
-Before `expo run:*` or Metro start, check if Metro is already running on port **8081** (terminals, `lsof -i :8081`, or `curl -s http://localhost:8081/status`). Reuse it — do not start a second server.
+Check port **8081** first and reuse a running Metro.
 
 ```bash
-yarn expo run:ios
-yarn expo run:android
-yarn start:e2e
+yarn expo run:ios       # or: yarn expo run:android
+```
+
+## Maestro e2e
+
+```bash
+yarn start:e2e          # expo start --dev-client --no-dev
 maestro test maestro/
 maestro test maestro/cold-start.yaml
 ```
 
-For Maestro, use `yarn start:e2e` (`expo start --dev-client --no-dev`), not plain `yarn start`.
+- Use `yarn start:e2e`, not plain `yarn start` (that keeps JS dev mode on).
+- App id in every flow: `com.nitromelondb.example`.
+- `maestro/sync.yaml` needs the sync server: `cd ../sync-server && yarn install && yarn start:notes-app` (port 3000; on an Android emulator also `adb reverse tcp:3000 tcp:3000`). CI scripts start it themselves.
+- CI runs the flows on Android against a Release APK with no Metro (`scripts/ci-notesapp-android-maestro.sh`).
+- The same scenarios run on Windows through WinAppDriver (`../NotesApp_windows/e2e/`). If you change a flow, or a `testID` a flow relies on, update the Windows test too.
+- Maestro MCP, if connected: `list_devices` → `inspect_screen` before tapping → `cheat_sheet` before writing new YAML → `run`. Do not use Maestro Cloud unless asked.
 
-`maestro/sync.yaml` also needs the sync server: `cd ../sync-server && yarn install && yarn start:notes-app` (port 3000; on an Android emulator also `adb reverse tcp:3000 tcp:3000`).
+## Shared UI
 
-App id: `com.nitromelondb.example`
+`src/` (screens, components, hooks, model) is also the Windows app's UI. Windows overrides are `*.windows.tsx` (`NotesList.windows.tsx` is a ScrollView list; iOS/Android use FlashList). Root `App.tsx` re-exports `src/App.tsx`.
 
-If you need to change database code, that lives in `../../src/` and `../../native/`, then rebuild this app.
+## Seed + list (do not thrash)
 
-App UI lives under `src/` (`screens/`, `components/`, `hooks/`, `model/`). Root `App.tsx` re-exports `src/App.tsx`.
+Correct pattern in `src/hooks/useNotes.ts` + `src/screens/NotesScreen.tsx`:
+
+1. One effect: `experimentalSubscribeToCount` + async seed (100 notes, `localStorage` gate).
+2. One effect: list query with `Q.skip((page - 1) * pageSize)` + `Q.take(pageSize)` + `experimentalSubscribeWithColumns` (FlashList on iOS/Android, `NotesList.windows.tsx` on Windows).
+3. Sticky pager (Previous / Next) changes `page` only. Never inserts rows. Never grow the list with cumulative `Q.take`.
+
+After seed writes, observers emit again. A brief count of `0` is fine. Do **not** add refs to “win” a race with the first subscription callback. Maestro waits for `100 notes`.
