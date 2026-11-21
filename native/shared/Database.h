@@ -8,7 +8,7 @@
 #include <string>
 #include <variant>
 #include <vector>
-#include <sqlite3.h>
+#include "NitromelonSqlite.h"
 
 // FIXME: Make these paths consistent across platforms
 #if __ANDROID__

@@ -1,0 +1,5 @@
+SQLite3 Multiple Ciphers 2.7.1 (https://github.com/utelle/SQLite3MultipleCiphers)
+is MIT licensed, see LICENSE in this directory.
+
+It is built on SQLite 3.54.1, which is in the public domain.
+See https://www.sqlite.org/copyright.html

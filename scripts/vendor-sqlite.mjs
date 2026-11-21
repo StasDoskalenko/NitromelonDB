@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
  * Vendor the official SQLite amalgamation into native/vendor/sqlite.
- * iOS keeps linking the system sqlite3; Android and Windows compile these sources.
+ * The default build: iOS keeps linking the system sqlite3; Android and Windows compile these
+ * sources. Apps that opt into encryption compile native/vendor/sqlite3mc instead
+ * (scripts/vendor-sqlite3mc.mjs), which must be built on this same SQLite version.
  *
  *   node scripts/vendor-sqlite.mjs 3.46.0
  *   node scripts/vendor-sqlite.mjs --latest

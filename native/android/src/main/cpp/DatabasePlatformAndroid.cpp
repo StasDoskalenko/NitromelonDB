@@ -2,7 +2,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <string>
-#include <sqlite3.h>
+#include "NitromelonSqlite.h"
 #include <cassert>
 
 #include "DatabasePlatform.h"
@@ -121,7 +121,7 @@ void initializeSqlite() {
         // memory pressure, and works against the 8MB soft heap limit set just above.
         try {
             androidTempDirectory = resolveTempDirectory();
-            sqlite3_temp_directory = androidTempDirectory.data();
+            nitromelon_sqlite3_set_temp_directory(androidTempDirectory.data());
             androidTempDirectoryResolved = true;
         } catch (const std::exception &ex) {
             // Left unresolved: Database.cpp falls back to pragma temp_store=memory per

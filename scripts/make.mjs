@@ -132,6 +132,7 @@ const copyNonJavaScriptFiles = (buildPath) => {
     'native/windows',
     'native/vendor/simdjson',
     'native/vendor/sqlite',
+    'native/vendor/sqlite3mc',
     'nitrogen',
     'windows-autolink.js',
     'scripts/windows-nitro-shims.mjs',

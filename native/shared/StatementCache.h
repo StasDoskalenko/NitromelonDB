@@ -1,9 +1,9 @@
 #pragma once
 
-// Header-only (no JSI, only sqlite3.h) so it can be unit-tested on its own -- see
+// Header-only (no JSI, only SQLite) so it can be unit-tested on its own -- see
 // native/tests/StatementCacheTest.cpp.
 
-#include <sqlite3.h>
+#include "NitromelonSqlite.h"
 
 #include <algorithm>
 #include <cstddef>

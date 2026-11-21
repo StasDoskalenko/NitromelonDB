@@ -1,6 +1,6 @@
 # Plan: Database encryption (SQLCipher) for NitromelonDB
 
-Status: **proposal / not started**
+Status: **superseded** by [`docs/plans/sqlcipher-encryption.md`](../docs/plans/sqlcipher-encryption.md), the plan of record for #60. That plan uses SQLite3 Multiple Ciphers (SQLCipher-compatible, bundled crypto, in-place rekey) instead of Zetetic SQLCipher with export-and-swap. Its "Safety requirements" section carries over the requirements this document drew from the upstream thread. Kept for the history.
 Owner: TBD
 Related upstream work: [Nozbe/WatermelonDB#1635](https://github.com/Nozbe/WatermelonDB/pull/1635) (open since 2023, never merged)
 

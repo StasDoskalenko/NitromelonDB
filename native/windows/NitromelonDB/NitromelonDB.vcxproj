@@ -21,6 +21,17 @@
     <RunAutolinkCheck>false</RunAutolinkCheck>
     <RunCodegenWindows>false</RunCodegenWindows>
   </PropertyGroup>
+  <!-- Database encryption is opt-in (docs: Advanced/Encryption, native/shared/NitromelonSqliteConfig.h).
+       In order: the NitromelonDBEncryption MSBuild property, the NITROMELONDB_ENCRYPTION environment
+       variable, then "nitromelondb": { "encryption": true } in the app's package.json (the first one
+       above the solution). That object is matched with a regular expression, so keep it flat. -->
+  <PropertyGroup Label="NitromelonDBEncryption">
+    <NitromelonDBEncryption Condition="'$(NitromelonDBEncryption)' == ''">$(NITROMELONDB_ENCRYPTION)</NitromelonDBEncryption>
+    <NitromelonAppPackageJson Condition="'$(NitromelonAppPackageJson)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove($(SolutionDir), 'package.json'))\package.json</NitromelonAppPackageJson>
+    <_NitromelonEncryptionInPackageJson Condition="'$(NitromelonDBEncryption)' == '' and Exists('$(NitromelonAppPackageJson)')">$([System.Text.RegularExpressions.Regex]::IsMatch($([System.IO.File]::ReadAllText('$(NitromelonAppPackageJson)')), '"nitromelondb"\s*:\s*\{[^{}]*"encryption"\s*:\s*true\b'))</_NitromelonEncryptionInPackageJson>
+    <NitromelonDBEncryption Condition="'$(NitromelonDBEncryption)' == '' and '$(_NitromelonEncryptionInPackageJson)' == 'True'">true</NitromelonDBEncryption>
+    <NitromelonDBEncryption Condition="'$(NitromelonDBEncryption)' == '1' or '$(NitromelonDBEncryption)' == 'True'">true</NitromelonDBEncryption>
+  </PropertyGroup>
   <Import Project="$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.WindowsSdk.Default.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <ItemGroup Label="ProjectConfigurations">
@@ -85,7 +96,7 @@
       <ForcedIncludeFiles>NitroMsvcStdCompat.h</ForcedIncludeFiles>
       <AdditionalOptions>%(AdditionalOptions) /bigobj /Zc:__cplusplus</AdditionalOptions>
       <DisableSpecificWarnings>4100;4244;4267;4453;28204</DisableSpecificWarnings>
-      <PreprocessorDefinitions>_WINRT_DLL;SQLITE_THREADSAFE=1;SQLITE_USE_URI=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINRT_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
       <AdditionalIncludeDirectories>
         $(MSBuildThisFileDirectory);
@@ -135,6 +146,13 @@
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
+  <!-- Encryption build: shared\NitromelonSqlite.c compiles vendor\sqlite3mc instead of vendor\sqlite -->
+  <ItemDefinitionGroup Condition="'$(NitromelonDBEncryption)' == 'true'">
+    <ClCompile>
+      <PreprocessorDefinitions>NITROMELON_ENCRYPTION=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(NitromelonNativeDir)vendor\sqlite3mc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
     <ClInclude Include="NitroMsvcStdCompat.h" />
@@ -170,7 +188,7 @@
     <ClCompile Include="$(NitromelonNativeDir)shared\Database-sqlite.cpp" />
     <ClCompile Include="$(NitromelonNativeDir)shared\Database-turboSync.cpp" />
     <ClCompile Include="$(NitromelonNativeDir)shared\Sqlite.cpp" />
-    <ClCompile Include="$(NitromelonNativeDir)vendor\sqlite\sqlite3.c">
+    <ClCompile Include="$(NitromelonNativeDir)shared\NitromelonSqlite.c">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <CompileAs>CompileAsC</CompileAs>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
@@ -201,6 +219,9 @@
     <Error Condition="!Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.props')" Text="$([System.String]::Format('$(ErrorText)', '$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.props'))" />
     <Error Condition="!Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.targets')" Text="$([System.String]::Format('$(ErrorText)', '$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.CppLib.targets'))" />
     <Error Condition="!Exists('$(NitroModulesDir)package.json')" Text="react-native-nitro-modules was not found. Install the peer next to react-native-windows." />
+  </Target>
+  <Target Name="NitromelonDBEncryptionMessage" BeforeTargets="ClCompile" Condition="'$(NitromelonDBEncryption)' == 'true'">
+    <Message Importance="high" Text="NitromelonDB: SQLite encryption build (SQLite3 Multiple Ciphers)" />
   </Target>
   <Target Name="GenerateNitroIncludeShims" AfterTargets="EnsureReactNativeWindowsTargets">
     <PropertyGroup>

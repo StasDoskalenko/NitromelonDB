@@ -11,7 +11,7 @@
 #include <windows.h>
 #include <winrt/Windows.Storage.h>
 
-#include <sqlite3.h>
+#include "NitromelonSqlite.h"
 
 namespace watermelondb {
 namespace platform {
@@ -39,7 +39,7 @@ void initializeSqlite()
 
     auto tempPath = winrt::Windows::Storage::ApplicationData::Current().TemporaryFolder().Path();
     auto tempPathStr = winrt::to_string(tempPath);
-    sqlite3_temp_directory = sqlite3_mprintf("%s", tempPathStr.c_str());
+    nitromelon_sqlite3_set_temp_directory(sqlite3_mprintf("%s", tempPathStr.c_str()));
 
     if (sqlite3_initialize() != SQLITE_OK) {
       consoleError("Failed to initialize sqlite - this probably means sqlite was already initialized");
