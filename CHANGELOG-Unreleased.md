@@ -14,4 +14,4 @@
 
 ### Internal
 
-- Agent instructions: one `CLAUDE.md` per folder (each `AGENTS.md` points other agents to it), replacing the duplicated `.claude/rules` and the per-prompt Claude Code hook. New guides for `examples/NotesApp_windows`, `native/windows`, `.github/workflows` and `examples/benchmark`.
+- Agent instructions: one `CLAUDE.md` per folder (each `AGENTS.md` is a symlink to it, for Codex and Cursor), replacing the duplicated `.claude/rules` and the per-prompt Claude Code hook. New guides for `examples/NotesApp_windows`, `native/windows`, `.github/workflows` and `examples/benchmark`.

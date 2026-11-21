@@ -153,6 +153,10 @@ const copyNonJavaScriptFiles = (buildPath) => {
   }
   // Generated at install / MSBuild; do not ship whatever is on the developer's disk.
   fs.removeSync(path.join(buildPath, 'native/windows/include/NitroModules'))
+  // Contributor instructions for agents, not part of the package.
+  for (const file of ['CLAUDE.md', 'AGENTS.md']) {
+    fs.removeSync(path.join(buildPath, 'native/windows', file))
+  }
   fs.writeFileSync(
     path.join(buildPath, 'react-native.config.js'),
     `const { windowsNativeProject } = require('./windows-autolink')
