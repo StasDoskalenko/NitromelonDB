@@ -124,9 +124,15 @@ async function fetchRelease(version) {
 
 function parseRelease(release) {
   const version = release.tag_name.replace(/^v/, '')
-  const amalgamation = release.assets.find((asset) =>
-    new RegExp(`^sqlite3mc-${version.replace(/\./g, '\\.')}-sqlite-([0-9.]+)-amalgamation\\.zip$`).test(asset.name),
-  )
+  if (!/^[0-9]+(\.[0-9]+)*$/.test(version)) {
+    throw new Error(`Unexpected sqlite3mc release tag ${release.tag_name}`)
+  }
+  // sqlite3mc-<version>-sqlite-<sqlite version>-amalgamation.zip
+  const prefix = `sqlite3mc-${version}-sqlite-`
+  const suffix = '-amalgamation.zip'
+  const sqliteVersionOf = (name) =>
+    name.startsWith(prefix) && name.endsWith(suffix) ? name.slice(prefix.length, -suffix.length) : null
+  const amalgamation = release.assets.find((asset) => /^[0-9]+(\.[0-9]+)*$/.test(sqliteVersionOf(asset.name) ?? ''))
   if (!amalgamation) {
     throw new Error(`sqlite3mc ${version} has no amalgamation zip`)
   }
@@ -134,7 +140,7 @@ function parseRelease(release) {
   if (!sums) {
     throw new Error(`sqlite3mc ${version} has no SHA256SUMS file`)
   }
-  const sqliteVersion = amalgamation.name.match(/-sqlite-([0-9.]+)-amalgamation\.zip$/)[1]
+  const sqliteVersion = sqliteVersionOf(amalgamation.name)
   return { version, sqliteVersion, amalgamation, sums }
 }
 
