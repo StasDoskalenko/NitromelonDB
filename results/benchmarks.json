@@ -3872,5 +3872,26 @@
       "ram": 178,
       "fps": 53
     }
+  },
+  {
+    "sha": "1bc69c1a6bd20b6f717f7ee197cb6dd11f8bfa29",
+    "date": "2026-11-21T20:44:52.244Z",
+    "prNumber": 248,
+    "subject": "docs(agents): one CLAUDE.md per folder, plus Windows, e2e, CI and benchmark guides (#248)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 20.9,
+      "ram": 178,
+      "fps": 54.9
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 20.2,
+      "ram": 179,
+      "fps": 54.9
+    }
   }
 ]
