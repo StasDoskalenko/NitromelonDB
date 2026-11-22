@@ -4450,5 +4450,26 @@
         "stress": 5
       }
     }
+  },
+  {
+    "sha": "3ff94829331e0cd4e864b70ed4f30b615d720d5a",
+    "date": "2026-11-22T19:50:05.923Z",
+    "prNumber": 250,
+    "subject": "feat: open, encrypt and decrypt databases with a passphrase (#60) (#250)",
+    "android": {
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 28,
+      "ram": 179,
+      "fps": 54.4
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 27.9,
+      "ram": 179,
+      "fps": 54.4
+    }
   }
 ]
