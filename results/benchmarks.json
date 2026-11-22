@@ -4739,5 +4739,26 @@
         "stress": 5
       }
     }
+  },
+  {
+    "sha": "a00793afab636f50df68917ac2eda86bf8568906",
+    "date": "2026-11-22T22:34:52.110Z",
+    "prNumber": 251,
+    "subject": "ci: release lines, for releasing X.Y.* without master's newer work (#251)",
+    "android": {
+      "iterationCount": 5,
+      "score": 93,
+      "cpu": 31.6,
+      "ram": 180,
+      "fps": 52.6
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 29.8,
+      "ram": 178,
+      "fps": 53.8
+    }
   }
 ]
