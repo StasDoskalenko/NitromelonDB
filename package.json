@@ -41,7 +41,8 @@
     "specs": "nitrogen",
     "postinstall": "node scripts/windows-nitro-shims.mjs --optional",
     "vendor:simdjson": "node ./scripts/vendor-simdjson.mjs",
-    "vendor:sqlite": "node ./scripts/vendor-sqlite.mjs"
+    "vendor:sqlite": "node ./scripts/vendor-sqlite.mjs",
+    "vendor:sqlite3mc": "node ./scripts/vendor-sqlite3mc.mjs"
   },
   "types": "src/index.ts",
   "author": {

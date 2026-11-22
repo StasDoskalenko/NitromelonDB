@@ -22,6 +22,59 @@ def reactNativeArchitectures() {
     return value ? value.split(",") : ["armeabi-v7a", "x86", "x86_64", "arm64-v8a"]
 }
 
+// Database encryption is opt-in at build time, because the cipher code changes how an app answers
+// App Store / export-compliance questions and adds to its size (docs: Advanced/Encryption).
+// NITROMELONDB_ENCRYPTION=1|0 wins; otherwise `"nitromelondb": { "encryption": true }` in the app's
+// package.json, the first one found above the Android project (android/ in a standard app),
+// skipping NitromelonDB's own.
+def parseNitromelonEncryptionFlag(Object value, String source) {
+    if (value instanceof Boolean) {
+        return value
+    }
+    def text = value?.toString()?.trim()?.toLowerCase()
+    if (text in ["1", "true"]) {
+        return true
+    }
+    if (text in ["0", "false"]) {
+        return false
+    }
+    throw new GradleException("NitromelonDB: ${source} must be true or false, got '${value}'")
+}
+
+def isNitromelonEncryptionEnabled() {
+    def env = System.getenv("NITROMELONDB_ENCRYPTION")
+    if (env != null && env.trim() != "") {
+        return parseNitromelonEncryptionFlag(env, "NITROMELONDB_ENCRYPTION")
+    }
+    def dir = rootProject.projectDir.parentFile
+    while (dir != null) {
+        def packageJson = new File(dir, "package.json")
+        if (packageJson.isFile()) {
+            def appPackage = new groovy.json.JsonSlurper().parse(packageJson)
+            // Our own package.json (this repo's test apps live inside the library)
+            if (appPackage?.name == "nitromelondb") {
+                dir = dir.parentFile
+                continue
+            }
+            def options = appPackage?.nitromelondb
+            if (options == null || options.encryption == null) {
+                return false
+            }
+            if (!(options.encryption instanceof Boolean)) {
+                throw new GradleException("NitromelonDB: \"nitromelondb\": { \"encryption\" } in ${packageJson} must be true or false, got '${options.encryption}'")
+            }
+            return options.encryption
+        }
+        dir = dir.parentFile
+    }
+    return false
+}
+
+def nitromelonEncryption = isNitromelonEncryptionEnabled()
+if (nitromelonEncryption) {
+    logger.lifecycle("NitromelonDB: SQLite encryption build (SQLite3 Multiple Ciphers)")
+}
+
 def isNewArchitectureEnabled() {
     return rootProject.hasProperty("newArchEnabled") && rootProject.getProperty("newArchEnabled") == "true"
 }
@@ -61,7 +114,8 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags "-frtti -fexceptions -Wall -Wextra -fstack-protector-all"
-                arguments "-DANDROID_STL=c++_shared", "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+                arguments "-DANDROID_STL=c++_shared", "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON",
+                        "-DNITROMELON_ENCRYPTION=${nitromelonEncryption ? 'ON' : 'OFF'}"
                 abiFilters(*reactNativeArchitectures())
 
                 buildTypes {

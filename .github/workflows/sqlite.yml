@@ -19,21 +19,28 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 24.x
-      - name: Vendor latest SQLite if newer
+      # Both builds move together: sqlite3mc first (the encryption build), then plain SQLite at the
+      # version that sqlite3mc release is built on (the default build). A plain SQLite release waits
+      # for sqlite3mc to catch up, usually a few days, so turning encryption on never changes SQL
+      # behavior.
+      - name: Vendor latest sqlite3mc if newer
         id: vendor
-        run: node scripts/vendor-sqlite.mjs --latest --if-newer
+        run: node scripts/vendor-sqlite3mc.mjs --latest --if-newer
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Vendor the SQLite it is built on
+        if: steps.vendor.outputs.updated == 'true'
+        run: node scripts/vendor-sqlite.mjs "${{ steps.vendor.outputs.sqlite }}"
       - uses: peter-evans/create-pull-request@v8
         if: steps.vendor.outputs.updated == 'true'
         with:
           branch: chore/sqlite-bump
           delete-branch: true
-          title: 'chore: bump vendored SQLite to ${{ steps.vendor.outputs.version }}'
-          commit-message: 'chore: bump vendored SQLite to ${{ steps.vendor.outputs.version }}'
+          title: 'chore: bump vendored SQLite to ${{ steps.vendor.outputs.sqlite }} (sqlite3mc ${{ steps.vendor.outputs.version }})'
+          commit-message: 'chore: bump vendored SQLite to ${{ steps.vendor.outputs.sqlite }} (sqlite3mc ${{ steps.vendor.outputs.version }})'
           body: |
-            Vendored [SQLite ${{ steps.vendor.outputs.version }}](https://www.sqlite.org/changes.html) into `native/vendor/sqlite`.
+            Vendored [SQLite ${{ steps.vendor.outputs.sqlite }}](https://www.sqlite.org/changes.html) into `native/vendor/sqlite` (default build: Android and Windows; iOS links the system sqlite3), and [SQLite3 Multiple Ciphers ${{ steps.vendor.outputs.version }}](https://github.com/utelle/SQLite3MultipleCiphers/releases/tag/v${{ steps.vendor.outputs.version }}), built on that same SQLite, into `native/vendor/sqlite3mc` (encryption build, every platform). The sqlite3mc zip was checked against the release's `SHA256SUMS`.
 
-            Previous version: `${{ steps.vendor.outputs.previous }}`.
+            Previous: SQLite `${{ steps.vendor.outputs.previous_sqlite }}`, sqlite3mc `${{ steps.vendor.outputs.previous }}`.
 
-            iOS still links the system sqlite3. Android and Windows compile this amalgamation.
-
-            Do not auto-merge. Native CI is the gate — SQLite upgrades can change SQL behavior.
+            Do not auto-merge. Native CI is the gate: SQLite upgrades can change SQL behavior, and sqlite3mc upgrades can change the encrypted file format. If `yarn test:native-unit` reports new unprefixed symbols in the encryption build, rename them in `native/shared/NitromelonSqlite.c`.

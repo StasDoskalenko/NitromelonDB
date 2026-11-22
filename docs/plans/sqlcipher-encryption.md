@@ -1,6 +1,8 @@
 # SQLCipher-compatible database encryption
 
-**Status:** Proposed — design only, implementation deferred.
+**Status:** In progress. Step 2 of the rollout (the opt-in encryption build) is implemented; steps 3-6 are not started. User docs: [`Advanced/Encryption.md`](../../docs-website/docs/docs/Advanced/Encryption.md).
+
+This is the plan of record for #60. It supersedes `plans/database-encryption.md` (Zetetic SQLCipher with export-and-swap), whose safety requirements are folded in below under [Safety requirements](#safety-requirements).
 
 **Related:** [#60](https://github.com/StasDoskalenko/NitromelonDB/issues/60) (Implement SQLCipher) · [#75](https://github.com/StasDoskalenko/NitromelonDB/pull/75) (SQLite 3.53.4 bump, prerequisite) · [Nozbe/WatermelonDB#1635](https://github.com/Nozbe/WatermelonDB/pull/1635) · [pinginc/watermelon-db#2](https://github.com/pinginc/watermelon-db/pull/2)
 
@@ -34,9 +36,28 @@ Both linked PRs vendor Zetetic's SQLCipher amalgamation behind a build flag. Tha
 - Its `PRAGMA rekey` handles **all three** directions — encrypt a plaintext DB, change the key, decrypt back to plaintext — in place, using a modified vacuum. No second file, no `.bak`.
 - MIT licensed.
 
-The relevant version is **sqlite3mc 2.5.0, built on SQLite 3.53.4** — the exact version [#75](https://github.com/StasDoskalenko/NitromelonDB/pull/75) vendors. Once #75 lands, this change carries a **zero SQLite version delta**: it is purely `sqlite3.c` → `sqlite3mc_amalgamation.c`. That keeps the two concerns independently bisectable, which matters because SQLite upgrades can change SQL behavior and cipher swaps can change file format.
+The engine swap uses **sqlite3mc 2.7.1, built on SQLite 3.54.1**, the exact SQLite version master vendored at the time. So the swap carries a **zero SQLite version delta**: it is purely `sqlite3.c` → `sqlite3mc_amalgamation.c`. That keeps the two concerns independently bisectable, which matters because SQLite upgrades can change SQL behavior and cipher swaps can change file format.
 
-The tradeoff accepted here: encryption support is compiled into **every** build rather than gated behind a flag. That keeps it a pure runtime opt-in with no build configuration for users, at the cost of iOS no longer linking Apple's system `libsqlite3` and a modest binary size increase.
+sqlite3mc also implements `sqlcipher_export()`, so if in-place rekey ever proves not crash-safe enough, the export-and-swap approach from the superseded plan is still available without changing engines again.
+
+### Decision: encryption is a build-time opt-in
+
+This plan first proposed compiling the codec into **every** build. That was reversed before shipping, for export compliance: Apple's encryption question covers an app "including any third-party libraries it links against", and an app that bundles standard encryption not provided by iOS falls in a different row of Apple's [documentation table](https://developer.apple.com/help/app-store-connect/reference/export-compliance-documentation-for-encryption) (a French encryption declaration if distributed in France). Compiling the cipher into everyone's app would change that answer for publishers who never asked for encryption, which breaks the "no silent behavior changes" rule.
+
+So there are two builds, picked by the app:
+
+| | Default | Encryption build |
+| --- | --- | --- |
+| Switch | none | `"nitromelondb": { "encryption": true }` in the app's `package.json`, or `NITROMELONDB_ENCRYPTION=1` |
+| iOS | system `libsqlite3`, exactly as before | sqlite3mc from `native/vendor/sqlite3mc` |
+| Android, Windows | `native/vendor/sqlite`, exactly as before | sqlite3mc from `native/vendor/sqlite3mc` |
+| Crypto in the app | none from NitromelonDB | AES-256, HMAC-SHA512, PBKDF2 (standard) |
+
+One switch for every platform, because it has to reach CocoaPods, Gradle and MSBuild and agree in all three, and `package.json` is the one file every React Native app has. The env var wins (CI). It is deliberately **not** an Expo config plugin option: the plugin throws if given `encryption`, pointing to `package.json`. Values must be booleans; anything else fails the build, so a typo can't silently produce the wrong build.
+
+sqlite3mc cannot be compiled with zero ciphers (`#error "No suitable default codec type available"`), so "off" has to mean plain SQLite, not sqlite3mc with the cipher stripped. Both vendored copies are kept on the same SQLite version (checked by `yarn test:native-unit`, moved together by the weekly workflow), so turning encryption on never changes SQL behavior on Android and Windows.
+
+The cost of opt-in is the upstream PR's failure mode: a flag that silently didn't apply. Hence the runtime guard in [Safety requirements](#safety-requirements): a passphrase given to a build without the codec must fail loudly.
 
 ## Public API
 
@@ -145,23 +166,37 @@ No data is ever deleted, and no temp file is created.
 
 ### Vendoring
 
-Rewrite [`scripts/vendor-sqlite.mjs`](../../scripts/vendor-sqlite.mjs) to pull the GitHub release asset `sqlite3mc-<ver>-sqlite-<sqliteVer>-amalgamation.zip` instead of scraping sqlite.org, preserving the `sqlite.version` bookkeeping and the `--latest --if-newer` contract used by [`.github/workflows/sqlite.yml`](../../.github/workflows/sqlite.yml).
+*Done.* `native/vendor/sqlite` (plain SQLite, default build) is unchanged. [`scripts/vendor-sqlite3mc.mjs`](../../scripts/vendor-sqlite3mc.mjs) vendors `native/vendor/sqlite3mc` from the GitHub release asset `sqlite3mc-<ver>-sqlite-<sqliteVer>-amalgamation.zip`, verifies it against the release's `SHA256SUMS`, and records both `sqlite3mc.version` and `sqlite.version`. [`.github/workflows/sqlite.yml`](../../.github/workflows/sqlite.yml) runs it with `--latest --if-newer`, then `vendor-sqlite.mjs` at the SQLite version that sqlite3mc release is built on, so both copies always move together.
 
-Keep into `native/vendor/sqlite/`: `sqlite3mc_amalgamation.c`, `sqlite3mc_amalgamation.h`, `sqlite3.h`, `sqlite3ext.h`. Skip `shell3mc_amalgamation.c`.
+`native/vendor/sqlite3mc/` keeps only `sqlite3mc_amalgamation.c` and `sqlite3mc_amalgamation.h`, plus `LICENSE` (MIT) and `COPYRIGHT`. The `.h` already contains `sqlite3.h`, so there is deliberately no `sqlite3.h` in that folder: in the encryption build a stray `#include <sqlite3.h>` fails to build (iOS, Android) instead of silently picking up another SQLite. Windows keeps `vendor\sqlite` on its include path in both builds, to leave the default build untouched.
 
-### Header shim
+### Symbol isolation
 
-Add `native/shared/NitromelonSqlite.h`, including `sqlite3mc_amalgamation.h`, and switch [`native/shared/Sqlite.h`](../../native/shared/Sqlite.h) and [`native/shared/Database.h`](../../native/shared/Database.h) off `#include <sqlite3.h>`.
+*Done, encryption build only.* [`native/shared/NitromelonSqlite.h`](../../native/shared/NitromelonSqlite.h) is the only way native code includes SQLite (in the default build it includes `<sqlite3.h>`, as before). Beyond the header shim this plan first proposed, the encryption build uses sqlite3mc's **dispatch-table mode** (`SQLITE3MC_USE_DISPATCH_TABLE`, prefix `nitromelon_sqlite3mc`): every SQLite function is compiled `static`, and only three prefixed table pointers are exported. Our `sqlite3_*` calls go through macros in the header.
 
-This is not cosmetic. It is what prevents the `redefinition of sqlite3_mem_methods` build failure reported against Nozbe#1635 by users whose apps pull in another pod that links system SQLite. **Nothing in our tree may include the system header once this lands.**
+This is what actually prevents the `redefinition of sqlite3_mem_methods` / duplicate-symbol failures reported against Nozbe#1635. A header shim alone stops us from *including* another SQLite, but not the linker from merging our symbols with expo-sqlite's, op-sqlite's or the SQLCipher pod's in a static build. The one rule of this mode: another SQLite copy in the same process must not open the same database file.
+
+Two consequences:
+
+- `sqlite3_temp_directory` is a global variable, which the tables cannot reach. `NitromelonSqlite.c` defines `nitromelon_sqlite3_set_temp_directory()` next to it; Android and Windows call that.
+- sqlite3mc bundles parts of libsodium (ChaCha20, Poly1305) under libsodium's public names. `NitromelonSqlite.c` renames them with `#define`s. `yarn test:native-unit` runs `nm` on the object and fails on any export without the `nitromelon_` prefix, so a new one is caught by CI and by the weekly bump PR.
 
 ### Build wiring
 
-Swap `sqlite3.c` → `sqlite3mc_amalgamation.c` and add `-DCODEC_TYPE=CODEC_TYPE_SQLCIPHER` so new databases default to SQLCipher v4 format. Disable unused ciphers (`HAVE_CIPHER_CHACHA20=0`, `HAVE_CIPHER_AES_128_CBC=0`, `HAVE_CIPHER_RC4=0`, `HAVE_CIPHER_ASCON128=0`) to limit binary growth.
+*Done.* Every platform compiles [`native/shared/NitromelonSqlite.c`](../../native/shared/NitromelonSqlite.c), which includes [`NitromelonSqliteConfig.h`](../../native/shared/NitromelonSqliteConfig.h) and then the amalgamation that header selects: `vendor/sqlite3mc` with `NITROMELON_ENCRYPTION=1`, `vendor/sqlite` by default, or nothing on iOS by default (`NITROMELON_SYSTEM_SQLITE=1`, system `libsqlite3`). The build files only pass one of those two defines; every SQLite option lives in the header, so the C++ side and the C side cannot disagree. In the encryption build:
 
-- [`android/CMakeLists.txt`](../../android/CMakeLists.txt) — source list and `add_definitions`
-- [`native/windows/NitromelonDB/NitromelonDB.vcxproj`](../../native/windows/NitromelonDB/NitromelonDB.vcxproj) — `ClCompile` entry and `PreprocessorDefinitions`
-- [`NitromelonDB.podspec`](../../NitromelonDB.podspec) — **remove `s.libraries = 'sqlite3'`**, add `native/vendor/sqlite/*.{h,c}` to `source_files`, add the directory to `HEADER_SEARCH_PATHS`, mark the vendored headers private, set the defines in `pod_target_xcconfig`, and replace the "iOS links the system sqlite3" comment
+- `CODEC_TYPE=CODEC_TYPE_SQLCIPHER`, and every other cipher disabled (`AES_128_CBC`, `AES_256_CBC`, `CHACHA20`, `RC4`, `ASCON128`, `AEGIS`).
+- `SQLITE_THREADSAFE=1`, `SQLITE_USE_URI=1` (iOS used to get URI support from Apple's build).
+- `SQLITE_TEMP_STORE=1`, overriding sqlite3mc's default of 2, because Android deliberately spills temp data to an app-private directory. Keyed connections must set `pragma temp_store = memory` (step 3), since temp files are not encrypted.
+- On Apple, parity with the system `libsqlite3` that the default iOS build links: `DEFAULT_WAL_SYNCHRONOUS=1` (otherwise every WAL commit would start to fsync), `DEFAULT_CKPTFULLFSYNC`, `DEFAULT_MEMSTATUS=0`, `MAX_VARIABLE_NUMBER=500000`, FTS3/4/5, R*Tree, math functions. `OMIT_LOAD_EXTENSION` is not copied: dispatch-table mode needs the extension API table. Extension loading stays off because we never call `sqlite3_enable_load_extension()`.
+
+How each build system reads the switch:
+
+- [`NitromelonDB.podspec`](../../NitromelonDB.podspec): env var, else the first `package.json` above `Pod::Config.instance.installation_root`, skipping NitromelonDB's own (CocoaPods evaluates podspecs from their own directory, so the lookup can start inside the library). Encryption: `-DNITROMELON_ENCRYPTION=1`, `native/vendor/sqlite3mc` on `HEADER_SEARCH_PATHS`, no `s.libraries`. Default: `-DNITROMELON_SYSTEM_SQLITE=1` and `s.libraries = 'sqlite3'`, as before. Read at `pod install`.
+- [`native/android/build.gradle`](../../native/android/build.gradle): env var, else the first `package.json` above `rootProject.projectDir`, skipping ours; passes `-DNITROMELON_ENCRYPTION=ON|OFF` to [`android/CMakeLists.txt`](../../android/CMakeLists.txt), which picks the source dir and define.
+- [`NitromelonDB.vcxproj`](../../native/windows/NitromelonDB/NitromelonDB.vcxproj): the `NitromelonDBEncryption` MSBuild property, else the env var, else a regex over the first `package.json` above `$(SolutionDir)` (MSBuild has no JSON parser, so the docs ask for a flat object). Not built locally from macOS; the CI `windows` job covers the default build only. No extra system libraries are needed: the RNG uses CommonCrypto on Apple (in libSystem), `getrandom` on Android, and `RtlGenRandom` on Windows (advapi32, linked by a pragma).
+
+Measured size per arm64 slice at `-Os`, encryption build vs default: Android 0.85 MB → 0.96 MB; iOS +1.2 MB (the default links the system library), of which about 0.35 MB is the codec and the parity options.
 
 ### Open path
 
@@ -174,6 +209,8 @@ Swap `sqlite3.c` → `sqlite3mc_amalgamation.c` and add `-DCODEC_TYPE=CODEC_TYPE
 5. No key, file is encrypted → throw `encryption_key_required`, rather than letting the pragmas in the `Database` constructor fail opaquely.
 
 Every failure is a distinguishable error code surfaced to JS. **The database file is never deleted.**
+
+Also: apply the key with `sqlite3_key_v2`, never `PRAGMA key` (SQL text can end up in error messages and traces, and needs escaping); never log the key; set `pragma temp_store = memory` on keyed connections.
 
 ### Rekey, off the JS thread
 
@@ -269,6 +306,17 @@ This is non-breaking for existing Node/Electron users and has an outsized payoff
 
 Thread the passphrase through `DatabaseDriver.init`, `DatabaseBridge.initialize`, and `nodeDispatcher`, applying `pragma cipher='sqlcipher'` then `pragma key=...` on open. The encryption-state probe is a plain `fs` read of the first 16 bytes.
 
+## Safety requirements
+
+Carried over from the superseded `plans/database-encryption.md`, which drew them from the four-year comment thread on Nozbe#1635. Each one is a test, not just a guideline.
+
+- **No silent non-encryption.** The upstream PR's defining bug was a build flag that silently didn't apply, leaving a plaintext database. We have a build switch too (see the decision above), so this guard is mandatory: a passphrase given to a build without `NITROMELON_ENCRYPTION` throws a specific error naming the switch and the likely cause (switch in the wrong `package.json`, `pod install` not re-run, env var set to 0). The build logs announce the encryption build on every platform. A test reads the raw file header and asserts it is not `SQLite format 3\0` (already in `native/tests/SqliteEngineTest.cpp` for the engine).
+- **No silent decryption.** A passphrase function that returns `null` (wiped keychain entry) is an error, never "open as plaintext". "No key" and "decrypt" are different inputs: decrypting is only ever `unsafe_DecryptDB()`.
+- **No reset on a wrong key.** `_setUpWithMigrations` resets the database when it can't find a migration path. Keying errors (`encryption_key_invalid`, `encryption_key_required`, `database_not_encrypted`) must be routed away from that fallback, with a test.
+- **Init failure rejects queued work.** If the passphrase can't be resolved, the `DeferredDispatcher` rejects every buffered call with the init error instead of hanging forever.
+- **Crash during rekey.** Prove on device that killing the app mid-rekey leaves a database that opens with either the old or the new key. sqlite3mc rekeys inside a transaction, so the rollback journal should cover it. If it doesn't, use `sqlcipher_export` and swap the file instead.
+- **`LokiJSAdapter` rejects `encryption`** with a clear "not supported on web" error rather than ignoring it.
+
 ## Testing
 
 **Jest** (via the Node adapter): passphrase as string and as async function; deferred-dispatcher ordering, i.e. calls issued before the key resolves still execute in order; wrong key; encrypted DB opened with no key; plaintext DB with `ifUnencrypted: 'error'` vs `'open'`; encrypt → reopen with key; decrypt → reopen without key; data survives a full round trip; `isDBEncrypted()` and the static probe in every state; `unsafe_EncryptDB` outside a writer throws.
@@ -277,7 +325,8 @@ Thread the passphrase through `DatabaseDriver.init`, `DatabaseBridge.initialize`
 
 ## Risks and things to verify
 
-- **iOS symbol collision** with a system `libsqlite3` pulled in by another pod. The header shim is the mitigation; build and run the NotesApp example to confirm. This is the exact failure reported against Nozbe#1635.
+- **CI covers only the default device builds.** `yarn test:native-unit` builds and tests both engines on every run, but the iOS, Android and Windows jobs build the default. Add an encryption-build variant (at least a compile on each platform) with step 3, when there is runtime behavior to test.
+- **iOS symbol collision** with a system `libsqlite3` pulled in by another pod (encryption build). Mitigated by dispatch-table mode (see [Symbol isolation](#symbol-isolation)) and enforced by the `nm` check in `yarn test:native-unit`. This is the exact failure reported against Nozbe#1635.
 - **`unsafeResetDatabase`** uses `SQLITE_DBCONFIG_RESET_DATABASE` + `vacuum`. Confirm the key and per-page reserved bytes survive a reset, and re-key afterward if they do not.
 - **Binary size** growth on Android and Windows, and the loss of system-SQLite sharing on iOS. Measure before and after; trim ciphers.
 - **Disk space.** sqlite3mc vacuums when the per-page reserved byte count changes, so rekeying can transiently need up to 3x the database size.
@@ -287,9 +336,9 @@ Thread the passphrase through `DatabaseDriver.init`, `DatabaseBridge.initialize`
 
 ## Suggested rollout order
 
-1. [#75](https://github.com/StasDoskalenko/NitromelonDB/pull/75) lands — SQLite 3.53.4. *(prerequisite)*
-2. Engine swap: vendor script, header shim, build wiring for the three platforms. No API change, no version delta; native CI is the gate.
+1. ~~[#75](https://github.com/StasDoskalenko/NitromelonDB/pull/75) lands — SQLite 3.53.4.~~ *(done; master has since moved to 3.54.1, which sqlite3mc 2.7.1 matches)*
+2. ~~Opt-in encryption build: vendor script, build switch, symbol isolation, build wiring for the three platforms, docs page. No API change; the default build is unchanged.~~ *(implemented)*
 3. Native encryption: open path, off-thread rekey, Nitro spec, regenerated bindings.
 4. JS surface: `encryption` option, deferred dispatcher, state checks, `unsafe_EncryptDB` / `unsafe_DecryptDB`.
 5. Node adapter and the jest suite.
-6. Docs: new `docs-website/docs/docs/Advanced/Encryption.md`; update `Setup.md`, `Installation.mdx`, and `Implementation/DatabaseAdapters.md` (its platform SQLite-linking rules change); mark SQLCipher done in `README.md` and `Roadmap.md`; `CHANGELOG.md` entry noting the iOS linking change.
+6. Docs: `Advanced/Encryption.md` exists (why opt-in, setup, verification, export compliance); extend it with the passphrase API, migration and key-management guidance at each step. Update `Setup.md` and `Implementation/DatabaseAdapters.md`; mark SQLCipher done in `README.md` and `Roadmap.md`.

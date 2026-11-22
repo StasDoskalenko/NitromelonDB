@@ -6,6 +6,9 @@
  * The old React Native architecture is not supported.
  * Optional `{ excludeSimArch: true }` excludes arm64 from iOS simulator builds.
  *
+ * Database encryption is NOT a plugin option: it is `"nitromelondb": { "encryption": true }` in
+ * the app's package.json, which the native builds read on every platform (Expo or not).
+ *
  * Evaluated by Expo CLI / EAS Build during `expo prebuild`. Requires Expo in
  * the app; `@expo/config-plugins` comes from that install.
  */
@@ -50,6 +53,11 @@ function withExcludedSimulatorArchitectures(config) {
  * @param {{ excludeSimArch?: boolean }} [options]
  */
 function withNitromelonDB(config, options = {}) {
+  if (options && Object.prototype.hasOwnProperty.call(options, 'encryption')) {
+    throw new Error(
+      'NitromelonDB: `encryption` is not a config plugin option. Add `"nitromelondb": { "encryption": true }` to your package.json instead (the iOS, Android and Windows builds all read it there), then run `npx expo prebuild --clean`. See https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Encryption',
+    )
+  }
   if (config.newArchEnabled === false) {
     throw new Error(
       'NitromelonDB requires the React Native New Architecture. Remove `"newArchEnabled": false` from app.json / app.config.',

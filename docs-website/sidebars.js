@@ -60,6 +60,7 @@ const sidebars = {
       'docs/Advanced/Logging',
       'docs/Advanced/DetectNestedWriters',
       'docs/Advanced/Performance',
+      'docs/Advanced/Encryption',
       'docs/Advanced/SharingDatabaseAcrossTargets',
     ],
     Contributing: [

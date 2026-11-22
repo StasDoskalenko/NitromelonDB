@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-# Builds and runs the standalone native unit tests (native/tests) against the vendored
-# SQLite. No JSI, React Native or device needed -- a C and C++17 compiler is enough.
+# Builds and runs the standalone native unit tests (native/tests) against both bundled SQLite
+# builds, compiled through native/shared/NitromelonSqlite.c exactly as the apps build them:
+#
+#   plain        native/vendor/sqlite      (default Android/Windows build)
+#   encryption   native/vendor/sqlite3mc   (apps with "nitromelondb": { "encryption": true })
+#
+# No JSI, React Native or device needed -- a C and C++17 compiler is enough.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -9,17 +14,63 @@ mkdir -p "$BUILD"
 
 CC="${CC:-cc}"
 CXX="${CXX:-c++}"
-SQLITE="$ROOT/native/vendor/sqlite"
-
-# SQLite takes a while to compile; reuse the object unless the source changed
-if [ ! -f "$BUILD/sqlite3.o" ] || [ "$SQLITE/sqlite3.c" -nt "$BUILD/sqlite3.o" ]; then
-  "$CC" -O1 -DSQLITE_THREADSAFE=1 -c "$SQLITE/sqlite3.c" -o "$BUILD/sqlite3.o"
-fi
+SHARED="$ROOT/native/shared"
+VENDOR="$ROOT/native/vendor"
 
 status=0
-for test in "$ROOT"/native/tests/*.cpp; do
-  name="$(basename "$test" .cpp)"
-  "$CXX" -std=c++17 -Wall -Wextra -I"$SQLITE" "$test" "$BUILD/sqlite3.o" -lpthread -ldl -lm -o "$BUILD/$name"
-  "$BUILD/$name" || status=1
-done
+
+# Both builds must be on the same SQLite, so turning encryption on never changes SQL behavior
+plain_version="$(cat "$VENDOR/sqlite/sqlite.version")"
+mc_version="$(cat "$VENDOR/sqlite3mc/sqlite.version")"
+if [ "$plain_version" != "$mc_version" ]; then
+  echo "native/vendor/sqlite is SQLite $plain_version but native/vendor/sqlite3mc is built on $mc_version." >&2
+  echo "Run: node scripts/vendor-sqlite.mjs $mc_version" >&2
+  status=1
+else
+  echo "Vendored SQLite: $plain_version in both builds"
+fi
+
+build_and_test() {
+  local variant="$1" source_dir="$2"
+  shift 2
+  local defines=("$@")
+  local includes=(-I"$SHARED" -I"$source_dir")
+  local out="$BUILD/$variant"
+  local obj="$out/nitromelon-sqlite.o"
+  mkdir -p "$out"
+
+  # SQLite takes a while to compile; reuse the object unless the source or its options changed
+  local amalgamation
+  amalgamation="$(ls "$source_dir"/*.c | head -1)"
+  if [ ! -f "$obj" ] || [ "$amalgamation" -nt "$obj" ] \
+    || [ "$SHARED/NitromelonSqlite.c" -nt "$obj" ] || [ "$SHARED/NitromelonSqliteConfig.h" -nt "$obj" ]; then
+    "$CC" -O1 ${defines[@]+"${defines[@]}"} "${includes[@]}" -c "$SHARED/NitromelonSqlite.c" -o "$obj"
+  fi
+
+  if [ "$variant" = "encryption" ]; then
+    # Symbol isolation (NitromelonSqliteConfig.h): the object may export only our prefixed names,
+    # so an app that also links another SQLite can neither collide with nor replace ours.
+    local leaked
+    leaked="$(nm -g "$obj" | awk '$2 ~ /^[A-TV-Z]$/ { print $3 }' | sed 's/^_//' | grep -v '^nitromelon_' || true)"
+    if [ -n "$leaked" ]; then
+      echo "[$variant] NitromelonSqlite.o exports unprefixed symbols:" >&2
+      echo "$leaked" | head -20 >&2
+      status=1
+    else
+      echo "[$variant] NitromelonSqlite: exports only nitromelon_* symbols"
+    fi
+  fi
+
+  local test name
+  for test in "$ROOT"/native/tests/*.cpp; do
+    name="$(basename "$test" .cpp)"
+    "$CXX" -std=c++17 -Wall -Wextra ${defines[@]+"${defines[@]}"} "${includes[@]}" "$test" "$obj" -lpthread -ldl -lm -o "$out/$name"
+    printf '[%s] ' "$variant"
+    "$out/$name" || status=1
+  done
+}
+
+build_and_test plain "$VENDOR/sqlite"
+build_and_test encryption "$VENDOR/sqlite3mc" -DNITROMELON_ENCRYPTION=1
+
 exit $status
