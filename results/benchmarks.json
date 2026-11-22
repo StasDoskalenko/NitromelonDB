@@ -4470,6 +4470,274 @@
       "cpu": 27.9,
       "ram": 179,
       "fps": 54.4
+    },
+    "iosSync": {
+      "device": "iPhone 17 Pro, iOS 26.5",
+      "best": {
+        "nitromelondb": {
+          "sync5kTotalMs": 311,
+          "sync50kInitialPullMs": 1100.8,
+          "sync50kUpdatePullMs": 1803.5,
+          "sync50kFetchAllMs": 399.5,
+          "sync50kPushMs": 21.8,
+          "sync50kTotalMs": 3377.3,
+          "sync50kGcMs": 190.9,
+          "realisticLibraryMs": 960.9,
+          "stressScore": 60211,
+          "stressWriteMs": 22499.8,
+          "stressQueryMs": 547.7,
+          "stressDeleteMs": 10137.9,
+          "sync5kCpuMs": 370,
+          "sync50kCpuMs": 3420,
+          "realisticCpuMs": 1990,
+          "stressCpuMs": 30390
+        },
+        "watermelondb": {
+          "sync5kTotalMs": 362.2,
+          "sync50kInitialPullMs": 1497.4,
+          "sync50kUpdatePullMs": 2775,
+          "sync50kFetchAllMs": 457.5,
+          "sync50kPushMs": 115,
+          "sync50kTotalMs": 4962.1,
+          "sync50kGcMs": 197.8,
+          "realisticLibraryMs": 2161.5,
+          "stressScore": 41771,
+          "stressWriteMs": 30478,
+          "stressQueryMs": 651,
+          "stressDeleteMs": 16717,
+          "sync5kCpuMs": 410,
+          "sync50kCpuMs": 4970,
+          "realisticCpuMs": 3390,
+          "stressCpuMs": 43920
+        }
+      },
+      "nitromelondb": {
+        "sync5kTotalMs": 406.9,
+        "sync50kInitialPullMs": 1329.4,
+        "sync50kUpdatePullMs": 2469.2,
+        "sync50kFetchAllMs": 460.3,
+        "sync50kPushMs": 27.7,
+        "sync50kTotalMs": 4381.6,
+        "sync50kGcMs": 244.3,
+        "realisticLibraryMs": 1262.6,
+        "stressScore": 52537,
+        "stressWriteMs": 25393.7,
+        "stressQueryMs": 667.9,
+        "stressDeleteMs": 11963.8,
+        "sync5kCpuMs": 465,
+        "sync50kCpuMs": 4480,
+        "realisticCpuMs": 2595,
+        "stressCpuMs": 34660
+      },
+      "watermelondb": {
+        "sync5kTotalMs": 502,
+        "sync50kInitialPullMs": 1861,
+        "sync50kUpdatePullMs": 4007.8,
+        "sync50kFetchAllMs": 577.9,
+        "sync50kPushMs": 139.4,
+        "sync50kTotalMs": 6751.2,
+        "sync50kGcMs": 277.3,
+        "realisticLibraryMs": 2773.5,
+        "stressScore": 34114,
+        "stressWriteMs": 37934.9,
+        "stressQueryMs": 730.6,
+        "stressDeleteMs": 19924.7,
+        "sync5kCpuMs": 580,
+        "sync50kCpuMs": 6620,
+        "realisticCpuMs": 4185,
+        "stressCpuMs": 53090
+      },
+      "paired": {
+        "sync5kTotalMs": 1.224,
+        "sync50kInitialPullMs": 1.451,
+        "sync50kUpdatePullMs": 1.559,
+        "sync50kFetchAllMs": 1.136,
+        "sync50kPushMs": 4.834,
+        "sync50kTotalMs": 1.491,
+        "sync50kGcMs": 1.063,
+        "realisticLibraryMs": 2.146,
+        "stressScore": 1.427,
+        "stressWriteMs": 1.347,
+        "stressQueryMs": 1.101,
+        "stressDeleteMs": 1.624,
+        "sync5kCpuMs": 1.202,
+        "sync50kCpuMs": 1.421,
+        "realisticCpuMs": 1.576,
+        "stressCpuMs": 1.433
+      },
+      "geomean": {
+        "paired": 1.538,
+        "best": 1.535,
+        "median": 1.592
+      },
+      "baseline": {
+        "jsMs": 440,
+        "sqliteMs": 247.4,
+        "cpu": "Apple M1 (Virtual)",
+        "cores": 3
+      },
+      "machineSpeed": {
+        "sampledRuns": 70,
+        "workloads": {
+          "sync5kTotalMs": {
+            "runs": 10,
+            "watermelondb": {
+              "cv": 0.132
+            },
+            "nitromelondb": {
+              "cv": 0.13,
+              "cvPaired": 0.076
+            },
+            "signals": {
+              "cpu": {
+                "r": 0.302,
+                "slope": 0.196,
+                "machineCv": 0.256,
+                "watermelondb": {
+                  "cvAdjusted1to1": 0.218,
+                  "cvAdjustedFitted": 0.128
+                },
+                "nitromelondb": {
+                  "cvAdjusted1to1": 0.258,
+                  "cvAdjustedFitted": 0.122
+                }
+              },
+              "fsync": {
+                "r": 0.852,
+                "slope": 0.12,
+                "machineCv": 0.916,
+                "watermelondb": {
+                  "cvAdjusted1to1": 0.821,
+                  "cvAdjustedFitted": 0.071
+                },
+                "nitromelondb": {
+                  "cvAdjusted1to1": 0.915,
+                  "cvAdjustedFitted": 0.188
+                }
+              }
+            }
+          },
+          "sync50kTotalMs": {
+            "runs": 10,
+            "watermelondb": {
+              "cv": 0.132
+            },
+            "nitromelondb": {
+              "cv": 0.176,
+              "cvPaired": 0.137
+            },
+            "signals": {
+              "cpu": {
+                "r": 0.741,
+                "slope": 0.421,
+                "machineCv": 0.216,
+                "watermelondb": {
+                  "cvAdjusted1to1": 0.177,
+                  "cvAdjustedFitted": 0.093
+                },
+                "nitromelondb": {
+                  "cvAdjusted1to1": 0.161,
+                  "cvAdjustedFitted": 0.162
+                }
+              },
+              "fsync": {
+                "r": 0.262,
+                "slope": 0.027,
+                "machineCv": 0.906,
+                "watermelondb": {
+                  "cvAdjusted1to1": 0.783,
+                  "cvAdjustedFitted": 0.129
+                },
+                "nitromelondb": {
+                  "cvAdjusted1to1": 0.866,
+                  "cvAdjustedFitted": 0.18
+                }
+              }
+            }
+          },
+          "realisticLibraryMs": {
+            "runs": 10,
+            "watermelondb": {
+              "cv": 0.169
+            },
+            "nitromelondb": {
+              "cv": 0.128,
+              "cvPaired": 0.189
+            },
+            "signals": {
+              "cpu": {
+                "r": 0.651,
+                "slope": 0.42,
+                "machineCv": 0.258,
+                "watermelondb": {
+                  "cvAdjusted1to1": 0.193,
+                  "cvAdjustedFitted": 0.122
+                },
+                "nitromelondb": {
+                  "cvAdjusted1to1": 0.219,
+                  "cvAdjustedFitted": 0.126
+                }
+              },
+              "fsync": {
+                "r": 0.305,
+                "slope": 0.027,
+                "machineCv": 0.809,
+                "watermelondb": {
+                  "cvAdjusted1to1": 0.993,
+                  "cvAdjustedFitted": 0.154
+                },
+                "nitromelondb": {
+                  "cvAdjusted1to1": 0.677,
+                  "cvAdjustedFitted": 0.13
+                }
+              }
+            }
+          },
+          "stressScore": {
+            "runs": 5,
+            "watermelondb": {
+              "cv": 0.091
+            },
+            "nitromelondb": {
+              "cv": 0.136,
+              "cvPaired": 0.084
+            },
+            "signals": {
+              "cpu": {
+                "r": 0.927,
+                "slope": 0.521,
+                "machineCv": 0.218,
+                "watermelondb": {
+                  "cvAdjusted1to1": 0.083,
+                  "cvAdjustedFitted": 0.033
+                },
+                "nitromelondb": {
+                  "cvAdjusted1to1": 0.133,
+                  "cvAdjustedFitted": 0.03
+                }
+              },
+              "fsync": {
+                "r": -0.312,
+                "slope": -0.081,
+                "machineCv": 0.349,
+                "watermelondb": {
+                  "cvAdjusted1to1": 0.319,
+                  "cvAdjustedFitted": 0.084
+                },
+                "nitromelondb": {
+                  "cvAdjusted1to1": 0.281,
+                  "cvAdjustedFitted": 0.13
+                }
+              }
+            }
+          }
+        }
+      },
+      "runs": {
+        "sync": 10,
+        "realistic": 10,
+        "stress": 5
+      }
     }
   }
 ]
