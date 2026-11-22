@@ -115,7 +115,7 @@ A release line is a `release/X.Y.x` branch, cut from a published tag. It ships `
 
 **Cut a line** (once per `X.Y`): Actions → **Cut Release Line** (from master), tag e.g. `v0.32.1-alpha.0` → creates `release/0.32.x`.
 
-The branch is the tag plus one commit, "release tooling from master": `prepare-release.yml`, `publish-release.yml`, this README, `scripts/next-version.mjs` and `scripts/prepare-changelog.mjs` as master has them. That's needed because a workflow runs from the file on its own branch: Prepare Release dispatched on the line, and Publish Release on a merge into it, use the line's copies, and a tag's own copies may predate release lines. None of these files is in the npm package, so the line publishes exactly the tag's code. A later fix to the release tooling reaches an existing line only through a PR into it.
+The branch starts at the tag's commit. If the tag's release tooling differs from master's (`prepare-release.yml`, `publish-release.yml`, this README, `scripts/next-version.mjs`, `scripts/prepare-changelog.mjs`), it also opens **"chore: release tooling from master for release/X.Y.x"** against the line: **merge that before releasing**. A workflow runs from the file on its own branch, so Prepare Release dispatched on the line, and Publish Release on a merge into it, use the line's copies, and a tag from before release lines has copies that only release from master. None of these files is in the npm package, so the line still publishes exactly the tag's code. A later fix to the release tooling reaches an existing line the same way: a PR into it.
 
 **Ship from it:** Actions → **Prepare Release**, branch **`release/0.32.x`**:
 

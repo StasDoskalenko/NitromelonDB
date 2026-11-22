@@ -43,7 +43,7 @@ If npm publish fails, do not run Prepare Release again. Run **Actions → Publis
 
 A **release line** (`release/X.Y.x` branch) ships `X.Y.*` versions without what master has had since: an alpha promoted as it was tested, or a patch with only the fixes picked for it.
 
-1. **Actions** → **Cut Release Line**, from **master**, with the tag to start from (e.g. `v0.32.1-alpha.0` creates `release/0.32.x`). Once per `X.Y`.
+1. **Actions** → **Cut Release Line**, from **master**, with the tag to start from (e.g. `v0.32.1-alpha.0` creates `release/0.32.x`). Once per `X.Y`. If it also opens a "release tooling from master" PR into the line, merge that first.
 2. Fixes go to the line as pull requests (cherry-picked from master), each with a `CHANGELOG-Unreleased.md` entry.
 3. **Actions** → **Prepare Release**, run from **`release/0.32.x`**: `promote` ships the alpha as `0.32.1`, `patch` ships a hotfix (`0.32.2`). The release PR goes to the line.
 4. Merging it publishes from the line, then opens a PR that records the release in master's `CHANGELOG.md` (and moves master's version up if it's behind). Merge that too.
