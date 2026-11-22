@@ -3,6 +3,7 @@ import defaultWasmAsset from '../sqlite-wasm/wa-sqlite-async.wasm'
 import type { ConnectionTag } from '../../../utils/common'
 import type { ResultCallback } from '../../../utils/fp/Result'
 import type {
+  DatabaseEncryptionState,
   DispatcherType,
   InitializeStatus,
   SQLiteAdapterOptions,
@@ -234,4 +235,13 @@ export const makeDispatcher = (
 
 export function getDispatcherType(_options: SQLiteAdapterOptions): DispatcherType {
   return 'wa-sqlite'
+}
+
+// Encryption is native only for now (iOS, Android, Windows)
+export function isEncryptionAvailable(): boolean {
+  return false
+}
+
+export function getDatabaseEncryptionState(_dbName: string): DatabaseEncryptionState {
+  throw new Error('SQLiteAdapter.getDatabaseEncryptionState() is not supported on web yet')
 }

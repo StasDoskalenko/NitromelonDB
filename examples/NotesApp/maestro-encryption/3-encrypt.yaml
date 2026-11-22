@@ -1,0 +1,40 @@
+# Step 3 (encryption build): encrypts the database in place with database.unsafe_EncryptDB(), then
+# writes to it. See README.md.
+appId: com.nitromelondb.example
+---
+- launchApp
+
+- extendedWaitUntil:
+    visible:
+      id: "encryption-status"
+    timeout: 60000
+
+# Not on a retry after it was already encrypted
+- runFlow:
+    when:
+      visible:
+        id: "encrypt-button"
+    commands:
+      - tapOn:
+          id: "encrypt-button"
+
+- extendedWaitUntil:
+    visible:
+      id: "encryption-status"
+      text: "Encrypted"
+    timeout: 60000
+- assertNotVisible:
+    id: "encrypt-button"
+- assertVisible:
+    text: "Upgrade marker"
+
+- runFlow:
+    when:
+      notVisible:
+        text: "After encryption"
+    file: ../maestro-commands/add-note.yaml
+    env:
+      TITLE: "After encryption"
+
+- assertVisible:
+    text: ".*102 notes.*"

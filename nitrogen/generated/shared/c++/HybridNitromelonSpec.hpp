@@ -54,6 +54,8 @@ namespace margelo::nitro::watermelondb {
       virtual std::shared_ptr<HybridNitromelonDatabaseSpec> createAdapter(const std::string& dbName, bool usesExclusiveLocking) = 0;
       virtual void provideSyncJson(double id, const std::string& json) = 0;
       virtual std::string getRandomIds() = 0;
+      virtual bool isEncryptionAvailable() = 0;
+      virtual std::string getDatabaseEncryptionState(const std::string& dbName) = 0;
 
     protected:
       // Hybrid Setup

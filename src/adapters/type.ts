@@ -99,4 +99,11 @@ export interface DatabaseAdapter {
 
   // Removes key from local storage
   removeLocal(key: string, callback: ResultCallback<void>): void
+
+  // Optional (SQLiteAdapter on iOS/Android/Windows). Whether the open database is encrypted
+  isEncrypted?(callback: ResultCallback<boolean>): void
+
+  // Optional (SQLiteAdapter on iOS/Android/Windows). Encrypts, re-keys, or ('') decrypts the
+  // database in place. Called by Database#unsafe_EncryptDB()/unsafe_DecryptDB() from a writer
+  unsafeChangeEncryptionKey?(newPassphrase: string, callback: ResultCallback<void>): void
 }

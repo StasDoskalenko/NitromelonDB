@@ -24,6 +24,26 @@ const SQLiteAdapterTest = (spec) => {
         }
       })
 
+      // These builds have no encryption (the default), so a passphrase must fail loudly, before
+      // anything is written. The encryption build is tested by `yarn test:native-unit` and by the
+      // NotesApp encryption upgrade job (scripts/ci-notesapp-ios-encryption-upgrade.sh).
+      spec.it('fails loudly when given a passphrase without the encryption build', async () => {
+        expect(SQLiteAdapter.isEncryptionAvailable()).toBe(false)
+        let error = null
+        try {
+          // eslint-disable-next-line no-new
+          new SQLiteAdapter({ schema: testSchema, ...options, encryption: { passphrase: 'k' } })
+        } catch (e) {
+          error = e
+        }
+        expect(error && error.code).toBe('encryption_unavailable')
+        if (!isWeb) {
+          // Reads the file header natively; never creates the file
+          const dbName = `never-created-${Math.random().toString(36).slice(2)}`
+          expect(await SQLiteAdapter.getDatabaseEncryptionState(dbName)).toBe('missing')
+        }
+      })
+
       // Adapter option validation is deliberately disabled in production builds. The web
       // integration suite runs against the production Expo export, so keep that assertion in
       // Jest/development while exercising the runtime contract here.

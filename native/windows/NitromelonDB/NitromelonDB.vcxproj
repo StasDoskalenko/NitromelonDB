@@ -188,6 +188,7 @@
     <ClCompile Include="$(NitromelonNativeDir)shared\Database-sqlite.cpp" />
     <ClCompile Include="$(NitromelonNativeDir)shared\Database-turboSync.cpp" />
     <ClCompile Include="$(NitromelonNativeDir)shared\Sqlite.cpp" />
+    <ClCompile Include="$(NitromelonNativeDir)shared\SqliteEncryption.cpp" />
     <ClCompile Include="$(NitromelonNativeDir)shared\NitromelonSqlite.c">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <CompileAs>CompileAsC</CompileAs>

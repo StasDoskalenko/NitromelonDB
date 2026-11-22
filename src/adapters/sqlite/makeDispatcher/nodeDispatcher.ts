@@ -4,6 +4,7 @@ import DatabaseBridge from '../sqlite-node/DatabaseBridge'
 import type { ConnectionTag } from '../../../utils/common'
 import type { ResultCallback } from '../../../utils/fp/Result'
 import type {
+  DatabaseEncryptionState,
   DispatcherType,
   SQLiteAdapterOptions,
   SqliteDispatcher,
@@ -45,4 +46,13 @@ export const makeDispatcher = (
 
 export function getDispatcherType(_options: SQLiteAdapterOptions): DispatcherType {
   return 'asynchronous'
+}
+
+// Encryption is native only for now (iOS, Android, Windows)
+export function isEncryptionAvailable(): boolean {
+  return false
+}
+
+export function getDatabaseEncryptionState(_dbName: string): DatabaseEncryptionState {
+  throw new Error('SQLiteAdapter.getDatabaseEncryptionState() is not supported on Node yet')
 }

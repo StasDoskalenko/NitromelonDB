@@ -11,6 +11,10 @@ type NotesHeaderProps = {
   // Syncs with examples/sync-server (src/sync.ts, maestro/sync.yaml)
   onSync?: () => void
   syncStatus?: string | null
+  // Encryption build only (maestro-encryption/): "Encrypted", "Not encrypted", ...
+  encryptionStatus?: string | null
+  // Shown while the database isn't encrypted
+  onEncrypt?: (() => void) | null
 }
 
 export function NotesHeader({
@@ -20,6 +24,8 @@ export function NotesHeader({
   onLongPressTitle,
   onSync,
   syncStatus,
+  encryptionStatus,
+  onEncrypt,
 }: NotesHeaderProps) {
   const insets = useScreenInsets()
 
@@ -44,6 +50,23 @@ export function NotesHeader({
           {syncStatus}
         </Text>
       ) : null}
+      {encryptionStatus ? (
+        <View style={styles.encryptionRow}>
+          <Text style={styles.subtitle} testID="encryption-status" accessible>
+            {encryptionStatus}
+          </Text>
+          {onEncrypt ? (
+            <Pressable
+              onPress={onEncrypt}
+              testID="encrypt-button"
+              accessibilityRole="button"
+              hitSlop={8}
+            >
+              <Text style={styles.encryptButton}>Encrypt</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   )
 }
@@ -57,6 +80,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  encryptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  encryptButton: {
+    marginTop: 4,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.accent,
   },
   syncButton: {
     fontSize: 16,

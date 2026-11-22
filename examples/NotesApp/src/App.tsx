@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { StatusBar } from 'expo-status-bar'
 import { useDatabaseReady } from 'nitromelondb/hooks'
 import { KeyboardProvider } from 'react-native-keyboard-controller'
@@ -33,12 +33,23 @@ function AppContent() {
   // This is purely a UX choice: gating on readiness avoids a flash of "0 notes" while the
   // first-launch seed is still running, instead of relying on that queuing invisibly.
   const ready = useDatabaseReady(session.ok ? session.db.database : null)
+  // Setting up the database failed (e.g. it's encrypted and this build has no passphrase for it):
+  // readyPromise rejects, and the loading screen would otherwise stay forever
+  const [setupError, setSetupError] = useState<string | null>(null)
+  useEffect(() => {
+    if (!session.ok) {
+      return
+    }
+    session.db.database.readyPromise.catch((error: unknown) => {
+      setSetupError(error instanceof Error ? error.message : String(error))
+    })
+  }, [session])
   const [showNestedWriterChecks, setShowNestedWriterChecks] = useState(false)
 
-  if (!session.ok) {
+  if (!session.ok || setupError) {
     return (
       <KeyboardProvider>
-        <SetupErrorScreen message={session.message} />
+        <SetupErrorScreen message={session.ok ? (setupError ?? '') : session.message} />
         <StatusBar style="auto" />
       </KeyboardProvider>
     )

@@ -1,4 +1,5 @@
 #include "Database.h"
+#include "SqliteEncryption.h"
 
 #include <cassert>
 
@@ -7,8 +8,11 @@ namespace watermelondb {
 using platform::consoleError;
 using platform::consoleLog;
 
-Database::Database(jsi::Runtime *runtime, std::string path, bool usesExclusiveLocking) : runtime_(runtime), mutex_() {
-    db_ = std::make_unique<SqliteDb>(path);
+Database::Database(jsi::Runtime *runtime, std::string path, bool usesExclusiveLocking, const std::string &passphrase,
+                   bool allowUnencrypted)
+    : runtime_(runtime), mutex_() {
+    // Keyed (if at all) before anything below touches the file
+    db_ = std::make_unique<SqliteDb>(path, passphrase, allowUnencrypted);
 
     std::string initSql = "";
 
@@ -50,6 +54,7 @@ Database::Database(jsi::Runtime *runtime, std::string path, bool usesExclusiveLo
         initSql += "pragma locking_mode = EXCLUSIVE;";
     }
 
+    connectionSql_ = initSql;
     executeMultiple(initSql);
 }
 
@@ -95,6 +100,35 @@ void Database::fitStatementCacheToSchemaLocked() {
         return;
     }
     cachedStatements_.setCapacity(StatementCache::capacityForTables(StatementCache::countTables(db_->sqlite)));
+}
+
+bool Database::isEncrypted() {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    return db_ && db_->isEncrypted;
+}
+
+void Database::changeEncryptionKey(const std::string &newPassphrase) {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    if (isDestroyed_ || !db_) {
+        throw std::runtime_error("Can't change the encryption key: the database is closed");
+    }
+    // The pager is rewritten, leaving WAL needs no statement in progress, and decrypting closes the
+    // connection
+    cachedStatements_.clear();
+    bool reopened = false;
+    auto reconfigureIfReopened = [&]() {
+        if (reopened && db_->sqlite) {
+            executeMultiple(connectionSql_);
+        }
+    };
+    try {
+        db_->changeEncryptionKey(newPassphrase, reopened);
+    } catch (...) {
+        reconfigureIfReopened();
+        throw;
+    }
+    reconfigureIfReopened();
+    consoleLog(newPassphrase.empty() ? "Decrypted the database" : "Changed the database's encryption key");
 }
 
 bool Database::isCached(std::string cacheKey) {

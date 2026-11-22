@@ -1,5 +1,7 @@
 #include "HybridNitromelonDatabase.hpp"
 
+#include <algorithm>
+
 #include "DatabasePlatform.h"
 
 #include <NitroModules/AnyMap.hpp>
@@ -283,7 +285,12 @@ jsi::Value HybridNitromelonDatabase::setStoreWholeNumbersAsIntegers(jsi::Runtime
   if (count != 1 || !args[0].isBool()) {
     throw jsi::JSError(runtime, "setStoreWholeNumbersAsIntegers(enabled) expects 1 boolean argument");
   }
-  database().setStoreWholeNumbersAsIntegers(args[0].getBool());
+  // Doesn't open the database: opening can fail (a wrong passphrase), and that has to surface from
+  // initialize(), where SQLiteAdapter reports setup errors, not from the adapter's constructor
+  storeWholeNumbersAsIntegers_ = args[0].getBool();
+  if (db_) {
+    db_->setStoreWholeNumbersAsIntegers(storeWholeNumbersAsIntegers_);
+  }
   return jsi::Value::undefined();
 }
 
@@ -329,7 +336,14 @@ HybridNitromelonDatabase::HybridNitromelonDatabase(std::string dbName, bool uses
 
 ::watermelondb::Database& HybridNitromelonDatabase::database() {
   if (!db_) {
-    db_ = std::make_shared<::watermelondb::Database>(nullptr, dbName_, usesExclusiveLocking_);
+    // Throws if it can't be opened with passphrase_ (wrong key, ...). db_ stays empty then, so the
+    // next call tries again and gets the same error: nothing works on a database that didn't open.
+    db_ = std::make_shared<::watermelondb::Database>(nullptr, dbName_, usesExclusiveLocking_, passphrase_,
+                                                     allowUnencrypted_);
+    // Not needed after opening: don't keep the key around longer than necessary
+    std::fill(passphrase_.begin(), passphrase_.end(), '\0');
+    passphrase_.clear();
+    db_->setStoreWholeNumbersAsIntegers(storeWholeNumbersAsIntegers_);
     std::weak_ptr<::watermelondb::Database> weakDatabase = db_;
     ::watermelondb::platform::onDestroy([weakDatabase]() {
       if (auto databaseToDestroy = weakDatabase.lock()) {
@@ -374,6 +388,28 @@ HybridNitromelonDatabase::HybridNitromelonDatabase(std::string dbName, bool uses
 
 void HybridNitromelonDatabase::onMemoryWarning(const std::function<void()>& callback) {
   memoryWarningCallback_ = callback;
+}
+
+void HybridNitromelonDatabase::setEncryption(const std::string& passphrase, bool allowUnencrypted) {
+  if (db_) {
+    throw std::runtime_error("setEncryption() must be called before the database is opened (before any other call)");
+  }
+  passphrase_ = passphrase;
+  allowUnencrypted_ = allowUnencrypted;
+}
+
+bool HybridNitromelonDatabase::isEncrypted() {
+  return database().isEncrypted();
+}
+
+std::shared_ptr<Promise<void>> HybridNitromelonDatabase::changeEncryptionKey(const std::string& newPassphrase) {
+  if (!initialized_) {
+    throw std::runtime_error("changeEncryptionKey() needs a database that's set up");
+  }
+  database();
+  // The background thread keeps the connection alive even if this object goes away meanwhile
+  std::shared_ptr<::watermelondb::Database> db = db_;
+  return Promise<void>::async([db, newPassphrase]() { db->changeEncryptionKey(newPassphrase); });
 }
 
 NitromelonInitializeResult HybridNitromelonDatabase::initialize(const std::string& dbName, double expectedVersion) {

@@ -1,0 +1,20 @@
+# Step 2 (encryption build, installed over step 1): opens the plain database with
+# ifUnencrypted: 'open', keeping every note. See README.md.
+appId: com.nitromelondb.example
+---
+- launchApp
+
+- extendedWaitUntil:
+    visible:
+      id: "encryption-status"
+    timeout: 60000
+
+- assertVisible:
+    id: "encryption-status"
+    text: "Not encrypted"
+- assertVisible:
+    text: ".*101 notes.*"
+- assertVisible:
+    text: "Upgrade marker"
+- assertVisible:
+    id: "encrypt-button"

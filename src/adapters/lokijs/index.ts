@@ -36,6 +36,12 @@ export default class LokiJSAdapter implements DatabaseAdapter {
   _options: LokiAdapterOptions
 
   constructor(options: LokiAdapterOptions) {
+    // Not silently ignored: an app that asked for encryption must not get a plaintext database
+    if ((options as { encryption?: unknown }).encryption !== undefined) {
+      throw new Error(
+        'LokiJSAdapter does not support encryption. SQLiteAdapter does, on iOS, Android and Windows. See https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Encryption',
+      )
+    }
     this._options = options
     this.dbName = options.dbName || 'loki'
     const { schema, migrations } = options

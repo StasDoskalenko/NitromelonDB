@@ -278,7 +278,7 @@ Electron runs SQLite in the main process. See [Setup — Electron](./Setup.md#el
 
 ## Optional: database encryption
 
-NitromelonDB can encrypt the database on disk (SQLCipher 4 format, iOS, Android and Windows). It is off by default, so apps that don't need it ship no cryptography from NitromelonDB and keep their App Store export-compliance answers. To turn it on, add `"nitromelondb": { "encryption": true }` to your app's `package.json` and rebuild the native app. See [Encryption](./Advanced/Encryption.md) for why it is opt-in, how to check it worked, and what to tell Apple.
+NitromelonDB can encrypt the database on disk (SQLCipher 4 format, iOS, Android and Windows). It is off by default, so apps that don't need it ship no cryptography from NitromelonDB and keep their App Store export-compliance answers. To use it, add `"nitromelondb": { "encryption": true }` to your app's `package.json`, rebuild the native app, and pass `encryption: { passphrase }` to `SQLiteAdapter`. See [Encryption](./Advanced/Encryption.md) for why it is opt-in, where to keep the passphrase, how to encrypt your existing users' databases, and what to tell Apple.
 
 ## Troubleshooting
 

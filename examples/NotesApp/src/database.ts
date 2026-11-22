@@ -12,9 +12,22 @@ export type ExampleDatabase = {
   notes: Collection<Note>
   schemaVersion: number
   sqliteEngine: string
+  // Whether this is the encryption build (see below)
+  encryptionAvailable: boolean
 }
 
+// DEMO ONLY. A real app generates a random passphrase once (e.g. 32 random bytes as hex) and keeps
+// it in the Keychain / Android Keystore (expo-secure-store, react-native-keychain), then passes a
+// function that reads it as `encryption.passphrase`. Never ship a passphrase in the bundle: anyone
+// can read it there. See docs/Advanced/Encryption.
+export const DEMO_PASSPHRASE = 'nitromelon-notes-demo-passphrase'
+
 export function createExampleDatabase(): ExampleDatabase {
+  // The encryption build: "nitromelondb": { "encryption": true } in package.json, or
+  // NITROMELONDB_ENCRYPTION=1 at pod install / Gradle build (CI builds one to test upgrading an
+  // existing install, scripts/ci-notesapp-ios-encryption-upgrade.sh). A database from the plain build
+  // opens as it is ('open'), and the header's Encrypt button encrypts it in place.
+  const encryptionAvailable = SQLiteAdapter.isEncryptionAvailable()
   const adapter = new SQLiteAdapter({
     schema,
     migrations,
@@ -25,6 +38,9 @@ export function createExampleDatabase(): ExampleDatabase {
     onSetUpError: (error) => {
       console.error('[NitromelonDB] Failed to set up SQLite', error)
     },
+    ...(encryptionAvailable
+      ? { encryption: { passphrase: () => DEMO_PASSPHRASE, ifUnencrypted: 'open' as const } }
+      : {}),
   })
 
   const database = new Database({
@@ -68,5 +84,6 @@ export function createExampleDatabase(): ExampleDatabase {
     notes: database.get(Note),
     schemaVersion: schema.version,
     sqliteEngine: adapter.dispatcherType === 'nitro' ? 'Nitro SQLite' : adapter.dispatcherType,
+    encryptionAvailable,
   }
 }

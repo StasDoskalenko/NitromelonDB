@@ -22,6 +22,7 @@ maestro test maestro/cold-start.yaml
 - App id in every flow: `com.nitromelondb.example`.
 - `maestro/sync.yaml` needs the sync server: `cd ../sync-server && yarn install && yarn start:notes-app` (port 3000; on an Android emulator also `adb reverse tcp:3000 tcp:3000`). CI scripts start it themselves.
 - CI runs the flows on Android against a Release APK with no Metro (`scripts/ci-notesapp-android-maestro.sh`).
+- `maestro-encryption/` is not a suite: `scripts/ci-notesapp-ios-encryption-upgrade.sh` runs its flows one by one while switching between the plain build and the encryption build (`NITROMELONDB_ENCRYPTION=1` at `pod install`), checking the database file between steps. See its `README.md`. The encryption build shows `encryption-status` and `encrypt-button` in the header; the plain build shows neither.
 - The same scenarios run on Windows through WinAppDriver (`../NotesApp_windows/e2e/`). If you change a flow, or a `testID` a flow relies on, update the Windows test too.
 - Maestro MCP, if connected: `list_devices` → `inspect_screen` before tapping → `cheat_sheet` before writing new YAML → `run`. Do not use Maestro Cloud unless asked.
 

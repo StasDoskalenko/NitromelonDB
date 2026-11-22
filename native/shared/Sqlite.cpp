@@ -1,5 +1,7 @@
 #include "Sqlite.h"
 #include "DatabasePlatform.h"
+#include "SqliteEncryption.h"
+#include <algorithm>
 #include <cassert>
 
 namespace watermelondb {
@@ -17,7 +19,7 @@ std::string resolveDatabasePath(std::string path) {
     }
 }
 
-SqliteDb::SqliteDb(std::string path) {
+SqliteDb::SqliteDb(std::string path, const std::string &passphrase, bool allowUnencrypted) {
     consoleLog("Will open database...");
     platform::initializeSqlite();
     #ifndef ANDROID
@@ -25,6 +27,12 @@ SqliteDb::SqliteDb(std::string path) {
     #endif
 
     auto resolvedPath = resolveDatabasePath(path);
+    resolvedPath_ = resolvedPath;
+    // A re-key killed in the middle left a journal to roll back (or a copy to delete), and until
+    // then the header may already be in the new format
+    encryption::recoverInterruptedRekey(resolvedPath, passphrase);
+    // Before opening: sqlite3_open_v2 creates the file, and the header tells encrypted from plain
+    auto fileState = encryption::probeFile(resolvedPath);
     // SQLITE_OPEN_URI so `file:name?mode=memory&cache=shared` works even if
     // sqlite3_config(SQLITE_CONFIG_URI) lost the race with another initializer.
     int openResult = sqlite3_open_v2(
@@ -36,21 +44,45 @@ SqliteDb::SqliteDb(std::string path) {
     if (openResult != SQLITE_OK) {
         if (sqlite) {
             auto error = std::string(sqlite3_errmsg(sqlite));
-            throw new std::runtime_error("Error while trying to open database - " + error);
+            sqlite3_close(sqlite);
+            sqlite = nullptr;
+            throw std::runtime_error("Error while trying to open database - " + error);
         } else {
             // whoa, sqlite couldn't allocate memory
-            throw new std::runtime_error("Error while trying to open database, sqlite is null - " + std::to_string(openResult));
+            throw std::runtime_error("Error while trying to open database, sqlite is null - " + std::to_string(openResult));
         }
     }
     assert(sqlite != nullptr);
 
-    consoleLog("Opened database at " + resolvedPath);
+    try {
+        isEncrypted = encryption::openWithKey(sqlite, fileState, passphrase, allowUnencrypted);
+        if (isEncrypted) {
+            passphrase_ = passphrase;
+        }
+    } catch (...) {
+        // The destructor doesn't run when a constructor throws
+        sqlite3_close(sqlite);
+        sqlite = nullptr;
+        isDestroyed_ = true;
+        throw;
+    }
+
+    consoleLog(std::string(isEncrypted ? "Opened encrypted database at " : "Opened database at ") + resolvedPath);
+}
+
+void SqliteDb::changeEncryptionKey(const std::string &newPassphrase, bool &reopened) {
+    encryption::rekey(sqlite, resolvedPath_, passphrase_, newPassphrase, reopened);
+    std::fill(passphrase_.begin(), passphrase_.end(), '\0');
+    passphrase_ = newPassphrase;
+    isEncrypted = !newPassphrase.empty();
 }
 
 void SqliteDb::destroy() {
     if (isDestroyed_) {
         return;
     }
+    std::fill(passphrase_.begin(), passphrase_.end(), '\0');
+    passphrase_.clear();
     consoleLog("Closing database...");
 
     isDestroyed_ = true;

@@ -15,7 +15,12 @@ export interface NitromelonInitializeResult {
 export interface NitromelonDatabase extends HybridObject<{ ios: 'c++'; android: 'c++' }> {
   initialize(dbName: string, expectedVersion: number): NitromelonInitializeResult
   setUpWithSchema(dbName: string, schema: string, schemaVersion: number): void
-  setUpWithMigrations(dbName: string, migrationSchema: string, fromVersion: number, toVersion: number): void
+  setUpWithMigrations(
+    dbName: string,
+    migrationSchema: string,
+    fromVersion: number,
+    toVersion: number,
+  ): void
   find(tableName: string, id: string): NitromelonFindResult
   query(tableName: string, sql: string, args: SqliteValue[]): NitromelonCachedRecord[]
   queryAsArray(tableName: string, sql: string, args: SqliteValue[]): NitromelonQueryAsArrayItem[]
@@ -29,7 +34,13 @@ export interface NitromelonDatabase extends HybridObject<{ ios: 'c++'; android: 
   // case it skips straight to an unconditional delete/update to unlock SQLite's own truncate
   // optimization -- deletes/marks-deleted those exact rows by reusing `sql`/`args` again as an
   // inline subquery, all in one transaction. Returns the ids that were actually affected.
-  destroyMatching(table: string, sql: string, args: SqliteValue[], permanently: boolean, isUnconditional: boolean): string[]
+  destroyMatching(
+    table: string,
+    sql: string,
+    args: SqliteValue[],
+    permanently: boolean,
+    isUnconditional: boolean,
+  ): string[]
   batchJSON(operations: string): void
   getLocal(key: string): NitromelonLocalValue
   unsafeLoadFromSync(jsonId: number, schema: AnyMap, preamble: string, postamble: string): AnyMap
@@ -39,10 +50,24 @@ export interface NitromelonDatabase extends HybridObject<{ ios: 'c++'; android: 
   // Registers a callback invoked when the OS signals critical memory
   // pressure, so JS-side caches can proactively trim already-dead entries.
   onMemoryWarning(callback: () => void): void
+  // SQLiteAdapter's `encryption` option. Must come before any other call: the connection opens on
+  // first use. `passphrase` '' means none. Opening throws `[code] message` errors (see
+  // native/shared/SqliteEncryption.h), never changing the file.
+  setEncryption(passphrase: string, allowUnencrypted: boolean): void
+  // Whether the open connection is encrypted
+  isEncrypted(): boolean
+  // Encrypts, re-keys or ('' ) decrypts in place, on a background thread. Every other call waits
+  // for it (the native mutex), so JS holds them back meanwhile (see SQLiteAdapter).
+  changeEncryptionKey(newPassphrase: string): Promise<void>
 }
 
 export interface Nitromelon extends HybridObject<{ ios: 'c++'; android: 'c++' }> {
   createAdapter(dbName: string, usesExclusiveLocking: boolean): NitromelonDatabase
   provideSyncJson(id: number, json: string): void
   getRandomIds(): string
+  // Whether this build has the codec ("nitromelondb": { "encryption": true } in the app's
+  // package.json). See docs/Advanced/Encryption.
+  isEncryptionAvailable(): boolean
+  // 'encrypted' | 'unencrypted' | 'missing', from the file's first bytes. Never opens SQLite.
+  getDatabaseEncryptionState(dbName: string): string
 }

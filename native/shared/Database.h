@@ -54,7 +54,10 @@ public:
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
     static void install(jsi::Runtime *runtime);
 #endif
-    Database(jsi::Runtime *runtime, std::string path, bool usesExclusiveLocking);
+    // `passphrase` empty: not encrypted. Throws encryption::EncryptionError (see SqliteEncryption.h)
+    // when the database can't be opened with it; the file is never changed then.
+    Database(jsi::Runtime *runtime, std::string path, bool usesExclusiveLocking, const std::string &passphrase = "",
+             bool allowUnencrypted = false);
     ~Database();
     void destroy();
     // Releases as much of SQLite's own internal heap memory as possible for this
@@ -107,17 +110,26 @@ public:
     std::optional<std::string> getLocal(const std::string &key);
     void migrate(const std::string &migrationSql, int fromVersion, int toVersion);
 
+    // Whether the open connection is encrypted (keyed), as opposed to what the file looked like
+    bool isEncrypted();
+    // Encrypts, re-keys or (empty passphrase) decrypts the database in place. Blocks every other call
+    // (mutex_) until it's done, which can take seconds on a big database. Records are unchanged, so
+    // cachedRecords_ stays valid. Throws encryption::EncryptionError; the old key stays then.
+    void changeEncryptionKey(const std::string &newPassphrase);
+
     int getUserVersion();
     // Whether the database has any tables, indexes, views or triggers of its own (not SQLite's)
     bool hasUserObjects();
     void migrate(jsi::String &migrationSql, int fromVersion, int toVersion);
 
 private:
-    bool initialized_;
-    bool isDestroyed_;
+    bool initialized_ = false;
+    bool isDestroyed_ = false;
     bool storeWholeNumbersAsIntegers_ = false;
     std::mutex mutex_;
     jsi::Runtime *runtime_; // TODO: std::shared_ptr would be better than a raw pointer from the JS runtime
+    // The connection's settings (journal mode, ...), applied again when decrypting reopens it
+    std::string connectionSql_;
     std::unique_ptr<SqliteDb> db_;
     StatementCache cachedStatements_; // bounded, LRU-evicting -- see StatementCache.h
     std::unordered_set<std::string> cachedRecords_;

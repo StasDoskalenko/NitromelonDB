@@ -1,0 +1,21 @@
+# Steps 4 and 6 (encryption build): a cold start opens the encrypted database with the passphrase,
+# with every note. See README.md.
+appId: com.nitromelondb.example
+---
+- launchApp:
+    stopApp: true
+
+- extendedWaitUntil:
+    visible:
+      id: "encryption-status"
+      text: "Encrypted"
+    timeout: 60000
+
+- assertVisible:
+    text: ".*102 notes.*"
+- assertVisible:
+    text: "After encryption"
+- assertVisible:
+    text: "Upgrade marker"
+- assertNotVisible:
+    id: "encrypt-button"

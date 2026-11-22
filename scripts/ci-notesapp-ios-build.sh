@@ -3,7 +3,13 @@
 # to build-output/NotesApp.app.zip, for the jobs that test it (ci.yml uploads it as the
 # notesapp-ios-app artifact; scripts/ci-notesapp-ios-maestro.sh installs it). Building in its own
 # job means a flaky Maestro flow only re-runs the tests, not this ~15 minute build.
+#
+# Usage: bash scripts/ci-notesapp-ios-build.sh [zip name, default NotesApp.app.zip]
+# (the encryption build job passes NotesApp-encryption.app.zip; the build itself is picked at pod
+# install, by NITROMELONDB_ENCRYPTION)
 set -euo pipefail
+
+ZIP_NAME="${1:-NotesApp.app.zip}"
 
 cd examples/NotesApp
 
@@ -45,5 +51,5 @@ fi
 
 # ditto keeps the bundle's symlinks and executable bits, which upload-artifact's own zip drops
 mkdir -p ../../build-output
-ditto -c -k --keepParent "$APP_PATH" ../../build-output/NotesApp.app.zip
-ls -lh ../../build-output/NotesApp.app.zip
+ditto -c -k --keepParent "$APP_PATH" "../../build-output/$ZIP_NAME"
+ls -lh "../../build-output/$ZIP_NAME"

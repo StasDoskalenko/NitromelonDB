@@ -18,6 +18,8 @@ public:
 
   void provideSyncJson(double id, const std::string& json) override;
   std::string getRandomIds() override;
+  bool isEncryptionAvailable() override;
+  std::string getDatabaseEncryptionState(const std::string& dbName) override;
 };
 
 } // namespace margelo::nitro::watermelondb
