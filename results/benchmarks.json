@@ -4161,5 +4161,26 @@
         "stress": 5
       }
     }
+  },
+  {
+    "sha": "6e3f527dca12f5c7a0ecf04740668e57c771c125",
+    "date": "2026-11-22T03:06:01.809Z",
+    "prNumber": 249,
+    "subject": "feat(native): opt-in encryption build with SQLite3 Multiple Ciphers (#60) (#249)",
+    "android": {
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 26.5,
+      "ram": 180,
+      "fps": 54.6
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 27,
+      "ram": 180,
+      "fps": 54.9
+    }
   }
 ]
