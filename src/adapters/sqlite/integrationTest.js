@@ -26,7 +26,7 @@ const SQLiteAdapterTest = (spec) => {
 
       // These builds have no encryption (the default), so a passphrase must fail loudly, before
       // anything is written. The encryption build is tested by `yarn test:native-unit` and by the
-      // NotesApp encryption upgrade job (scripts/ci-notesapp-ios-encryption-upgrade.sh).
+      // NotesApp encryption upgrade job (scripts/ci-notesapp-encryption-upgrade.sh).
       spec.it('fails loudly when given a passphrase without the encryption build', async () => {
         expect(SQLiteAdapter.isEncryptionAvailable()).toBe(false)
         let error = null

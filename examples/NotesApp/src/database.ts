@@ -25,7 +25,7 @@ export const DEMO_PASSPHRASE = 'nitromelon-notes-demo-passphrase'
 export function createExampleDatabase(): ExampleDatabase {
   // The encryption build: "nitromelondb": { "encryption": true } in package.json, or
   // NITROMELONDB_ENCRYPTION=1 at pod install / Gradle build (CI builds one to test upgrading an
-  // existing install, scripts/ci-notesapp-ios-encryption-upgrade.sh). A database from the plain build
+  // existing install, scripts/ci-notesapp-encryption-upgrade.sh). A database from the plain build
   // opens as it is ('open'), and the header's Encrypt button encrypts it in place.
   const encryptionAvailable = SQLiteAdapter.isEncryptionAvailable()
   const adapter = new SQLiteAdapter({
