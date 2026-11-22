@@ -17,6 +17,8 @@ namespace margelo::nitro::watermelondb {
       prototype.registerHybridMethod("createAdapter", &HybridNitromelonSpec::createAdapter);
       prototype.registerHybridMethod("provideSyncJson", &HybridNitromelonSpec::provideSyncJson);
       prototype.registerHybridMethod("getRandomIds", &HybridNitromelonSpec::getRandomIds);
+      prototype.registerHybridMethod("isEncryptionAvailable", &HybridNitromelonSpec::isEncryptionAvailable);
+      prototype.registerHybridMethod("getDatabaseEncryptionState", &HybridNitromelonSpec::getDatabaseEncryptionState);
     });
   }
 

@@ -47,6 +47,9 @@ public:
   void unsafeResetDatabase(const std::string& schema, double schemaVersion) override;
   void unsafeClose() override;
   void onMemoryWarning(const std::function<void()>& callback) override;
+  void setEncryption(const std::string& passphrase, bool allowUnencrypted) override;
+  bool isEncrypted() override;
+  std::shared_ptr<Promise<void>> changeEncryptionKey(const std::string& newPassphrase) override;
 
 protected:
   void loadHybridMethods() override;
@@ -69,6 +72,11 @@ private:
   bool usesExclusiveLocking_;
   bool initialized_ = false;
   std::shared_ptr<::watermelondb::Database> db_;
+  // From setEncryption(), used once to open db_, then cleared
+  std::string passphrase_;
+  bool allowUnencrypted_ = false;
+  // From setStoreWholeNumbersAsIntegers(), applied when db_ opens
+  bool storeWholeNumbersAsIntegers_ = false;
   std::function<void()> memoryWarningCallback_;
 };
 

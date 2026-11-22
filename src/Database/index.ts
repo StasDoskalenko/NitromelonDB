@@ -835,6 +835,46 @@ export default class Database {
   _isBeingReset: boolean = false
 
   /**
+   * Whether the open database is encrypted (SQLiteAdapter's `encryption` option, iOS, Android and
+   * Windows). False for adapters without encryption. Waits for the database to be set up.
+   * See docs/Advanced/Encryption.
+   */
+  isDBEncrypted(): Promise<boolean> {
+    return this.adapter.isEncrypted()
+  }
+
+  /**
+   * Encrypts the database with `passphrase`, in place, keeping every record. On a database that's
+   * already encrypted, changes its passphrase instead. Must be called from inside a writer, so no
+   * other write runs meanwhile; reads made meanwhile wait until it's done.
+   *
+   * It rewrites every page, so it takes a while on a big database (SQLiteAdapter's
+   * `encryption.events` tell you when it starts and ends). Killing the app in the middle leaves the
+   * database with the old passphrase (or none), never damaged. Save the passphrase (e.g. in the
+   * Keychain) before calling this: from the next launch on, the database opens only with it.
+   *
+   * Needs SQLiteAdapter's `encryption` option, with `ifUnencrypted: 'open'` to open a database that
+   * isn't encrypted yet.
+   */
+  async unsafe_EncryptDB(passphrase: string): Promise<void> {
+    this._ensureInWriter(`Database.unsafe_EncryptDB()`)
+    invariant(
+      typeof passphrase === 'string' && passphrase.length > 0,
+      'Database.unsafe_EncryptDB(passphrase) needs a non-empty passphrase. To decrypt, call unsafe_DecryptDB()',
+    )
+    await this.adapter.unsafeChangeEncryptionKey(passphrase)
+  }
+
+  /**
+   * Decrypts the database in place, keeping every record. Must be called from inside a writer.
+   * Afterwards, open it without a passphrase, or with `encryption.ifUnencrypted: 'open'`.
+   */
+  async unsafe_DecryptDB(): Promise<void> {
+    this._ensureInWriter(`Database.unsafe_DecryptDB()`)
+    await this.adapter.unsafeChangeEncryptionKey('')
+  }
+
+  /**
    * Resets the database
    *
    * This permanently deletes the database (all records, metadata, and `LocalStorage`) and sets

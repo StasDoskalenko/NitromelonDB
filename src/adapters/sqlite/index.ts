@@ -25,7 +25,11 @@ import {
   type DirtyQueryResult,
 } from '../common'
 import type {
+  DatabaseEncryptionState,
   DispatcherType,
+  EncryptionOptions,
+  EncryptionOperation,
+  EncryptionPassphrase,
   SQL,
   SQLiteAdapterOptions,
   SQLiteArg,
@@ -41,9 +45,48 @@ import encodeQuery from './encodeQuery'
 import encodeLocalChangesQueries from './encodeLocalChangesQuery'
 import convertWholeNumbers, { type NumberStorageConversionResult } from './convertWholeNumbers'
 
-import { makeDispatcher, getDispatcherType } from './makeDispatcher'
+import {
+  makeDispatcher,
+  getDispatcherType,
+  isEncryptionAvailable,
+  getDatabaseEncryptionState,
+} from './makeDispatcher'
+import HoldingDispatcher from './HoldingDispatcher'
 
 export type { SQL, SQLiteArg, SQLiteQuery }
+export type {
+  DatabaseEncryptionState,
+  EncryptionErrorCode,
+  EncryptionEvents,
+  EncryptionOperation,
+  EncryptionOptions,
+  EncryptionPassphrase,
+} from './type'
+
+const ENCRYPTION_GUIDE = 'https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Encryption'
+
+function encryptionError(code: string, message: string): Error {
+  const error = new Error(message) as Error & { code: string }
+  error.code = code
+  return error
+}
+
+// A passphrase must be a non-empty string: "no key" is never a way to open (or decrypt) a database
+function checkPassphrase(passphrase: unknown): string {
+  if (typeof passphrase !== 'string' || !passphrase) {
+    throw encryptionError(
+      'encryption_key_required',
+      `SQLiteAdapter: encryption.passphrase gave ${
+        passphrase === '' ? 'an empty string' : String(passphrase)
+      } instead of a passphrase. NitromelonDB never opens an encrypted database without one (to decrypt it, call database.unsafe_DecryptDB()).`,
+    )
+  }
+  return passphrase
+}
+
+async function resolvePassphrase(passphrase: EncryptionPassphrase): Promise<string> {
+  return checkPassphrase(typeof passphrase === 'function' ? await passphrase() : passphrase)
+}
 
 type EncodeSchemaModule = {
   encodeSchema: (schema: AppSchema) => SQL
@@ -105,6 +148,27 @@ export default class SQLiteAdapter implements DatabaseAdapter {
 
   _checkStorageSensitiveSql: ((sql: string) => void) | null = null
 
+  // With the `encryption` option only: holds calls while the passphrase resolves or the key changes
+  _holdingDispatcher: HoldingDispatcher | null = null
+
+  _encryptionEvents: EncryptionOptions['events']
+
+  _encryptionOptions: EncryptionOptions | undefined
+
+  // Whether this build of the app has the codec ("nitromelondb": { "encryption": true } in the app's
+  // package.json). False on web and Node, and in the default native build. See docs/Advanced/Encryption
+  static isEncryptionAvailable(): boolean {
+    return isEncryptionAvailable()
+  }
+
+  // What the database file looks like, before an adapter opens it: 'missing' (a new install),
+  // 'unencrypted' (a plain SQLite file), or 'encrypted' (anything else: a damaged file looks the same,
+  // so only opening it with the passphrase proves it). Reads the first bytes of the file only.
+  // iOS, Android and Windows.
+  static async getDatabaseEncryptionState(dbName?: string): Promise<DatabaseEncryptionState> {
+    return getDatabaseEncryptionState(dbName || 'watermelon')
+  }
+
   constructor(options: SQLiteAdapterOptions) {
     // console.log(`---> Initializing new adapter (${this._tag})`)
     const {
@@ -121,14 +185,40 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     this._migrationEvents = migrationEvents
     this.dbName = this._getName(dbName)
     this._dispatcherType = getDispatcherType(options)
-    // Hacky-ish way to create an object with NativeModule-like shape, but that can dispatch method
-    // calls to async, synch NativeModule, or JSI implementation w/ type safety in rest of the impl
-    const dispatcher = makeDispatcher(this._dispatcherType, this._tag, this.dbName, {
+    const dispatcherOptions = {
       usesExclusiveLocking,
       storeWholeNumbersAsIntegers,
       experimentalUnsafeNativeReuse,
       ...(options.web ? { web: options.web } : {}),
-    })
+    }
+    // Hacky-ish way to create an object with NativeModule-like shape, but that can dispatch method
+    // calls to async, synch NativeModule, or JSI implementation w/ type safety in rest of the impl
+    let dispatcher: SqliteDispatcher
+    const { encryption } = options
+    if (encryption) {
+      this._checkEncryptionSupport(encryption)
+      this._encryptionOptions = encryption
+      this._encryptionEvents = encryption.events
+      const holding = new HoldingDispatcher()
+      this._holdingDispatcher = holding
+      dispatcher = holding
+      const open = (passphrase: string) =>
+        makeDispatcher(this._dispatcherType, this._tag, this.dbName, {
+          ...dispatcherOptions,
+          passphrase,
+          allowUnencrypted: encryption.ifUnencrypted === 'open',
+        })
+      if (typeof encryption.passphrase === 'function') {
+        // Calls wait in `holding` until the passphrase is there; if it can't be had, they fail
+        resolvePassphrase(encryption.passphrase)
+          .then((passphrase) => holding.setTarget(open(passphrase)))
+          .catch((error: Error) => holding.fail(error))
+      } else {
+        holding.setTarget(open(checkPassphrase(encryption.passphrase)))
+      }
+    } else {
+      dispatcher = makeDispatcher(this._dispatcherType, this._tag, this.dbName, dispatcherOptions)
+    }
     this._dispatcher = {
       call: (methodName, args, callback) => {
         const setUpError = this._setUpError
@@ -178,7 +268,8 @@ export default class SQLiteAdapter implements DatabaseAdapter {
         warnStorageSensitiveQuery: (query: SerializedQuery, schema: AppSchema) => void
         warnStorageSensitiveSql: (sql: string) => void
       }
-      this._checkStorageSensitiveQuery = (query) => warnings.warnStorageSensitiveQuery(query, this.schema)
+      this._checkStorageSensitiveQuery = (query) =>
+        warnings.warnStorageSensitiveQuery(query, this.schema)
       this._checkStorageSensitiveSql = warnings.warnStorageSensitiveSql
     }
   }
@@ -192,7 +283,11 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   ): Promise<NumberStorageConversionResult> {
     const start = Date.now()
     try {
-      const result = await convertWholeNumbers(this._dispatcher, this.schema, storeWholeNumbersAsIntegers)
+      const result = await convertWholeNumbers(
+        this._dispatcher,
+        this.schema,
+        storeWholeNumbersAsIntegers,
+      )
       if (result === 'converted' && process.env.NODE_ENV !== 'production') {
         logger.log(
           `[🍉] storeWholeNumbersAsIntegers: converted the numbers already stored to ${
@@ -218,12 +313,123 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     return this._dispatcherType
   }
 
+  _checkEncryptionSupport(encryption: EncryptionOptions): void {
+    invariant(
+      encryption && typeof encryption === 'object' && 'passphrase' in encryption,
+      'SQLiteAdapter: `encryption` must be an object with a `passphrase`',
+    )
+    invariant(
+      encryption.ifUnencrypted === undefined ||
+        encryption.ifUnencrypted === 'error' ||
+        encryption.ifUnencrypted === 'open',
+      "SQLiteAdapter: encryption.ifUnencrypted must be 'error' or 'open'",
+    )
+    if (this._dispatcherType !== 'nitro' && this._dispatcherType !== 'jsi') {
+      throw encryptionError(
+        'encryption_unavailable',
+        `SQLiteAdapter: encryption is supported on iOS, Android and Windows, not with the ${this._dispatcherType} SQLite adapter (web or Node) yet. See ${ENCRYPTION_GUIDE}`,
+      )
+    }
+    // The upstream WatermelonDB PR's bug was a build flag that silently didn't apply, leaving a
+    // plaintext database. Fail loudly instead, before anything is written
+    if (!isEncryptionAvailable()) {
+      throw encryptionError(
+        'encryption_unavailable',
+        `SQLiteAdapter: \`encryption\` was passed, but this build of the app has no encryption, so the database would not be encrypted. Turn on the encryption build with "nitromelondb": { "encryption": true } in the app's package.json (or NITROMELONDB_ENCRYPTION=1), then rebuild the native app (on iOS, run pod install again). If it's already on, look for "SQLite encryption build" in the build log: the switch may be in a package.json that isn't the app's, or NITROMELONDB_ENCRYPTION=0 may be set. See ${ENCRYPTION_GUIDE}`,
+      )
+    }
+  }
+
+  // Whether the open connection is encrypted. False without the `encryption` option (and on web and
+  // Node). Waits for setup.
+  isEncrypted(callback: ResultCallback<boolean>): void {
+    if (!this._holdingDispatcher) {
+      callback({ value: false })
+      return
+    }
+    this._dispatcher.call('isEncrypted', [], callback)
+  }
+
+  // Encrypts the database with `newPassphrase`, changes its key, or with '' decrypts it, in place.
+  // Use database.unsafe_EncryptDB() / unsafe_DecryptDB(), which make sure no write is running.
+  // Every other call made meanwhile waits until it's done.
+  unsafeChangeEncryptionKey(newPassphrase: string, callback: ResultCallback<void>): void {
+    const holding = this._holdingDispatcher
+    if (!holding) {
+      callback({
+        error: encryptionError(
+          'encryption_unavailable',
+          `Changing the encryption key needs SQLiteAdapter's \`encryption\` option (with ifUnencrypted: 'open' for a database that isn't encrypted yet), so the database can be opened again on the next launch. See ${ENCRYPTION_GUIDE}`,
+        ),
+      })
+      return
+    }
+    if (typeof newPassphrase !== 'string') {
+      callback({ error: new Error('unsafeChangeEncryptionKey(newPassphrase) expects a string') })
+      return
+    }
+
+    const events = this._encryptionEvents
+    // Goes out after anything already called, and before anything called after this
+    this._dispatcher.call<boolean>('isEncrypted', [], (encryptedResult) => {
+      if (encryptedResult.error) {
+        callback(encryptedResult)
+        return
+      }
+      const wasEncrypted = encryptedResult.value
+      const operation: EncryptionOperation = !newPassphrase
+        ? 'decrypt'
+        : wasEncrypted
+          ? 'rekey'
+          : 'encrypt'
+      if (operation === 'decrypt' && !wasEncrypted) {
+        callback({ value: undefined })
+        return
+      }
+
+      const release = holding.hold()
+      const finish = (result: { error?: Error | undefined }, durationMs: number) => {
+        release()
+        if (result.error) {
+          logger.error(`[SQLite] Failed to ${operation} the database`, result.error)
+          events?.onError?.(result.error)
+          callback({ error: result.error })
+        } else {
+          logger.log(`[SQLite] ${operation} done in ${durationMs} ms`)
+          events?.onSuccess?.({ operation, durationMs })
+          callback({ value: undefined })
+        }
+      }
+
+      holding.callNow<Array<{ pageCount: number; byteSize: number }>>(
+        'unsafeQueryRaw',
+        [
+          'select page_count as pageCount, page_count * page_size as byteSize from pragma_page_count(), pragma_page_size()',
+          [],
+        ],
+        (sizeResult) => {
+          const size = sizeResult.value?.[0] ?? { pageCount: 0, byteSize: 0 }
+          try {
+            events?.onStart?.({ operation, pageCount: size.pageCount, byteSize: size.byteSize })
+          } catch (error) {
+            logger.error('[SQLite] encryption.events.onStart threw', error)
+          }
+          const start = Date.now()
+          holding.callNow<void>('changeEncryptionKey', [newPassphrase], (result) =>
+            finish(result, Date.now() - start),
+          )
+        },
+      )
+    })
+  }
+
   async testClone(options: Partial<SQLiteAdapterOptions> = {}): Promise<SQLiteAdapter> {
     const clone = new SQLiteAdapter({
       dbName: this.dbName,
       schema: this.schema,
       jsi: this._dispatcherType !== 'asynchronous',
       ...(this.migrations ? { migrations: this.migrations } : {}),
+      ...(this._encryptionOptions ? { encryption: this._encryptionOptions } : {}),
       ...options,
     } as SQLiteAdapterOptions)
     invariant(
@@ -247,23 +453,27 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     // we're good. If not, we try again, this time sending the compiled schema or a migration set
     // This is to speed up the launch (less to do and pass through bridge), and avoid repeating
     // migration logic inside native code
-    this._dispatcher.call<InitializeStatus>('initialize', [this.dbName, this.schema.version], (result) => {
-      if (result.error) {
-        callback(result)
-        return
-      }
+    this._dispatcher.call<InitializeStatus>(
+      'initialize',
+      [this.dbName, this.schema.version],
+      (result) => {
+        if (result.error) {
+          callback(result)
+          return
+        }
 
-      const status = result.value
-      if (status.code === 'schema_needed') {
-        this._setUpWithSchema(callback)
-      } else if (status.code === 'migrations_needed') {
-        this._setUpWithMigrations(status.databaseVersion, callback)
-      } else if (status.code !== 'ok') {
-        callback({ error: new Error('Invalid database initialization status') })
-      } else {
-        callback({ value: undefined })
-      }
-    })
+        const status = result.value
+        if (status.code === 'schema_needed') {
+          this._setUpWithSchema(callback)
+        } else if (status.code === 'migrations_needed') {
+          this._setUpWithMigrations(status.databaseVersion, callback)
+        } else if (status.code !== 'ok') {
+          callback({ error: new Error('Invalid database initialization status') })
+        } else {
+          callback({ value: undefined })
+        }
+      },
+    )
   }
 
   _setUpWithMigrations(databaseVersion: SchemaVersion, callback: ResultCallback<void>): void {
@@ -328,10 +538,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     validateTable(table, this.schema)
     this._dispatcher.call<DirtyFindResult>('find', [table, id], (result) =>
       callback(
-        mapValue(
-          (rawRecord) => sanitizeFindResult(rawRecord, this.schema.tables[table]),
-          result,
-        ),
+        mapValue((rawRecord) => sanitizeFindResult(rawRecord, this.schema.tables[table]), result),
       ),
     )
   }
@@ -430,7 +637,6 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     done(tables)
   }
 
-
   destroyMatching(
     query: SerializedQuery,
     permanently: boolean,
@@ -525,7 +731,8 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       return
     }
 
-    const { encodeDropIndices, encodeCreateIndices } = require('./encodeSchema') as EncodeSchemaModule
+    const { encodeDropIndices, encodeCreateIndices } =
+      require('./encodeSchema') as EncodeSchemaModule
     const { schema } = this
     this._dispatcher.call<Record<string, string>>(
       'unsafeLoadFromSync',

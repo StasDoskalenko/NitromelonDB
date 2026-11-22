@@ -1,5 +1,7 @@
 #include "HybridNitromelon.hpp"
 #include "DatabasePlatform.h"
+#include "Sqlite.h"
+#include "SqliteEncryption.h"
 
 #include <random>
 #include <string>
@@ -8,6 +10,15 @@ namespace margelo::nitro::watermelondb {
 
 void HybridNitromelon::provideSyncJson(double id, const std::string& json) {
   ::watermelondb::platform::provideSyncJson(static_cast<int>(id), json);
+}
+
+bool HybridNitromelon::isEncryptionAvailable() {
+  return ::watermelondb::encryption::isAvailable();
+}
+
+std::string HybridNitromelon::getDatabaseEncryptionState(const std::string& dbName) {
+  namespace encryption = ::watermelondb::encryption;
+  return encryption::fileStateName(encryption::probeFile(::watermelondb::resolveDatabasePath(dbName)));
 }
 
 std::string HybridNitromelon::getRandomIds() {

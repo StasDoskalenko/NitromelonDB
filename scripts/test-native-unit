@@ -61,10 +61,13 @@ build_and_test() {
     fi
   fi
 
+  # Shared code that needs only SQLite (no JSI or platform layer), linked into every test
+  local helpers=("$SHARED/SqliteEncryption.cpp")
+
   local test name
   for test in "$ROOT"/native/tests/*.cpp; do
     name="$(basename "$test" .cpp)"
-    "$CXX" -std=c++17 -Wall -Wextra ${defines[@]+"${defines[@]}"} "${includes[@]}" "$test" "$obj" -lpthread -ldl -lm -o "$out/$name"
+    "$CXX" -std=c++17 -Wall -Wextra ${defines[@]+"${defines[@]}"} "${includes[@]}" "$test" "${helpers[@]}" "$obj" -lpthread -ldl -lm -o "$out/$name"
     printf '[%s] ' "$variant"
     "$out/$name" || status=1
   done

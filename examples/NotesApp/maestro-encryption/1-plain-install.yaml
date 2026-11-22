@@ -1,0 +1,22 @@
+# Step 1 (plain build): a fresh install with one note of its own. See README.md.
+appId: com.nitromelondb.example
+---
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible:
+      text: ".*100 notes.*"
+    timeout: 60000
+
+# The plain build has no encryption, so no status
+- assertNotVisible:
+    id: "encryption-status"
+
+- runFlow:
+    file: ../maestro-commands/add-note.yaml
+    env:
+      TITLE: "Upgrade marker"
+
+- assertVisible:
+    text: ".*101 notes.*"

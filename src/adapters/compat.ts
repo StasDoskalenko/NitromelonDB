@@ -116,6 +116,30 @@ export default class DatabaseAdapterCompat {
     return toPromise((callback) => this.underlyingAdapter.removeLocal(key, callback))
   }
 
+  // False when the underlying adapter has no encryption (LokiJS, custom adapters)
+  isEncrypted(): Promise<boolean> {
+    const isEncrypted = this.underlyingAdapter.isEncrypted
+    if (typeof isEncrypted !== 'function') {
+      return Promise.resolve(false)
+    }
+    return toPromise((callback) => isEncrypted.call(this.underlyingAdapter, callback))
+  }
+
+  unsafeChangeEncryptionKey(newPassphrase: string): Promise<void> {
+    const change = this.underlyingAdapter.unsafeChangeEncryptionKey
+    if (typeof change !== 'function') {
+      return Promise.reject(
+        new Error(
+          `This database adapter (${
+            (this.underlyingAdapter.constructor as { adapterType?: string }).adapterType ??
+            'unknown'
+          }) doesn't support encryption. SQLiteAdapter does, on iOS, Android and Windows.`,
+        ),
+      )
+    }
+    return toPromise((callback) => change.call(this.underlyingAdapter, newPassphrase, callback))
+  }
+
   // untyped - test-only code
   async testClone(options: unknown): Promise<DatabaseAdapterCompat> {
     const adapter = this.underlyingAdapter as CloneableAdapter

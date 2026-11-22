@@ -1,30 +1,33 @@
 ---
 title: Encryption
 hide_title: true
-description: "Opt-in database encryption for iOS, Android and Windows: why it is a build switch, how to turn it on, how to check it worked, and what it means for App Store export compliance."
+description: 'Opt-in database encryption for iOS, Android and Windows: why it is a build switch, how to turn it on, how to open, encrypt and migrate databases with a passphrase, and what it means for App Store export compliance.'
 ---
 
 # Encryption
 
 NitromelonDB can encrypt the SQLite database on disk, in the same file format as [SQLCipher](https://www.zetetic.net/sqlcipher/) 4. Encryption is **opt-in, at build time**: apps that don't ask for it ship exactly what they shipped before, with no cryptography from NitromelonDB in them.
 
-:::note Status: the encryption build is here, the passphrase API comes next
-Encryption is landing in stages ([#60](https://github.com/StasDoskalenko/NitromelonDB/issues/60)). This release adds the **encryption build**: the switch described on this page, which compiles a SQLite that can encrypt. The API to give it a passphrase, and to encrypt, re-key or decrypt an existing database, comes in a following release.
+Using it takes two steps:
 
-So turning the switch on today **does not encrypt anything yet**. Your databases stay plain SQLite files. What you can do now is turn it on in a branch and sort out the build, the app size and the App Store paperwork before the API arrives.
+1. [Turn on the encryption build](#turn-it-on), so the code that can encrypt is compiled into your app.
+2. [Give `SQLiteAdapter` a passphrase](#open-an-encrypted-database). For an app that already has users with plain databases, [encrypt them in place](#add-encryption-to-an-app-that-already-has-users).
+
+:::note Status
+The encryption build and the passphrase API work on iOS, Android and Windows ([#60](https://github.com/StasDoskalenko/NitromelonDB/issues/60)). Progress events during a long encryption, and Node/Electron support, come next (see [What's next](#whats-next)). The web (LokiJS, wa-sqlite) refuses the `encryption` option with an error.
 :::
 
 ## At a glance
 
-|  | Default build | Encryption build |
-| --- | --- | --- |
-| How to get it | nothing to do | `"nitromelondb": { "encryption": true }` in your app's `package.json` |
-| SQLite on iOS | the system `libsqlite3` | bundled [SQLite3 Multiple Ciphers](https://github.com/utelle/SQLite3MultipleCiphers) (built on SQLite 3.54.1) |
-| SQLite on Android and Windows | bundled SQLite 3.54.1 | bundled SQLite3 Multiple Ciphers (built on SQLite 3.54.1) |
-| Can encrypt a database | no | yes (once the passphrase API ships) |
-| Cryptography in your app from NitromelonDB | none | AES-256, HMAC-SHA512, PBKDF2 (all standard) |
-| App size (per arm64 slice) | unchanged | about +1.2 MB on iOS, about +110 KB on Android |
-| Databases without a key | plain SQLite files | plain SQLite files, byte for byte the same |
+|                                            | Default build                                        | Encryption build                                                                                              |
+| ------------------------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| How to get it                              | nothing to do                                        | `"nitromelondb": { "encryption": true }` in your app's `package.json`                                         |
+| SQLite on iOS                              | the system `libsqlite3`                              | bundled [SQLite3 Multiple Ciphers](https://github.com/utelle/SQLite3MultipleCiphers) (built on SQLite 3.54.1) |
+| SQLite on Android and Windows              | bundled SQLite 3.54.1                                | bundled SQLite3 Multiple Ciphers (built on SQLite 3.54.1)                                                     |
+| Can encrypt a database                     | no: a passphrase fails with `encryption_unavailable` | yes                                                                                                           |
+| Cryptography in your app from NitromelonDB | none                                                 | AES-256, HMAC-SHA512, PBKDF2 (all standard)                                                                   |
+| App size (per arm64 slice)                 | unchanged                                            | about +1.2 MB on iOS, about +110 KB on Android                                                                |
+| Databases without a key                    | plain SQLite files                                   | plain SQLite files, byte for byte the same                                                                    |
 
 ## Why it's a switch and not just an option
 
@@ -113,17 +116,17 @@ NITROMELONDB_ENCRYPTION=1 ./gradlew assembleRelease
 
 On Windows you can also pass the MSBuild property: `msbuild /p:NitromelonDBEncryption=true`. It wins over both.
 
-All builds of one app should agree. Once the passphrase API ships and a database has been encrypted, an app built without encryption can't open it.
+All builds of one app should agree. Once a database has been encrypted, a build without encryption can't open it: setup fails with `encryption_key_required`, and the file is left alone.
 
 ## Check that it worked
 
 **In the build output**, the encryption build announces itself:
 
-| Platform | Where | Line |
-| --- | --- | --- |
-| iOS | `pod install` output | `[NitromelonDB] SQLite encryption build (SQLite3 Multiple Ciphers)` |
-| Android | Gradle output | `NitromelonDB: SQLite encryption build (SQLite3 Multiple Ciphers)` |
-| Windows | MSBuild output | `NitromelonDB: SQLite encryption build (SQLite3 Multiple Ciphers)` |
+| Platform | Where                | Line                                                                |
+| -------- | -------------------- | ------------------------------------------------------------------- |
+| iOS      | `pod install` output | `[NitromelonDB] SQLite encryption build (SQLite3 Multiple Ciphers)` |
+| Android  | Gradle output        | `NitromelonDB: SQLite encryption build (SQLite3 Multiple Ciphers)`  |
+| Windows  | MSBuild output       | `NitromelonDB: SQLite encryption build (SQLite3 Multiple Ciphers)`  |
 
 No line means the default build.
 
@@ -145,7 +148,172 @@ async function encryptionBuildVersion(database) {
 }
 ```
 
-This is for checking your setup in development. Don't ship it as a feature check: the passphrase API will report problems itself, loudly.
+This is for checking your setup in development. In code, use `SQLiteAdapter.isEncryptionAvailable()`, and rely on the `encryption` option to fail loudly when the build is wrong (see [Errors](#errors)).
+
+## Open an encrypted database
+
+Pass `encryption` to `SQLiteAdapter`:
+
+```js
+import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
+
+const adapter = new SQLiteAdapter({
+  schema,
+  migrations,
+  encryption: {
+    // A string, or a function that returns one (or a Promise of one)
+    passphrase: getPassphrase,
+  },
+})
+```
+
+- **A new database is created encrypted.** From the first byte written, the file on disk is SQLCipher 4, not SQLite.
+- **The passphrase can come later.** With a function, NitromelonDB calls it once, when the adapter is created, and every database call (queries, writes, `database.write()`) waits for it. You don't need to restructure your app's startup around the Keychain.
+- **"No passphrase" is an error, never "open unencrypted".** If the function returns `null`, `undefined` or `''`, or throws, setup fails and every waiting call fails with that error. A wiped Keychain entry can't silently turn into a plaintext database.
+- **Errors never touch the file.** A wrong passphrase, a missing one, or a plain database where an encrypted one was expected fails setup with an [error code](#errors). NitromelonDB does not reset or recreate the database in any of these cases, not even through `unsafeResetDatabase()`.
+
+Setup errors come out where they always do: `adapter.initializingPromise` and `database.readyPromise` reject, and `onSetUpError` is called.
+
+### Where to keep the passphrase
+
+The passphrase is only as safe as the place you keep it. For most apps: generate a random one on first launch and keep it in the **iOS Keychain / Android Keystore**. With Expo:
+
+```js
+import * as Crypto from 'expo-crypto'
+import * as SecureStore from 'expo-secure-store'
+import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
+
+const PASSPHRASE_KEY = 'database-passphrase'
+
+async function getPassphrase() {
+  const saved = await SecureStore.getItemAsync(PASSPHRASE_KEY)
+  if (saved) {
+    return saved
+  }
+  // Only make a new one for a new database. If the file exists and is encrypted, its passphrase
+  // was lost: a new one wouldn't open it (setup would fail with encryption_key_invalid)
+  if ((await SQLiteAdapter.getDatabaseEncryptionState()) === 'encrypted') {
+    throw new Error('The database passphrase is missing from the Keychain')
+  }
+  const passphrase = Array.from(Crypto.getRandomBytes(32), (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('')
+  await SecureStore.setItemAsync(PASSPHRASE_KEY, passphrase, {
+    // Readable by background tasks after the device was unlocked once since boot
+    keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+  })
+  return passphrase
+}
+```
+
+In a bare app, `react-native-keychain` does the same job. Some things to decide for your app:
+
+- **Background work** (headless JS, background fetch) needs to read the passphrase while the device may be locked. `AFTER_FIRST_UNLOCK` allows that; stricter classes like `WHEN_UNLOCKED` don't.
+- **Device backups and new phones.** Keychain items that sync or migrate with the device keep the database readable after a restore; items that don't (`*_THIS_DEVICE_ONLY`) make a restored database unreadable on the new device, which you may want, or not.
+- **A passphrase derived from the user's password** protects the data even from someone who can read the Keychain, but the database can then only be opened after the user signs in, and a forgotten password means the local data is gone (it can still be synced down again).
+- **There is no recovery.** If the passphrase is lost, the database can't be opened, by you or by anyone. Plan for that: data that is synced to your server can be downloaded into a new database.
+
+NitromelonDB never logs the passphrase. While the database is open, the native side keeps it in memory (to reopen the file after decrypting it), next to the key SQLite derives from it, which any encrypted database needs while it's open; both go away when it closes. On the JavaScript side, a passphrase function is called once and its result isn't kept; a passphrase passed as a string stays in your adapter options. Don't put a passphrase in your JavaScript bundle or `app.json`: anyone can read those.
+
+## Add encryption to an app that already has users
+
+Your users' databases are plain SQLite files. Turning on the encryption build doesn't change them, and opening them with a passphrase fails with `database_not_encrypted`, unless you ask NitromelonDB to open them as they are, so you can encrypt them:
+
+```js
+const adapter = new SQLiteAdapter({
+  schema,
+  migrations,
+  encryption: {
+    passphrase: getPassphrase,
+    // A plain database (from an earlier version of the app) opens unencrypted
+    ifUnencrypted: 'open',
+    events: {
+      onStart: ({ operation, byteSize }) => showProgress(operation, byteSize),
+      onSuccess: ({ durationMs }) => hideProgress(),
+      onError: (error) => reportError(error),
+    },
+  },
+})
+const database = new Database({ adapter, modelClasses })
+
+// Once, after launch (e.g. on your first screen):
+async function encryptIfNeeded() {
+  if (!(await database.isDBEncrypted())) {
+    const passphrase = await getPassphrase() // saved before encrypting
+    await database.write(async () => {
+      await database.unsafe_EncryptDB(passphrase)
+    })
+  }
+}
+```
+
+What `unsafe_EncryptDB()` does:
+
+- **Encrypts in place.** Every record, every table, local storage and the sync state stay as they were. No second file, no re-download.
+- **Must run in a writer**, so no other write can run meanwhile. Reads made in the meantime wait until it's done; your UI keeps running, and observers keep their data.
+- **Takes a while on a big database**: it rewrites every page. `events.onStart` tells you the size (`byteSize`), so you can decide to show something. While it runs, it can need free disk space of up to about three times the database's size.
+- **Survives being killed.** If the app is killed in the middle (by the user, or by the OS in the background), the database opens afterwards either as it was (plain) or fully encrypted, never half-way: on the next launch, NitromelonDB finishes rolling back the interrupted encryption before it opens the file. If it's still plain, `isDBEncrypted()` says so, and your code encrypts it again. We test this by killing the process at points throughout the encryption, and by crashing it exactly at its commit. We test this by killing the process at points throughout the encryption, re-key and decryption, and checking that every database opens, complete, with either the old or the new passphrase.
+- **Save the passphrase first.** From then on the database opens only with it.
+
+New installs don't need any of this: with a passphrase, a new database is created encrypted. `isDBEncrypted()` is already `true` for them.
+
+Keep `ifUnencrypted: 'open'` for as long as users may still update from a version without encryption. Afterwards you can remove it, so that a plain database (which shouldn't exist any more) is an error.
+
+## Check the state
+
+| Question                                          | API                                                                                                                     |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Is this build able to encrypt?                    | `SQLiteAdapter.isEncryptionAvailable()`: `true` in the encryption build                                                 |
+| Is the database I have open encrypted?            | `await database.isDBEncrypted()`. Waits for setup. The definitive answer.                                               |
+| Is the file on disk encrypted, before opening it? | `await SQLiteAdapter.getDatabaseEncryptionState(dbName)`: `'encrypted'`, `'unencrypted'` or `'missing'` (a new install) |
+
+`getDatabaseEncryptionState()` only reads the first bytes of the file, so it's cheap and needs no passphrase. Its `'unencrypted'` is certain (a plain SQLite file starts with `SQLite format 3`). Its `'encrypted'` really means "not a plain SQLite file": a damaged file looks the same. Only opening it with the passphrase proves it's encrypted.
+
+## Change the passphrase, or decrypt
+
+```js
+// On an encrypted database, unsafe_EncryptDB() changes the passphrase
+await database.write(async () => {
+  await database.unsafe_EncryptDB(newPassphrase)
+})
+
+// Back to a plain SQLite file
+await database.write(async () => {
+  await database.unsafe_DecryptDB()
+})
+```
+
+Both run in a writer and are safe to kill, like encrypting:
+
+- **Changing the passphrase** works in place. If it's cut off, the database still has the **old** passphrase. So save the new one before you call it, but keep the old one until the call has finished; on a launch after an interrupted change, if setup fails with `encryption_key_invalid`, open with the old passphrase (the error message says so too) and change it again.
+- **Decrypting** writes a decrypted copy next to the database and then replaces the file with it, in one step. It needs free space for the copy. If it's cut off before that step, the database is untouched and still encrypted (the leftover copy is deleted on the next launch); after it, the database is plain. After decrypting, the next launch needs `ifUnencrypted: 'open'` (or no `encryption` option at all) to open the plain file.
+
+## Errors
+
+Errors from opening or re-keying have a `code`:
+
+| `error.code`              | When                                                                                                                     | What to do                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `encryption_unavailable`  | `encryption` passed to a build without the encryption switch (thrown by the `SQLiteAdapter` constructor), or on web/Node | [Turn on the build](#turn-it-on) and rebuild. See [Troubleshooting](#troubleshooting). |
+| `encryption_key_invalid`  | the passphrase is wrong, or the file isn't a database encrypted by NitromelonDB / SQLCipher 4                            | Use the right passphrase. The file is unchanged.                                       |
+| `encryption_key_required` | the database is encrypted (or damaged), and no passphrase was given: a build or code path without `encryption`           | Pass the passphrase. The file is unchanged.                                            |
+| `database_not_encrypted`  | a passphrase was given, but the database is a plain SQLite file                                                          | Use `ifUnencrypted: 'open'` and `unsafe_EncryptDB()`.                                  |
+| `rekey_failed`            | encrypting, changing the key or decrypting failed (e.g. disk full)                                                       | The database keeps its previous state.                                                 |
+
+```js
+database.readyPromise.catch((error) => {
+  if (error.code === 'encryption_key_invalid') {
+    // ...
+  }
+})
+```
+
+## What we test
+
+- **Native, on every CI run, both builds:** opening with the right, wrong and missing passphrase, plain databases with and without `ifUnencrypted`, encrypting, changing the passphrase and decrypting from WAL mode, and two kinds of interruption: killing the process at points throughout each of them on a 10 MB database, and crashing it exactly at the two moments of the commit where a database is most at risk (right after the first page is rewritten, and right before the journal is deleted). Each time, the database opens, complete, with the old or the new passphrase. The default build must refuse a passphrase.
+- **JavaScript (Jest):** passphrase functions (including ones that fail), the order of calls made before the passphrase arrives and during a re-key, events, error codes, and that keying errors never lead to a reset.
+- **On a device (iOS simulator and Android emulator, CI):** the whole upgrade, with real builds. The plain build of our example app creates a database; the encryption build is installed over it, opens it, and encrypts it; the test then reads the file from the app's data folder to check it has no SQLite header and that a note's text can't be found in any database file; a cold start opens it with the passphrase; the plain build, installed over it, fails with `encryption_key_required` and leaves the file byte for byte unchanged; and the encryption build opens it again with every note.
+- **Not yet on a device in CI:** the Windows encryption build. It runs the same C++ code as iOS and Android, but CI only builds the default Windows variant so far.
 
 ## What changes in the encryption build
 
@@ -159,7 +327,7 @@ This is for checking your setup in development. Don't ship it as a feature check
 
 **Your existing databases.** With no key set, the encryption build reads and writes ordinary SQLite files, byte for byte the same as before. Turning the switch on doesn't touch a single database, and turning it off again is safe for as long as none of your databases has been encrypted.
 
-**The format.** Encrypted databases (once the passphrase API ships) use the SQLCipher 4 format with its defaults: AES-256-CBC, HMAC-SHA512 page authentication, and keys derived with PBKDF2-HMAC-SHA512 over 256,000 iterations. Only this one cipher is compiled in. Any SQLCipher 4 tool can open these files with the key, which helps when you debug: the `sqlcipher` command-line shell, or [DB Browser for SQLite](https://sqlitebrowser.org/) with SQLCipher support.
+**The format.** Encrypted databases use the SQLCipher 4 format with its defaults: AES-256-CBC, HMAC-SHA512 page authentication, and keys derived with PBKDF2-HMAC-SHA512 over 256,000 iterations. Only this one cipher is compiled in. Any SQLCipher 4 tool can open these files with the key, which helps when you debug: the `sqlcipher` command-line shell, or [DB Browser for SQLite](https://sqlitebrowser.org/) with SQLCipher support.
 
 **Other SQLite libraries in your app.** The encryption build hides all of its SQLite symbols. An app can also contain `expo-sqlite`, `op-sqlite`, the SQLCipher pod or the system SQLite without duplicate-symbol errors, and without one library quietly running on another's SQLite. One rule: two SQLite libraries in one app must not open the **same database file**, because they don't share file locks.
 
@@ -177,11 +345,11 @@ This section explains what we know and where to look. Export rules differ by cou
 
 Apple's [reference table](https://developer.apple.com/help/app-store-connect/reference/export-compliance-documentation-for-encryption) sorts apps into three cases:
 
-| Your app uses | Documentation Apple asks for |
-| --- | --- |
-| only encryption within Apple's operating system (HTTPS with `URLSession`, CommonCrypto, the Keychain) | none |
-| **an industry-standard algorithm not provided by the operating system**: the encryption build | a French encryption declaration, **only if** you distribute in France |
-| proprietary algorithms not accepted by standards bodies | a US classification (CCATS), plus the French declaration if you distribute in France |
+| Your app uses                                                                                         | Documentation Apple asks for                                                         |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| only encryption within Apple's operating system (HTTPS with `URLSession`, CommonCrypto, the Keychain) | none                                                                                 |
+| **an industry-standard algorithm not provided by the operating system**: the encryption build         | a French encryption declaration, **only if** you distribute in France                |
+| proprietary algorithms not accepted by standards bodies                                               | a US classification (CCATS), plus the French declaration if you distribute in France |
 
 So with the encryption build, expect to answer that your app uses encryption, that it is standard and not provided by iOS, and, if your app is on the App Store in France, to upload a French encryption declaration. Apple's overview also mentions that some apps need to send the US government a year-end self-classification report. Check whether that applies to you.
 
@@ -201,11 +369,11 @@ Where to read more:
 
 ## What's next
 
-The following releases add the passphrase API, roughly in this order. The design is in the [encryption plan](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs/plans/sqlcipher-encryption.md).
+The design is in the [encryption plan](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs/plans/sqlcipher-encryption.md). Still to come:
 
-1. **Open with a key**: an `encryption: { passphrase }` option on `SQLiteAdapter`. The passphrase can come from an async function (Keychain, biometric prompt, your server), and NitromelonDB waits for it before it opens the file. A wrong key, a missing key, or a passphrase given to an app built without the encryption switch fails with a clear error. It never silently opens a plaintext database, and it never resets your data.
-2. **Encrypt an existing database in place**, so apps that already have users can turn encryption on without losing or re-downloading anything. The same call changes the key or decrypts. While it runs, writes wait, and progress events let you show a spinner.
-3. **Node and Electron** support through `better-sqlite3-multiple-ciphers`.
+1. **Progress events** while a big database is encrypted (`onStart` and `onSuccess` exist today).
+2. **Node and Electron** support through `better-sqlite3-multiple-ciphers`.
+3. **A device test of the Windows encryption build** on CI, like the iOS and Android ones.
 
 The web (LokiJS, wa-sqlite) is not part of this work.
 
@@ -221,6 +389,10 @@ The web (LokiJS, wa-sqlite) is not part of this work.
 
 **Duplicate symbols, or `redefinition of sqlite3_mem_methods`, with another SQLite library.** The encryption build hides its SQLite symbols, so it shouldn't cause these. If you see them, make sure the new pods were installed (`pod install`, or a clean prebuild), and [open an issue](https://github.com/StasDoskalenko/NitromelonDB/issues) with the full error.
 
-**Does it make the app slower?** Without a key, the encryption build runs the same SQLite, and our tests show it keeps the default build's behavior. We haven't published benchmarks yet. Encrypted databases will cost some CPU per page read and written, and we will measure that when the passphrase API ships.
+**`encryption_unavailable`, although I turned the switch on.** The JavaScript is newer than the native build, or the switch didn't reach it. Check the build log for the line in [Check that it worked](#check-that-it-worked), and see the first question above.
 
-**Can I turn it off again?** Yes, for as long as none of your databases has been encrypted. Once the passphrase API ships and a database has been encrypted, decrypt it first (with the API), then remove the switch.
+**Setup fails with `encryption_key_invalid` after an update or a restore.** The passphrase your app found isn't the one the database was encrypted with: for example, the Keychain item didn't survive a restore to a new device, or a new passphrase was generated although one existed. NitromelonDB leaves the file alone, so if the old passphrase can be found, it opens again. If it can't, the data in that file is gone; data your app syncs can be downloaded again into a new database (delete the old file, or use a new `dbName`).
+
+**Does it make the app slower?** Without a key, the encryption build runs the same SQLite, and our tests show it keeps the default build's behavior. With a key, every page read from and written to disk is decrypted or encrypted and authenticated, which costs some CPU. Opening an encrypted database also derives the key from the passphrase (PBKDF2, 256,000 iterations), a one-time cost at launch. We haven't published benchmarks yet: measure on the slowest device you support.
+
+**Can I turn it off again?** Yes, for as long as none of your databases are encrypted. If some are, decrypt them first (`unsafe_DecryptDB()`), in a version of your app that still has the encryption build, then remove the switch.

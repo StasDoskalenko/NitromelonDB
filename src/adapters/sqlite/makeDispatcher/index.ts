@@ -1,1 +1,6 @@
-export { makeDispatcher, getDispatcherType } from './nodeDispatcher'
+export {
+  makeDispatcher,
+  getDispatcherType,
+  isEncryptionAvailable,
+  getDatabaseEncryptionState,
+} from './nodeDispatcher'

@@ -1,0 +1,15 @@
+# Step 5 (plain build, installed over the encrypted database): it can't open it, and says why,
+# instead of resetting it. The script checks the file is unchanged. See README.md.
+appId: com.nitromelondb.example
+---
+- launchApp:
+    stopApp: true
+
+- extendedWaitUntil:
+    visible:
+      id: "setup-error"
+    timeout: 60000
+
+- assertVisible:
+    id: "setup-error"
+    text: ".*encryption_key_required.*"

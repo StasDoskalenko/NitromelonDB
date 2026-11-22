@@ -6,7 +6,7 @@ import { NotesHeader } from '../components/NotesHeader'
 import { NotesList, type NotesListHandle } from '../components/NotesList'
 import { NotesPager } from '../components/NotesPager'
 import { PAGE_SIZE } from '../constants'
-import type { ExampleDatabase } from '../database'
+import { DEMO_PASSPHRASE, type ExampleDatabase } from '../database'
 import { useNotes } from '../hooks/useNotes'
 import { useScreenInsets } from '../hooks/useScreenInsets'
 import Note from '../model/Note'
@@ -41,7 +41,34 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
   // Shown in the status ("Synced (2)") so Maestro can tell one finished sync from the next
   const syncCount = useRef(0)
 
+  // Encryption build only: whether the database is encrypted, or what encrypting it is doing
+  const [encryptionStatus, setEncryptionStatus] = useState<string | null>(null)
+  const [canEncrypt, setCanEncrypt] = useState(false)
+
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+
+  useEffect(() => {
+    if (!db.encryptionAvailable) {
+      return
+    }
+    let stale = false
+    db.database.isDBEncrypted().then(
+      (encrypted) => {
+        if (!stale) {
+          setEncryptionStatus(encrypted ? 'Encrypted' : 'Not encrypted')
+          setCanEncrypt(!encrypted)
+        }
+      },
+      (error: unknown) => {
+        if (!stale) {
+          setEncryptionStatus(`Encryption state unknown: ${String(error)}`)
+        }
+      },
+    )
+    return () => {
+      stale = true
+    }
+  }, [db])
 
   useEffect(() => {
     if (page > pageCount) {
@@ -101,6 +128,23 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
     }
   }
 
+  // An install from the plain build, opened with ifUnencrypted: 'open' (see database.ts)
+  const encrypt = async () => {
+    setCanEncrypt(false)
+    setEncryptionStatus('Encrypting…')
+    try {
+      await db.database.write(async () => {
+        await db.database.unsafe_EncryptDB(DEMO_PASSPHRASE)
+      })
+      setEncryptionStatus((await db.database.isDBEncrypted()) ? 'Encrypted' : 'Not encrypted')
+    } catch (encryptError) {
+      setCanEncrypt(true)
+      setEncryptionStatus(
+        `Encryption failed: ${encryptError instanceof Error ? encryptError.message : String(encryptError)}`,
+      )
+    }
+  }
+
   const deleteAllNotes = async () => {
     if (deletingAll) {
       return
@@ -132,6 +176,8 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
         onLongPressTitle={onOpenNestedWriterChecks}
         onSync={() => void sync()}
         syncStatus={syncStatus}
+        encryptionStatus={encryptionStatus}
+        onEncrypt={canEncrypt ? () => void encrypt() : null}
       />
 
       <Pressable

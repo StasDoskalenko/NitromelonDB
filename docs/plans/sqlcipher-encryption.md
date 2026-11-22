@@ -1,6 +1,6 @@
 # SQLCipher-compatible database encryption
 
-**Status:** In progress. Step 2 of the rollout (the opt-in encryption build) is implemented; steps 3-6 are not started. User docs: [`Advanced/Encryption.md`](../../docs-website/docs/docs/Advanced/Encryption.md).
+**Status:** In progress. Steps 2-4 of the rollout (the opt-in encryption build, native keying, the JS API) are implemented, with step 6's docs; progress heartbeats and step 5 (Node) are not started. Where the implementation differs from the design below, it says so in *Implemented:* notes. User docs: [`Advanced/Encryption.md`](../../docs-website/docs/docs/Advanced/Encryption.md).
 
 This is the plan of record for #60. It supersedes `plans/database-encryption.md` (Zetetic SQLCipher with export-and-swap), whose safety requirements are folded in below under [Safety requirements](#safety-requirements).
 
@@ -38,7 +38,7 @@ Both linked PRs vendor Zetetic's SQLCipher amalgamation behind a build flag. Tha
 
 The engine swap uses **sqlite3mc 2.7.1, built on SQLite 3.54.1**, the exact SQLite version master vendored at the time. So the swap carries a **zero SQLite version delta**: it is purely `sqlite3.c` → `sqlite3mc_amalgamation.c`. That keeps the two concerns independently bisectable, which matters because SQLite upgrades can change SQL behavior and cipher swaps can change file format.
 
-sqlite3mc also implements `sqlcipher_export()`, so if in-place rekey ever proves not crash-safe enough, the export-and-swap approach from the superseded plan is still available without changing engines again.
+~~sqlite3mc also implements `sqlcipher_export()`~~ (it doesn't: that's SQLCipher's). For a copy, sqlite3mc has `VACUUM INTO 'file:...?key=...'`, which writes the copy with any key, or none. Decrypting uses it (see [Rekey](#rekey-off-the-js-thread)).
 
 ### Decision: encryption is a build-time opt-in
 
@@ -102,6 +102,8 @@ encryption?: EncryptionOptions | undefined
 ```
 
 Grouping these under `encryption` keeps `SQLiteAdapterOptions` readable and makes the three settings obviously related. `ifUnencrypted` is a policy, not a handler — the earlier `onPlaintextDatabase` name wrongly implied a callback.
+
+*Implemented:* `onProgress` is not implemented yet; `onStart` also gets `operation` and `onSuccess` gets `{ operation, durationMs }`.
 
 There is deliberately **no** `'encrypt'` auto-migrate mode. Rekeying can take many seconds; hiding it inside adapter construction makes it hard to show UI or handle failure. Migration is always an explicit call.
 
@@ -200,6 +202,8 @@ Measured size per arm64 slice at `-Os`, encryption build vs default: Android 0.8
 
 ### Open path
 
+*Implemented* in [`native/shared/SqliteEncryption.cpp`](../../native/shared/SqliteEncryption.cpp) (`probeFile`, `openWithKey`, `rekey`), which needs only SQLite, so [`native/tests/SqliteEncryptionTest.cpp`](../../native/tests/SqliteEncryptionTest.cpp) tests it in both builds. Errors are `EncryptionError`s whose message starts with `[code]`; the JS dispatcher copies the code to `error.code`. An empty file counts as new (SQLite creates it empty). A build without the codec throws `encryption_unavailable` for any passphrase.
+
 [`native/shared/Sqlite.cpp`](../../native/shared/Sqlite.cpp) — `SqliteDb(path, passphrase, allowUnencrypted)`:
 
 1. Probe the first 16 bytes of the resolved path for `"SQLite format 3\0"`, skipping `:memory:` and `mode=memory` URIs. Absent or empty file means new; header match means plaintext; anything else means encrypted-or-corrupt.
@@ -227,6 +231,13 @@ void Database::changeEncryptionKey(const std::string &newKey, ProgressCallback o
     // restore journal_mode, mirroring the _WIN32 memory-DB branch in the ctor
 }
 ```
+
+*Implemented* as `Database::changeEncryptionKey` + `encryption::rekey`, returned to JS by `Promise<void>::async`. No progress callback yet.
+
+*Crash safety, as found by `SqliteEncryptionTest`* (it crashes the re-key exactly at its commit through the unix VFS's `xSetSystemCall`, besides killing it at random times):
+
+- **Encrypt and change key are in place.** Cut off at the commit, page 1 can already be in the new format while the journal still holds the old pages, so the header can't be trusted then. Rolling the journal back needs a connection set up like the one that wrote it (no key before an encrypt, the old key before a change); a connection with the wrong key fails to read and changes nothing. So `SqliteDb` calls `encryption::recoverInterruptedRekey()` before probing: with a hot journal, it tries the passphrase, then no key. After an interrupted key change, an app that already has only the new passphrase can't roll it back: the error says the change was interrupted and the old passphrase opens it.
+- **Decrypt is by copy.** In place, a crash at the commit leaves a database **no key opens**: SQLCipher keeps the KDF salt in page 1, the commit rewrites page 1 as plaintext first, and the journal (encrypted) can no longer be decrypted with the salt that's left. So decrypting writes `VACUUM INTO '<path>-nitromelon-decrypted?key='`, syncs it, closes the connection, replaces the database file with it (`rename`, `MoveFileExW` on Windows) and reopens. Cut off before the rename, the database is untouched and the copy is deleted on the next open. That's why `SqliteDb` keeps the current passphrase while open: if the rename fails, it reopens the encrypted original. The new connection needs the connection's settings again (`Database::connectionSql_`); `rekey` reports the reopen, since the new connection can get the old one's address.
 
 Deliberately do **not** touch `cachedRecords_` — rekey preserves every row, so the JS record cache stays coherent. This is the reason encrypt/decrypt does not require the disruptive teardown that `unsafeResetDatabase` does.
 
@@ -256,6 +267,8 @@ changeEncryptionKey(
 ): Promise<void>
 ```
 
+*Implemented differently:* `createAdapter` keeps its signature. The key goes in through `NitromelonDatabase.setEncryption(passphrase, allowUnencrypted)`, called before anything opens the connection (it opens lazily, on `initialize`); this keeps JS working against an older native build, which simply lacks the method. `setStoreWholeNumbersAsIntegers` no longer opens the connection either, so every opening error surfaces from `initialize`. The connection state is `isEncrypted(): boolean`; the root object also has `isEncryptionAvailable(): boolean`, and the file probe is `getDatabaseEncryptionState(dbName)`.
+
 `databaseEncryptionState` lives on the root object because it must work with no open connection. It resolves the path via `platform::resolveDatabasePath` and reuses the same 16-byte probe as the open path, never opening sqlite — so it is cheap and cannot fail on a wrong key.
 
 Regenerate the committed `nitrogen/generated/**` with `yarn specs`.
@@ -265,6 +278,8 @@ Regenerate the committed `nitrogen/generated/**` with `yarn specs`.
 ### Async passphrase without breaking the synchronous constructor
 
 The problem: `new SQLiteAdapter()` builds the native connection in its constructor, but a passphrase from a keychain arrives asynchronously.
+
+*Implemented* as [`HoldingDispatcher`](../../src/adapters/sqlite/HoldingDispatcher.ts), used only with the `encryption` option. Calls made from the callback of a held call as it's sent go through first, as with a synchronous dispatcher (so `initialize` → `setUpWithSchema` isn't overtaken by app calls held behind `initialize`).
 
 Add a `DeferredDispatcher` implementing `SqliteDispatcher` that buffers `call()` in FIFO order until the real dispatcher exists, then replays and passes through. In [`src/adapters/sqlite/index.ts`](../../src/adapters/sqlite/index.ts) the constructor keeps building the dispatcher **synchronously** when the passphrase is a string or absent — zero behavior change for existing users — and defers only when it is a function:
 
@@ -291,6 +306,8 @@ flowchart TD
 
 Add optional `unsafe_ChangeEncryptionKey` and `getEncryptionState` to the `DatabaseAdapter` interface in [`src/adapters/type.ts`](../../src/adapters/type.ts), with promise wrappers in [`src/adapters/compat.ts`](../../src/adapters/compat.ts).
 
+*Implemented differently:* the adapter interface methods are `isEncrypted` and `unsafeChangeEncryptionKey`. `Database` does not swap in `ErrorAdapter`: that would fail every query made meanwhile, and the app keeps running through an encryption (unlike a reset). Instead the `HoldingDispatcher` holds every adapter call until the re-key is done, then sends them in order; the writer slot still keeps other writers out. There's no cached encryption state in JS: `isDBEncrypted()` asks native.
+
 In [`src/Database/index.ts`](../../src/Database/index.ts), modelled on `unsafeResetDatabase`:
 
 - `this._ensureInWriter(...)` is what blocks writes. `WorkQueue._executeNext` runs exactly one reader or writer at a time, so holding the writer slot excludes everything else.
@@ -314,18 +331,21 @@ Carried over from the superseded `plans/database-encryption.md`, which drew them
 - **No silent decryption.** A passphrase function that returns `null` (wiped keychain entry) is an error, never "open as plaintext". "No key" and "decrypt" are different inputs: decrypting is only ever `unsafe_DecryptDB()`.
 - **No reset on a wrong key.** `_setUpWithMigrations` resets the database when it can't find a migration path. Keying errors (`encryption_key_invalid`, `encryption_key_required`, `database_not_encrypted`) must be routed away from that fallback, with a test.
 - **Init failure rejects queued work.** If the passphrase can't be resolved, the `DeferredDispatcher` rejects every buffered call with the init error instead of hanging forever.
-- **Crash during rekey.** Prove on device that killing the app mid-rekey leaves a database that opens with either the old or the new key. sqlite3mc rekeys inside a transaction, so the rollback journal should cover it. If it doesn't, use `sqlcipher_export` and swap the file instead.
+- **Crash during rekey.** Prove on device that killing the app mid-rekey leaves a database that opens with either the old or the new key. sqlite3mc rekeys inside a transaction, so the rollback journal should cover it. If it doesn't, use `sqlcipher_export` and swap the file instead. *Done on desktop:* `SqliteEncryptionTest` forks a child that encrypts, re-keys or decrypts a 10 MB WAL database, kills it with SIGKILL at points from the start of `sqlite3_rekey_v2` to past its end, and checks the database opens with the old or new key, with every row and `integrity_check` ok. Every kill passed. Not yet repeated on a device.
 - **`LokiJSAdapter` rejects `encryption`** with a clear "not supported on web" error rather than ignoring it.
 
 ## Testing
 
 **Jest** (via the Node adapter): passphrase as string and as async function; deferred-dispatcher ordering, i.e. calls issued before the key resolves still execute in order; wrong key; encrypted DB opened with no key; plaintext DB with `ifUnencrypted: 'error'` vs `'open'`; encrypt → reopen with key; decrypt → reopen without key; data survives a full round trip; `isDBEncrypted()` and the static probe in every state; `unsafe_EncryptDB` outside a writer throws.
 
-**Native integration** (`src/adapters/sqlite/integrationTest.js`): the same round trip on device, plus a smoke test of turbo sync (`unsafeLoadFromSync`) against an encrypted database.
+**Native integration** (`src/adapters/sqlite/integrationTest.js`): the same round trip on device, plus a smoke test of turbo sync (`unsafeLoadFromSync`) against an encrypted database. *So far:* the device suites run the default build, so they check that a passphrase fails with `encryption_unavailable` and that the file probe works. The encrypted round trip on a device is the CI job `NotesApp iOS (encryption upgrade)`: the plain NotesApp build creates a database, the encryption build is installed over it, opens it with `ifUnencrypted: 'open'` and encrypts it; between steps the script checks the file in the app container (no SQLite header, a note's text not readable in any database file), and that the plain build installed over it fails with `encryption_key_required` and leaves the file byte for byte unchanged.
+
+**Jest** today mocks the native dispatcher (`src/adapters/sqlite/__tests__/encryption.test.js`) until step 5 makes the Node adapter encrypt.
 
 ## Risks and things to verify
 
-- **CI covers only the default device builds.** `yarn test:native-unit` builds and tests both engines on every run, but the iOS, Android and Windows jobs build the default. Add an encryption-build variant (at least a compile on each platform) with step 3, when there is runtime behavior to test.
+- **CI covers the encryption build on iOS only.** `yarn test:native-unit` builds and tests both engines on every run, and NotesApp's iOS encryption build is built and tested on a simulator. The Android and Windows jobs build the default. Add Android (an emulator upgrade test like the iOS one) and at least a Windows compile.
+- **Encrypting needs temp space.** sqlite3mc vacuums when the reserved bytes per page change (plain → SQLCipher). Encrypting starts from an unkeyed connection, so the vacuum's temp copy goes to the temp directory (plaintext, as the source was). Decrypting writes its copy next to the database instead.
 - **iOS symbol collision** with a system `libsqlite3` pulled in by another pod (encryption build). Mitigated by dispatch-table mode (see [Symbol isolation](#symbol-isolation)) and enforced by the `nm` check in `yarn test:native-unit`. This is the exact failure reported against Nozbe#1635.
 - **`unsafeResetDatabase`** uses `SQLITE_DBCONFIG_RESET_DATABASE` + `vacuum`. Confirm the key and per-page reserved bytes survive a reset, and re-key afterward if they do not.
 - **Binary size** growth on Android and Windows, and the loss of system-SQLite sharing on iOS. Measure before and after; trim ciphers.
@@ -338,7 +358,7 @@ Carried over from the superseded `plans/database-encryption.md`, which drew them
 
 1. ~~[#75](https://github.com/StasDoskalenko/NitromelonDB/pull/75) lands — SQLite 3.53.4.~~ *(done; master has since moved to 3.54.1, which sqlite3mc 2.7.1 matches)*
 2. ~~Opt-in encryption build: vendor script, build switch, symbol isolation, build wiring for the three platforms, docs page. No API change; the default build is unchanged.~~ *(implemented)*
-3. Native encryption: open path, off-thread rekey, Nitro spec, regenerated bindings.
-4. JS surface: `encryption` option, deferred dispatcher, state checks, `unsafe_EncryptDB` / `unsafe_DecryptDB`.
+3. ~~Native encryption: open path, off-thread rekey, Nitro spec, regenerated bindings.~~ *(implemented; no progress callback yet)*
+4. ~~JS surface: `encryption` option, deferred dispatcher, state checks, `unsafe_EncryptDB` / `unsafe_DecryptDB`.~~ *(implemented)*
 5. Node adapter and the jest suite.
 6. Docs: `Advanced/Encryption.md` exists (why opt-in, setup, verification, export compliance); extend it with the passphrase API, migration and key-management guidance at each step. Update `Setup.md` and `Implementation/DatabaseAdapters.md`; mark SQLCipher done in `README.md` and `Roadmap.md`.

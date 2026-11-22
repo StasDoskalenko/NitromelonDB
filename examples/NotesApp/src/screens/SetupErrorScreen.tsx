@@ -14,7 +14,9 @@ export function SetupErrorScreen({ message }: SetupErrorScreenProps) {
   return (
     <View style={styles.centered}>
       <Text style={styles.title}>NitromelonDB</Text>
-      <Text style={styles.error}>{message}</Text>
+      <Text style={styles.error} testID="setup-error" accessible>
+        {message}
+      </Text>
       <Text style={styles.hint}>{hint}</Text>
     </View>
   )

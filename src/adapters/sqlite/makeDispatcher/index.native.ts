@@ -5,6 +5,7 @@ import { _triggerOnLowMemory } from '../../../utils/common/memory'
 import type { ResultCallback } from '../../../utils/fp/Result'
 import type { Nitromelon, NitromelonDatabase } from '../../../nitro/Nitromelon.nitro'
 import type {
+  DatabaseEncryptionState,
   DispatcherType,
   SQLiteAdapterOptions,
   SqliteDispatcher,
@@ -67,7 +68,12 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
 
   constructor(
     dbName: string,
-    { usesExclusiveLocking, storeWholeNumbersAsIntegers }: SqliteDispatcherOptions,
+    {
+      usesExclusiveLocking,
+      storeWholeNumbersAsIntegers,
+      passphrase = '',
+      allowUnencrypted = false,
+    }: SqliteDispatcherOptions,
   ) {
     this._unsafeErrorListener = () => {}
     const nitro = nitromelonOrNull()
@@ -77,6 +83,15 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
     )
     this._nitro = nitro
     this._db = nitro.createAdapter(dbName, usesExclusiveLocking)
+    // First: the connection opens on the first call that needs it (initialize), with this key
+    if (passphrase) {
+      const { setEncryption } = this._db as NitromelonDatabase | NativeDatabase as NativeDatabase
+      invariant(
+        typeof setEncryption === 'function',
+        'SQLiteAdapter: this native build of NitromelonDB is older than its JavaScript and has no encryption. Rebuild the native app.',
+      )
+      setEncryption.call(this._db, passphrase, allowUnencrypted)
+    }
     // Before anything is written. Native builds older than the option don't have the method; they
     // keep binding every number as REAL (and the schema leaves number columns untyped either way)
     if (storeWholeNumbersAsIntegers) {
@@ -134,6 +149,16 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
       let result = method.apply(this._db, args)
       if (result instanceof Error) {
         throw result
+      } else if (result instanceof Promise) {
+        // changeEncryptionKey runs on a native background thread
+        ;(result as Promise<T>).then(
+          (value) => callback({ value }),
+          (error: unknown) => {
+            const annotated = withErrorCode(error as Error)
+            this._unsafeErrorListener(annotated)
+            callback({ error: annotated })
+          },
+        )
       } else {
         if (methodName === 'queryAsArray') {
           result = (
@@ -143,10 +168,42 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
         callback({ value: result as T })
       }
     } catch (error) {
-      this._unsafeErrorListener(error as Error)
-      callback({ error: error as Error })
+      const annotated = withErrorCode(error as Error)
+      this._unsafeErrorListener(annotated)
+      callback({ error: annotated })
     }
   }
+}
+
+// Native encryption errors start with their code (`[encryption_key_invalid] ...`, see
+// native/shared/SqliteEncryption.h); Nitro passes only the message, so put it back on error.code
+const ENCRYPTION_ERROR_CODE =
+  /\[(encryption_unavailable|encryption_key_invalid|encryption_key_required|database_not_encrypted|rekey_failed)\]/
+
+function withErrorCode(error: Error): Error {
+  const match =
+    error && typeof error.message === 'string' && ENCRYPTION_ERROR_CODE.exec(error.message)
+  if (match) {
+    ;(error as Error & { code?: string }).code = match[1]
+  }
+  return error
+}
+
+export function isEncryptionAvailable(): boolean {
+  const nitro = nitromelonOrNull()
+  // Native builds older than encryption don't have the method
+  return (
+    !!nitro && typeof nitro.isEncryptionAvailable === 'function' && nitro.isEncryptionAvailable()
+  )
+}
+
+export function getDatabaseEncryptionState(dbName: string): DatabaseEncryptionState {
+  const nitro = nitromelonOrNull()
+  invariant(
+    nitro && typeof nitro.getDatabaseEncryptionState === 'function',
+    'getDatabaseEncryptionState() needs a native build of NitromelonDB with encryption support. Rebuild the native app.',
+  )
+  return nitro.getDatabaseEncryptionState(dbName) as DatabaseEncryptionState
 }
 
 export const makeDispatcher = (
