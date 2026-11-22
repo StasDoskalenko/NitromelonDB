@@ -1,0 +1,129 @@
+name: Cut Release Line
+
+# Creates release/X.Y.x from a published tag, for releases of X.Y.* without what master has had
+# since: promoting that tag's alpha/beta as it was, and hotfixes. Then run Prepare Release from that
+# branch. See "Release lines" in .github/workflows/README.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Published tag to start the line from, e.g. v0.32.1-alpha.0 (gives release/0.32.x)'
+        required: true
+        type: string
+
+jobs:
+  cut:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Ensure workflow ran from master
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/master" ]; then
+            echo "❌ Run Cut Release Line from the master branch (selected: ${{ github.ref_name }})"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set Node.js version
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Check the tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          TAG=$(printf '%s' "$TAG" | tr -d '[:space:]')
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)\.[0-9]+)?$ ]]; then
+            echo "❌ Expected a release tag like v0.32.1-alpha.0 or v0.32.0, got: $TAG"
+            exit 1
+          fi
+          if ! git rev-parse -q --verify "refs/tags/${TAG}^{commit}" >/dev/null; then
+            echo "❌ No git tag $TAG"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          TAG_PACKAGE_VERSION=$(git show "${TAG}:package.json" | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
+          if [ "$TAG_PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "❌ ${TAG}'s package.json says ${TAG_PACKAGE_VERSION}, not ${VERSION}"
+            exit 1
+          fi
+          LINE=$(node scripts/next-version.mjs --line-branch "$VERSION")
+          if git ls-remote --exit-code --heads origin "$LINE" >/dev/null 2>&1; then
+            echo "❌ $LINE already exists. Fixes go to it as pull requests; a line is cut once."
+            exit 1
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "LINE=$LINE" >> "$GITHUB_ENV"
+          echo "✅ Cutting $LINE from $TAG"
+
+      # The line starts at the tag's own commit: creating a branch at a commit master has is all
+      # this pushes to it (the ruleset requires pull requests for changes to release/*.x)
+      - name: Create the branch
+        run: |
+          git push origin "${TAG}^{commit}:refs/heads/${LINE}"
+          echo "✅ Created $LINE at $TAG"
+
+      # Workflows run from the file on their own branch: Prepare Release dispatched on the line, and
+      # Publish Release on a merge into it, use the line's copies. A tag from before release lines
+      # has copies that only allow master, so master's release tooling goes to the line as a pull
+      # request, to merge before releasing. None of these files is in the npm package.
+      - name: Open a pull request with master's release tooling
+        id: tooling
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TOOLING=(
+            .github/workflows/prepare-release.yml
+            .github/workflows/publish-release.yml
+            .github/workflows/README.md
+            scripts/next-version.mjs
+            scripts/prepare-changelog.mjs
+          )
+          TOOLING_BRANCH="release-tooling/${LINE#release/}"
+          git checkout -q -b "$TOOLING_BRANCH" "$TAG"
+          git checkout origin/master -- "${TOOLING[@]}"
+          if git diff --cached --quiet; then
+            echo "Release tooling at $TAG is already master's"
+            echo "pr=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -q -m "chore: release tooling from master for $LINE"
+          git show --stat --oneline HEAD
+          git push -q --force origin "$TOOLING_BRANCH"
+          {
+            echo "\`$LINE\` was cut from \`$TAG\`, whose release workflows predate release lines (they only release from master). This brings master's release tooling to the line, so Prepare Release and Publish Release work on it."
+            echo ""
+            echo "None of these files is in the npm package: the line still publishes exactly \`$TAG\`'s code. Merge this before running Prepare Release on \`$LINE\`."
+          } > /tmp/tooling_body.md
+          PR=$(gh pr create --base "$LINE" --head "$TOOLING_BRANCH" \
+            --title "chore: release tooling from master for $LINE" --body-file /tmp/tooling_body.md)
+          echo "pr=$PR" >> "$GITHUB_OUTPUT"
+          echo "✅ Opened $PR"
+
+      - name: Summary
+        run: |
+          {
+            echo "## Cut \`$LINE\` from \`$TAG\`"
+            echo ""
+            echo "Next:"
+            if [ -n "${{ steps.tooling.outputs.pr }}" ]; then
+              echo "- Merge ${{ steps.tooling.outputs.pr }} (master's release tooling for the line)"
+            fi
+            echo "- To ship it: Actions → **Prepare Release**, branch \`$LINE\` (e.g. bump \`promote\` to ship the alpha/beta as stable)"
+            echo "- Fixes: pull requests into \`$LINE\` (cherry-pick from master), each with a \`CHANGELOG-Unreleased.md\` entry"
+          } | tee -a "$GITHUB_STEP_SUMMARY"

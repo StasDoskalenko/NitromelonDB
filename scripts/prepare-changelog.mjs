@@ -6,6 +6,7 @@
  *
  * Usage:
  *   node scripts/prepare-changelog.mjs roll <version>
+ *   node scripts/prepare-changelog.mjs record <version> <release line's CHANGELOG.md>
  *   node scripts/prepare-changelog.mjs extract <version>
  *   node scripts/prepare-changelog.mjs --self-test
  *
@@ -15,13 +16,17 @@
  * prereleases (0.30.0-alpha.0 … 0.30.0-beta.N → 0.30.0) as well as a
  * prerelease line that graduates under a bigger bump (0.30.1-beta.N → 0.31.0).
  * Prereleases of a newer core than the one being shipped are left alone.
+ *
+ * `record` runs on master after a release from a release line (release/X.Y.x): it copies that
+ * release's entry from the line's CHANGELOG.md, in version order, and drops the prerelease entries
+ * it folded. CHANGELOG-Unreleased.md stays: master's own changes are still unreleased.
  */
 
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseVersion } from './next-version.mjs'
+import { compareVersions, parseVersion } from './next-version.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const CHANGELOG_PATH = path.join(ROOT, 'CHANGELOG.md')
@@ -339,6 +344,72 @@ export function rollChangelog(version, { date = todayUtc(), root = ROOT } = {}) 
   return { notes, empty, folded }
 }
 
+// A heading's version for ordering ('0.28' reads as 0.28.0), or null
+function headingVersion(version) {
+  if (tryParseVersion(version ?? '')) {
+    return version
+  }
+  const stable = parseStableHeading(version)
+  return stable ? `${stable.major}.${stable.minor}.${stable.patch}` : null
+}
+
+/**
+ * Adds release `version`'s entry from `lineChangelog` (a release line's CHANGELOG.md) to
+ * `changelog` (master's), before the first older entry, and removes the prerelease entries that
+ * release folded. No change if `changelog` already has it.
+ */
+export function recordReleaseEntry(changelog, version, lineChangelog) {
+  const notes = extractChangelog(version, lineChangelog)
+  const dateMatch = new RegExp(`^## ${escapeRegExp(version)} [-–] (.+)$`, 'm').exec(lineChangelog)
+  const date = dateMatch ? dateMatch[1].trim() : todayUtc()
+  const { preamble, entries } = splitChangelog(changelog)
+  if (entries.some((entry) => entry.version === version)) {
+    return { changelog, recorded: false, folded: [] }
+  }
+
+  const parsed = parseVersion(version)
+  const floor = parsed.hasPrerelease
+    ? null
+    : previousStableVersion(
+        entries.map((entry) => entry.version),
+        version,
+      )
+  const folds = (entry) =>
+    !parsed.hasPrerelease && entry.version && shouldFoldPrerelease(entry.version, version, floor)
+  const kept = entries.filter((entry) => !folds(entry))
+  const parts = kept.map((entry) => entry.raw)
+  let index = kept.findIndex((entry) => {
+    const entryVersion = headingVersion(entry.version)
+    return entryVersion && compareVersions(entryVersion, version) < 0
+  })
+  if (index === -1) {
+    index = parts.length
+  }
+  if (index > 0 && !parts[index - 1].endsWith('\n\n')) {
+    parts[index - 1] = parts[index - 1].replace(/\n*$/, '\n\n')
+  }
+  parts.splice(index, 0, `${formatReleaseEntry(version, date, notes)}\n`)
+
+  const updated = `${preamble}${parts.join('')}`.replace(/\n*$/, '\n')
+  return {
+    changelog: updated,
+    recorded: true,
+    folded: entries.filter(folds).map((entry) => entry.version),
+  }
+}
+
+export function recordFromLine(version, lineChangelogPath, { root = ROOT } = {}) {
+  const paths = changelogPaths(root)
+  const changelog = fs.readFileSync(paths.changelog, 'utf8')
+  const lineChangelog = fs.readFileSync(lineChangelogPath, 'utf8')
+  const result = recordReleaseEntry(changelog, version, lineChangelog)
+  if (result.recorded) {
+    fs.writeFileSync(paths.changelog, result.changelog)
+    syncDocsChangelog(result.changelog, paths.docs)
+  }
+  return result
+}
+
 export function syncDocsChangelog(changelogContents, docsChangelogPath = DOCS_CHANGELOG_PATH) {
   const docsDir = path.dirname(docsChangelogPath)
   if (!fs.existsSync(docsDir)) {
@@ -615,6 +686,51 @@ function runSelfTest() {
       },
     ],
     [
+      'record puts a line release in version order and drops the prereleases it folded',
+      () => {
+        const master =
+          `${preamble}## 0.33.0-alpha.0 - 2026-11-30\n\n### New features\n\n- Encryption\n\n` +
+          `## 0.32.1-alpha.0 - 2026-11-16\n\n### Fixes\n\n- Alpha fix\n\n` +
+          `## 0.32.0 - 2026-11-10\n\n### Fixes\n\n- Shipped\n`
+        const line =
+          `${preamble}## 0.32.1 - 2026-11-22\n\n### Fixes\n\n- Alpha fix\n\n` +
+          `## 0.32.0 - 2026-11-10\n\n### Fixes\n\n- Shipped\n`
+        const result = recordReleaseEntry(master, '0.32.1', line)
+        assertDeepEqual(result.folded, ['0.32.1-alpha.0'], 'record folded')
+        const headings = result.changelog.match(/^## \S+/gm)
+        assertDeepEqual(headings, ['## 0.33.0-alpha.0', '## 0.32.1', '## 0.32.0'], 'record order')
+        assertEqual(extractChangelog('0.32.1', result.changelog), '### Fixes\n\n- Alpha fix', 'record notes')
+        if (!result.changelog.includes('## 0.32.1 - 2026-11-22')) {
+          throw new Error("record keeps the line's release date")
+        }
+        const again = recordReleaseEntry(result.changelog, '0.32.1', line)
+        assertEqual(again.recorded, false, 'record twice is a no-op')
+        assertEqual(again.changelog, result.changelog, 'record twice keeps the file')
+
+        const hotfixLine = `${preamble}## 0.32.2 - 2026-12-05\n\n### Fixes\n\n- Hotfix\n\n${line.slice(preamble.length)}`
+        const hotfix = recordReleaseEntry(result.changelog, '0.32.2', hotfixLine)
+        const hotfixHeadings = hotfix.changelog.match(/^## \S+/gm)
+        assertDeepEqual(
+          hotfixHeadings,
+          ['## 0.33.0-alpha.0', '## 0.32.2', '## 0.32.1', '## 0.32.0'],
+          'hotfix order',
+        )
+      },
+    ],
+    [
+      'record fails when the line has no entry for the version',
+      () => {
+        try {
+          recordReleaseEntry(prereleaseChangelog, '0.32.1', prereleaseChangelog)
+          throw new Error('expected throw')
+        } catch (error) {
+          if (!String(error.message).includes('No CHANGELOG.md entry found for 0.32.1')) {
+            throw error
+          }
+        }
+      },
+    ],
+    [
       'duplicate stable heading throws',
       () => {
         try {
@@ -658,10 +774,22 @@ function main(argv) {
     return
   }
 
-  const [command, version] = argv
-  if (!command || !version || !['roll', 'extract'].includes(command)) {
+  const [command, version, lineChangelogPath] = argv
+  const valid = ['roll', 'extract'].includes(command) || (command === 'record' && lineChangelogPath)
+  if (!valid || !version) {
     console.error('Usage: node scripts/prepare-changelog.mjs <roll|extract> <version>')
+    console.error("       node scripts/prepare-changelog.mjs record <version> <release line's CHANGELOG.md>")
     process.exit(1)
+  }
+
+  if (command === 'record') {
+    const { recorded, folded } = recordFromLine(version, lineChangelogPath)
+    if (!recorded) {
+      console.log(`CHANGELOG.md already has ${version}`)
+    } else {
+      console.log(`Recorded ${version}${folded.length ? ` (folded ${folded.join(', ')})` : ''}`)
+    }
+    return
   }
 
   if (command === 'roll') {
