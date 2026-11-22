@@ -51,12 +51,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Ensure workflow ran from master
+      # master, or a release line (release/X.Y.x, from Cut Release Line) for X.Y.* releases without
+      # master's later changes. The release PR goes to the branch it ran from.
+      - name: Ensure workflow ran from master or a release line
         run: |
-          if [ "${{ github.ref }}" != "refs/heads/master" ]; then
-            echo "❌ Run Prepare Release from the master branch (selected: ${{ github.ref_name }})"
+          BASE="${{ github.ref_name }}"
+          if [ "${{ github.ref_type }}" != branch ] || ! [[ "$BASE" == master || "$BASE" =~ ^release/[0-9]+\.[0-9]+\.x$ ]]; then
+            echo "❌ Run Prepare Release from master or a release/X.Y.x branch (selected: $BASE)"
             exit 1
           fi
+          echo "BASE=$BASE" >> "$GITHUB_ENV"
 
       - name: Set Node.js version
         uses: actions/setup-node@v6
@@ -129,6 +133,19 @@ jobs:
             exit 1
           fi
 
+          # Once release/X.Y.x exists, X.Y.* versions ship from it, and it ships nothing else
+          LINE=$(node scripts/next-version.mjs --line-branch "$NEW_VERSION")
+          if [ "$BASE" = master ]; then
+            if git ls-remote --exit-code --heads origin "$LINE" >/dev/null 2>&1; then
+              LINE_VERSIONS="${LINE#release/}"
+              echo "❌ v${NEW_VERSION} would come from $LINE: ${LINE_VERSIONS%.x}.* releases ship from that branch now. Run Prepare Release on $LINE, or pick minor/major for master."
+              exit 1
+            fi
+          elif [ "$BASE" != "$LINE" ]; then
+            echo "❌ $BASE ships ${BASE#release/} versions only, and v${NEW_VERSION} isn't one. Pick promote, none or patch."
+            exit 1
+          fi
+
           if [[ "$NEW_VERSION" == *-* ]]; then
             IS_PRERELEASE=true
           else
@@ -150,7 +167,7 @@ jobs:
           set -euo pipefail
           BRANCH_NAME="release/v${{ env.NEW_VERSION }}"
 
-          OPEN_PR=$(gh pr list --head "$BRANCH_NAME" --base master --state open --json url --jq '.[0].url // empty')
+          OPEN_PR=$(gh pr list --head "$BRANCH_NAME" --base "$BASE" --state open --json url --jq '.[0].url // empty')
           if [ -n "$OPEN_PR" ]; then
             echo "❌ An open PR for $BRANCH_NAME already exists: $OPEN_PR"
             exit 1
@@ -158,9 +175,9 @@ jobs:
 
           if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
             echo "⚠️ Branch $BRANCH_NAME exists but has no git tag, GitHub Release, or npm version."
-            echo "Treating it as a leftover from a failed run and recreating it from master."
+            echo "Treating it as a leftover from a failed run and recreating it from $BASE."
             git fetch origin "$BRANCH_NAME"
-            git checkout -B "$BRANCH_NAME" origin/master
+            git checkout -B "$BRANCH_NAME" "origin/$BASE"
             echo "FORCE_PUSH=true" >> "$GITHUB_ENV"
           else
             git checkout -b "$BRANCH_NAME"
@@ -240,6 +257,10 @@ jobs:
             echo "## Release v${{ env.NEW_VERSION }}"
             echo ""
             echo "This PR prepares **v${{ env.NEW_VERSION }}** (\`${{ inputs.version_bump }}\` / \`${{ env.PREID }}\` / dist-tag \`${{ inputs.npm_dist_tag }}\`)."
+            if [ "$BASE" != master ]; then
+              echo ""
+              echo "From release line **\`$BASE\`**: master's changes since the line was cut aren't in it. After publishing, Publish Release opens a PR that records this release on master."
+            fi
             if [ "${{ inputs.version_bump }}" = "promote" ]; then
               echo ""
               echo "This is a **promote** to the official release (alpha/beta changelogs are folded into one heading)."
@@ -281,7 +302,7 @@ jobs:
           } > /tmp/pr_body.md
 
           gh pr create \
-            --base master \
+            --base "$BASE" \
             --head "${{ env.PR_BRANCH }}" \
             --title "Release v${{ env.NEW_VERSION }}" \
             --body-file /tmp/pr_body.md

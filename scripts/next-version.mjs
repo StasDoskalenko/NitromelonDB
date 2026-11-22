@@ -6,12 +6,19 @@
  *
  * Usage:
  *   node scripts/next-version.mjs <none|promote|patch|minor|major> <none|alpha|beta> [currentVersion]
+ *   node scripts/next-version.mjs --compare <version> <version>        (prints -1, 0 or 1)
+ *   node scripts/next-version.mjs --line-branch <version>               (release/0.32.x)
+ *   node scripts/next-version.mjs --dist-tag <version> <channel> [version the channel has now]
  *   node scripts/next-version.mjs --self-test
  *
  * Repeat alpha/beta releases of the same in-progress version increment the prerelease
  * counter (1.0.0-alpha.0 → 1.0.0-alpha.1). Switching channel resets it (alpha → beta.0).
  * Choosing bump `none` keeps the current X.Y.Z (next -alpha.N, or graduate if prerelease is none).
  * Choosing bump `promote` (or prerelease `none` on a prerelease) publishes that core version as stable.
+ *
+ * Release lines (release/X.Y.x branches, .github/workflows/README.md) ship X.Y.* versions without
+ * what master has had since. --line-branch names a version's line; --dist-tag keeps npm's channel
+ * tags moving forward only, so a 0.32.2 hotfix doesn't take `latest` from 0.33.0.
  */
 
 import fs from 'node:fs'
@@ -41,6 +48,53 @@ export function parseVersion(version) {
     prenum,
     hasPrerelease: version.includes('-'),
   }
+}
+
+// Semver precedence, for the versions this repo uses: a prerelease sorts before its stable
+// version, alpha before beta, then by number
+export function compareVersions(left, right) {
+  const a = parseVersion(left)
+  const b = parseVersion(right)
+  const core = a.major - b.major || a.minor - b.minor || a.patch - b.patch
+  if (core !== 0) {
+    return Math.sign(core)
+  }
+  if (a.hasPrerelease !== b.hasPrerelease) {
+    return a.hasPrerelease ? -1 : 1
+  }
+  if (!a.hasPrerelease) {
+    return 0
+  }
+  const channel = (a.preid ?? '').localeCompare(b.preid ?? '')
+  if (channel !== 0) {
+    return channel
+  }
+  return Math.sign((a.prenum ?? 0) - (b.prenum ?? 0))
+}
+
+// The release line branch X.Y.* versions ship from
+export function lineBranch(version) {
+  const { major, minor } = parseVersion(version)
+  return `release/${major}.${minor}.x`
+}
+
+/**
+ * The npm dist-tag for publishing `version` on `channel` (latest, alpha, beta), given the version
+ * that channel points at now (null: none). A channel only moves forward: an older version (a
+ * release line's hotfix after a newer minor shipped) gets `<channel>-X.Y` instead.
+ */
+export function distTagFor(version, channel, current) {
+  let currentIsValid = true
+  try {
+    parseVersion(current ?? '')
+  } catch {
+    currentIsValid = false
+  }
+  if (!currentIsValid || compareVersions(version, current) >= 0) {
+    return channel
+  }
+  const { major, minor } = parseVersion(version)
+  return `${channel}-${major}.${minor}`
 }
 
 function formatCore({ major, minor, patch }) {
@@ -169,6 +223,28 @@ const SELF_TESTS = [
   ['1.0.0-alpha.2', 'none', 'none', '1.0.0'],
 ]
 
+const COMPARE_TESTS = [
+  ['0.32.1-alpha.0', '0.32.1', -1],
+  ['0.32.1', '0.32.1-beta.3', 1],
+  ['0.32.1-alpha.3', '0.32.1-beta.0', -1],
+  ['0.32.1-beta.2', '0.32.1-beta.10', -1],
+  ['0.33.0-alpha.0', '0.32.1', 1],
+  ['1.0.0', '1.0.0', 0],
+]
+
+const DIST_TAG_TESTS = [
+  // latest is an alpha today: a stable of that version moves it
+  ['0.32.1', 'latest', '0.32.1-alpha.0', 'latest'],
+  ['0.33.0', 'latest', '0.32.1', 'latest'],
+  // a hotfix on an older line
+  ['0.32.2', 'latest', '0.33.0', 'latest-0.32'],
+  ['0.32.2-beta.0', 'beta', '0.33.0-beta.1', 'beta-0.32'],
+  ['0.32.1-beta.0', 'beta', '0.30.0-beta.6', 'beta'],
+  ['0.32.1', 'latest', undefined, 'latest'],
+  // a retry of the same version
+  ['0.32.1', 'latest', '0.32.1', 'latest'],
+]
+
 function readCurrentVersion() {
   const pkgPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'package.json')
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
@@ -202,7 +278,37 @@ function runSelfTest() {
     }
   }
 
-  const total = SELF_TESTS.length + errorCases.length
+  for (const [left, right, expected] of COMPARE_TESTS) {
+    const actual = compareVersions(left, right)
+    if (actual !== expected) {
+      failed += 1
+      console.error(`FAIL  compare ${left} ${right} → ${actual} (expected ${expected})`)
+    } else {
+      console.log(`ok    compare ${left} ${right} → ${actual}`)
+    }
+  }
+
+  for (const [version, channel, current, expected] of DIST_TAG_TESTS) {
+    const actual = distTagFor(version, channel, current)
+    if (actual !== expected) {
+      failed += 1
+      console.error(`FAIL  dist-tag ${version} on ${channel}@${current} → ${actual} (expected ${expected})`)
+    } else {
+      console.log(`ok    dist-tag ${version} on ${channel}@${current} → ${actual}`)
+    }
+  }
+
+  for (const [version, expected] of [['0.32.1-alpha.0', 'release/0.32.x'], ['1.0.2', 'release/1.0.x']]) {
+    const actual = lineBranch(version)
+    if (actual !== expected) {
+      failed += 1
+      console.error(`FAIL  line-branch ${version} → ${actual} (expected ${expected})`)
+    } else {
+      console.log(`ok    line-branch ${version} → ${actual}`)
+    }
+  }
+
+  const total = SELF_TESTS.length + errorCases.length + COMPARE_TESTS.length + DIST_TAG_TESTS.length + 2
   if (failed) {
     console.error(`\n${failed} test(s) failed`)
     process.exit(1)
@@ -213,6 +319,19 @@ function runSelfTest() {
 function main(argv) {
   if (argv[0] === '--self-test') {
     runSelfTest()
+    return
+  }
+
+  if (argv[0] === '--compare' && argv[2]) {
+    console.log(compareVersions(argv[1], argv[2]))
+    return
+  }
+  if (argv[0] === '--line-branch' && argv[1]) {
+    console.log(lineBranch(argv[1]))
+    return
+  }
+  if (argv[0] === '--dist-tag' && argv[2]) {
+    console.log(distTagFor(argv[1], argv[2], argv[3] || null))
     return
   }
 
