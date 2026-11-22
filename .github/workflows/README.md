@@ -19,9 +19,9 @@ Automated releases for `nitromelondb`, modeled on the two-step process used in [
 
 **What it does:**
 
-1. Calculates the next version (see [Versioning](#versioning))
+1. Calculates the next version (see [Versioning](#versioning)). From master, it refuses `X.Y.*` versions that have a [release line](#release-lines); from a line, anything outside it
 2. Skips versions that already have a git tag, GitHub Release, or npm publish (alpha/beta then increment `-alpha.N`)
-3. Creates or recreates a `release/vX.Y.Z` branch from master (leftover branches without a tag/release are reused; already-open PRs are not)
+3. Creates or recreates a `release/vX.Y.Z` branch from the branch it ran from (leftover branches without a tag/release are reused; already-open PRs are not)
 4. Bumps `package.json`
 5. Moves `CHANGELOG-Unreleased.md` into `CHANGELOG.md` under the new version heading, failing the run if it's empty and `allow_empty_changelog` isn't set
 6. On any stable release (no `-alpha` / `-beta`), folds every `-alpha.N` / `-beta.N` changelog entry published since the previous stable release into that one official heading and removes the prerelease sections
@@ -29,23 +29,24 @@ Automated releases for `nitromelondb`, modeled on the two-step process used in [
 8. Resets `CHANGELOG-Unreleased.md` to empty section headers
 9. Bumps `docs-website/package.json` (so the docs version badge matches, including alpha/beta)
 10. Syncs `docs-website/docs/docs/CHANGELOG.md`
-11. Opens a PR to `master` for review
+11. Opens a PR to the branch it ran from (master or the release line) for review
 
-Run it from **master**: Actions → **Prepare Release** → Run workflow.
+Run it from **master**, or from a release line (`release/X.Y.x`) for an `X.Y.*` release: Actions → **Prepare Release** → Run workflow.
 
 ### 2. `publish-release.yml` — Publish Release
 
-**Trigger:** Automatic on a `push` to `master` whose commit is a release (`chore: release v…`, `Release v…`, or a merge of `release/v*`). Also manual (`workflow_dispatch` from **master`) to retry a version that is already on `master` but never made it to npm / git tag / GitHub Release.
+**Trigger:** Automatic on a `push` to `master` or a release line (`release/X.Y.x`) whose commit is a release (`chore: release v…`, `Release v…`, or a merge of `release/v*`). Also manual (`workflow_dispatch` from **master`) to retry a version that is already on `master` but never made it to npm / git tag / GitHub Release.
 
 Do **not** trigger publish with `pull_request_target`. npm trusted publishing rejects those OIDC tokens (`POST …/oidc/token/exchange` 404, `OIDC token exchange error - package not found`) even when the same workflow succeeds as `workflow_dispatch` from master. See [npm/cli#8739](https://github.com/npm/cli/issues/8739).
 
 **What it does:**
 
-1. Builds the package (`yarn build` → `dist/`)
-2. Publishes `nitromelondb` to npm via OIDC trusted publishing. Dist-tag is `alpha` / `beta` / `latest` from the version unless Prepare Release recorded an override in `.github/publish-npm-tag`
+1. Builds the package (`yarn build` → `dist/`) from the commit that triggered it
+2. Publishes `nitromelondb` to npm via OIDC trusted publishing. Dist-tag is `alpha` / `beta` / `latest` from the version unless Prepare Release recorded an override in `.github/publish-npm-tag`. A channel only moves forward: a version older than the one the channel has (a release line's hotfix after a newer minor) gets `latest-X.Y` / `beta-X.Y` / `alpha-X.Y` instead
 3. Creates git tag `vX.Y.Z`
-4. Creates a GitHub Release (marked as prerelease for alpha/beta)
-5. Comments on the PR with npm and GitHub links (merge trigger only)
+4. Creates a GitHub Release (marked as prerelease for alpha/beta; not marked Latest when the npm tag isn't `latest`)
+5. From a release line: opens a PR that records the release on master (see [Release lines](#release-lines))
+6. Comments on the PR with npm and GitHub links (merge trigger only)
 
 OIDC publish uses `actions/checkout@v6`, `actions/setup-node@v6`, Node 24, `package-manager-cache: false`, and `id-token: write`. We `yarn build` then `npm publish ./dist`.
 
@@ -107,6 +108,36 @@ node scripts/next-version.mjs --self-test
 node scripts/next-version.mjs minor alpha
 node scripts/prepare-changelog.mjs --self-test
 ```
+
+## Release lines
+
+A release line is a `release/X.Y.x` branch, cut from a published tag. It ships `X.Y.*` versions **without what master has had since**: promoting an alpha/beta as it was tested, and patch releases with only the fixes picked for them. Master moves on to `X.(Y+1)` meanwhile.
+
+**Cut a line** (once per `X.Y`): Actions → **Cut Release Line** (from master), tag e.g. `v0.32.1-alpha.0` → creates `release/0.32.x`.
+
+The branch is the tag plus one commit, "release tooling from master": `prepare-release.yml`, `publish-release.yml`, this README, `scripts/next-version.mjs` and `scripts/prepare-changelog.mjs` as master has them. That's needed because a workflow runs from the file on its own branch: Prepare Release dispatched on the line, and Publish Release on a merge into it, use the line's copies, and a tag's own copies may predate release lines. None of these files is in the npm package, so the line publishes exactly the tag's code. A later fix to the release tooling reaches an existing line only through a PR into it.
+
+**Ship from it:** Actions → **Prepare Release**, branch **`release/0.32.x`**:
+
+| Goal | Bump | Prerelease | From `0.32.1-alpha.0` | Then |
+| --- | --- | --- | --- | --- |
+| Ship the alpha as tested | `promote` | | `0.32.1` | |
+| Another prerelease of it first | `none` | `beta` | `0.32.1-beta.0` | |
+| A hotfix | `patch` | `none` | | `0.32.1` → `0.32.2` |
+
+The release PR goes to the line, and CI runs on it. After it merges, Publish Release publishes from the line, tags the line's commit, and opens **"chore: record vX.Y.Z from release/X.Y.x"** against master:
+
+- `CHANGELOG.md` gets the release's entry, in version order, and loses the prerelease entries it folded
+- `package.json` (and the docs version) moves to `X.Y.Z` if master was behind, e.g. `0.32.1-alpha.0` → `0.32.1`
+- `CHANGELOG-Unreleased.md` doesn't change: master's own changes are still unreleased
+
+Merge that PR. From then on master releases with `minor` / `major` (`0.33.0-alpha.0`); Prepare Release on master refuses `0.32.*` versions while `release/0.32.x` exists.
+
+**Fixes on a line:** fix on master first (when the bug is there too), then cherry-pick into a PR to `release/X.Y.x` with its own `CHANGELOG-Unreleased.md` entry on the line. The fix then appears in both `X.Y.Z+1` and the next master release, which is accurate.
+
+**npm and GitHub:** a release from a line takes `latest` only if it's the newest version. A `0.32.2` after `0.33.0` is published as `latest-0.32` (`npm i nitromelondb@latest-0.32`), and GitHub keeps `v0.33.0` as its Latest release.
+
+**Protect the line** like master (no deletion, no force push, changes by pull request): add `refs/heads/release/*.x` to the `main` ruleset. That pattern doesn't match Prepare Release's own `release/vX.Y.Z` branches, which it may need to recreate.
 
 ## Unreleased changelog
 
@@ -177,5 +208,11 @@ Do not add an `NPM_TOKEN` secret to this repository.
 - `PUT https://registry.npmjs.org/nitromelondb` **404** with **no** `/-/npm/v1/oidc/token/exchange` line means npm skipped OIDC (dummy `NODE_AUTH_TOKEN` from `setup-node` `registry-url`). This workflow must not set `registry-url`.
 - `ENEEDAUTH` or `OIDC token exchange error - package not found` after a token-exchange POST usually means the OIDC claims did not match. Check Trusted Publisher casing (`StasDoskalenko` / `NitromelonDB` / `publish-release.yml`, environment empty). Also: `pull_request_target` is not a valid publish trigger — retry from **master** with **Publish Release**.
 
+### Release line trouble
+- **Cut Release Line: `already exists`**: a line is cut once. Fixes go to it as pull requests
+- **Prepare Release on master: `would come from release/X.Y.x`**: that line ships `X.Y.*` now. Run Prepare Release on the line, or pick `minor` / `major` for master
+- **Prepare Release on a line: `ships X.Y.x versions only`**: from a line, use `promote`, `none` or `patch`
+- **No "record" PR after a line's release**: re-run **Publish Release** on the line (`workflow_dispatch`, branch `release/X.Y.x`). Publishing, the tag and the GitHub Release are skipped when they exist, and the PR is opened if master doesn't have the entry yet
+
 ### Retry a failed publish (no new version)
-Do **not** run Prepare Release again — that would bump to the next `-alpha.N` / `-beta.N`. After the fix is on `master`: Actions → **Publish Release** → Run workflow (branch **master**). That publishes the version already in `package.json`, then creates the git tag and GitHub Release if they are missing.
+Do **not** run Prepare Release again — that would bump to the next `-alpha.N` / `-beta.N`. After the fix is on `master` (or the line): Actions → **Publish Release** → Run workflow (branch **master**, or the `release/X.Y.x` it was released from). That publishes the version already in `package.json`, then creates the git tag and GitHub Release if they are missing.

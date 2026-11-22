@@ -15,7 +15,7 @@ Every merged change should already have a note there. Prepare Release copies tho
 ### Step 2: Prepare the release
 
 1. GitHub → **Actions** → **Prepare Release**
-2. Run the workflow from **master**
+2. Run the workflow from **master** (or from a release line, below)
 3. Choose:
    - **Version bump:** `none` / `promote` / `patch` / `minor` / `major` (`none` keeps the current X.Y.Z; `promote` ships the in-progress alpha/beta as official `X.Y.Z`)
    - **Prerelease:** `none` / `alpha` / `beta` (ignored when bump is `promote`)
@@ -38,6 +38,17 @@ Merging the PR pushes the release commit to `master`, which runs Publish Release
 - Creates the git tag and GitHub Release
 
 If npm publish fails, do not run Prepare Release again. Run **Actions → Publish Release** from **master** to retry the same version.
+
+### Releasing an older version without master's newer work
+
+A **release line** (`release/X.Y.x` branch) ships `X.Y.*` versions without what master has had since: an alpha promoted as it was tested, or a patch with only the fixes picked for it.
+
+1. **Actions** → **Cut Release Line**, from **master**, with the tag to start from (e.g. `v0.32.1-alpha.0` creates `release/0.32.x`). Once per `X.Y`.
+2. Fixes go to the line as pull requests (cherry-picked from master), each with a `CHANGELOG-Unreleased.md` entry.
+3. **Actions** → **Prepare Release**, run from **`release/0.32.x`**: `promote` ships the alpha as `0.32.1`, `patch` ships a hotfix (`0.32.2`). The release PR goes to the line.
+4. Merging it publishes from the line, then opens a PR that records the release in master's `CHANGELOG.md` (and moves master's version up if it's behind). Merge that too.
+
+Master then releases with `minor` / `major`. A line's release takes npm's `latest` only if it's the newest version; otherwise it gets `latest-X.Y`. Details: [Release lines](https://github.com/StasDoskalenko/NitromelonDB/blob/master/.github/workflows/README.md#release-lines).
 
 ### Local helpers
 

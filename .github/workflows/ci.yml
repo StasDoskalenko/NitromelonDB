@@ -4,7 +4,8 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
   push:
-    branches: [master]
+    # Release lines (release/X.Y.x) too: they publish on push, like master
+    branches: [master, 'release/*.x']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

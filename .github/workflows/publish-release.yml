@@ -4,9 +4,11 @@ on:
   # npm OIDC trusted publishing rejects pull_request_target tokens
   # (OIDC token exchange 404 "package not found"). workflow_dispatch
   # from master works; so does push to master. See npm/cli#8739.
+  # Release lines (release/X.Y.x, see README.md) publish the same way, from their own branch.
   push:
     branches:
       - master
+      - 'release/*.x'
   workflow_dispatch:
 
 concurrency:
@@ -31,13 +33,14 @@ jobs:
       contents: write # Tag + GitHub Release (official example is contents: read because it only publishes)
       pull-requests: write
     steps:
-      - name: Ensure workflow ran from master
-        if: github.event_name == 'workflow_dispatch'
+      - name: Ensure workflow ran from master or a release line
         run: |
-          if [ "${{ github.ref }}" != "refs/heads/master" ]; then
-            echo "❌ Run Publish Release from the master branch (selected: ${{ github.ref_name }})"
+          BRANCH="${{ github.ref_name }}"
+          if [ "${{ github.ref_type }}" != branch ] || ! [[ "$BRANCH" == master || "$BRANCH" =~ ^release/[0-9]+\.[0-9]+\.x$ ]]; then
+            echo "❌ Run Publish Release from master or a release/X.Y.x branch (selected: $BRANCH)"
             exit 1
           fi
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
 
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -85,7 +88,12 @@ jobs:
               ;;
           esac
           if [ -z "$OVERRIDE" ] || [ "$OVERRIDE" = "none" ]; then
-            DIST_TAG="$CHANNEL_TAG"
+            # Channels only move forward: a release line's hotfix (0.32.2 after 0.33.0) gets latest-0.32
+            CURRENT=$(npm view nitromelondb "dist-tags.${CHANNEL_TAG}" 2>/dev/null || true)
+            DIST_TAG=$(node scripts/next-version.mjs --dist-tag "$VERSION" "$CHANNEL_TAG" "$CURRENT")
+            if [ "$DIST_TAG" != "$CHANNEL_TAG" ]; then
+              echo "ℹ️ ${CHANNEL_TAG} is on ${CURRENT}, newer than ${VERSION}: publishing as ${DIST_TAG}"
+            fi
           else
             DIST_TAG="$OVERRIDE"
           fi
@@ -167,10 +175,66 @@ jobs:
           elif [ "${{ env.IS_PRERELEASE }}" = "true" ]; then
             gh release create "$TAG" --title "$TAG" --notes-file /tmp/release_notes.md --prerelease
             echo "✅ GitHub Release created: $TAG (prerelease)"
+          elif [ "${{ env.DIST_TAG }}" != latest ]; then
+            # An older line's release: GitHub's "Latest" stays on the newest version
+            gh release create "$TAG" --title "$TAG" --notes-file /tmp/release_notes.md --latest=false
+            echo "✅ GitHub Release created: $TAG (not marked Latest)"
           else
             gh release create "$TAG" --title "$TAG" --notes-file /tmp/release_notes.md
             echo "✅ GitHub Release created: $TAG"
           fi
+
+      # master's CHANGELOG.md gets this release's entry (and loses the alphas it folded), and its
+      # package.json moves up if it's behind. CHANGELOG-Unreleased.md stays: master's own changes
+      # since the line was cut are still unreleased. Safe to re-run: no PR when master has it.
+      - name: Record the release on master
+        if: env.BRANCH != 'master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SYNC_BRANCH="sync/v${NEW_VERSION}"
+          MASTER_DIR="$RUNNER_TEMP/master"
+          git fetch -q origin master
+          git worktree add -q -B "$SYNC_BRANCH" "$MASTER_DIR" origin/master
+          # From inside the checkout: the script only runs as a command when its path matches its
+          # real path, which a symlinked temp directory breaks
+          (cd "$MASTER_DIR" && node scripts/prepare-changelog.mjs record "$NEW_VERSION" "$GITHUB_WORKSPACE/CHANGELOG.md")
+          if ! grep -q "^## ${NEW_VERSION} " "$MASTER_DIR/CHANGELOG.md"; then
+            echo "❌ master's CHANGELOG.md still has no ${NEW_VERSION} entry"
+            exit 1
+          fi
+          MASTER_VERSION=$(node -p "require('$MASTER_DIR/package.json').version")
+          if [ "$(node scripts/next-version.mjs --compare "$NEW_VERSION" "$MASTER_VERSION")" = 1 ]; then
+            for pkg in package.json docs-website/package.json; do
+              node -e "
+                const fs = require('fs');
+                const file = process.argv[1];
+                const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
+                pkg.version = process.env.NEW_VERSION;
+                fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + '\n');
+              " "$MASTER_DIR/$pkg"
+            done
+            echo "master's package.json: ${MASTER_VERSION} → ${NEW_VERSION}"
+          fi
+          if git -C "$MASTER_DIR" diff --quiet; then
+            echo "master already records v${NEW_VERSION}"
+            exit 0
+          fi
+          if [ -n "$(gh pr list --head "$SYNC_BRANCH" --base master --state open --json url --jq '.[0].url // empty')" ]; then
+            echo "A PR for $SYNC_BRANCH is already open"
+            exit 0
+          fi
+          git -C "$MASTER_DIR" commit -q -a -m "chore: record v${NEW_VERSION} from ${BRANCH}"
+          git -C "$MASTER_DIR" push -q --force-with-lease origin "$SYNC_BRANCH"
+          {
+            echo "v${NEW_VERSION} was published from \`${BRANCH}\`. This adds its changelog entry to master's \`CHANGELOG.md\` (replacing the prerelease entries it folded), and moves \`package.json\` up if master was behind."
+            echo ""
+            echo "\`CHANGELOG-Unreleased.md\` is unchanged: master's changes since the line was cut are still unreleased. The next release from master needs \`minor\` or \`major\`."
+          } > /tmp/sync_body.md
+          gh pr create --base master --head "$SYNC_BRANCH" \
+            --title "chore: record v${NEW_VERSION} from ${BRANCH}" --body-file /tmp/sync_body.md
+          echo "✅ Opened the PR that records v${NEW_VERSION} on master"
 
       - name: Comment on PR
         if: github.event_name == 'push'
