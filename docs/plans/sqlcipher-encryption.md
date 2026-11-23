@@ -1,6 +1,6 @@
 # SQLCipher-compatible database encryption
 
-**Status:** In progress. Steps 2-4 of the rollout (the opt-in encryption build, native keying, the JS API) are implemented, with step 6's docs; progress heartbeats and step 5 (Node) are not started. Where the implementation differs from the design below, it says so in *Implemented:* notes. User docs: [`Advanced/Encryption.md`](../../docs-website/docs/docs/Advanced/Encryption.md).
+**Status:** In progress, not released yet (as of 2026-11-23). Steps 2-4 of the rollout (the opt-in encryption build, native keying, the JS API) are merged (#249, #250), with most of step 6's docs. The upgrade path (plain build → encryption build → encrypt in place) is tested on a device on iOS and Android. Before the first release: the open gaps in [What's left](#whats-left), above all the Windows encryption build, which has never been compiled ([Windows handoff](#windows-handoff)). Progress heartbeats and step 5 (Node) are not started. Where the implementation differs from the design below, it says so in *Implemented:* notes. User docs: [`Advanced/Encryption.md`](../../docs-website/docs/docs/Advanced/Encryption.md).
 
 This is the plan of record for #60. It supersedes `plans/database-encryption.md` (Zetetic SQLCipher with export-and-swap), whose safety requirements are folded in below under [Safety requirements](#safety-requirements).
 
@@ -331,23 +331,23 @@ Carried over from the superseded `plans/database-encryption.md`, which drew them
 - **No silent decryption.** A passphrase function that returns `null` (wiped keychain entry) is an error, never "open as plaintext". "No key" and "decrypt" are different inputs: decrypting is only ever `unsafe_DecryptDB()`.
 - **No reset on a wrong key.** `_setUpWithMigrations` resets the database when it can't find a migration path. Keying errors (`encryption_key_invalid`, `encryption_key_required`, `database_not_encrypted`) must be routed away from that fallback, with a test.
 - **Init failure rejects queued work.** If the passphrase can't be resolved, the `DeferredDispatcher` rejects every buffered call with the init error instead of hanging forever.
-- **Crash during rekey.** Prove on device that killing the app mid-rekey leaves a database that opens with either the old or the new key. sqlite3mc rekeys inside a transaction, so the rollback journal should cover it. If it doesn't, use `sqlcipher_export` and swap the file instead. *Done on desktop:* `SqliteEncryptionTest` forks a child that encrypts, re-keys or decrypts a 10 MB WAL database, kills it with SIGKILL at points from the start of `sqlite3_rekey_v2` to past its end, and checks the database opens with the old or new key, with every row and `integrity_check` ok. Every kill passed. Not yet repeated on a device.
+- **Crash during rekey.** Prove on device that killing the app mid-rekey leaves a database that opens with either the old or the new key. sqlite3mc rekeys inside a transaction, so the rollback journal should cover it. If it doesn't, use `sqlcipher_export` and swap the file instead. *Done on desktop:* `SqliteEncryptionTest` forks a child that encrypts, re-keys or decrypts a 10 MB WAL database, kills it with SIGKILL at points from the start of `sqlite3_rekey_v2` to past its end, and checks the database opens with the old or new key, with every row and `integrity_check` ok. Every kill passed. Not yet repeated on a device, and not on Windows at all (the test uses `fork` and the unix VFS; see [Windows handoff](#windows-handoff)).
 - **`LokiJSAdapter` rejects `encryption`** with a clear "not supported on web" error rather than ignoring it.
 
 ## Testing
 
 **Jest** (via the Node adapter): passphrase as string and as async function; deferred-dispatcher ordering, i.e. calls issued before the key resolves still execute in order; wrong key; encrypted DB opened with no key; plaintext DB with `ifUnencrypted: 'error'` vs `'open'`; encrypt → reopen with key; decrypt → reopen without key; data survives a full round trip; `isDBEncrypted()` and the static probe in every state; `unsafe_EncryptDB` outside a writer throws.
 
-**Native integration** (`src/adapters/sqlite/integrationTest.js`): the same round trip on device, plus a smoke test of turbo sync (`unsafeLoadFromSync`) against an encrypted database. *So far:* the device suites run the default build, so they check that a passphrase fails with `encryption_unavailable` and that the file probe works. The encrypted round trip on a device is the CI job `NotesApp iOS (encryption upgrade)`: the plain NotesApp build creates a database, the encryption build is installed over it, opens it with `ifUnencrypted: 'open'` and encrypts it; between steps the script checks the file in the app container (no SQLite header, a note's text not readable in any database file), and that the plain build installed over it fails with `encryption_key_required` and leaves the file byte for byte unchanged.
+**Native integration** (`src/adapters/sqlite/integrationTest.js`): the same round trip on device, plus a smoke test of turbo sync (`unsafeLoadFromSync`) against an encrypted database. *So far:* the device suites run the default build, so they check that a passphrase fails with `encryption_unavailable` and that the file probe works. The encrypted round trip on a device is the CI jobs `NotesApp iOS (encryption upgrade)` and `NotesApp Android (encryption upgrade)` ([`scripts/ci-notesapp-encryption-upgrade.sh`](../../scripts/ci-notesapp-encryption-upgrade.sh), flows in `examples/NotesApp/maestro-encryption/`): the plain NotesApp build creates a database, the encryption build is installed over it, opens it with `ifUnencrypted: 'open'` and encrypts it; between steps the script checks the file in the app container (no SQLite header, a note's text not readable in any database file), and that the plain build installed over it fails with `encryption_key_required` and leaves the file byte for byte unchanged.
 
 **Jest** today mocks the native dispatcher (`src/adapters/sqlite/__tests__/encryption.test.js`) until step 5 makes the Node adapter encrypt.
 
 ## Risks and things to verify
 
-- **CI covers the encryption build on iOS only.** `yarn test:native-unit` builds and tests both engines on every run, and NotesApp's iOS encryption build is built and tested on a simulator. The Android and Windows jobs build the default. Add Android (an emulator upgrade test like the iOS one) and at least a Windows compile.
+- **CI doesn't build the Windows encryption build.** `yarn test:native-unit` builds and tests both engines on every run (macOS/Linux compilers only), and NotesApp's iOS and Android encryption builds are built and tested on a simulator/emulator. The `windows` job builds the default only, so the `_WIN32` code in `SqliteEncryption.cpp` and the vcxproj's encryption branch have never been compiled. See [Windows handoff](#windows-handoff).
 - **Encrypting needs temp space.** sqlite3mc vacuums when the reserved bytes per page change (plain → SQLCipher). Encrypting starts from an unkeyed connection, so the vacuum's temp copy goes to the temp directory (plaintext, as the source was). Decrypting writes its copy next to the database instead.
 - **iOS symbol collision** with a system `libsqlite3` pulled in by another pod (encryption build). Mitigated by dispatch-table mode (see [Symbol isolation](#symbol-isolation)) and enforced by the `nm` check in `yarn test:native-unit`. This is the exact failure reported against Nozbe#1635.
-- **`unsafeResetDatabase`** uses `SQLITE_DBCONFIG_RESET_DATABASE` + `vacuum`. Confirm the key and per-page reserved bytes survive a reset, and re-key afterward if they do not.
+- **`unsafeResetDatabase`** uses `SQLITE_DBCONFIG_RESET_DATABASE` + `vacuum`. Confirm the key and per-page reserved bytes survive a reset, and re-key afterward if they do not. *Still open, and a release blocker:* see gap 1 in [What's left](#whats-left).
 - **Binary size** growth on Android and Windows, and the loss of system-SQLite sharing on iOS. Measure before and after; trim ciphers.
 - **Disk space.** sqlite3mc vacuums when the per-page reserved byte count changes, so rekeying can transiently need up to 3x the database size.
 - **WAL.** Encrypting a plaintext database requires leaving WAL mode first. Decrypt and plain re-key are fine in WAL as of sqlite3mc 2.4.0, at the cost of reusing the key salt.
@@ -361,4 +361,64 @@ Carried over from the superseded `plans/database-encryption.md`, which drew them
 3. ~~Native encryption: open path, off-thread rekey, Nitro spec, regenerated bindings.~~ *(implemented; no progress callback yet)*
 4. ~~JS surface: `encryption` option, deferred dispatcher, state checks, `unsafe_EncryptDB` / `unsafe_DecryptDB`.~~ *(implemented)*
 5. Node adapter and the jest suite.
-6. Docs: `Advanced/Encryption.md` exists (why opt-in, setup, verification, export compliance); extend it with the passphrase API, migration and key-management guidance at each step. Update `Setup.md` and `Implementation/DatabaseAdapters.md`; mark SQLCipher done in `README.md` and `Roadmap.md`.
+6. Docs: `Advanced/Encryption.md` exists (why opt-in, setup, verification, export compliance, the passphrase API, migration, key custody). Update `Setup.md` and `Implementation/DatabaseAdapters.md`; mark SQLCipher done in `README.md` and `Roadmap.md`.
+
+## What's left
+
+As of 2026-11-23. Nothing with encryption is on npm yet: the first release is planned as `0.33.0-alpha.0` (Prepare Release on master, `minor` + `alpha`). Gaps 1-2 should land before it, so the alpha doesn't ship a possible logout bug or a platform that was never compiled.
+
+### Before the first release
+
+1. **Reset of an encrypted database (`unsafeResetDatabase`).** [`Database::unsafeResetDatabase`](../../native/shared/Database.cpp) runs `SQLITE_DBCONFIG_RESET_DATABASE` + `VACUUM` on the keyed connection. Nothing tests what's on disk afterwards. Apps reset on logout; if the file comes back as plain SQLite while the app still believes it's encrypted, that is silent non-encryption, the failure [Safety requirements](#safety-requirements) rule out first. Add a case to [`SqliteEncryptionTest.cpp`](../../native/tests/SqliteEncryptionTest.cpp): open keyed, write rows, reset (same calls as `Database::unsafeResetDatabase`), then assert the header isn't `SQLite format 3\0`, the database reopens with the key and fails without it, and `integrity_check` is ok. Repeat from WAL mode. If the encryption doesn't survive, rekey after the reset inside `unsafeResetDatabase` (the connection still has the passphrase) and keep the test. Portable code, so it can be done on any OS that runs `yarn test:native-unit`.
+2. **The Windows encryption build.** Never compiled, locally or in CI, although the docs say encryption works on Windows. Owned by the [Windows handoff](#windows-handoff) below.
+
+### Soon after
+
+3. **Turbo sync against an encrypted database.** The [Testing](#testing) plan asks for a smoke test of `unsafeLoadFromSync` on an encrypted database. It doesn't exist. Cheapest: one more step in the upgrade flow (NotesApp's sync screen against `examples/sync-server`), or a case in `integrationTest.js` once the device suites run an encryption build.
+4. **Decrypt on a device.** `unsafe_DecryptDB()` is decrypt-by-copy (`VACUUM INTO`, sync, replace the file, reopen): the only path that replaces the database file, and it's tested only on desktop (`SqliteEncryptionTest`). NotesApp has an Encrypt button but no Decrypt. Add one (encryption build only) and a step 7 to `maestro-encryption/` + `ci-notesapp-encryption-upgrade.sh`: decrypt, check the header is plain again with every note, and that the plain build opens it.
+5. **Apps with more than one connection.** `Advanced/SharingDatabaseAcrossTargets.md` and Headless JS don't mention encryption. Every connection (app extension, widget, background task) needs the passphrase from a shared Keychain access group / storage; a connection opened while `unsafe_EncryptDB()` runs in another process will see a changed file. Document it, and say what `usesExclusiveLocking` does to it.
+6. **Kill during re-key on a device.** `SqliteEncryptionTest` proves it on desktop (POSIX). A device version: a Maestro step that kills the app while encrypting a large database (seed it first), then checks it opens with the old or the new key.
+7. **Plan and docs housekeeping.** `Setup.md`, `Implementation/DatabaseAdapters.md` and `Roadmap.md` don't mention encryption. `Advanced/Encryption.md`'s "What we test" and "What's next" need updating as gaps close. Close #60 when the alpha is out and gaps 1-2 are done.
+
+### Then (rollout steps still open)
+
+8. **Step 5: Node/Electron** through `better-sqlite3-multiple-ciphers` (see [Node adapter](#node-adapter)). Its bigger payoff is the jest suite: [`encryption.test.js`](../../src/adapters/sqlite/__tests__/encryption.test.js) mocks the native dispatcher today; with Node encrypting for real, the [Testing](#testing) cases (round trips, wrong key, reset, ordering, `ifUnencrypted`) run against a real encrypted file in `yarn test`, including on `ci-check-windows`.
+9. **`onProgress` heartbeat** through `sqlite3_progress_handler` while the re-key runs off the JS thread (see [Rekey](#rekey-off-the-js-thread)). `onStart`/`onSuccess`/`onError` exist.
+10. **Benchmarks** of a keyed database vs the default build (open cost from PBKDF2, read/write throughput), published on the docs page, which says today that we have none.
+
+## Windows handoff
+
+For whoever picks up gap 2 on a Windows machine. Goal: the Windows encryption build compiles, passes the same upgrade path as iOS and Android, and CI keeps it that way.
+
+**What exists for Windows (written on macOS, never compiled):**
+
+- The switch in [`NitromelonDB.vcxproj`](../../native/windows/NitromelonDB/NitromelonDB.vcxproj) (lines ~24-35, 149-153, 224-226). In order: MSBuild property `NitromelonDBEncryption`, env `NITROMELONDB_ENCRYPTION`, then a regex over the first `package.json` above `$(SolutionDir)`; for NotesApp_windows that is `examples/NotesApp_windows/package.json`. The encryption branch defines `NITROMELON_ENCRYPTION=1` and prints `NitromelonDB: SQLite encryption build (SQLite3 Multiple Ciphers)`. `vendor\sqlite` stays on the include path in both builds; `NitromelonSqlite.c` picks the amalgamation.
+- `_WIN32` code in [`SqliteEncryption.cpp`](../../native/shared/SqliteEncryption.cpp): `widePath` (UTF-8 → UTF-16 for every file call), `_wfopen_s` for the 16-byte header probe, `DeleteFileW`, `FlushFileBuffers` in `syncFile`, and `MoveFileExW(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)` in `replaceFile`, which decrypt uses to swap in the decrypted copy.
+- sqlite3mc's RNG uses `RtlGenRandom` (advapi32, linked by a `#pragma comment(lib)` inside the amalgamation). The temp directory is set with `nitromelon_sqlite3_set_temp_directory()`, as for the default build.
+- NotesApp_windows renders `../NotesApp/src`, so the encryption build gets the same "Not encrypted" status, Encrypt button and setup-error screen as iOS/Android. Its database is `nitromelon-windows.db` in the app's `LocalState` (`%LOCALAPPDATA%\Packages\<PackageFamilyName>\LocalState`; `e2e/app-process.js` `localStateDir()` finds it).
+
+**W1. Compile it.** In `examples/NotesApp_windows`, the same command as CI's `windows` job, with the switch:
+
+```powershell
+$env:NITROMELONDB_ENCRYPTION = '1'
+yarn windows -- --arch x64 --release --logging --no-packager --no-launch
+```
+
+Check the log for the `SQLite encryption build` line, and that the built binary contains `SQLite3 Multiple Ciphers` while the default build's doesn't (`findstr /m /c:"SQLite3 Multiple Ciphers" <binary>`; it's the same check `ci-notesapp-encryption-upgrade.sh` does with `strings`). Likely trouble: MSVC warnings promoted to errors (`/sdl`, `/WX`) inside the sqlite3mc amalgamation (fix with per-file `DisableSpecificWarnings` on `NitromelonSqlite.c`, not by editing the vendored file); the libsodium renames in `NitromelonSqlite.c`; `NOMINMAX`/`WIN32_LEAN_AND_MEAN` clashes with RNW headers. Then build the default again and confirm it is unchanged.
+
+**W2. The upgrade path by hand.** The same six steps as the [`maestro-encryption` table](../../examples/NotesApp/maestro-encryption/README.md), deploying the plain and encryption Release builds over each other (Debug and Release share one AppX identity, and so do the two builds):
+
+1. Plain build: add a note "Upgrade marker". The file starts with `SQLite format 3` (`Format-Hex -Count 16`) and the marker is readable (`Select-String -Pattern 'Upgrade marker' -SimpleMatch` over the `.db` and `-wal`).
+2. Encryption build over it. **First thing to verify: does redeploying keep `LocalState`?** The e2e `environment.js` wipes it on purpose; `run-windows` re-registers the package and should keep it, but nothing has checked. The note is there, status "Not encrypted", file unchanged.
+3. Encrypt. No SQLite header, marker in no file (`.db`, `-wal`, `-journal`).
+4. Restart the app: it opens with the passphrase, all notes there.
+5. Plain build over it: the setup-error screen with `encryption_key_required`; `Get-FileHash` of the `.db` (+ `-wal`) is the same as before step 5.
+6. Encryption build again: every note there.
+
+Also, because decrypt is where Windows behaves differently (file replace while handles may be open): call `unsafe_DecryptDB()` (via a temporary button, or gap 4's) and check the file is plain again with every note, and that no `-nitromelon-decrypted` file is left in `LocalState`. If `MoveFileExW` fails (sharing violation from a handle still open on the database, e.g. a leftover `-wal`/`-shm` or an antivirus scan), the design says the connection reopens the encrypted original and `unsafe_DecryptDB()` rejects; check that's what happens rather than a crash.
+
+**W3. CI.** Add the encryption build to the `windows` job (a second job or a matrix leg with `NITROMELONDB_ENCRYPTION: 1`), failing if the log lacks the build line, like `notesapp-android-build-encryption` does. Then the device test: a WinAppDriver version of the six steps under `examples/NotesApp_windows/e2e/` (keep `helpers.js` primitives; it must not use `environment.js`'s LocalState wipe between steps), with the on-disk checks in PowerShell or Node instead of `ci-notesapp-encryption-upgrade.sh`. It needs both builds in one job; watch the job's 90-minute timeout (two Release builds), and consider building both layouts before running anything. `yarn lint:workflows` can't run on Windows (action-validator has no Windows binary): run it on macOS/Linux, or rely on `workflow-lint.yml`.
+
+**W4. Native unit tests on Windows (optional, after W1-W3).** `scripts/test-native-unit` is bash + `cc` + `nm`, and `SqliteEncryptionTest` uses `fork`, `SIGKILL` and the unix VFS's `xSetSystemCall`, so neither runs on Windows. Worth having for the Windows-only file code: guard the POSIX cases with `#ifndef _WIN32` and build the rest with MSVC (a small `.ps1` or CMake target). Windows-specific cases: a database path with non-ASCII characters (`widePath`), decrypt while another handle holds the database open (`MoveFileExW` fails → encrypted original reopened), a leftover `-nitromelon-decrypted` copy deleted on the next open. A kill-during-re-key on Windows would use `CreateProcess` + `TerminateProcess`; skip it unless W2 finds problems.
+
+**Done when:** the encryption build compiles in CI, the upgrade path passes on Windows in CI, decrypt has been checked on Windows, and `Advanced/Encryption.md`'s "Not yet on a device in CI: the Windows encryption build" line and What's next item 3 are removed.
