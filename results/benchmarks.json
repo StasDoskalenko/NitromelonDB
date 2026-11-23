@@ -4781,5 +4781,26 @@
       "ram": 179,
       "fps": 54
     }
+  },
+  {
+    "sha": "0f4006136e1f4c9ac567ff73b54a13c41d3695ad",
+    "date": "2026-11-23T20:43:45.881Z",
+    "prNumber": 255,
+    "subject": "docs(plan): encryption status, what's left, and a Windows handoff (#60) (#255)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 20.5,
+      "ram": 190,
+      "fps": 55.2
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 20.3,
+      "ram": 190,
+      "fps": 55.4
+    }
   }
 ]
