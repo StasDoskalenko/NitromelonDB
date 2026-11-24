@@ -23,8 +23,9 @@ Supported frameworks:
     - Windows (RNW New Architecture / WinAppSDK)
   - Implementations:
     - Nitro HybridObject (iOS, Android, and Windows)
+  - Encryption (opt-in build, SQLCipher 4 format through SQLite3 Multiple Ciphers): iOS, Android and Windows. See [Encryption](../Advanced/Encryption.md)
 - NodeJS
-  - via `better-sqlite3` - contributed by Sid Ferreira
+  - via `better-sqlite3` - contributed by Sid Ferreira (no encryption yet)
 
 ### LokiJS
 

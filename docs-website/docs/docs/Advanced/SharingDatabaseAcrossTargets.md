@@ -136,3 +136,7 @@ This tells iOS to share storage directories between your targets, and in this ca
     ```
 
 This way you're telling Watermelon to store your database into the shared directories, you're ready to go!
+
+### Encrypted databases
+
+With [encryption](./Encryption.md), every target opens the database with the passphrase, so every target needs the encryption build and the same passphrase: keep it in a Keychain item in a shared access group (the Keychain Sharing capability on each target). Encrypting, changing the passphrase or decrypting waits for the other targets' connections to close, and fails with `rekey_failed` (changing nothing) if they stay open. Details: [More than one connection](./Encryption.md#more-than-one-connection).
