@@ -267,6 +267,46 @@ static void rekeysFromWal() {
     removeDatabase(path);
 }
 
+// What Database::unsafeResetDatabase does (apps call it on logout): reset in place on the open,
+// keyed connection, then recreate the schema. The file must stay encrypted with the same key: a
+// reset that came back as plain SQLite while the app still thinks it's encrypted would be silent
+// non-encryption. From WAL (how Database runs) and from the default rollback journal.
+static void resetKeepsEncryption() {
+    for (const char *journalMode : {"wal", "delete"}) {
+        std::string path = tempPath((std::string("reset-") + journalMode).c_str());
+        sqlite3 *db = nullptr;
+        CHECK(tryOpen(path, "k1", false, &db) == "");
+        CHECK(exec(db, (std::string("pragma journal_mode = ") + journalMode).c_str()) == SQLITE_OK);
+        CHECK(exec(db, "pragma user_version = 3; create table t (v); insert into t values ('before reset');") == SQLITE_OK);
+        CHECK(exec(db, "create table old_only (v); insert into old_only values ('gone');") == SQLITE_OK);
+
+        CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_RESET_DATABASE, 1, 0) == SQLITE_OK);
+        CHECK(exec(db, "vacuum") == SQLITE_OK);
+        CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_RESET_DATABASE, 0, 0) == SQLITE_OK);
+        CHECK(exec(db, "begin; create table t (v); insert into t values ('after reset'); pragma user_version = 4; commit;") == SQLITE_OK);
+
+        // Same connection, as the app goes on using it
+        CHECK(scalar(db, "select count(*) from sqlite_master where name = 'old_only'") == "0");
+        CHECK(scalar(db, "select group_concat(v) from t") == "after reset");
+        CHECK(scalar(db, "pragma journal_mode") == journalMode);
+        CHECK(exec(db, "insert into t values ('later')") == SQLITE_OK);
+        sqlite3_close(db);
+
+        CHECK(probeFile(path) == FileState::Encrypted);
+        CHECK(tryOpen(path, "", false, &db) == "encryption_key_required");
+        CHECK(tryOpen(path, "", true, &db) == "encryption_key_required");
+        CHECK(tryOpen(path, "k2", false, &db) == "encryption_key_invalid");
+        bool encrypted = false;
+        CHECK(tryOpen(path, "k1", false, &db, &encrypted) == "");
+        CHECK(encrypted);
+        CHECK(scalar(db, "select group_concat(v) from t") == "after reset,later");
+        CHECK(scalar(db, "pragma user_version") == "4");
+        CHECK(scalar(db, "pragma integrity_check") == "ok");
+        sqlite3_close(db);
+        removeDatabase(path);
+    }
+}
+
 // Enough rows that a re-key takes a while, so a kill can land in the middle of it
 static void fillDatabase(const std::string &path, const std::string &key, int rows) {
     sqlite3 *db = nullptr;
@@ -528,6 +568,7 @@ int main() {
     inMemoryDatabasesCantBeEncrypted();
     plaintextDatabaseNeedsOptIn();
     rekeysFromWal();
+    resetKeepsEncryption();
     crashesAtCommit();
     survivesKillDuringRekey();
 #else
