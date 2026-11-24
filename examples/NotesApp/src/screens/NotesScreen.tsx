@@ -40,7 +40,7 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
   const syncInFlight = useRef(false)
   // Shown in the status ("Synced (2)") so Maestro can tell one finished sync from the next
   const syncCount = useRef(0)
-  // Turbo Login is for an install's first sync only (src/sync.ts)
+  // Turbo Login is for an install's first sync, into an empty database (src/sync.ts)
   const [canTurboSync, setCanTurboSync] = useState(false)
 
   // Encryption build only: whether the database is encrypted, or what encrypting it is doing
@@ -220,7 +220,7 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
         totalCount={totalCount}
         onLongPressTitle={onOpenNestedWriterChecks}
         onSync={() => void sync()}
-        onTurboSync={canTurboSync ? () => void sync(true) : null}
+        onTurboSync={canTurboSync && totalCount === 0 ? () => void sync(true) : null}
         syncStatus={syncStatus}
         encryptionStatus={encryptionStatus}
         onEncrypt={canEncrypt ? () => void encrypt() : null}
