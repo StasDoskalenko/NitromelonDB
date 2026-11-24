@@ -111,18 +111,42 @@ async function waitForTextGone(text, timeout = 15000) {
   })
 }
 
+// findElementByTestID doesn't throw when nothing matches: like WebdriverIO's $(), it returns an
+// element that doesn't exist, so ask it
+async function testIDExists(id) {
+  try {
+    const el = await app.findElementByTestID(id)
+    return await el.isExisting()
+  } catch {
+    return false
+  }
+}
+
 async function waitForTestID(id, timeout = 15000) {
-  await app.waitUntil(
-    async () => {
-      try {
-        await app.findElementByTestID(id)
-        return true
-      } catch {
-        return false
-      }
-    },
-    {timeout, timeoutMsg: `testID not visible: ${id}`},
-  )
+  await app.waitUntil(async () => testIDExists(id), {
+    timeout,
+    timeoutMsg: `testID not visible: ${id}`,
+  })
+}
+
+// assertVisible: id + text (a predicate, like Maestro's regex)
+async function waitForTestIDText(id, matches, timeout = 15000) {
+  let last = '(not found)'
+  try {
+    await app.waitUntil(
+      async () => {
+        try {
+          last = await elementText(await app.findElementByTestID(id))
+          return matches(last)
+        } catch {
+          return false
+        }
+      },
+      {timeout},
+    )
+  } catch {
+    throw new Error(`${id} didn't match within ${timeout} ms; its text: ${last}`)
+  }
 }
 
 async function tapTestID(id) {
@@ -332,9 +356,12 @@ module.exports = {
   scrollUntilText,
   subtitleText,
   tapTestID,
+  testIDExists,
+  textVisible,
   waitForNoteCount,
   waitForSeeded,
   waitForTestID,
+  waitForTestIDText,
   waitForText,
   waitForTextGone,
 }
