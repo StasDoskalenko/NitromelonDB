@@ -44,6 +44,7 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
   // Encryption build only: whether the database is encrypted, or what encrypting it is doing
   const [encryptionStatus, setEncryptionStatus] = useState<string | null>(null)
   const [canEncrypt, setCanEncrypt] = useState(false)
+  const [canDecrypt, setCanDecrypt] = useState(false)
 
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
@@ -57,6 +58,7 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
         if (!stale) {
           setEncryptionStatus(encrypted ? 'Encrypted' : 'Not encrypted')
           setCanEncrypt(!encrypted)
+          setCanDecrypt(encrypted)
         }
       },
       (error: unknown) => {
@@ -131,16 +133,40 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
   // An install from the plain build, opened with ifUnencrypted: 'open' (see database.ts)
   const encrypt = async () => {
     setCanEncrypt(false)
+    setCanDecrypt(false)
     setEncryptionStatus('Encrypting…')
     try {
       await db.database.write(async () => {
         await db.database.unsafe_EncryptDB(DEMO_PASSPHRASE)
       })
-      setEncryptionStatus((await db.database.isDBEncrypted()) ? 'Encrypted' : 'Not encrypted')
+      const encrypted = await db.database.isDBEncrypted()
+      setEncryptionStatus(encrypted ? 'Encrypted' : 'Not encrypted')
+      setCanDecrypt(encrypted)
     } catch (encryptError) {
       setCanEncrypt(true)
       setEncryptionStatus(
         `Encryption failed: ${encryptError instanceof Error ? encryptError.message : String(encryptError)}`,
+      )
+    }
+  }
+
+  // Back to a plain database (copy, sync, replace the file, reopen: see unsafe_DecryptDB)
+  const decrypt = async () => {
+    setCanEncrypt(false)
+    setCanDecrypt(false)
+    setEncryptionStatus('Decrypting…')
+    try {
+      await db.database.write(async () => {
+        await db.database.unsafe_DecryptDB()
+      })
+      const encrypted = await db.database.isDBEncrypted()
+      setEncryptionStatus(encrypted ? 'Encrypted' : 'Not encrypted')
+      setCanEncrypt(!encrypted)
+      setCanDecrypt(encrypted)
+    } catch (decryptError) {
+      setCanDecrypt(true)
+      setEncryptionStatus(
+        `Decryption failed: ${decryptError instanceof Error ? decryptError.message : String(decryptError)}`,
       )
     }
   }
@@ -178,6 +204,7 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
         syncStatus={syncStatus}
         encryptionStatus={encryptionStatus}
         onEncrypt={canEncrypt ? () => void encrypt() : null}
+        onDecrypt={canDecrypt ? () => void decrypt() : null}
       />
 
       <Pressable
