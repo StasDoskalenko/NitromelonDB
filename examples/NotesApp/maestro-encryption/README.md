@@ -16,7 +16,7 @@ emulator, and checks the database file on disk between steps:
 | 6 | encryption, over it | `4-reopens-encrypted.yaml` again: every note still there | |
 | 7 | | `7-decrypt.yaml`: taps Decrypt, adds "After decryption" | plain SQLite header, the marker readable |
 | 8 | plain, over it | `8-plain-opens-decrypted.yaml`: opens it with every note | plain SQLite header |
-| 9 | encryption, over it | `9-turbo-sync.yaml`: Encrypt again, then a Turbo Login first sync (`turbo-sync-button`); a cold start shows the server's note, and the server has the device's | no SQLite header, no marker anywhere in the files |
+| 9 | encryption, over it | `9-turbo-sync.yaml`: Encrypt again, Delete all, then a Turbo Login first sync into the empty database (`turbo-sync-button`); a cold start shows only the server's note | no SQLite header, no marker anywhere in the files |
 
 Step 9 needs the reference sync server: the script starts it (`scripts/ci-start-sync-server.sh`, so
 `yarn install` in `examples/sync-server` first) and, on Android, runs `adb reverse tcp:3000 tcp:3000`.

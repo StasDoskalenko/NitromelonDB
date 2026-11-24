@@ -21,9 +21,9 @@ export const hasSyncedKey = localStorageKey<boolean>('notesapp_has_synced')
 
 // turbo: Turbo Login (docs: Sync/Frontend, "Adopting Turbo Login"). The server's response goes to
 // native code as raw JSON, which inserts every record itself: much faster for a big first sync.
-// Only for an install's first sync, and only if none of the pulled records is already in the
-// database. That holds here: before its first sync, every note was created on this device. Native
-// code writes the records without notifying observers, so the list shows them after a restart.
+// Only for an install's first sync into an empty database ("a serious programmer error" otherwise,
+// the docs say): the app offers it only then, e.g. after "Delete all" on a new install. Native code
+// writes the records without notifying observers, so the list shows them after a restart.
 // maestro-encryption/9-turbo-sync.yaml runs it on an encrypted database.
 export async function syncNotes(
   database: Database,
