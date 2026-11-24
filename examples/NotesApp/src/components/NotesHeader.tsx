@@ -10,6 +10,8 @@ type NotesHeaderProps = {
   onLongPressTitle?: () => void
   // Syncs with examples/sync-server (src/sync.ts, maestro/sync.yaml)
   onSync?: () => void
+  // Turbo Login, shown until the first sync (src/sync.ts, maestro-encryption/9-turbo-sync.yaml)
+  onTurboSync?: (() => void) | null
   syncStatus?: string | null
   // Encryption build only (maestro-encryption/): "Encrypted", "Not encrypted", ...
   encryptionStatus?: string | null
@@ -25,6 +27,7 @@ export function NotesHeader({
   totalCount,
   onLongPressTitle,
   onSync,
+  onTurboSync,
   syncStatus,
   encryptionStatus,
   onEncrypt,
@@ -38,11 +41,23 @@ export function NotesHeader({
         <Text style={styles.title} testID="app-title" accessible onLongPress={onLongPressTitle}>
           NitromelonDB
         </Text>
-        {onSync ? (
-          <Pressable onPress={onSync} testID="sync-button" accessibilityRole="button" hitSlop={8}>
-            <Text style={styles.syncButton}>Sync</Text>
-          </Pressable>
-        ) : null}
+        <View style={styles.syncButtons}>
+          {onTurboSync ? (
+            <Pressable
+              onPress={onTurboSync}
+              testID="turbo-sync-button"
+              accessibilityRole="button"
+              hitSlop={8}
+            >
+              <Text style={styles.syncButton}>Turbo sync</Text>
+            </Pressable>
+          ) : null}
+          {onSync ? (
+            <Pressable onPress={onSync} testID="sync-button" accessibilityRole="button" hitSlop={8}>
+              <Text style={styles.syncButton}>Sync</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
       <Text style={styles.subtitle} testID="subtitle" accessible>
         {sqliteEngine} · schema v{schemaVersion} · {totalCount} note
@@ -93,6 +108,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  syncButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
   },
   encryptionRow: {
     flexDirection: 'row',

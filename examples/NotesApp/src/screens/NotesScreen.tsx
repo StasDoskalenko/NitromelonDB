@@ -10,7 +10,7 @@ import { DEMO_PASSPHRASE, type ExampleDatabase } from '../database'
 import { useNotes } from '../hooks/useNotes'
 import { useScreenInsets } from '../hooks/useScreenInsets'
 import Note from '../model/Note'
-import { syncNotes } from '../sync'
+import { hasSyncedKey, syncNotes } from '../sync'
 import { colors } from '../theme'
 
 type NotesScreenProps = {
@@ -40,6 +40,8 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
   const syncInFlight = useRef(false)
   // Shown in the status ("Synced (2)") so Maestro can tell one finished sync from the next
   const syncCount = useRef(0)
+  // Turbo Login is for an install's first sync only (src/sync.ts)
+  const [canTurboSync, setCanTurboSync] = useState(false)
 
   // Encryption build only: whether the database is encrypted, or what encrypting it is doing
   const [encryptionStatus, setEncryptionStatus] = useState<string | null>(null)
@@ -47,6 +49,21 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
   const [canDecrypt, setCanDecrypt] = useState(false)
 
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+
+  useEffect(() => {
+    let stale = false
+    db.database.localStorage.get(hasSyncedKey).then(
+      (hasSynced) => {
+        if (!stale) {
+          setCanTurboSync(!hasSynced)
+        }
+      },
+      () => {},
+    )
+    return () => {
+      stale = true
+    }
+  }, [db])
 
   useEffect(() => {
     if (!db.encryptionAvailable) {
@@ -111,17 +128,19 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
     }
   }
 
-  const sync = async () => {
+  const sync = async (turbo = false) => {
     if (syncInFlight.current) {
       return
     }
     syncInFlight.current = true
+    setCanTurboSync(false)
     setSyncStatus('Syncing…')
     try {
-      await syncNotes(db.database)
+      await syncNotes(db.database, { turbo })
       syncCount.current += 1
       setSyncStatus(`Synced (${syncCount.current})`)
     } catch (syncError) {
+      setCanTurboSync(turbo)
       setSyncStatus(
         `Sync failed: ${syncError instanceof Error ? syncError.message : String(syncError)}`,
       )
@@ -201,6 +220,7 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
         totalCount={totalCount}
         onLongPressTitle={onOpenNestedWriterChecks}
         onSync={() => void sync()}
+        onTurboSync={canTurboSync ? () => void sync(true) : null}
         syncStatus={syncStatus}
         encryptionStatus={encryptionStatus}
         onEncrypt={canEncrypt ? () => void encrypt() : null}
