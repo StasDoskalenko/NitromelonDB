@@ -15,6 +15,8 @@ type NotesHeaderProps = {
   encryptionStatus?: string | null
   // Shown while the database isn't encrypted
   onEncrypt?: (() => void) | null
+  // Shown while the database is encrypted
+  onDecrypt?: (() => void) | null
 }
 
 export function NotesHeader({
@@ -26,6 +28,7 @@ export function NotesHeader({
   syncStatus,
   encryptionStatus,
   onEncrypt,
+  onDecrypt,
 }: NotesHeaderProps) {
   const insets = useScreenInsets()
 
@@ -63,6 +66,16 @@ export function NotesHeader({
               hitSlop={8}
             >
               <Text style={styles.encryptButton}>Encrypt</Text>
+            </Pressable>
+          ) : null}
+          {onDecrypt ? (
+            <Pressable
+              onPress={onDecrypt}
+              testID="decrypt-button"
+              accessibilityRole="button"
+              hitSlop={8}
+            >
+              <Text style={styles.encryptButton}>Decrypt</Text>
             </Pressable>
           ) : null}
         </View>
