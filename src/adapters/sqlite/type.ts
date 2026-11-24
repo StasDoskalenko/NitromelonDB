@@ -82,8 +82,9 @@ export type SQLiteAdapterOptions = {
   // Browser-only wa-sqlite configuration. Expo Metro uses the packaged worker and
   // WASM asset automatically; these hooks support custom asset hosting/bundlers.
   web?: SQLiteWebOptions | undefined
-  // (iOS, Android, Windows) Encrypts the database (SQLCipher 4 format). Needs the encryption build:
-  // "nitromelondb": { "encryption": true } in the app's package.json. See docs/Advanced/Encryption.
+  // Encrypts the database (SQLCipher 4 format). Needs the encryption build: "nitromelondb":
+  // { "encryption": true } in the app's package.json (on Node and Electron,
+  // better-sqlite3-multiple-ciphers installed). See docs/Advanced/Encryption.
   encryption?: EncryptionOptions | undefined
 }
 

@@ -112,6 +112,36 @@ static void writeFile(const std::string &path, const char *bytes, size_t size) {
     std::fclose(file);
 }
 
+// A copy of native/tests/fixtures/<name> at a temp path
+[[maybe_unused]] static std::string copyFixture(const char *name) {
+    std::string source = __FILE__;
+    source = source.substr(0, source.find_last_of('/')) + "/fixtures/" + name;
+    std::string path = tempPath(name);
+    FILE *in = std::fopen(source.c_str(), "rb");
+    CHECK(in != nullptr);
+    std::vector<char> bytes;
+    if (in) {
+        char buffer[4096];
+        size_t read;
+        while ((read = std::fread(buffer, 1, sizeof(buffer), in)) > 0) {
+            bytes.insert(bytes.end(), buffer, buffer + read);
+        }
+        std::fclose(in);
+    }
+    writeFile(path, bytes.data(), bytes.size());
+    return path;
+}
+
+[[maybe_unused]] static std::vector<unsigned char> readBytes(const std::string &path, size_t count) {
+    std::vector<unsigned char> bytes(count, 0);
+    FILE *in = std::fopen(path.c_str(), "rb");
+    if (in) {
+        bytes.resize(std::fread(bytes.data(), 1, count, in));
+        std::fclose(in);
+    }
+    return bytes;
+}
+
 static void probes() {
     std::string path = tempPath("probe");
     CHECK(probeFile(path) == FileState::Missing);
@@ -157,9 +187,16 @@ static void opensNewEncryptedDatabase() {
     CHECK(tryOpen(path, "correct horse", false, &db, &encrypted) == "");
     CHECK(encrypted);
     CHECK(scalar(db, "pragma temp_store") == "2"); // memory
+    CHECK(scalar(db, "pragma secure_delete") == "1"); // as SQLCipher
     CHECK(exec(db, "pragma journal_mode = wal; create table t (v); insert into t values ('secret');") == SQLITE_OK);
     sqlite3_close(db);
     CHECK(probeFile(path) == FileState::Encrypted);
+    // SQLCipher 4's layout: page 1 is encrypted from byte 16 on, so the page size (bytes 16-17), file
+    // format versions (18-19) and reserved bytes (20) of a plain header aren't readable. sqlite3mc's
+    // own layout ("legacy" 0) would leave them, and SQLCipher couldn't open the file
+    std::vector<unsigned char> header = readBytes(path, 24);
+    CHECK(header.size() == 24);
+    CHECK(!(header[16] == 0x10 && header[17] == 0x00 && header[18] == 1 && header[19] == 1 && header[20] == 80));
 
     CHECK(tryOpen(path, "correct horse", false, &db, &encrypted) == "");
     CHECK(encrypted);
@@ -206,6 +243,7 @@ static void plaintextDatabaseNeedsOptIn() {
     CHECK(tryOpen(path, "key", true, &db, &encrypted) == "");
     CHECK(!encrypted);
     CHECK(scalar(db, "select v from t") == "kept");
+    CHECK(scalar(db, "pragma secure_delete") == "0"); // a plain database is set up as always
     sqlite3_close(db);
 
     // Without a passphrase it's just a database
@@ -225,6 +263,7 @@ static void rekeysFromWal() {
     CHECK(!rekey(db, path, "", "k1"));
     CHECK(scalar(db, "pragma journal_mode") == "wal");
     CHECK(scalar(db, "pragma temp_store") == "2");
+    CHECK(scalar(db, "pragma secure_delete") == "1");
     CHECK(scalar(db, "select v from t") == "kept");
     CHECK(exec(db, "insert into t values ('after')") == SQLITE_OK);
     sqlite3_close(db);
@@ -338,28 +377,28 @@ static const Direction kDirections[] = {{"encrypt", "", "k1"}, {"change key", "k
 // fixtures/node-encrypted-k1.db was written there with passphrase "k1". The Node tests read a file
 // written here (src/adapters/sqlite/sqlite-node/__tests__/fixtures/native-encrypted-k1.db)
 static void readsNodeAdapterDatabase() {
-    std::string source = __FILE__;
-    source = source.substr(0, source.find_last_of('/')) + "/fixtures/node-encrypted-k1.db";
-    std::string path = tempPath("node");
-    {
-        FILE *in = std::fopen(source.c_str(), "rb");
-        CHECK(in != nullptr);
-        if (!in) {
-            return;
-        }
-        std::vector<char> bytes;
-        char buffer[4096];
-        size_t read;
-        while ((read = std::fread(buffer, 1, sizeof(buffer), in)) > 0) {
-            bytes.insert(bytes.end(), buffer, buffer + read);
-        }
-        std::fclose(in);
-        writeFile(path, bytes.data(), bytes.size());
-    }
+    std::string path = copyFixture("node-encrypted-k1.db");
     sqlite3 *db = nullptr;
     CHECK(tryOpen(path, "k2", false, &db) == "encryption_key_invalid");
     CHECK(tryOpen(path, "k1", false, &db) == "");
     CHECK(scalar(db, "select v from t") == "from node");
+    sqlite3_close(db);
+    removeDatabase(path);
+}
+
+// A database written by SQLCipher 4.0 itself (fixtures/README.md): the file SQLCipher's own
+// compatibility test opens, with the same passphrase and the same expected row count. Proves the
+// format is SQLCipher's, not only sqlite3mc's
+static void readsSqlcipher4Database() {
+    std::string path = copyFixture("sqlcipher-4.0-testkey.db");
+    sqlite3 *db = nullptr;
+    CHECK(tryOpen(path, "wrong", false, &db) == "encryption_key_invalid");
+    CHECK(tryOpen(path, "", false, &db) == "encryption_key_required");
+    bool encrypted = false;
+    CHECK(tryOpen(path, "testkey", false, &db, &encrypted) == "");
+    CHECK(encrypted);
+    CHECK(scalar(db, "select count(*) from t1") == "78536");
+    CHECK(scalar(db, "pragma integrity_check") == "ok");
     sqlite3_close(db);
     removeDatabase(path);
 }
@@ -641,6 +680,7 @@ int main() {
     resetKeepsEncryption();
     rekeyRefusedWhileAnotherConnectionIsOpen();
     readsNodeAdapterDatabase();
+    readsSqlcipher4Database();
     crashesAtCommit();
     survivesKillDuringRekey();
 #else

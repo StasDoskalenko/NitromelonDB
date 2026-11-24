@@ -77,10 +77,15 @@ export class EncryptionError extends Error {
 }
 
 // The cipher settings of the native encryption build (NitromelonSqliteConfig.h): sqlite3mc's
-// SQLCipher scheme with its defaults. better-sqlite3-multiple-ciphers defaults to another cipher
-// (ChaCha20), so every connection sets it, keyed or not (a re-key of a plain database uses it).
-// `legacy = 0` is sqlite3mc's default for the scheme, which the native build uses.
-const CIPHER_SQL = "pragma cipher = 'sqlcipher'; pragma legacy = 0;"
+// SQLCipher scheme in SQLCipher 4's own file layout (`legacy = 4`), which SQLCipher and its tools
+// read. better-sqlite3-multiple-ciphers defaults to another cipher (ChaCha20), so every connection
+// sets it, keyed or not (a re-key of a plain database uses it).
+const CIPHER_SQL = "pragma cipher = 'sqlcipher'; pragma legacy = 4;"
+
+// Every keyed connection, as natively (kKeyedConnectionSql in SqliteEncryption.cpp): temp files
+// stay in memory (they aren't encrypted), and deleted content is zeroed (secure_delete, on by
+// default in SQLCipher)
+const KEYED_SQL = 'pragma temp_store = memory; pragma secure_delete = on;'
 
 const PLAIN_HEADER = 'SQLite format 3\0'
 const JOURNAL_MAGIC = [0xd9, 0xd5, 0x05, 0xf9, 0x20, 0xa1, 0x63, 0xd7]
@@ -333,8 +338,7 @@ export class NodeEncryption {
       }
       throw new Error(`Couldn't read the encrypted database: ${errorMessage(error)}`)
     }
-    // Temp files (big sorts, index builds, vacuum) are not encrypted: keep them in memory
-    db.exec('pragma temp_store = memory')
+    db.exec(KEYED_SQL)
     return true
   }
 
@@ -409,7 +413,7 @@ export class NodeEncryption {
         `Couldn't change the encryption key: ${errorMessage(failure)}. The database keeps its previous key.`,
       )
     }
-    db.exec('pragma temp_store = memory')
+    db.exec(KEYED_SQL)
     return db
   }
 

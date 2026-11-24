@@ -114,6 +114,11 @@ void removeDatabaseFiles(const std::string &path) {
 
 const int kOpenFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_URI;
 
+// Every keyed connection, as SQLCipher sets up its own: temp files (big sorts, index builds, vacuum)
+// aren't encrypted, so they stay in memory; and deleted content is zeroed rather than left in free
+// pages (secure_delete, on by default in SQLCipher since 2.0.5)
+const char *const kKeyedConnectionSql = "pragma temp_store = memory; pragma secure_delete = on;";
+
 // Without a trailing period, so it can go in the middle of a sentence
 std::string errorMessage(sqlite3 *db) {
     const char *message = db ? sqlite3_errmsg(db) : nullptr;
@@ -262,7 +267,7 @@ sqlite3 *openKeyed(const std::string &resolvedPath, const std::string &passphras
     }
     if (!passphrase.empty()) {
         sqlite3_key_v2(db, "main", passphrase.data(), static_cast<int>(passphrase.size()));
-        exec(db, "pragma temp_store = memory");
+        exec(db, kKeyedConnectionSql);
     }
     return db;
 }
@@ -447,8 +452,7 @@ bool openWithKey(sqlite3 *db, FileState state, const std::string &passphrase, bo
     if (result != SQLITE_OK) {
         throw std::runtime_error("Couldn't read the encrypted database: " + errorMessage(db));
     }
-    // Temp files (big sorts, index builds, vacuum) are not encrypted: keep them in memory
-    exec(db, "pragma temp_store = memory");
+    exec(db, kKeyedConnectionSql);
     return true;
 #else
     (void)db;
@@ -481,7 +485,7 @@ void rekey(sqlite3 *&db, const std::string &resolvedPath, const std::string &cur
         throw EncryptionError("rekey_failed",
                               "Couldn't change the encryption key: " + error + ". The database keeps its previous key.");
     }
-    exec(db, "pragma temp_store = memory");
+    exec(db, kKeyedConnectionSql);
 #else
     (void)db;
     (void)resolvedPath;

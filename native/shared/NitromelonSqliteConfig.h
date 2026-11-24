@@ -69,12 +69,20 @@
 
 // ---- Ciphers ----
 //
-// Only the SQLCipher-compatible scheme is compiled in, and it is the default for new keys, so
-// encrypted databases stay readable by standard SQLCipher (v4) tooling. All of it is standard,
-// published cryptography: AES-256-CBC, HMAC-SHA512, PBKDF2-HMAC-SHA512. A database with no key is
-// a plain SQLite file, byte for byte.
+// Only the SQLCipher scheme is compiled in, and it is the default for new keys. All of it is
+// standard, published cryptography: AES-256-CBC, HMAC-SHA512, PBKDF2-HMAC-SHA512. A database with
+// no key is a plain SQLite file, byte for byte.
 #ifndef CODEC_TYPE
 #define CODEC_TYPE CODEC_TYPE_SQLCIPHER
+#endif
+// In SQLCipher 4's own file layout ("legacy" 4), so that SQLCipher itself, its tools (the sqlcipher
+// shell, DB Browser for SQLite) and the libraries built on it (Room/SQLCipher for Android,
+// expo-sqlite's useSQLCipher, op-sqlite's sqlcipher) read our databases, and we read theirs.
+// sqlite3mc's default layout (legacy 0) keeps bytes 16-23 of page 1 unencrypted, which SQLCipher
+// can't open. native/tests/SqliteEncryptionTest.cpp opens a database made by SQLCipher 4 (from
+// its own test suite) to keep it that way. sqlite-node/encryption.ts sets the same on Node.
+#ifndef SQLITE3MC_USE_SQLCIPHER_LEGACY
+#define SQLITE3MC_USE_SQLCIPHER_LEGACY 1
 #endif
 #ifndef HAVE_CIPHER_SQLCIPHER
 #define HAVE_CIPHER_SQLCIPHER 1
