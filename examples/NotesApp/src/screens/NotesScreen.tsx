@@ -133,6 +133,8 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
       return
     }
     syncInFlight.current = true
+    // A sync that fails hasn't synced: offer Turbo Login again if it was offered (either button)
+    const offeredTurbo = canTurboSync
     setCanTurboSync(false)
     setSyncStatus('Syncing…')
     try {
@@ -140,7 +142,7 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
       syncCount.current += 1
       setSyncStatus(`Synced (${syncCount.current})`)
     } catch (syncError) {
-      setCanTurboSync(turbo)
+      setCanTurboSync(offeredTurbo)
       setSyncStatus(
         `Sync failed: ${syncError instanceof Error ? syncError.message : String(syncError)}`,
       )
