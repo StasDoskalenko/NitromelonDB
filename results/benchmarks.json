@@ -5091,5 +5091,26 @@
         "stress": 5
       }
     }
+  },
+  {
+    "sha": "235204e9259ca6f85f1734c2df46c862fa343fec",
+    "date": "2026-11-24T02:55:38.219Z",
+    "prNumber": 258,
+    "subject": "example: add a Decrypt button to NotesApp (encryption build) (#258)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 20.2,
+      "ram": 179,
+      "fps": 55
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 19.6,
+      "ram": 179,
+      "fps": 55.2
+    }
   }
 ]
