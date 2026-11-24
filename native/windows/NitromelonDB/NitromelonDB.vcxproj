@@ -193,6 +193,9 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <CompileAs>CompileAsC</CompileAs>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <!-- sqlite3mc uses strcpy/strncpy/strcat/sprintf; /sdl promotes C4996 to an error. Vendored file, so silence it here. -->
+      <DisableSpecificWarnings>4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <SDLCheck>false</SDLCheck>
       <ForcedIncludeFiles />
     </ClCompile>
     <ClCompile Include="$(NitromelonNativeDir)vendor\simdjson\simdjson.cpp">
