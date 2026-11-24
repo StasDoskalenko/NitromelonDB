@@ -10,7 +10,8 @@ type NotesHeaderProps = {
   onLongPressTitle?: () => void
   // Syncs with examples/sync-server (src/sync.ts, maestro/sync.yaml)
   onSync?: () => void
-  // Turbo Login, shown until the first sync (src/sync.ts, maestro-encryption/9-turbo-sync.yaml)
+  // Turbo Login, shown before the first sync while there are no notes (src/sync.ts,
+  // maestro-encryption/9-turbo-sync.yaml)
   onTurboSync?: (() => void) | null
   syncStatus?: string | null
   // Encryption build only (maestro-encryption/): "Encrypted", "Not encrypted", ...
