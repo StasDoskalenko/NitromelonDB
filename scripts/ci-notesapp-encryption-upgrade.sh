@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Upgrades a NotesApp install from the plain build to the encryption build on one simulator or
-# emulator, and encrypts its database in place: the path an app takes when it adds encryption to a
-# version that didn't have it. Between Maestro flows (examples/NotesApp/maestro-encryption,
-# README.md there), it copies the database files out of the app's data folder to check what's
-# really on disk:
+# Upgrades a NotesApp install from the plain build to the encryption build on one simulator,
+# emulator or Windows machine, and encrypts its database in place: the path an app takes when it
+# adds encryption to a version that didn't have it. Between UI flows (Maestro:
+# examples/NotesApp/maestro-encryption, README.md there; Windows: the same flows as WinAppDriver
+# tests, examples/NotesApp_windows/e2e-encryption), it copies the database files out of the app's
+# data folder to check what's really on disk:
 #
 #   1 plain build, fresh install, adds "Upgrade marker"   -> plain SQLite file, marker readable
 #   2 encryption build over it: opens it unencrypted       -> unchanged
@@ -15,15 +16,18 @@
 # Usage:
 #   bash scripts/ci-notesapp-encryption-upgrade.sh ios <NotesApp.app.zip> <NotesApp-encryption.app.zip>
 #   bash scripts/ci-notesapp-encryption-upgrade.sh android <notesapp-release.apk> <notesapp-release-encryption.apk>
+#   bash scripts/ci-notesapp-encryption-upgrade.sh windows <plain AppX folder> <encryption AppX folder>
 #
 # iOS: a booted simulator (SIM_UDID, else this picks and boots one). Android: one running emulator
 # whose image allows `adb root` (the default and google_apis images do, google_play ones don't): the
 # APKs are Release builds, so `run-as` can't read the app's files. ci.yml runs the Android one
-# through android-emulator-runner, which needs it to be one command.
+# through android-emulator-runner, which needs it to be one command. Windows (Git Bash): copies of
+# each Release build's windows/NitromelonWindows.Package/bin/x64/Release/AppX, and WinAppDriver (as
+# for the e2e); it removes the installed NitromelonWindows package and its data first.
 set -euo pipefail
 
-if [ $# -ne 3 ] || { [ "$1" != ios ] && [ "$1" != android ]; }; then
-  echo "Usage: $0 ios|android <plain build> <encryption build>" >&2
+if [ $# -ne 3 ] || { [ "$1" != ios ] && [ "$1" != android ] && [ "$1" != windows ]; }; then
+  echo "Usage: $0 ios|android|windows <plain build> <encryption build>" >&2
   exit 2
 fi
 PLATFORM=$1
@@ -84,6 +88,46 @@ if [ "$PLATFORM" = ios ]; then
     path="$(xcrun simctl get_app_container "$SIM_UDID" "$APP_ID" data)/Documents/$DB_NAME"
     for suffix in "" -wal -journal; do
       if [ -f "$path$suffix" ]; then cp "$path$suffix" "$1/$DB_NAME$suffix"; fi
+    done
+  }
+elif [ "$PLATFORM" = windows ]; then
+  # The two builds share one AppX identity, so installing one over the other is: unregister the
+  # package keeping its data (-PreserveApplicationData, allowed for a package registered from a
+  # folder), then register the other build's folder. LocalState stays, like `adb install -r`.
+  # DatabasePlatformWindows.cpp: the app's LocalFolder, no extension
+  DB_NAME=nitromelon-windows
+  APP_PACKAGE=NitromelonWindows
+
+  # Windows PowerShell has the Appx module built in (PowerShell 7 needs -UseWindowsPowerShell for it)
+  winps() {
+    powershell.exe -NoProfile -NonInteractive -Command "$1" | tr -d '\r'
+  }
+  prepare() {
+    # A fresh install, like the first flow's clearState on iOS/Android: no package, no data
+    stop_app
+    winps "Get-AppxPackage -Name $APP_PACKAGE | Remove-AppxPackage"
+  }
+  # No `strings` in Git Bash
+  codec_strings() {
+    tr -c '[:print:]' '\n' <"$1/NitromelonWindows/NitromelonDB.dll"
+  }
+  install() {
+    echo "--- Installing the $1 build"
+    stop_app
+    winps "\$p = Get-AppxPackage -Name $APP_PACKAGE
+      if (\$p) { Remove-AppxPackage -Package \$p.PackageFullName -PreserveApplicationData }
+      Add-AppxPackage -Register '$(cygpath -w "$2")\\AppxManifest.xml'"
+  }
+  stop_app() {
+    taskkill //IM NitromelonWindows.exe //F >/dev/null 2>&1 || true
+    # Until the process has let go of the database files
+    sleep 2
+  }
+  pull_db() {
+    local dir suffix
+    dir="$(cygpath -u "$LOCALAPPDATA")/Packages/$(winps "(Get-AppxPackage -Name $APP_PACKAGE).PackageFamilyName")/LocalState"
+    for suffix in "" -wal -journal; do
+      if [ -f "$dir/$DB_NAME$suffix" ]; then cp "$dir/$DB_NAME$suffix" "$1/$DB_NAME$suffix"; fi
     done
   }
 else
@@ -181,11 +225,23 @@ check_db() {
   fi
 }
 
-# Of the copies check_db just pulled
+# Of the copies check_db just pulled. The WAL only if there is one (on Windows there may be none),
+# since under pipefail a missing file would end the script without a word.
 db_checksum() {
-  cat "$WORK/db/$DB_NAME" "$WORK/db/$DB_NAME-wal" 2>/dev/null | shasum -a 256 | cut -d' ' -f1
+  local files=("$WORK/db/$DB_NAME")
+  if [ -f "$WORK/db/$DB_NAME-wal" ]; then files+=("$WORK/db/$DB_NAME-wal"); fi
+  cat "${files[@]}" | shasum -a 256 | cut -d' ' -f1
 }
 
+if [ "$PLATFORM" = windows ]; then
+  cd "$ROOT/examples/NotesApp_windows"
+  # run_flow <name>: one test from e2e-encryption/. On failure, e2e/environment.js saves a
+  # screenshot and the UI tree to .tmp/diagnostics, uploaded by the workflow.
+  run_flow() {
+    echo "--- Flow $1"
+    yarn jest --config jest.e2e-encryption.config.js --forceExit "e2e-encryption/$1.test.js"
+  }
+else
 # Screenshots + logs of every flow, uploaded by the workflow when this fails
 DEBUG_ROOT="${GITHUB_WORKSPACE:-$PWD}/maestro-debug"
 OUTPUT_LOG="$WORK/maestro-output.log"
@@ -211,6 +267,7 @@ run_flow() {
   done
   return 1
 }
+fi
 
 install plain "$PLAIN_BUILD"
 run_flow 1-plain-install

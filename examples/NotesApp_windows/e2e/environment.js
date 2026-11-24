@@ -45,8 +45,20 @@ async function listTopLevelWindows(remote) {
 }
 
 class NotesAppEnvironment extends AutomationEnvironment {
+  constructor(config, context) {
+    super(config, context)
+    // e2e-encryption/ (jest.e2e-encryption.config.js): each file is one step of an upgrade, run
+    // against the database the previous step left, so don't wipe LocalState
+    this.keepAppState = Boolean(config.projectConfig?.testEnvironmentOptions?.keepAppState)
+  }
+
   async setup() {
-    prepareFreshLaunch()
+    if (this.keepAppState) {
+      killWinAppDriver()
+      killApp()
+    } else {
+      prepareFreshLaunch()
+    }
     await super.setup()
     // Bare `global` here is the Jest worker process's own global, not the
     // per-test-file sandboxed one — this class runs outside that sandbox.
