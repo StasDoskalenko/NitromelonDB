@@ -230,7 +230,12 @@ check_db() {
 db_checksum() {
   local files=("$WORK/db/$DB_NAME")
   if [ -f "$WORK/db/$DB_NAME-wal" ]; then files+=("$WORK/db/$DB_NAME-wal"); fi
-  cat "${files[@]}" | shasum -a 256 | cut -d' ' -f1
+  # sha256sum on Linux and in Git Bash (whose PATH on the runner has no shasum), shasum on macOS
+  if command -v sha256sum >/dev/null; then
+    cat "${files[@]}" | sha256sum | cut -d' ' -f1
+  else
+    cat "${files[@]}" | shasum -a 256 | cut -d' ' -f1
+  fi
 }
 
 if [ "$PLATFORM" = windows ]; then
