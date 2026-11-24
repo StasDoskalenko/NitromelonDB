@@ -1,6 +1,6 @@
 # SQLCipher-compatible database encryption
 
-**Status:** In progress, not released yet (as of 2026-11-23). Steps 2-4 of the rollout (the opt-in encryption build, native keying, the JS API) are merged (#249, #250), with most of step 6's docs. The upgrade path (plain build → encryption build → encrypt in place) is tested on a device in CI on iOS, Android and Windows (#256-#259), and a reset keeps an encrypted database encrypted (`SqliteEncryptionTest`). Nothing blocks the first release (`0.33.0-alpha.0`); the remaining gaps are in [What's left](#whats-left). Progress heartbeats and step 5 (Node) are not started. Where the implementation differs from the design below, it says so in *Implemented:* notes. User docs: [`Advanced/Encryption.md`](../../docs-website/docs/docs/Advanced/Encryption.md).
+**Status:** In progress, not released yet (as of 2026-11-23). Steps 2-4 of the rollout (the opt-in encryption build, native keying, the JS API) are merged (#249, #250), with most of step 6's docs. The upgrade path (plain build → encryption build → encrypt in place) is tested on a device in CI on iOS, Android and Windows (#256-#259), and a reset keeps an encrypted database encrypted (`SqliteEncryptionTest`). Nothing blocks the first release (`0.33.0-alpha.0`); the remaining gaps are in [What's left](#whats-left). Step 5 (Node/Electron, with a real Jest suite) is implemented; progress heartbeats are not started. **Before the release, decide the file format** (see [Risks](#risks-and-things-to-verify), "SQLCipher tool compatibility"). Where the implementation differs from the design below, it says so in *Implemented:* notes. User docs: [`Advanced/Encryption.md`](../../docs-website/docs/docs/Advanced/Encryption.md).
 
 This is the plan of record for #60. It supersedes `plans/database-encryption.md` (Zetetic SQLCipher with export-and-swap), whose safety requirements are folded in below under [Safety requirements](#safety-requirements).
 
@@ -323,6 +323,15 @@ This is non-breaking for existing Node/Electron users and has an outsized payoff
 
 Thread the passphrase through `DatabaseDriver.init`, `DatabaseBridge.initialize`, and `nodeDispatcher`, applying `pragma cipher='sqlcipher'` then `pragma key=...` on open. The encryption-state probe is a plain `fs` read of the first 16 bytes.
 
+*Implemented* in [`sqlite-node/encryption.ts`](../../src/adapters/sqlite/sqlite-node/encryption.ts), a port of `SqliteEncryption.cpp` (same error codes and messages, interrupted re-key recovery, leftover decrypt copy removed on open), with `better-sqlite3-multiple-ciphers` 13.2 (sqlite3mc 2.7.1, SQLite 3.54.1, as natively) as a devDependency. Differences from the design and from native:
+
+- The key goes through better-sqlite3-multiple-ciphers' `key()` / `rekey()`, not `pragma key`, so it never is SQL text. Every connection sets `cipher = 'sqlcipher'` and `legacy = 0` (the package defaults to ChaCha20), keyed or not.
+- **Decrypt by copy without URI filenames:** better-sqlite3 has none, so native's `VACUUM INTO 'file:...?key='` can't write a plain copy. Node writes `VACUUM INTO <copy>` (encrypted with the current key), decrypts the copy in place with `rekey('')`, syncs it, then renames it over the database. If that's cut off, only the copy is lost; the next open deletes it.
+- **No WAL on Node**, so SQLite doesn't refuse a re-key while another connection is open. `DatabaseBridge.changeEncryptionKey` refuses (`rekey_failed`) when another connection in the same process has the same file open; other processes aren't detected (documented).
+- **A file that isn't plain SQLite, opened without a passphrase**, is `encryption_key_required` (never touched) only with the cipher package installed. With plain `better-sqlite3` it stays a damaged database that `unsafeResetDatabase()` recreates, as on Node before: native's rule would have broken corruption recovery for every Node app. The Node tests of that recovery (`corruption`, `unsafeDestroyEverything`, `unsafeResetDatabase`) mock the cipher package away.
+- `SQLiteAdapter` allows `encryption` on Node when `isEncryptionAvailable()`; without the package it throws `encryption_unavailable` naming it.
+- **Tests:** `sqlite-node/__tests__/encryption.test.js` runs `SQLiteAdapter` + `Database` against real files (create, wrong/missing key leaving the file unchanged, `ifUnencrypted`, encrypt / re-key / decrypt with events, reset, the in-process connection check, in-memory, leftover copy, the plain-package fallback). Format parity both ways: Node opens `__tests__/fixtures/native-encrypted-k1.db` (written by the native build), and `SqliteEncryptionTest` opens `native/tests/fixtures/node-encrypted-k1.db` (written by Node).
+
 ## Safety requirements
 
 Carried over from the superseded `plans/database-encryption.md`, which drew them from the four-year comment thread on Nozbe#1635. Each one is a test, not just a guideline.
@@ -344,6 +353,8 @@ Carried over from the superseded `plans/database-encryption.md`, which drew them
 
 ## Risks and things to verify
 
+- **SQLCipher tool compatibility (decide before the first release).** sqlite3mc's SQLCipher scheme with `legacy = 0` (its default, which the native build and Node use) starts encrypting page 1 at byte 24 and keeps bytes 16-23 (page size, reserved bytes) in plaintext; with `legacy = 4` (or `SQLITE3MC_USE_SQLCIPHER_LEGACY`) it starts at byte 16, as SQLCipher itself does (`cipher_sqlcipher.c`: `offset = (m_legacy != 0) ? 16 : 24`), and the page-1 HMAC covers a different range. So today's files almost certainly don't open in SQLCipher 4 tools (the `sqlcipher` shell, DB Browser), although `Advanced/Encryption.md` says they do. Not yet checked against real SQLCipher. Nothing is released, so either: switch both engines to `legacy = 4` now (one define natively, one pragma on Node, regenerate the two fixtures), or keep sqlite3mc's layout and correct the docs.
+
 - **The Windows encryption build.** *Done:* it compiles (#256: C4996 and SDL checks off for the vendored `NitromelonSqlite.c` only), and the `Windows NotesApp (encryption upgrade)` CI job runs the same six upgrade steps as iOS and Android (#259). The `_WIN32` file code is exercised by that job and by decrypt checked by hand (#258); it has no native unit tests (W4 in [Windows handoff](#windows-handoff)).
 - **Encrypting needs temp space.** sqlite3mc vacuums when the reserved bytes per page change (plain → SQLCipher). Encrypting starts from an unkeyed connection, so the vacuum's temp copy goes to the temp directory (plaintext, as the source was). Decrypting writes its copy next to the database instead.
 - **iOS symbol collision** with a system `libsqlite3` pulled in by another pod (encryption build). Mitigated by dispatch-table mode (see [Symbol isolation](#symbol-isolation)) and enforced by the `nm` check in `yarn test:native-unit`. This is the exact failure reported against Nozbe#1635.
@@ -360,7 +371,7 @@ Carried over from the superseded `plans/database-encryption.md`, which drew them
 2. ~~Opt-in encryption build: vendor script, build switch, symbol isolation, build wiring for the three platforms, docs page. No API change; the default build is unchanged.~~ *(implemented)*
 3. ~~Native encryption: open path, off-thread rekey, Nitro spec, regenerated bindings.~~ *(implemented; no progress callback yet)*
 4. ~~JS surface: `encryption` option, deferred dispatcher, state checks, `unsafe_EncryptDB` / `unsafe_DecryptDB`.~~ *(implemented)*
-5. Node adapter and the jest suite.
+5. ~~Node adapter and the jest suite.~~ *(implemented; see the Node adapter section)*
 6. Docs: `Advanced/Encryption.md` exists (why opt-in, setup, verification, export compliance, the passphrase API, migration, key custody). Update `Setup.md` and `Implementation/DatabaseAdapters.md`; mark SQLCipher done in `README.md` and `Roadmap.md`.
 
 ## What's left
@@ -382,7 +393,7 @@ As of 2026-11-23. Nothing with encryption is on npm yet: the first release is pl
 
 ### Then (rollout steps still open)
 
-8. **Step 5: Node/Electron** through `better-sqlite3-multiple-ciphers` (see [Node adapter](#node-adapter)). Its bigger payoff is the jest suite: [`encryption.test.js`](../../src/adapters/sqlite/__tests__/encryption.test.js) mocks the native dispatcher today; with Node encrypting for real, the [Testing](#testing) cases (round trips, wrong key, reset, ordering, `ifUnencrypted`) run against a real encrypted file in `yarn test`, including on `ci-check-windows`.
+8. ~~**Step 5: Node/Electron**~~ through `better-sqlite3-multiple-ciphers` (see [Node adapter](#node-adapter)). Its bigger payoff is the jest suite: [`encryption.test.js`](../../src/adapters/sqlite/__tests__/encryption.test.js) mocks the native dispatcher today; with Node encrypting for real, the [Testing](#testing) cases (round trips, wrong key, reset, ordering, `ifUnencrypted`) run against a real encrypted file in `yarn test`, including on `ci-check-windows`. *Done:* see the *Implemented:* note in [Node adapter](#node-adapter).
 9. **`onProgress` heartbeat** through `sqlite3_progress_handler` while the re-key runs off the JS thread (see [Rekey](#rekey-off-the-js-thread)). `onStart`/`onSuccess`/`onError` exist.
 10. **Benchmarks** of a keyed database vs the default build (open cost from PBKDF2, read/write throughput), published on the docs page, which says today that we have none.
 

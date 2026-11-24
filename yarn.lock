@@ -3960,6 +3960,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"better-sqlite3-multiple-ciphers@npm:^13.2.0":
+  version: 13.2.0
+  resolution: "better-sqlite3-multiple-ciphers@npm:13.2.0"
+  dependencies:
+    node-addon-api: "npm:^8.0.0"
+    node-gyp: "npm:latest"
+  checksum: 10c0/6cbc0fb511c309826ff09f7ee0a4b5689282724a91abd03453602d42b3fe7d474830a927d0c1b019a1b81e373b8cfa8c5bd11f7cbbac3ed9a821388aff5eeeb9
+  languageName: node
+  linkType: hard
+
 "better-sqlite3@npm:^13.0.3":
   version: 13.0.3
   resolution: "better-sqlite3@npm:13.0.3"
@@ -8644,6 +8654,7 @@ __metadata:
     babel-plugin-minify-guarded-expressions: "npm:^0.4.4"
     babel-plugin-minify-replace: "npm:^0.5.0"
     better-sqlite3: "npm:^13.0.3"
+    better-sqlite3-multiple-ciphers: "npm:^13.2.0"
     big-list-of-naughty-strings: "https://github.com/radex/big-list-of-naughty-strings#8346238a82f1e3a6f62389def1e668d80e4023fb"
     cavy: "git+https://github.com/Nozbe/cavy.git"
     chokidar: "npm:^3.6.0"

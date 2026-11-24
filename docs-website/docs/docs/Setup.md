@@ -62,7 +62,8 @@ const adapter = new SQLiteAdapter({
   // Recommended for new apps: faster number comparisons and sorting. Adding it to an existing app?
   // Check its raw SQL first -- see Performance
   storeWholeNumbersAsIntegers: true,
-  // (optional, iOS/Android/Windows) open an encrypted database. Needs the encryption build -- see
+  // (optional) open an encrypted database. Needs the encryption build (on Node,
+  // better-sqlite3-multiple-ciphers) -- see
   // Advanced: Encryption
   // encryption: { passphrase: () => readPassphraseFromKeychain() },
   // (optional, but you should implement this method)
@@ -96,7 +97,7 @@ const database = new Database({
 
 `storeWholeNumbersAsIntegers` stores whole numbers as SQLite `INTEGER` instead of `REAL`, which SQLite compares and sorts faster. Queries built with `Q`, models and sync work the same either way, but raw SQL can see the difference (for example, `/` divides integers as integers). For an existing app, follow [Performance](./Advanced/Performance.md) to check its raw SQL before turning it on; data already stored converts in the background.
 
-To encrypt the database, see [Encryption](./Advanced/Encryption.md): it's an opt-in build (one line in your app's `package.json`), then the `encryption` option above. Not yet on Node.js or Electron.
+To encrypt the database, see [Encryption](./Advanced/Encryption.md): it's an opt-in build (one line in your app's `package.json`), then the `encryption` option above. On Node.js and Electron, install `better-sqlite3-multiple-ciphers` instead (see [Encryption](./Advanced/Encryption.md#nodejs-and-electron)).
 
 ## Database initialization
 

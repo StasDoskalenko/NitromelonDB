@@ -25,7 +25,8 @@ Supported frameworks:
     - Nitro HybridObject (iOS, Android, and Windows)
   - Encryption (opt-in build, SQLCipher 4 format through SQLite3 Multiple Ciphers): iOS, Android and Windows. See [Encryption](../Advanced/Encryption.md)
 - NodeJS
-  - via `better-sqlite3` - contributed by Sid Ferreira (no encryption yet)
+  - via `better-sqlite3` - contributed by Sid Ferreira
+  - Encryption: with `better-sqlite3-multiple-ciphers` installed instead. See [Encryption](../Advanced/Encryption.md#nodejs-and-electron)
 
 ### LokiJS
 

@@ -197,6 +197,11 @@ export function isEncryptionAvailable(): boolean {
   )
 }
 
+// SQLiteAdapter says how to turn on the native build itself
+export function encryptionUnavailableHint(): string {
+  return ''
+}
+
 export function getDatabaseEncryptionState(dbName: string): DatabaseEncryptionState {
   const nitro = nitromelonOrNull()
   invariant(

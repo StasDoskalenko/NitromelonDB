@@ -1,4 +1,5 @@
 import DatabaseDriver from './DatabaseDriver'
+import { EncryptionError, filePath, type EncryptionConfig } from './encryption'
 import type { InitializeStatus, NativeBridgeBatchOperation, SQLiteArg } from '../type'
 
 type Connection = {
@@ -24,6 +25,21 @@ class DatabaseBridge {
 
   // Tags of adapters created with storeWholeNumbersAsIntegers
   wholeNumbersAsIntegers: Set<number> = new Set()
+
+  // Passphrase and ifUnencrypted of adapters created with `encryption`
+  encryption: Map<number, EncryptionConfig> = new Map()
+
+  setEncryption(tag: number, config: EncryptionConfig | null): void {
+    if (config?.passphrase) {
+      this.encryption.set(tag, { ...config })
+    } else {
+      this.encryption.delete(tag)
+    }
+  }
+
+  newDriver(tag: number): DatabaseDriver {
+    return new DatabaseDriver(this.encryption.get(tag))
+  }
 
   setStoreWholeNumbersAsIntegers(tag: number, enabled: boolean): void {
     if (enabled) {
@@ -71,7 +87,7 @@ class DatabaseBridge {
     let driver: DatabaseDriver | undefined
     try {
       this.assertNoConnection(tag)
-      driver = new DatabaseDriver()
+      driver = this.newDriver(tag)
       driver.initialize(databaseName, schemaVersion)
       this.connected(tag, driver)
 
@@ -107,7 +123,7 @@ class DatabaseBridge {
       // once the waiting handle is closed. Shared memory must stay open until the
       // replacement driver has acquired its own reference.
       if (!preserveSharedDatabase) waitingDriver?.close()
-      driver = new DatabaseDriver()
+      driver = this.newDriver(tag)
       driver.setUpWithSchema(databaseName, schema, schemaVersion)
       if (preserveSharedDatabase) waitingDriver?.close()
       this.connectDriverAsync(tag, driver)
@@ -134,7 +150,7 @@ class DatabaseBridge {
     let driver: DatabaseDriver | undefined
     try {
       if (!preserveSharedDatabase) waitingDriver?.close()
-      driver = new DatabaseDriver()
+      driver = this.newDriver(tag)
       driver.setUpWithMigrations(databaseName, {
         from: fromVersion,
         to: toVersion,
@@ -242,6 +258,54 @@ class DatabaseBridge {
     this.withDriver(tag, resolve, reject, 'unsafeResetDatabase', (driver) =>
       driver.unsafeResetDatabase({ version: schemaVersion, sql: schema }),
     )
+  }
+
+  isEncrypted(
+    tag: number,
+    resolve: (value: unknown) => void,
+    reject: (code: string, message: string, error: Error) => void,
+  ): void {
+    this.withDriver(tag, resolve, reject, 'isEncrypted', (driver) => driver.database.isEncrypted)
+  }
+
+  // Encrypts, changes the key or (with '') decrypts. SQLite can't tell this connection that another
+  // one in this process has the file open (the Node adapter doesn't use WAL, which natively makes
+  // the change wait for the others), and the others would be left on a file whose key changed or
+  // that was replaced. So it refuses, like natively, and changes nothing.
+  changeEncryptionKey(
+    tag: number,
+    newPassphrase: string,
+    resolve: (value: unknown) => void,
+    reject: (code: string, message: string, error: Error) => void,
+  ): void {
+    this.withDriver(tag, resolve, reject, 'changeEncryptionKey', (driver) => {
+      const file = filePath(driver.database.path)
+      const others = Object.entries(this.connections).filter(
+        ([otherTag, { driver: other }]) =>
+          Number(otherTag) !== tag &&
+          other.database?.instance?.open &&
+          file &&
+          filePath(other.database.path) === file,
+      )
+      if (others.length) {
+        throw new EncryptionError(
+          'rekey_failed',
+          `Couldn't change the encryption key: ${others.length} other connection(s) in this process have the database open. Close them first (adapter.unsafeCloseConnection). The database keeps its previous state.`,
+        )
+      }
+      driver.database.changeEncryptionKey(newPassphrase)
+      // For a connection this tag opens later (setUpWithSchema / setUpWithMigrations open their own)
+      const config = this.encryption.get(tag)
+      if (config) {
+        this.encryption.set(
+          tag,
+          newPassphrase
+            ? { ...config, passphrase: newPassphrase }
+            : { ...config, allowUnencrypted: true },
+        )
+      }
+      return undefined
+    })
   }
 
   getLocal(

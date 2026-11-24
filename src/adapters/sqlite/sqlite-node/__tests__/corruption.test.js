@@ -12,6 +12,14 @@ import DatabaseAdapterCompat from '../../../compat'
 
 // What the SQLite adapter does with a damaged database file, through its public API. Node-only:
 // the shared adapter tests also run on devices, where JS can't reach the database file.
+//
+// With plain better-sqlite3, as most Node apps have it: with better-sqlite3-multiple-ciphers, a file
+// that isn't SQLite may be an encrypted database, which is never recreated (encryption.test.js).
+jest.mock('better-sqlite3-multiple-ciphers', () => {
+  const error = new Error("Cannot find module 'better-sqlite3-multiple-ciphers'")
+  error.code = 'MODULE_NOT_FOUND'
+  throw error
+})
 
 const ROWS = 300
 

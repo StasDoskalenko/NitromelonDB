@@ -237,9 +237,13 @@ export function getDispatcherType(_options: SQLiteAdapterOptions): DispatcherTyp
   return 'wa-sqlite'
 }
 
-// Encryption is native only for now (iOS, Android, Windows)
+// Encryption is on iOS, Android, Windows and Node, not on the web
 export function isEncryptionAvailable(): boolean {
   return false
+}
+
+export function encryptionUnavailableHint(): string {
+  return ''
 }
 
 export function getDatabaseEncryptionState(_dbName: string): DatabaseEncryptionState {

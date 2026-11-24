@@ -334,6 +334,36 @@ struct Direction {
 
 static const Direction kDirections[] = {{"encrypt", "", "k1"}, {"change key", "k1", "k2"}, {"decrypt", "k1", ""}};
 
+// The same format as the Node adapter (better-sqlite3-multiple-ciphers, sqlite-node/encryption.ts):
+// fixtures/node-encrypted-k1.db was written there with passphrase "k1". The Node tests read a file
+// written here (src/adapters/sqlite/sqlite-node/__tests__/fixtures/native-encrypted-k1.db)
+static void readsNodeAdapterDatabase() {
+    std::string source = __FILE__;
+    source = source.substr(0, source.find_last_of('/')) + "/fixtures/node-encrypted-k1.db";
+    std::string path = tempPath("node");
+    {
+        FILE *in = std::fopen(source.c_str(), "rb");
+        CHECK(in != nullptr);
+        if (!in) {
+            return;
+        }
+        std::vector<char> bytes;
+        char buffer[4096];
+        size_t read;
+        while ((read = std::fread(buffer, 1, sizeof(buffer), in)) > 0) {
+            bytes.insert(bytes.end(), buffer, buffer + read);
+        }
+        std::fclose(in);
+        writeFile(path, bytes.data(), bytes.size());
+    }
+    sqlite3 *db = nullptr;
+    CHECK(tryOpen(path, "k2", false, &db) == "encryption_key_invalid");
+    CHECK(tryOpen(path, "k1", false, &db) == "");
+    CHECK(scalar(db, "select v from t") == "from node");
+    sqlite3_close(db);
+    removeDatabase(path);
+}
+
 // Another connection to the same file (an app extension, a widget, a second adapter): encrypting,
 // changing the key and decrypting all leave WAL first, which SQLite refuses while another
 // connection has the database open. So each fails with rekey_failed and changes nothing, instead
@@ -610,6 +640,7 @@ int main() {
     rekeysFromWal();
     resetKeepsEncryption();
     rekeyRefusedWhileAnotherConnectionIsOpen();
+    readsNodeAdapterDatabase();
     crashesAtCommit();
     survivesKillDuringRekey();
 #else

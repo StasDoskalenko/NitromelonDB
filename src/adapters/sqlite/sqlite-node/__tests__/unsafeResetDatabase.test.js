@@ -1,8 +1,20 @@
 import fs from 'fs'
-import BetterSqlite3 from 'better-sqlite3'
+import { nodeEncryption } from '../Database'
 import DatabaseDriver, { RESET_ID_KEY } from '../DatabaseDriver'
 import { encodeSchema } from '../../encodeSchema'
 import { testSchema } from '../../../__tests__/helpers'
+
+// With plain better-sqlite3, as most Node apps have it: with better-sqlite3-multiple-ciphers, a corrupt
+// file may be an encrypted database, which is never recreated (encryption.test.js)
+jest.mock('better-sqlite3-multiple-ciphers', () => {
+  const error = new Error("Cannot find module 'better-sqlite3-multiple-ciphers'")
+  error.code = 'MODULE_NOT_FOUND'
+  throw error
+})
+
+// Other connections use the same SQLite library as the adapter: two copies of SQLite in one process
+// don't see each other's locks
+const BetterSqlite3 = nodeEncryption().Sqlite
 
 // DatabaseDriver#unsafeResetDatabase wipes the database and sets up the new schema in one
 // transaction, so other connections to the file never see it without tables (#172)
