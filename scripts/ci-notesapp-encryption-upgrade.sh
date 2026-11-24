@@ -29,8 +29,7 @@
 # each Release build's windows/NitromelonWindows.Package/bin/x64/Release/AppX, and WinAppDriver (as
 # for the e2e); it removes the installed NitromelonWindows package and its data first. Step 9 needs
 # the reference sync server's dependencies (`yarn install` in examples/sync-server); it starts the
-# server itself. Not on Windows: its NotesApp has no sync tests (and a packaged app can't reach the
-# host's 127.0.0.1 without a loopback exemption).
+# server itself. Not on Windows: its NotesApp has no sync tests yet.
 set -euo pipefail
 
 if [ $# -ne 3 ] || { [ "$1" != ios ] && [ "$1" != android ] && [ "$1" != windows ]; }; then
