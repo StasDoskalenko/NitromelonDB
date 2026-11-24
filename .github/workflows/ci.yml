@@ -846,3 +846,54 @@ jobs:
           path: examples/NotesApp_windows/.tmp/diagnostics
           if-no-files-found: ignore
           retention-days: 7
+  # The Windows counterpart of notesapp-ios-encryption-upgrade / notesapp-android-encryption-upgrade:
+  # builds the plain and the encryption variant (the script rebuilds as it goes, since the two share
+  # one AppX identity), upgrades a database from one to the other, encrypts it, decrypts it, and
+  # checks the database file in LocalState between steps. See examples/NotesApp_windows/scripts/
+  # encryption-upgrade.ps1. It also fails if a build doesn't print (or does print) the
+  # "SQLite encryption build" line, or has (or lacks) sqlite3mc in NitromelonDB.dll.
+  windows-encryption-upgrade:
+    needs: [eslint, typescript, ci-check]
+    runs-on: windows-2025
+    name: Windows NotesApp (encryption upgrade)
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: examples/NotesApp_windows
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set Node.js version
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.19.0'
+          cache: yarn
+          cache-dependency-path: examples/NotesApp_windows/yarn.lock
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.nuget/packages
+            ${{ github.workspace }}/examples/NotesApp_windows/windows/packages
+          key: nuget-notesapp-windows-${{ hashFiles('examples/NotesApp_windows/windows/**/*.vcxproj', 'native/windows/**/*.vcxproj') }}
+      - name: Install NotesApp Windows
+        run: yarn install --immutable
+      - name: Set display resolution
+        # The script clicks with real mouse input, which needs the window on screen (see the
+        # `windows` job).
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
+      - name: Upgrade, encrypt and decrypt
+        run: ./scripts/encryption-upgrade.ps1
+      - name: Print app crash events
+        if: failure()
+        run: >-
+          Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = 'Application Error', 'Windows Error Reporting' }
+          -MaxEvents 10 -ErrorAction SilentlyContinue | Format-List TimeCreated, ProviderName, Message
+      - name: Upload failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: notesapp-windows-encryption-upgrade-diagnostics
+          path: examples/NotesApp_windows/.tmp/diagnostics
+          if-no-files-found: ignore
+          retention-days: 7
