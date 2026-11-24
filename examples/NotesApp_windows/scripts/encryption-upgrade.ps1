@@ -29,6 +29,7 @@ public class NitroNative {
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint dx, uint dy, uint d, UIntPtr e);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
 }
 "@
 [NitroNative]::SetProcessDPIAware() | Out-Null
@@ -91,12 +92,21 @@ function Find-Id($id, $timeoutSec = 30) {
   return $null
 }
 
+# Each launch opens the window a bit lower than the last (it cascades), which on a 1080-pixel-high
+# display soon puts the composer below the screen, where a mouse click lands on nothing. Put it back
+# at the top left (SWP_NOSIZE | SWP_NOZORDER).
+function Move-Window {
+  $hwnd = (Get-Process $AppName | Select-Object -First 1).MainWindowHandle
+  [NitroNative]::SetWindowPos($hwnd, [IntPtr]::Zero, 0, 0, 0, 0, 0x0005) | Out-Null
+  Start-Sleep -Milliseconds 500
+}
+
 # The app is up once it shows either the header (database ready) or the setup-error screen
 function Start-App {
   Start-Process "shell:AppsFolder\$((Package).PackageFamilyName)!App"
   $end = (Get-Date).AddSeconds(90)
   while ((Get-Date) -lt $end) {
-    if ((Find-Id 'app-title' 1) -or (Find-Id 'setup-error' 1)) { return }
+    if ((Find-Id 'app-title' 1) -or (Find-Id 'setup-error' 1)) { Move-Window; return }
   }
   Save-Screenshot 'app-did-not-start'
   throw 'The app did not show its header or a setup error within 90 seconds'
