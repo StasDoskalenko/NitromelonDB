@@ -829,6 +829,14 @@ jobs:
         run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
       - name: Build and deploy NotesApp (x64 Release)
         run: yarn windows -- --arch x64 --release --logging --no-packager --no-launch
+      # The plain build for windows-encryption-upgrade, which installs it and then the encryption
+      # build over it
+      - uses: actions/upload-artifact@v6
+        with:
+          name: notesapp-windows-appx
+          path: examples/NotesApp_windows/windows/NitromelonWindows.Package/bin/x64/Release/AppX
+          if-no-files-found: error
+          retention-days: 3
       - name: Run NotesApp UI e2e
         run: yarn test:windows:e2e
       - name: Print app crash events
@@ -848,10 +856,12 @@ jobs:
           retention-days: 7
   # Like notesapp-ios-encryption-upgrade / notesapp-android-encryption-upgrade, on Windows
   # (scripts/ci-notesapp-encryption-upgrade.sh, flows in examples/NotesApp_windows/e2e-encryption).
-  # Builds both variants in this job, keeping a copy of each one's AppX folder: the script switches
-  # between them by re-registering the folder, which keeps LocalState.
+  # Takes the plain build from the `windows` job and builds the encryption one here: building and
+  # deploying also installs the frameworks the app needs (Windows App Runtime, VCLibs), which a
+  # runner that only downloaded both builds wouldn't have. The script switches between the two AppX
+  # folders by re-registering them, which keeps LocalState.
   windows-encryption-upgrade:
-    needs: [eslint, typescript, ci-check]
+    needs: [windows]
     runs-on: windows-2025
     name: Windows NotesApp (encryption upgrade)
     timeout-minutes: 90
@@ -879,14 +889,10 @@ jobs:
       - name: Set display resolution
         # See the `windows` job
         run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
-      - name: Build the plain app (x64 Release)
-        run: |
-          yarn windows -- --arch x64 --release --logging --no-packager --no-launch | Tee-Object "$env:RUNNER_TEMP/build-plain.log"
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          if (Select-String -Path "$env:RUNNER_TEMP/build-plain.log" -Pattern 'SQLite encryption build' -SimpleMatch -Quiet) {
-            Write-Output "::error::The plain build picked the encryption build"; exit 1
-          }
-          Copy-Item windows/NitromelonWindows.Package/bin/x64/Release/AppX "$env:RUNNER_TEMP/AppX-plain" -Recurse
+      - uses: actions/download-artifact@v7
+        with:
+          name: notesapp-windows-appx
+          path: ${{ runner.temp }}/AppX-plain
       - name: Build the encryption app (x64 Release)
         env:
           NITROMELONDB_ENCRYPTION: 1
