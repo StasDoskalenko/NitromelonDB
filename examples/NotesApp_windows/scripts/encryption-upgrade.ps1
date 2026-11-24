@@ -12,7 +12,7 @@
 # first failed check; screenshots of the failure go to .tmp/diagnostics.
 
 $ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Drawing
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Drawing, System.Windows.Forms
 
 $AppName = 'NitromelonWindows'
 $DbName = 'nitromelon-windows'
@@ -150,14 +150,39 @@ function Get-TotalNotes {
   return -1
 }
 
+# Types into a field with real key presses, like the WinAppDriver e2e's browser.keys(): the UI
+# Automation value pattern can set the text without React Native seeing the change
+function Type-Text($id, $text) {
+  Click-Id $id
+  Start-Sleep -Milliseconds 300
+  [Windows.Forms.SendKeys]::SendWait('^a')
+  Start-Sleep -Milliseconds 100
+  # SendKeys treats + ^ % ~ ( ) { } [ ] as special; titles here are plain words
+  [Windows.Forms.SendKeys]::SendWait($text)
+  Start-Sleep -Milliseconds 300
+}
+
+function Describe-AddNote {
+  $titleInput = Find-Id 'title-input' 2
+  $button = Find-Id 'add-note-button' 2
+  $value = try { $titleInput.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value } catch { '(no value)' }
+  "title-input value='$value' | add-note-button enabled=$(if ($button) { $button.Current.IsEnabled } else { 'missing' }) offscreen=$(if ($button) { $button.Current.IsOffscreen } else { 'n/a' }) | window=$((Get-Win).Current.BoundingRectangle) | button=$(if ($button) { $button.Current.BoundingRectangle } else { 'n/a' }) | first notes: $((Get-Notes | Select-Object -First 3) -join ', ')"
+}
+
 function Add-Note($title) {
-  for ($attempt = 0; $attempt -lt 3; $attempt++) {
-    Set-Text 'title-input' $title
+  for ($attempt = 1; $attempt -le 4; $attempt++) {
+    # First attempts set the text through UI Automation; the later ones type it
+    if ($attempt -le 2) { Set-Text 'title-input' $title } else { Type-Text 'title-input' $title }
+    Write-Host "add '$title' attempt ${attempt}: $(Describe-AddNote)"
     Click-Id 'add-note-button'
-    Start-Sleep -Seconds 2
-    if ((Get-Notes) -contains $title) { return }
+    # The note shows at the top once the write and the list's re-query are done
+    for ($i = 0; $i -lt 10; $i++) {
+      Start-Sleep -Seconds 1
+      if ((Get-Notes) -contains $title) { return }
+    }
   }
-  throw "could not add the note '$title'"
+  Save-Screenshot 'add-note-failed'
+  throw "could not add the note '$title': $(Describe-AddNote)"
 }
 
 function Show-Files {
