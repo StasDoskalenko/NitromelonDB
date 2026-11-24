@@ -5112,5 +5112,26 @@
       "ram": 179,
       "fps": 55.2
     }
+  },
+  {
+    "sha": "f8490ed251854fad26ffb1ec089d57a6047ae543",
+    "date": "2026-11-24T05:46:18.566Z",
+    "prNumber": 259,
+    "subject": "ci(windows): run the encryption upgrade like iOS and Android (#60, W3) (#259)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 21,
+      "ram": 180,
+      "fps": 55.2
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 20.7,
+      "ram": 178,
+      "fps": 54.9
+    }
   }
 ]
