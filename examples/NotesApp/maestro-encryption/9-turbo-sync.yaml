@@ -1,7 +1,8 @@
 # Step 9 (encryption build, installed over the decrypted database; iOS and Android): encrypts it
-# again, then makes its first sync a Turbo Login (src/sync.ts), which native code writes straight
-# into the encrypted database. Turbo doesn't notify the list, so a cold start checks the result.
-# Needs the sync server (the script starts it). See README.md.
+# again, empties it ("Delete all"), then makes its first sync a Turbo Login (src/sync.ts): the
+# login sync into an empty database it's meant for, which native code writes straight into the
+# encrypted file. Turbo doesn't notify the list, so a cold start checks the result. Needs the sync
+# server (the script starts it). See README.md.
 appId: com.nitromelondb.example
 env:
   SYNC_SERVER_URL: http://127.0.0.1:3000
@@ -30,13 +31,20 @@ env:
     timeout: 60000
 
 # The first sync of this install. Not on a retry after it already synced: the server's note is
-# then at the top of the list (rank 0). The button shows once the app has read that it never
+# then the only one. The button shows once the app has read that it never
 # synced, which can come after the list, so wait for it rather than check it once.
 - runFlow:
     when:
       notVisible:
         text: "From the server"
     commands:
+      # Turbo Login is for an empty database
+      - tapOn:
+          id: "delete-all-button"
+      - extendedWaitUntil:
+          visible:
+            text: ".*· 0 notes"
+          timeout: 30000
       - extendedWaitUntil:
           visible:
             id: "turbo-sync-button"
@@ -62,20 +70,19 @@ env:
       text: "Encrypted"
     timeout: 60000
 
-# 103 notes from steps 1-8, and the server's
+# Only the server's note
 - assertVisible:
-    text: ".*104 notes.*"
+    text: ".*· 1 note"
 - assertVisible:
     text: "From the server"
 - assertNotVisible:
     id: "turbo-sync-button"
 
-# Pushed after the turbo pull: every note of this device is on the server
+# Nothing to push: the device had no notes
 - runScript:
     file: ../maestro-commands/sync-server.js
     env:
       ACTION: verify
       SERVER: ${SYNC_SERVER_URL}
       DEVICE_NOTE_TITLE: "After decryption"
-- assertTrue: ${output.serverHasDeviceNote}
-- assertTrue: ${output.serverNoteCount == 104}
+- assertTrue: ${output.serverNoteCount == 1}
