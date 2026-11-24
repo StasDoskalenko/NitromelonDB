@@ -4802,5 +4802,26 @@
       "ram": 190,
       "fps": 55.4
     }
+  },
+  {
+    "sha": "bb1fb72477e15b70d0c2bbeda6facf479e997c2a",
+    "date": "2026-11-24T01:34:04.994Z",
+    "prNumber": 256,
+    "subject": "windows: compile the encryption build (silence C4996 for sqlite3mc) (#256)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 19.3,
+      "ram": 188,
+      "fps": 55.5
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 19.9,
+      "ram": 189,
+      "fps": 55.5
+    }
   }
 ]
