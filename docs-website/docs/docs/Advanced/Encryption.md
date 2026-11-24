@@ -312,8 +312,8 @@ database.readyPromise.catch((error) => {
 
 - **Native, on every CI run, both builds:** opening with the right, wrong and missing passphrase, plain databases with and without `ifUnencrypted`, encrypting, changing the passphrase and decrypting from WAL mode, `unsafeResetDatabase()` on an encrypted database (it stays encrypted with the same passphrase), and two kinds of interruption: killing the process at points throughout each of them on a 10 MB database, and crashing it exactly at the two moments of the commit where a database is most at risk (right after the first page is rewritten, and right before the journal is deleted). Each time, the database opens, complete, with the old or the new passphrase. The default build must refuse a passphrase.
 - **JavaScript (Jest):** passphrase functions (including ones that fail), the order of calls made before the passphrase arrives and during a re-key, events, error codes, and that keying errors never lead to a reset.
-- **On a device (iOS simulator, Android emulator and Windows, CI):** the whole upgrade, with real builds. The plain build of our example app creates a database; the encryption build is installed over it, opens it, and encrypts it; the test then reads the file from the app's data folder to check it has no SQLite header and that a note's text can't be found in any database file; a cold start opens it with the passphrase; the plain build, installed over it, fails with `encryption_key_required` and leaves the file byte for byte unchanged; and the encryption build opens it again with every note.
-- **By hand, not yet in CI:** decrypting on a device. Checked on Windows: the file is plain SQLite again with every note, no copy is left behind, and when another process holds the file open, decrypting fails with `rekey_failed` and leaves the database encrypted with the same passphrase.
+- **On a device (iOS simulator, Android emulator and Windows, CI):** the whole upgrade, with real builds. The plain build of our example app creates a database; the encryption build is installed over it, opens it, and encrypts it; the test then reads the file from the app's data folder to check it has no SQLite header and that a note's text can't be found in any database file; a cold start opens it with the passphrase; the plain build, installed over it, fails with `encryption_key_required` and leaves the file byte for byte unchanged; the encryption build opens it again with every note; decrypting turns it back into a plain SQLite file with every note, leaving no copy behind; and the plain build, installed over it, opens it.
+- **By hand on Windows:** when another process holds the database file open, decrypting fails with `rekey_failed` and leaves the database encrypted with the same passphrase.
 
 ## What changes in the encryption build
 
@@ -373,7 +373,6 @@ The design is in the [encryption plan](https://github.com/StasDoskalenko/Nitrome
 
 1. **Progress events** while a big database is encrypted (`onStart` and `onSuccess` exist today).
 2. **Node and Electron** support through `better-sqlite3-multiple-ciphers`.
-3. **Decrypting on a device in CI**, on all three platforms.
 
 The web (LokiJS, wa-sqlite) is not part of this work.
 

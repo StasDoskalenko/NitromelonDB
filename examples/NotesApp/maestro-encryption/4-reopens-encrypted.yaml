@@ -19,3 +19,5 @@ appId: com.nitromelondb.example
     text: "Upgrade marker"
 - assertNotVisible:
     id: "encrypt-button"
+- assertVisible:
+    id: "decrypt-button"

@@ -1,0 +1,23 @@
+# Step 8 (plain build, installed over the decrypted database): opens it like any database from
+# before encryption, with every note. See README.md.
+appId: com.nitromelondb.example
+---
+- launchApp:
+    stopApp: true
+
+- extendedWaitUntil:
+    visible:
+      text: ".*103 notes.*"
+    timeout: 60000
+
+- assertNotVisible:
+    id: "setup-error"
+# The plain build has no encryption, so no status
+- assertNotVisible:
+    id: "encryption-status"
+- assertVisible:
+    text: "After decryption"
+- assertVisible:
+    text: "After encryption"
+- assertVisible:
+    text: "Upgrade marker"

@@ -13,6 +13,12 @@ emulator, and checks the database file on disk between steps:
 | 4 | | `4-reopens-encrypted.yaml`: cold start opens it with the passphrase | |
 | 5 | plain, over it | `5-plain-refuses.yaml`: setup fails with `encryption_key_required` | file unchanged: never reset |
 | 6 | encryption, over it | `4-reopens-encrypted.yaml` again: every note still there | |
+| 7 | | `7-decrypt.yaml`: taps Decrypt, adds "After decryption" | plain SQLite header, the marker readable |
+| 8 | plain, over it | `8-plain-opens-decrypted.yaml`: opens it with every note | plain SQLite header |
+
+After every step, the script also fails if `unsafe_DecryptDB()`'s copy
+(`nitromelon-example.db-nitromelon-decrypted`) is in the data folder: decrypt renames it over the
+database when it's done, so one left behind is a leftover plain copy of an encrypted database.
 
 Each flow can run twice in a row (the script retries one when Maestro's driver dies), so none of
 them assumes it's the first run.
