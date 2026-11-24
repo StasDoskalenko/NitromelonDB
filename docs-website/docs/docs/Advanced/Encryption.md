@@ -135,7 +135,7 @@ npx electron-rebuild -f -w better-sqlite3-multiple-ciphers
 - **Other connections.** Encrypting, changing the passphrase or decrypting fails with `rekey_failed` (changing nothing) while another adapter in the same process has the file open. Connections in other processes can't be detected on Node (the Node adapter doesn't use WAL mode): close them first. See [More than one connection](#more-than-one-connection).
 - **Decrypting** writes an encrypted copy, decrypts the copy, then replaces the database with it. It needs free space for the copy, and takes longer than in the apps.
 
-If your own code also opens the database file with `better-sqlite3` (or another SQLite library), switch that to `better-sqlite3-multiple-ciphers` too, or open the file only through NitromelonDB. Two copies of SQLite in one process don't see each other's file locks, so writes from both can corrupt the database, and the other library can't read an encrypted file anyway (see "Other SQLite libraries in your app" in [What changes in the encryption build](#what-changes-in-the-encryption-build)).
+If your own code also opens the database file with `better-sqlite3` (or another SQLite library), switch that to `better-sqlite3-multiple-ciphers` too, or open the file only through NitromelonDB. Two copies of SQLite in one process don't see each other's file locks, so writes from both can corrupt the database, and plain `better-sqlite3` can't read an encrypted file anyway (see "Other SQLite libraries in your app" in [What changes in the encryption build](#what-changes-in-the-encryption-build)).
 
 In Electron, SQLite runs in the main process, so that's where the passphrase is read (for example with Electron's `safeStorage`).
 
