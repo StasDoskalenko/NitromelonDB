@@ -5443,5 +5443,26 @@
       "ram": 178,
       "fps": 55.1
     }
+  },
+  {
+    "sha": "85a6c189846c53c7258dc558cacc9bab6b8f27a4",
+    "date": "2026-11-25T05:15:08.212Z",
+    "prNumber": 262,
+    "subject": "ci: Turbo Login sync into an encrypted database, as step 9 of the encryption upgrade (#60) (#262)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 19.6,
+      "ram": 179,
+      "fps": 55.2
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 20.1,
+      "ram": 181,
+      "fps": 55.5
+    }
   }
 ]
