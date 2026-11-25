@@ -17,7 +17,7 @@
 // NITROMELONDB_ENCRYPTION=1 environment variable. The podspec, native/android/build.gradle and
 // NitromelonDB.vcxproj read those and pass the define. Encryption is opt-in because the cipher code
 // changes how an app answers App Store / export-compliance questions about encryption, and adds to
-// the binary. See docs-website/docs/docs/Advanced/Encryption.md.
+// the binary. See docs-website/docs/docs/Encryption/.
 
 #ifndef NITROMELON_ENCRYPTION
 #define NITROMELON_ENCRYPTION 0

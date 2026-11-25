@@ -64,7 +64,8 @@ export type {
   EncryptionPassphrase,
 } from './type'
 
-const ENCRYPTION_GUIDE = 'https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Encryption'
+const ENCRYPTION_GUIDE = 'https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Intro'
+const ENCRYPTION_SETUP_GUIDE = 'https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Setup'
 
 function encryptionError(code: string, message: string): Error {
   const error = new Error(message) as Error & { code: string }
@@ -158,7 +159,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
 
   // Whether this build of the app has the codec ("nitromelondb": { "encryption": true } in the app's
   // package.json; on Node, better-sqlite3-multiple-ciphers installed). False on web, and in the
-  // default native build. See docs/Advanced/Encryption
+  // default native build. See docs/Encryption/Intro
   static isEncryptionAvailable(): boolean {
     return isEncryptionAvailable()
   }
@@ -344,7 +345,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     if (!isEncryptionAvailable()) {
       throw encryptionError(
         'encryption_unavailable',
-        `SQLiteAdapter: \`encryption\` was passed, but this build of the app has no encryption, so the database would not be encrypted. Turn on the encryption build with "nitromelondb": { "encryption": true } in the app's package.json (or NITROMELONDB_ENCRYPTION=1), then rebuild the native app (on iOS, run pod install again). If it's already on, look for "SQLite encryption build" in the build log: the switch may be in a package.json that isn't the app's, or NITROMELONDB_ENCRYPTION=0 may be set. See ${ENCRYPTION_GUIDE}`,
+        `SQLiteAdapter: \`encryption\` was passed, but this build of the app has no encryption, so the database would not be encrypted. Turn on the encryption build with "nitromelondb": { "encryption": true } in the app's package.json (or NITROMELONDB_ENCRYPTION=1), then rebuild the native app (on iOS, run pod install again). If it's already on, look for "SQLite encryption build" in the build log: the switch may be in a package.json that isn't the app's, or NITROMELONDB_ENCRYPTION=0 may be set. See ${ENCRYPTION_SETUP_GUIDE}`,
       )
     }
   }

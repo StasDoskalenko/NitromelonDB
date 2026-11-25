@@ -47,6 +47,17 @@ const sidebars = {
       'docs/Sync/Troubleshoot',
       'docs/Sync/Contribute',
     ],
+    Encryption: [
+      'docs/Encryption/Intro',
+      'docs/Encryption/Setup',
+      'docs/Encryption/Passphrase',
+      'docs/Encryption/ExistingUsers',
+      'docs/Encryption/ChangePassphrase',
+      'docs/Encryption/MultipleConnections',
+      'docs/Encryption/Troubleshooting',
+      'docs/Encryption/HowItWorks',
+      'docs/Encryption/ExportCompliance',
+    ],
     Advanced: [
       'docs/Advanced/CreateUpdateTracking',
       'docs/Advanced/AdvancedFields',
@@ -60,7 +71,6 @@ const sidebars = {
       'docs/Advanced/Logging',
       'docs/Advanced/DetectNestedWriters',
       'docs/Advanced/Performance',
-      'docs/Advanced/Encryption',
       'docs/Advanced/SharingDatabaseAcrossTargets',
     ],
     Contributing: [

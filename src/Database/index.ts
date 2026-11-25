@@ -837,7 +837,7 @@ export default class Database {
   /**
    * Whether the open database is encrypted (SQLiteAdapter's `encryption` option, iOS, Android and
    * Windows). False for adapters without encryption. Waits for the database to be set up.
-   * See docs/Advanced/Encryption.
+   * See docs/Encryption/Intro.
    */
   isDBEncrypted(): Promise<boolean> {
     return this.adapter.isEncrypted()

@@ -84,7 +84,7 @@ export type SQLiteAdapterOptions = {
   web?: SQLiteWebOptions | undefined
   // Encrypts the database (SQLCipher 4 format). Needs the encryption build: "nitromelondb":
   // { "encryption": true } in the app's package.json (on Node and Electron,
-  // better-sqlite3-multiple-ciphers installed). See docs/Advanced/Encryption.
+  // better-sqlite3-multiple-ciphers installed). See docs/Encryption/Intro.
   encryption?: EncryptionOptions | undefined
 }
 
