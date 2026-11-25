@@ -21,7 +21,7 @@
     <RunAutolinkCheck>false</RunAutolinkCheck>
     <RunCodegenWindows>false</RunCodegenWindows>
   </PropertyGroup>
-  <!-- Database encryption is opt-in (docs: Advanced/Encryption, native/shared/NitromelonSqliteConfig.h).
+  <!-- Database encryption is opt-in (docs: Encryption/Intro, native/shared/NitromelonSqliteConfig.h).
        In order: the NitromelonDBEncryption MSBuild property, the NITROMELONDB_ENCRYPTION environment
        variable, then "nitromelondb": { "encryption": true } in the app's package.json (the first one
        above the solution). That object is matched with a regular expression, so keep it flat. -->

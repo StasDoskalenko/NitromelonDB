@@ -55,7 +55,7 @@ function withExcludedSimulatorArchitectures(config) {
 function withNitromelonDB(config, options = {}) {
   if (options && Object.prototype.hasOwnProperty.call(options, 'encryption')) {
     throw new Error(
-      'NitromelonDB: `encryption` is not a config plugin option. Add `"nitromelondb": { "encryption": true }` to your package.json instead (the iOS, Android and Windows builds all read it there), then run `npx expo prebuild --clean`. See https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Encryption',
+      'NitromelonDB: `encryption` is not a config plugin option. Add `"nitromelondb": { "encryption": true }` to your package.json instead (the iOS, Android and Windows builds all read it there), then run `npx expo prebuild --clean`. See https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Setup',
     )
   }
   if (config.newArchEnabled === false) {

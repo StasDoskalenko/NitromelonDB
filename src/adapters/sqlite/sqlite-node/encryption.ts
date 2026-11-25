@@ -62,7 +62,7 @@ export type EncryptionConfig = {
 
 export type FileState = 'missing' | 'unencrypted' | 'encrypted'
 
-const GUIDE = 'https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Encryption'
+const GUIDE = 'https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Setup#nodejs-and-electron'
 
 export const NODE_SWITCH_HINT = `On Node and Electron, encryption needs better-sqlite3-multiple-ciphers: install it (yarn add better-sqlite3-multiple-ciphers; in Electron, rebuild it for Electron like better-sqlite3), and NitromelonDB uses it instead of better-sqlite3. See ${GUIDE}`
 

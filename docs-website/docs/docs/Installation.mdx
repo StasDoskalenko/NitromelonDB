@@ -276,11 +276,11 @@ npx electron-rebuild -f -w better-sqlite3
 
 Electron runs SQLite in the main process. See [Setup — Electron](./Setup.md#electron-sqlite).
 
-To encrypt the database, install `better-sqlite3-multiple-ciphers` instead of `better-sqlite3` (rebuild it for Electron the same way). See [Encryption](./Advanced/Encryption.md#nodejs-and-electron).
+To encrypt the database, install `better-sqlite3-multiple-ciphers` instead of `better-sqlite3` (rebuild it for Electron the same way). See [Encryption](./Encryption/Setup.md#nodejs-and-electron).
 
 ## Optional: database encryption
 
-NitromelonDB can encrypt the database on disk (SQLCipher 4 format, iOS, Android, Windows, Node.js and Electron). It is off by default, so apps that don't need it ship no cryptography from NitromelonDB and keep their App Store export-compliance answers. To use it, add `"nitromelondb": { "encryption": true }` to your app's `package.json`, rebuild the native app, and pass `encryption: { passphrase }` to `SQLiteAdapter`. See [Encryption](./Advanced/Encryption.md) for why it is opt-in, where to keep the passphrase, how to encrypt your existing users' databases, and what to tell Apple.
+NitromelonDB can encrypt the database on disk (SQLCipher 4 format, iOS, Android, Windows, Node.js and Electron). It is off by default, so apps that don't need it ship no cryptography from NitromelonDB and keep their App Store export-compliance answers. To use it, add `"nitromelondb": { "encryption": true }` to your app's `package.json`, rebuild the native app, and pass `encryption: { passphrase }` to `SQLiteAdapter`. See [Encryption](./Encryption/Intro.md) for why it is opt-in, where to keep the passphrase, how to encrypt your existing users' databases, and what to tell Apple.
 
 ## Troubleshooting
 

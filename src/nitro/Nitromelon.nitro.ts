@@ -66,7 +66,7 @@ export interface Nitromelon extends HybridObject<{ ios: 'c++'; android: 'c++' }>
   provideSyncJson(id: number, json: string): void
   getRandomIds(): string
   // Whether this build has the codec ("nitromelondb": { "encryption": true } in the app's
-  // package.json). See docs/Advanced/Encryption.
+  // package.json). See docs/Encryption/Intro.
   isEncryptionAvailable(): boolean
   // 'encrypted' | 'unencrypted' | 'missing', from the file's first bytes. Never opens SQLite.
   getDatabaseEncryptionState(dbName: string): string

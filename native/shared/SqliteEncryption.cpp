@@ -31,7 +31,7 @@ const char *kSwitchHint =
     "(or NITROMELONDB_ENCRYPTION=1), then rebuild the native app: run pod install again on iOS. If it's "
     "already on, check the build log for \"SQLite encryption build\": the switch may be in a package.json "
     "that isn't the app's, or NITROMELONDB_ENCRYPTION=0 may be set. "
-    "See https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Encryption";
+    "See https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Setup";
 
 bool isMemoryName(const std::string &path) {
     return path.empty() || path == ":memory:" || path.find("mode=memory") != std::string::npos;

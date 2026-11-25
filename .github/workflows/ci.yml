@@ -378,7 +378,7 @@ jobs:
           include-hidden-files: true
           path: maestro-debug
   # NotesApp with "nitromelondb": { "encryption": true }, in parallel with the plain build above, for
-  # the upgrade test below. Gradle reads NITROMELONDB_ENCRYPTION on every build (docs/Advanced/Encryption).
+  # the upgrade test below. Gradle reads NITROMELONDB_ENCRYPTION on every build (docs/Encryption/Intro).
   notesapp-android-build-encryption:
     needs: [eslint, typescript, ci-check]
     runs-on: ubuntu-24.04
@@ -659,7 +659,7 @@ jobs:
           path: maestro-debug
   # NotesApp with "nitromelondb": { "encryption": true }, in parallel with the plain build above, for
   # the upgrade test below. NITROMELONDB_ENCRYPTION=1 must be set for pod install: that's where the
-  # podspec picks the build (docs/Advanced/Encryption).
+  # podspec picks the build (docs/Encryption/Intro).
   notesapp-ios-build-encryption:
     needs: [eslint, typescript, ci-check]
     runs-on: macos-26
