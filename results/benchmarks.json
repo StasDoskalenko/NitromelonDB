@@ -5753,5 +5753,26 @@
         "stress": 5
       }
     }
+  },
+  {
+    "sha": "8374d18a4b395b2fde7db0c5531439be2fc3d87f",
+    "date": "2026-11-25T18:21:21.540Z",
+    "prNumber": 266,
+    "subject": "docs(readme): link Encryption at the top and list it in What's new (#60) (#266)",
+    "android": {
+      "iterationCount": 5,
+      "score": 94,
+      "cpu": 32.8,
+      "ram": 178,
+      "fps": 52.3
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 93,
+      "cpu": 32.1,
+      "ram": 177,
+      "fps": 51.8
+    }
   }
 ]
