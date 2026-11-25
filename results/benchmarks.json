@@ -5464,5 +5464,26 @@
       "ram": 181,
       "fps": 55.5
     }
+  },
+  {
+    "sha": "a7ce23730f048f5e0d2d9ba50b2dba1c8f3a0594",
+    "date": "2026-11-25T08:33:32.799Z",
+    "prNumber": 263,
+    "subject": "docs: encryption with more than one connection, and in Setup and Database Adapters (#60) (#263)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 18.8,
+      "ram": 180,
+      "fps": 55
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 19.7,
+      "ram": 181,
+      "fps": 55.6
+    }
   }
 ]
