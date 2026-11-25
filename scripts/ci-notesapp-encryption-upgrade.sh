@@ -12,6 +12,8 @@
 #   4 cold start: opens with the passphrase
 #   5 plain build over it: setup fails, says why            -> file unchanged (no reset)
 #   6 encryption build again: every note still there
+#   7 Decrypt button (unsafe_DecryptDB), adds a note        -> plain SQLite again, no copy left
+#   8 plain build over it: opens it, every note there       -> plain SQLite
 #
 # Usage:
 #   bash scripts/ci-notesapp-encryption-upgrade.sh ios <NotesApp.app.zip> <NotesApp-encryption.app.zip>
@@ -40,6 +42,10 @@ MARKER="Upgrade marker"
 # Unzipped apps and database copies
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
+
+# unsafe_DecryptDB's plain copy (SqliteEncryption.cpp decryptedCopyPath), renamed over the database
+# when it's done: one left behind after a decrypt, or next to an encrypted database, is a failure
+DECRYPTED_COPY=-nitromelon-decrypted
 
 # --- Platform: prepare, codec_strings <build>, install <label> <build>, stop_app, pull_db <dir>
 
@@ -82,11 +88,11 @@ if [ "$PLATFORM" = ios ]; then
   stop_app() {
     xcrun simctl terminate "$SIM_UDID" "$APP_ID" 2>/dev/null || true
   }
-  # The database, and its WAL and rollback journal if there are any
+  # The database, its WAL and rollback journal, and a decrypt copy, if there are any
   pull_db() {
     local path suffix
     path="$(xcrun simctl get_app_container "$SIM_UDID" "$APP_ID" data)/Documents/$DB_NAME"
-    for suffix in "" -wal -journal; do
+    for suffix in "" -wal -journal "$DECRYPTED_COPY"; do
       if [ -f "$path$suffix" ]; then cp "$path$suffix" "$1/$DB_NAME$suffix"; fi
     done
   }
@@ -126,7 +132,7 @@ elif [ "$PLATFORM" = windows ]; then
   pull_db() {
     local dir suffix
     dir="$(cygpath -u "$LOCALAPPDATA")/Packages/$(winps "(Get-AppxPackage -Name $APP_PACKAGE).PackageFamilyName")/LocalState"
-    for suffix in "" -wal -journal; do
+    for suffix in "" -wal -journal "$DECRYPTED_COPY"; do
       if [ -f "$dir/$DB_NAME$suffix" ]; then cp "$dir/$DB_NAME$suffix" "$1/$DB_NAME$suffix"; fi
     done
   }
@@ -162,7 +168,7 @@ else
   }
   pull_db() {
     local suffix
-    for suffix in "" -wal -journal; do
+    for suffix in "" -wal -journal "$DECRYPTED_COPY"; do
       if adb shell "test -f '$DEVICE_DB$suffix'"; then
         adb exec-out cat "$DEVICE_DB$suffix" >"$1/$DB_NAME$suffix"
       fi
@@ -201,6 +207,10 @@ check_db() {
     exit 1
   fi
   header=$(head -c 15 "$path")
+  if [ -f "$dir/$DB_NAME$DECRYPTED_COPY" ]; then
+    echo "::error::$DB_NAME$DECRYPTED_COPY (unsafe_DecryptDB's copy) was left in the app's data folder" >&2
+    exit 1
+  fi
   marker_files=$(grep -l -a -F "$MARKER" "$dir"/* 2>/dev/null || true)
   if [ "$expected" = plain ]; then
     if [ "$header" != "SQLite format 3" ]; then
@@ -301,5 +311,12 @@ echo "The plain build left the encrypted database untouched"
 install encryption "$ENCRYPTION_BUILD"
 run_flow 4-reopens-encrypted
 check_db encrypted
+
+run_flow 7-decrypt
+check_db plain
+
+install plain "$PLAIN_BUILD"
+run_flow 8-plain-opens-decrypted
+check_db plain
 
 echo "Upgrade to the encryption build ($PLATFORM): passed"

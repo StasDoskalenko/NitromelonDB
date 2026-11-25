@@ -707,8 +707,9 @@ jobs:
           path: build-output/NotesApp-encryption.app.zip
           if-no-files-found: error
           retention-days: 3
-  # Installs the plain build, then the encryption build over it, and encrypts the existing database
-  # in place (scripts/ci-notesapp-encryption-upgrade.sh, examples/NotesApp/maestro-encryption)
+  # Installs the plain build, then the encryption build over it, encrypts the existing database in
+  # place, and decrypts it again (scripts/ci-notesapp-encryption-upgrade.sh,
+  # examples/NotesApp/maestro-encryption)
   notesapp-ios-encryption-upgrade:
     needs: [notesapp-ios-build, notesapp-ios-build-encryption]
     runs-on: macos-26

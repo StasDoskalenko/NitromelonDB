@@ -1,0 +1,45 @@
+# Step 7 (encryption build, encrypted database): decrypts it with database.unsafe_DecryptDB(), which
+# copies it to a plain file and replaces the database with it, then writes to it. The script checks
+# the file is plain SQLite again and no copy is left. See README.md.
+appId: com.nitromelondb.example
+---
+- launchApp
+
+- extendedWaitUntil:
+    visible:
+      id: "encryption-status"
+    timeout: 60000
+
+# Not on a retry after it was already decrypted
+- runFlow:
+    when:
+      visible:
+        id: "decrypt-button"
+    commands:
+      - tapOn:
+          id: "decrypt-button"
+
+- extendedWaitUntil:
+    visible:
+      id: "encryption-status"
+      text: "Not encrypted"
+    timeout: 60000
+- assertNotVisible:
+    id: "decrypt-button"
+- assertVisible:
+    id: "encrypt-button"
+- assertVisible:
+    text: "Upgrade marker"
+- assertVisible:
+    text: "After encryption"
+
+- runFlow:
+    when:
+      notVisible:
+        text: "After decryption"
+    file: ../maestro-commands/add-note.yaml
+    env:
+      TITLE: "After decryption"
+
+- assertVisible:
+    text: ".*103 notes.*"

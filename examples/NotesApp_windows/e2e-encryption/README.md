@@ -4,7 +4,8 @@ The Windows version of [`../../NotesApp/maestro-encryption/`](../../NotesApp/mae
 one WinAppDriver test per Maestro flow, with the same names and steps, using `../e2e/helpers.js`.
 Not a suite of its own: `scripts/ci-notesapp-encryption-upgrade.sh windows` (CI job
 `Windows NotesApp (encryption upgrade)`) runs them one at a time, switching between the plain and
-the encryption build, and checks the database file in `LocalState` between steps.
+the encryption build, and checks the database file in `LocalState` between steps. Step 7
+(`7-decrypt`) is where Windows differs most: decrypt replaces the database file with `MoveFileExW`.
 `jest.e2e-encryption.config.js` is `jest.e2e.config.js` without the LocalState wipe, since each step
 runs against the database the previous one left.
 
