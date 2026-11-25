@@ -252,7 +252,7 @@ What `unsafe_EncryptDB()` does:
 - **Encrypts in place.** Every record, every table, local storage and the sync state stay as they were. No second file, no re-download.
 - **Must run in a writer**, so no other write can run meanwhile. Reads made in the meantime wait until it's done; your UI keeps running, and observers keep their data.
 - **Takes a while on a big database**: it rewrites every page. `events.onStart` tells you the size (`byteSize`), so you can decide to show something. While it runs, it can need free disk space of up to about three times the database's size.
-- **Survives being killed.** If the app is killed in the middle (by the user, or by the OS in the background), the database opens afterwards either as it was (plain) or fully encrypted, never half-way: on the next launch, NitromelonDB finishes rolling back the interrupted encryption before it opens the file. If it's still plain, `isDBEncrypted()` says so, and your code encrypts it again. We test this by killing the process at points throughout the encryption, and by crashing it exactly at its commit. We test this by killing the process at points throughout the encryption, re-key and decryption, and checking that every database opens, complete, with either the old or the new passphrase.
+- **Survives being killed.** If the app is killed in the middle (by the user, or by the OS in the background), the database opens afterwards either as it was (plain) or fully encrypted, never half-way: on the next launch, NitromelonDB finishes rolling back the interrupted encryption before it opens the file. If it's still plain, `isDBEncrypted()` says so, and your code encrypts it again. We test this by killing the process at points throughout the encryption, re-key and decryption, and by crashing it exactly at its commit, and check that every database opens, complete, with either the old or the new passphrase.
 - **Save the passphrase first.** From then on the database opens only with it.
 
 New installs don't need any of this: with a passphrase, a new database is created encrypted. `isDBEncrypted()` is already `true` for them.
@@ -288,6 +288,55 @@ Both run in a writer and are safe to kill, like encrypting:
 - **Changing the passphrase** works in place. If it's cut off, the database still has the **old** passphrase. So save the new one before you call it, but keep the old one until the call has finished; on a launch after an interrupted change, if setup fails with `encryption_key_invalid`, open with the old passphrase (the error message says so too) and change it again.
 - **Decrypting** writes a decrypted copy next to the database and then replaces the file with it, in one step. It needs free space for the copy. If it's cut off before that step, the database is untouched and still encrypted (the leftover copy is deleted on the next launch); after it, the database is plain. After decrypting, the next launch needs `ifUnencrypted: 'open'` (or no `encryption` option at all) to open the plain file.
 
+## Log out: wipe the data and change the passphrase
+
+`unsafeResetDatabase()` keeps an encrypted database encrypted, with the same passphrase, like every encrypted store (SQLCipher, Realm, Room with SQLCipher): the passphrase belongs to your adapter's settings, not to the file. When the data belongs to one user who logs out, also **change the passphrase** and delete the old one, as SQLCipher's maintainers advise ("delete the database file at the time that you clear the old encryption key, or before generating a new one", [Zetetic forum](https://discuss.zetetic.net/t/sqlcipher-cannot-build-database-after-restarting-app/4550)):
+
+```js
+const NEW_PASSPHRASE_KEY = 'database-passphrase-new'
+const keychainOptions = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK }
+
+async function logOut() {
+  const newPassphrase = makeRandomPassphrase() // as in "Where to keep the passphrase"
+  // Save the new passphrase before the change, next to the old one (see "Changing the passphrase")
+  await SecureStore.setItemAsync(NEW_PASSPHRASE_KEY, newPassphrase, keychainOptions)
+  await database.write(async () => {
+    await database.unsafeResetDatabase()
+    // Cheap: the database is empty now
+    await database.unsafe_EncryptDB(newPassphrase)
+  })
+  // Only now replace the old one
+  await SecureStore.setItemAsync(PASSPHRASE_KEY, newPassphrase, keychainOptions)
+  await SecureStore.deleteItemAsync(NEW_PASSPHRASE_KEY)
+}
+```
+
+If the app is killed during a log-out, `NEW_PASSPHRASE_KEY` still has a value at the next launch. What to do depends on where it stopped:
+
+- **Before the change finished:** the database still has the old passphrase, and may still have the old user's data (if the reset didn't finish either). Setup succeeds, so nothing fails to tell you: when `NEW_PASSPHRASE_KEY` has a value that differs from `PASSPHRASE_KEY`, run `logOut()` again before anything else uses the database.
+- **After the change, before the last two lines:** the database has the new passphrase, which only `NEW_PASSPHRASE_KEY` holds. Setup fails with `encryption_key_invalid`: open with `NEW_PASSPHRASE_KEY`, then finish the last two lines. Without that item, the new passphrase would be lost, and the database couldn't be opened again.
+- **Between the last two lines:** both items hold the new passphrase. Delete `NEW_PASSPHRASE_KEY`.
+
+With app extensions ([More than one connection](#more-than-one-connection)), keep `NEW_PASSPHRASE_KEY` in the same shared access group as `PASSPHRASE_KEY` (add `accessGroup` to `keychainOptions`), so a target that opens the database after a cut-off log-out can read it too.
+
+Why change it at all: a reset removes the old data from the file, but flash storage can keep old copies of its blocks, and leftovers of the database's journal can outlive it. Those are still encrypted, with the passphrase your app keeps for the next user. Once that passphrase is replaced, nothing can decrypt them. This is what NIST calls a cryptographic erase ([SP 800-88](https://csrc.nist.gov/glossary/term/cryptographic_erase)).
+
+## More than one connection
+
+Every `SQLiteAdapter` opens its own connection to the file. Most apps have one, and need nothing from this section. You have more than one if:
+
+- **an iOS app extension or widget** opens the same database through an App Group ([Sharing database across targets](./SharingDatabaseAcrossTargets.md)): each target is its own process with its own connection,
+- **your app creates a second adapter** for the same `dbName`, e.g. in an Android Headless JS task or a background task. These run in your app's process: import the `Database` your app already has instead of making another one.
+
+What changes with encryption:
+
+- **Every connection needs the passphrase.** Each target needs the encryption build (on iOS the switch is read when the pods are installed, so every target that links NitromelonDB gets it), and has to read the same passphrase. Keep it where all of them can: on iOS, a Keychain item in a shared access group (the Keychain Sharing capability on every target, and the `accessGroup` option of `expo-secure-store` or `react-native-keychain`). Extensions often run while the device is locked, so use `AFTER_FIRST_UNLOCK` (see [Where to keep the passphrase](#where-to-keep-the-passphrase)). Pass `passphrase` as a function that reads it, so a target always opens with the current one.
+- **Encrypting, changing the passphrase and decrypting wait for the others to close.** `unsafe_EncryptDB()` and `unsafe_DecryptDB()` first take the database out of WAL mode, which SQLite only allows when no other connection has the file open. If one does, they wait up to 5 seconds, then reject with `rekey_failed` and change nothing: the file keeps its state and its passphrase, and both connections carry on. Run them when the others aren't open (an extension that is running keeps its connection until its process ends), and try again later if they reject. We test this for all three operations.
+- **Afterwards, the others need the new passphrase.** A connection opened after a change with the old passphrase fails with `encryption_key_invalid`, and doesn't touch the file. Replace the shared Keychain item as soon as the change has finished, not before: until then the file still has the old passphrase. Keep the new one in its own item during the change, as in [Log out](#log-out-wipe-the-data-and-change-the-passphrase).
+- **Opening while a change runs.** A target that opens the database while it's being encrypted, re-keyed or decrypted waits for it, and can then fail to read the file (it read the passphrase, or the lack of one, from before the change). Opening it again works.
+- **iOS App Groups: the app is killed in the background.** iOS terminates an app that is suspended while it holds a lock on a database in a shared App Group container, unless it can tell that the file is a SQLite database, which it does from the file's first bytes. An encrypted database's first bytes are random, so an app that keeps one open there is killed each time it goes to the background (both [SQLCipher](https://www.zetetic.net/sqlcipher/sqlcipher-api/#cipher_plaintext_header_size) and [SQLite3 Multiple Ciphers](https://utelle.github.io/SQLite3MultipleCiphers/docs/faq/faq_overview) document it). Their fix is a plaintext header, which also moves the key's salt out of the file, for the app to keep and pass on every open. NitromelonDB doesn't support that yet. Until it does, keep an encrypted database in the app's own container, or close it (`adapter.unsafeCloseConnection`) before the app is suspended.
+- **`usesExclusiveLocking: true`** makes the first connection that uses the file keep it locked until it closes. A second connection can then neither read nor write, so it doesn't work with extensions or a second adapter at all. With it, encrypting and decrypting never meet another connection.
+
 ## Errors
 
 Errors from opening or re-keying have a `code`:
@@ -310,7 +359,7 @@ database.readyPromise.catch((error) => {
 
 ## What we test
 
-- **Native, on every CI run, both builds:** opening with the right, wrong and missing passphrase, plain databases with and without `ifUnencrypted`, encrypting, changing the passphrase and decrypting from WAL mode, `unsafeResetDatabase()` on an encrypted database (it stays encrypted with the same passphrase), and two kinds of interruption: killing the process at points throughout each of them on a 10 MB database, and crashing it exactly at the two moments of the commit where a database is most at risk (right after the first page is rewritten, and right before the journal is deleted). Each time, the database opens, complete, with the old or the new passphrase. The default build must refuse a passphrase.
+- **Native, on every CI run, both builds:** opening with the right, wrong and missing passphrase, plain databases with and without `ifUnencrypted`, encrypting, changing the passphrase and decrypting from WAL mode, `unsafeResetDatabase()` on an encrypted database (it stays encrypted with the same passphrase), all three refusing to run while another connection has the file open, and two kinds of interruption: killing the process at points throughout each of them on a 10 MB database, and crashing it exactly at the two moments of the commit where a database is most at risk (right after the first page is rewritten, and right before the journal is deleted). Each time, the database opens, complete, with the old or the new passphrase. The default build must refuse a passphrase.
 - **JavaScript (Jest):** passphrase functions (including ones that fail), the order of calls made before the passphrase arrives and during a re-key, events, error codes, and that keying errors never lead to a reset.
 - **On a device (iOS simulator, Android emulator and Windows, CI):** the whole upgrade, with real builds. The plain build of our example app creates a database; the encryption build is installed over it, opens it, and encrypts it; the test then reads the file from the app's data folder to check it has no SQLite header and that a note's text can't be found in any database file; a cold start opens it with the passphrase; the plain build, installed over it, fails with `encryption_key_required` and leaves the file byte for byte unchanged; the encryption build opens it again with every note; decrypting turns it back into a plain SQLite file with every note, leaving no copy behind; the plain build, installed over it, opens it; and on iOS and Android, the encryption build encrypts it again, empties it, and makes its first sync a [Turbo Login](../Sync/Frontend.md#advanced-adopting-turbo-login), which writes the server's records straight into the encrypted file.
 - **By hand on Windows:** when another process holds the database file open, decrypting fails with `rekey_failed` and leaves the database encrypted with the same passphrase.

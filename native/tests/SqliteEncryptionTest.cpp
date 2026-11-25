@@ -334,6 +334,46 @@ struct Direction {
 
 static const Direction kDirections[] = {{"encrypt", "", "k1"}, {"change key", "k1", "k2"}, {"decrypt", "k1", ""}};
 
+// Another connection to the same file (an app extension, a widget, a second adapter): encrypting,
+// changing the key and decrypting all leave WAL first, which SQLite refuses while another
+// connection has the database open. So each fails with rekey_failed and changes nothing, instead
+// of leaving the other connection reading a file whose key changed under it (or, for decrypt, an
+// unlinked file). Once the other connection is closed, it works.
+static void rekeyRefusedWhileAnotherConnectionIsOpen() {
+    for (const Direction &direction : kDirections) {
+        std::string path = tempPath("other-connection");
+        sqlite3 *db = nullptr, *other = nullptr;
+        CHECK(tryOpen(path, direction.from, false, &db) == "");
+        CHECK(exec(db, "pragma journal_mode = wal; create table t (v); insert into t values ('kept');") == SQLITE_OK);
+        CHECK(tryOpen(path, direction.from, false, &other) == "");
+        CHECK(scalar(other, "select v from t") == "kept");
+
+        bool threw = false;
+        try {
+            rekey(db, path, direction.from, direction.to);
+        } catch (const EncryptionError &error) {
+            threw = error.code == "rekey_failed";
+        }
+        CHECK(threw);
+        // Both connections go on as before, on the same file with the same key
+        CHECK(db != nullptr);
+        CHECK(scalar(db, "pragma journal_mode") == "wal");
+        CHECK(exec(db, "insert into t values ('after')") == SQLITE_OK);
+        CHECK(scalar(other, "select count(*) from t") == "2");
+        CHECK(probeFile(path) == (direction.from.empty() ? FileState::Unencrypted : FileState::Encrypted));
+        CHECK(!fileExists(decryptedCopyPath(path)));
+
+        sqlite3_close(other);
+        rekey(db, path, direction.from, direction.to);
+        CHECK(scalar(db, "select count(*) from t") == "2");
+        sqlite3_close(db);
+        CHECK(tryOpen(path, direction.to, false, &db) == "");
+        CHECK(scalar(db, "select count(*) from t") == "2");
+        sqlite3_close(db);
+        removeDatabase(path);
+    }
+}
+
 // Opens the database like an app would after the re-key was cut off: with a passphrase it has
 // (either one, for a key change), and ifUnencrypted: 'open'. Checks every row is there. Returns
 // "old" or "new" for the key it ended up with, or "" (and reports) if it doesn't open complete.
@@ -569,6 +609,7 @@ int main() {
     plaintextDatabaseNeedsOptIn();
     rekeysFromWal();
     resetKeepsEncryption();
+    rekeyRefusedWhileAnotherConnectionIsOpen();
     crashesAtCommit();
     survivesKillDuringRekey();
 #else
