@@ -135,7 +135,7 @@ npx electron-rebuild -f -w better-sqlite3-multiple-ciphers
 - **Other connections.** Encrypting, changing the passphrase or decrypting fails with `rekey_failed` (changing nothing) while another adapter in the same process has the file open. Connections in other processes can't be detected on Node (the Node adapter doesn't use WAL mode): close them first. See [More than one connection](#more-than-one-connection).
 - **Decrypting** writes an encrypted copy, decrypts the copy, then replaces the database with it. It needs free space for the copy, and takes longer than in the apps.
 
-If your own code also opens the database file with `better-sqlite3` (or another SQLite library), switch that to `better-sqlite3-multiple-ciphers` too, or open the file only through NitromelonDB. Two copies of SQLite in one process don't see each other's file locks, so writes from both can corrupt the database, and plain `better-sqlite3` can't read an encrypted file anyway (see "Other SQLite libraries in your app" in [What changes in the encryption build](#what-changes-in-the-encryption-build)).
+If your own code also opens the database file with `better-sqlite3` (or another SQLite library), switch that to `better-sqlite3-multiple-ciphers` too, or open the file only through NitromelonDB. On macOS and Linux, two copies of SQLite in one process break each other's file locks: when one closes the file, the other's locks are released too ([SQLite: How To Corrupt](https://sqlite.org/howtocorrupt.html#multiple_copies_of_sqlite_linked_into_the_same_application)), so writes from both can corrupt the database. On every platform, plain `better-sqlite3` can't read an encrypted file anyway (see "Other SQLite libraries in your app" in [What changes in the encryption build](#what-changes-in-the-encryption-build)).
 
 In Electron, SQLite runs in the main process, so that's where the passphrase is read (for example with Electron's `safeStorage`).
 
@@ -332,7 +332,13 @@ async function logOut() {
 }
 ```
 
-If the app is killed during the change, the database still has the old passphrase. If it's killed after the change but before the last two lines, the database has the new one, which only `NEW_PASSPHRASE_KEY` holds. So when setup fails with `encryption_key_invalid` and `NEW_PASSPHRASE_KEY` has a value, open with that one, then finish the last two lines. Without it, the new passphrase would be lost, and the database couldn't be opened again.
+If the app is killed during a log-out, `NEW_PASSPHRASE_KEY` still has a value at the next launch. What to do depends on where it stopped:
+
+- **Before the change finished:** the database still has the old passphrase, and may still have the old user's data (if the reset didn't finish either). Setup succeeds, so nothing fails to tell you: when `NEW_PASSPHRASE_KEY` has a value that differs from `PASSPHRASE_KEY`, run `logOut()` again before anything else uses the database.
+- **After the change, before the last two lines:** the database has the new passphrase, which only `NEW_PASSPHRASE_KEY` holds. Setup fails with `encryption_key_invalid`: open with `NEW_PASSPHRASE_KEY`, then finish the last two lines. Without that item, the new passphrase would be lost, and the database couldn't be opened again.
+- **Between the last two lines:** both items hold the new passphrase. Delete `NEW_PASSPHRASE_KEY`.
+
+With app extensions ([More than one connection](#more-than-one-connection)), keep `NEW_PASSPHRASE_KEY` in the same shared access group as `PASSPHRASE_KEY` (add `accessGroup` to `keychainOptions`), so a target that opens the database after a cut-off log-out can read it too.
 
 Why change it at all: a reset removes the old data from the file, but flash storage can keep old copies of its blocks, and leftovers of the database's journal can outlive it. Those are still encrypted, with the passphrase your app keeps for the next user. Once that passphrase is replaced, nothing can decrypt them. This is what NIST calls a cryptographic erase ([SP 800-88](https://csrc.nist.gov/glossary/term/cryptographic_erase)).
 

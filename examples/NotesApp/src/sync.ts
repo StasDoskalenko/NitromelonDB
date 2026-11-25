@@ -16,7 +16,9 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
   return response
 }
 
-// Set after the first sync that finished, so the app only offers Turbo Login before it
+// Set once a sync has applied anything it pulled (a page is enough), even if it failed afterwards.
+// The app offers Turbo Login only before that: synchronize() refuses unsafeTurbo once lastPulledAt
+// is set, and a page of a pull already wrote records
 export const hasSyncedKey = localStorageKey<boolean>('notesapp_has_synced')
 
 // turbo: Turbo Login (docs: Sync/Frontend, "Adopting Turbo Login"). The server's response goes to
@@ -29,6 +31,7 @@ export async function syncNotes(
   database: Database,
   { turbo = false }: { turbo?: boolean } = {},
 ): Promise<void> {
+  let pulled = false
   await synchronize({
     database,
     pullChanges: async ({ lastPulledAt, schemaVersion, migration, cursor }) => {
@@ -62,6 +65,13 @@ export async function syncNotes(
     // arrives, and an interrupted pull continues where it stopped
     paginatedPulls: !turbo,
     unsafeTurbo: turbo,
+    // Called for every pull (each page of a paginated one), after it's applied
+    onDidPullChanges: async () => {
+      pulled = true
+    },
+  }).finally(async () => {
+    if (pulled) {
+      await database.localStorage.set(hasSyncedKey, true)
+    }
   })
-  await database.localStorage.set(hasSyncedKey, true)
 }
