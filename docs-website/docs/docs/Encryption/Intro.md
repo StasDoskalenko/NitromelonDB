@@ -44,13 +44,13 @@ The encryption build and the passphrase API work on iOS, Android and Windows, an
 
 ## Why it's a switch and not just an option
 
-You might expect encryption to be an option on `SQLiteAdapter` and nothing else. The option is coming, but the code that does the encrypting has to be compiled into your app first, and that code has consequences for every app that contains it, whether or not it ever sets a key:
+We want moving from WatermelonDB to be as easy as possible: change the package, rebuild, and your app works and ships as before. Compiling encryption into every app would break that, even for apps that never set a key:
 
-1. **Export compliance.** Apps that contain encryption have to say so, and Apple's question covers your app "including any third-party libraries it links against". If NitromelonDB compiled its cipher into every app, every app using NitromelonDB would contain encryption, and some publishers would have to change their answers to Apple, and possibly file a French encryption declaration, without having changed anything. Keeping it behind a switch means the default build contains no cryptography from NitromelonDB, and nothing changes for you unless you decide it should. Details in [App Store and export compliance](./ExportCompliance.md).
-2. **App size.** The cipher, and on iOS a bundled SQLite instead of the system's, add about 1.2 MB per arm64 slice on iOS and about 110 KB on Android (before App Store thinning and compression).
-3. **The SQLite engine on iOS.** By default iOS uses the system SQLite. The encryption build bundles its own, because the system one can't encrypt. We match the settings of Apple's build (see [What changes in the encryption build](./HowItWorks.md#what-changes-in-the-encryption-build)), but it is a different engine, and you should get to choose when that happens.
+1. **The SQLite engine on iOS.** Like WatermelonDB, NitromelonDB uses the system SQLite on iOS by default. The system one can't encrypt, so the encryption build bundles its own. It matches the settings of Apple's build (see [What changes in the encryption build](./HowItWorks.md#what-changes-in-the-encryption-build)), but it is a different engine, and you should choose when to switch.
+2. **App size.** The cipher adds about 1.2 MB per arm64 slice on iOS and about 110 KB on Android (before App Store thinning and compression).
+3. **Export compliance.** An app that contains encryption has to say so to Apple, including encryption in the libraries it links. With the cipher in every build, some publishers would have to change their answers, and possibly file a French encryption declaration, just by updating. Details in [App Store and export compliance](./ExportCompliance.md).
 
-Why not an Expo-only setting, or a runtime check? Because the decision has to reach three native build systems (CocoaPods, Gradle and MSBuild), and has to be the same in all of them. A single key in `package.json`, which all three read, is the one place every React Native app already has.
+The switch is a key in your app's `package.json` because CocoaPods, Gradle and MSBuild all read that file, so all three builds get the same answer.
 
 ## Should you turn it on?
 

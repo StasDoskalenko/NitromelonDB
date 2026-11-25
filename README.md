@@ -18,7 +18,7 @@
   <a href="https://stasdoskalenko.github.io/NitromelonDB/docs/Installation">Installation</a> ·
   <a href="https://stasdoskalenko.github.io/NitromelonDB/docs/Migrating">Migrating from WatermelonDB</a> ·
   <a href="https://stasdoskalenko.github.io/NitromelonDB/performance">Performance</a> ·
-  <a href="https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Encryption">Encryption</a> ·
+  <a href="https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Intro">Encryption</a> ·
   <a href="https://discord.gg/aXqqy3HPb">Discord</a>
 </p>
 
@@ -113,7 +113,7 @@ Prefer higher-order components? `withObservables` still works. See [Components](
 
 **For developers**
 
-- **Encryption, opt-in.** The database file can be encrypted in SQLCipher 4's format (AES-256) on iOS, Android, Windows, Node and Electron: turn on one switch in your app's `package.json`, then give `SQLiteAdapter` a passphrase. Plain databases of existing users can be encrypted in place. Apps that don't turn it on ship no cryptography from NitromelonDB, so their App Store export-compliance answer stays the same. Coming in 0.33. See [Encryption](https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Encryption).
+- **Encryption, opt-in.** The database file can be encrypted in SQLCipher 4's format (AES-256) on iOS, Android, Windows, Node and Electron: turn on one switch in your app's `package.json`, then give `SQLiteAdapter` a passphrase. Plain databases of existing users can be encrypted in place. Apps that don't turn it on ship no cryptography from NitromelonDB, so their App Store export-compliance answer stays the same. Coming in 0.33. See [Encryption](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Intro).
 - **Written in TypeScript**, with strict checking, so the published types match the code.
 - **Decorators, both kinds.** On Expo, model decorators work with no Babel setup at all. Standard (TC39) decorators with `accessor` fields work too, and development builds tell you when decorators compiled but don't work. See [Decorators](https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/StandardDecorators).
 - **Hooks:** `useQuery`, `useRecord`, `useObservable`, `useWriter`, `useAtomicWriter` and `useDatabaseReady`, next to `withObservables`.
