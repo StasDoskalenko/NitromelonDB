@@ -5774,5 +5774,26 @@
       "ram": 177,
       "fps": 51.8
     }
+  },
+  {
+    "sha": "a18f96c9c366207687e96c82f6a9a1a2c9c2d222",
+    "date": "2026-11-25T19:03:19.360Z",
+    "prNumber": 265,
+    "subject": "fix(encryption): SQLCipher 4's own file layout, and secure_delete like SQLCipher (#60) (#265)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 19.8,
+      "ram": 179,
+      "fps": 55
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 20,
+      "ram": 179,
+      "fps": 55.3
+    }
   }
 ]
