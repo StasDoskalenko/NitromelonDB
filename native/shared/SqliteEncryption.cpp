@@ -31,7 +31,7 @@ const char *kSwitchHint =
     "(or NITROMELONDB_ENCRYPTION=1), then rebuild the native app: run pod install again on iOS. If it's "
     "already on, check the build log for \"SQLite encryption build\": the switch may be in a package.json "
     "that isn't the app's, or NITROMELONDB_ENCRYPTION=0 may be set. "
-    "See https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Encryption";
+    "See https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Setup";
 
 bool isMemoryName(const std::string &path) {
     return path.empty() || path == ":memory:" || path.find("mode=memory") != std::string::npos;
@@ -113,6 +113,11 @@ void removeDatabaseFiles(const std::string &path) {
 #if NITROMELON_ENCRYPTION
 
 const int kOpenFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_URI;
+
+// Every keyed connection, as SQLCipher sets up its own: temp files (big sorts, index builds, vacuum)
+// aren't encrypted, so they stay in memory; and deleted content is zeroed rather than left in free
+// pages (secure_delete, on by default in SQLCipher since 2.0.5)
+const char *const kKeyedConnectionSql = "pragma temp_store = memory; pragma secure_delete = on;";
 
 // Without a trailing period, so it can go in the middle of a sentence
 std::string errorMessage(sqlite3 *db) {
@@ -262,7 +267,7 @@ sqlite3 *openKeyed(const std::string &resolvedPath, const std::string &passphras
     }
     if (!passphrase.empty()) {
         sqlite3_key_v2(db, "main", passphrase.data(), static_cast<int>(passphrase.size()));
-        exec(db, "pragma temp_store = memory");
+        exec(db, kKeyedConnectionSql);
     }
     return db;
 }
@@ -447,8 +452,7 @@ bool openWithKey(sqlite3 *db, FileState state, const std::string &passphrase, bo
     if (result != SQLITE_OK) {
         throw std::runtime_error("Couldn't read the encrypted database: " + errorMessage(db));
     }
-    // Temp files (big sorts, index builds, vacuum) are not encrypted: keep them in memory
-    exec(db, "pragma temp_store = memory");
+    exec(db, kKeyedConnectionSql);
     return true;
 #else
     (void)db;
@@ -481,7 +485,7 @@ void rekey(sqlite3 *&db, const std::string &resolvedPath, const std::string &cur
         throw EncryptionError("rekey_failed",
                               "Couldn't change the encryption key: " + error + ". The database keeps its previous key.");
     }
-    exec(db, "pragma temp_store = memory");
+    exec(db, kKeyedConnectionSql);
 #else
     (void)db;
     (void)resolvedPath;

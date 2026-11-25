@@ -15,7 +15,7 @@ package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
 # Opt in with NITROMELONDB_ENCRYPTION=1, or `"nitromelondb": { "encryption": true }` in the app's
 # package.json (the first one found above the Podfile). Re-run `pod install` after changing it.
 # Encryption is opt-in because the cipher code changes how an app answers App Store
-# export-compliance questions, and adds to its size (docs: Advanced/Encryption).
+# export-compliance questions, and adds to its size (docs: Encryption/Intro).
 # (Lambdas, not `def`: CocoaPods evaluates podspecs inside `module Pod`.)
 nitromelon_encryption_flag = lambda do |value, source|
   next value if value == true || value == false

@@ -233,6 +233,38 @@ describe('SQLiteAdapter encryption on Node', () => {
     expect(fs.existsSync(decryptedCopyPath(path))).toBe(false)
   })
 
+  it('reads a database written by SQLCipher 4 itself', () => {
+    // SQLCipher's own test database (native/tests/fixtures/README.md), opened as SQLCipher's
+    // compatibility test does: same passphrase, same row count
+    const path = tempPath()
+    fs.copyFileSync(
+      `${__dirname}/../../../../../native/tests/fixtures/sqlcipher-4.0-testkey.db`,
+      path,
+    )
+    expect(() => new NodeDatabase(path, { passphrase: 'wrong' })).toThrow(/encryption_key_invalid/)
+    const db = new NodeDatabase(path, { passphrase: 'testkey' })
+    expect(db.isEncrypted).toBe(true)
+    expect(db.count('select count(*) as count from t1')).toBe(78536)
+    db.instance.close()
+  })
+
+  it('zeroes deleted content on an encrypted connection, as SQLCipher does', async () => {
+    const path = tempPath()
+    const keyed = new NodeDatabase(path, { passphrase: 'k1' })
+    expect(keyed.instance.pragma('secure_delete', { simple: true })).toBe(1)
+    keyed.instance.close()
+    const plain = new NodeDatabase(tempPath())
+    expect(plain.instance.pragma('secure_delete', { simple: true })).toBe(0)
+    plain.instance.close()
+
+    // After encrypting a plain database too
+    const database = await open(tempPath(), { passphrase: 'k1', ifUnencrypted: 'open' })
+    await database.write(() => database.unsafe_EncryptDB('k1'))
+    expect(await call(database, 'unsafeQueryRaw', ['pragma secure_delete', []])).toEqual([
+      { secure_delete: 1 },
+    ])
+  })
+
   it('reads a database encrypted by the native build, and the native build reads ours', () => {
     // Made by the native encryption build (SqliteEncryption.cpp, passphrase "k1"): table t, one row
     const fixture = `${__dirname}/fixtures/native-encrypted-k1.db`
@@ -243,16 +275,14 @@ describe('SQLiteAdapter encryption on Node', () => {
     expect(native.queryRaw('select v from t')).toEqual([{ v: 'from native' }])
     native.instance.close()
 
-    // And ours has the native layout (page 1's bytes 16-23, page size and reserved bytes, stay
-    // readable in sqlite3mc's SQLCipher scheme). The native test reads a file written here:
-    // native/tests/fixtures/node-encrypted-k1.db
+    // And ours is in SQLCipher 4's layout, as natively: page 1 is encrypted from byte 16 on, so a
+    // plain header's page size, format versions and reserved bytes (bytes 16-20) aren't there. The
+    // native test reads a file written here: native/tests/fixtures/node-encrypted-k1.db
     const ours = tempPath()
     const db = new NodeDatabase(ours, { passphrase: 'k1' })
     db.executeStatements("create table t (v); insert into t values ('from node')")
     db.instance.close()
-    expect(fs.readFileSync(ours).subarray(16, 24)).toEqual(
-      fs.readFileSync(fixture).subarray(16, 24),
-    )
+    expect([...fs.readFileSync(ours).subarray(16, 21)]).not.toEqual([0x10, 0x00, 1, 1, 80])
   })
 })
 

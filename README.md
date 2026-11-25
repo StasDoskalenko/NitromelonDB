@@ -163,7 +163,7 @@ Each folder's README has run instructions.
 
 ## Roadmap
 
-[SQLCipher](https://github.com/StasDoskalenko/NitromelonDB/issues/60) ([encryption](https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Encryption) works on iOS, Android, Windows, Node and Electron, including encrypting existing databases; progress events are next), [VACUUM](https://github.com/StasDoskalenko/NitromelonDB/issues/59), [macOS](https://github.com/StasDoskalenko/NitromelonDB/issues/49), [paginated sync](https://github.com/StasDoskalenko/NitromelonDB/issues/50), [more reliable migrations](https://github.com/StasDoskalenko/NitromelonDB/issues/57) and [clearer critical-error handling](https://github.com/StasDoskalenko/NitromelonDB/issues/61).
+[SQLCipher](https://github.com/StasDoskalenko/NitromelonDB/issues/60) ([encryption](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Intro) works on iOS, Android, Windows, Node and Electron, including encrypting existing databases; progress events are next), [VACUUM](https://github.com/StasDoskalenko/NitromelonDB/issues/59), [macOS](https://github.com/StasDoskalenko/NitromelonDB/issues/49), [paginated sync](https://github.com/StasDoskalenko/NitromelonDB/issues/50), [more reliable migrations](https://github.com/StasDoskalenko/NitromelonDB/issues/57) and [clearer critical-error handling](https://github.com/StasDoskalenko/NitromelonDB/issues/61).
 
 ## Contributing
 

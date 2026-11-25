@@ -19,7 +19,7 @@ export type ExampleDatabase = {
 // DEMO ONLY. A real app generates a random passphrase once (e.g. 32 random bytes as hex) and keeps
 // it in the Keychain / Android Keystore (expo-secure-store, react-native-keychain), then passes a
 // function that reads it as `encryption.passphrase`. Never ship a passphrase in the bundle: anyone
-// can read it there. See docs/Advanced/Encryption.
+// can read it there. See docs/Encryption/Intro.
 export const DEMO_PASSPHRASE = 'nitromelon-notes-demo-passphrase'
 
 export function createExampleDatabase(): ExampleDatabase {
