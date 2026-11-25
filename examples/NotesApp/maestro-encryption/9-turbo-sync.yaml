@@ -1,0 +1,88 @@
+# Step 9 (encryption build, installed over the decrypted database; iOS and Android): encrypts it
+# again, empties it ("Delete all"), then makes its first sync a Turbo Login (src/sync.ts): the
+# login sync into an empty database it's meant for, which native code writes straight into the
+# encrypted file. Turbo doesn't notify the list, so a cold start checks the result. Needs the sync
+# server (the script starts it). See README.md.
+appId: com.nitromelondb.example
+env:
+  SYNC_SERVER_URL: http://127.0.0.1:3000
+---
+- launchApp:
+    stopApp: true
+
+- extendedWaitUntil:
+    visible:
+      id: "encryption-status"
+    timeout: 60000
+
+# Encrypting after a decrypt. Not on a retry after it was already encrypted
+- runFlow:
+    when:
+      visible:
+        id: "encrypt-button"
+    commands:
+      - tapOn:
+          id: "encrypt-button"
+
+- extendedWaitUntil:
+    visible:
+      id: "encryption-status"
+      text: "Encrypted"
+    timeout: 60000
+
+# The first sync of this install. Not on a retry after it already synced: the server's note is
+# then the only one. The button shows once the app has read that it never
+# synced, which can come after the list, so wait for it rather than check it once.
+- runFlow:
+    when:
+      notVisible:
+        text: "From the server"
+    commands:
+      # Turbo Login is for an empty database
+      - tapOn:
+          id: "delete-all-button"
+      - extendedWaitUntil:
+          visible:
+            text: ".*· 0 notes"
+          timeout: 30000
+      - extendedWaitUntil:
+          visible:
+            id: "turbo-sync-button"
+          timeout: 30000
+      - runScript:
+          file: ../maestro-commands/sync-server.js
+          env:
+            ACTION: prepare
+            SERVER: ${SYNC_SERVER_URL}
+      - tapOn:
+          id: "turbo-sync-button"
+      - extendedWaitUntil:
+          visible:
+            text: "Synced (1)"
+          timeout: 60000
+
+- launchApp:
+    stopApp: true
+
+- extendedWaitUntil:
+    visible:
+      id: "encryption-status"
+      text: "Encrypted"
+    timeout: 60000
+
+# Only the server's note
+- assertVisible:
+    text: ".*· 1 note"
+- assertVisible:
+    text: "From the server"
+- assertNotVisible:
+    id: "turbo-sync-button"
+
+# Nothing to push: the device had no notes
+- runScript:
+    file: ../maestro-commands/sync-server.js
+    env:
+      ACTION: verify
+      SERVER: ${SYNC_SERVER_URL}
+      DEVICE_NOTE_TITLE: "After decryption"
+- assertTrue: ${output.serverNoteCount == 1}

@@ -14,6 +14,8 @@
 #   6 encryption build again: every note still there
 #   7 Decrypt button (unsafe_DecryptDB), adds a note        -> plain SQLite again, no copy left
 #   8 plain build over it: opens it, every note there       -> plain SQLite
+#   9 encryption build over it (iOS, Android): Encrypt      -> no SQLite header, marker nowhere
+#     again, then a Turbo Login first sync into it
 #
 # Usage:
 #   bash scripts/ci-notesapp-encryption-upgrade.sh ios <NotesApp.app.zip> <NotesApp-encryption.app.zip>
@@ -25,7 +27,11 @@
 # APKs are Release builds, so `run-as` can't read the app's files. ci.yml runs the Android one
 # through android-emulator-runner, which needs it to be one command. Windows (Git Bash): copies of
 # each Release build's windows/NitromelonWindows.Package/bin/x64/Release/AppX, and WinAppDriver (as
-# for the e2e); it removes the installed NitromelonWindows package and its data first.
+# for the e2e); it removes the installed NitromelonWindows package and its data first. Step 9 needs
+# the reference sync server's dependencies (`yarn install` in examples/sync-server); it starts the
+# server itself. Not on Windows: its NotesApp has no sync tests yet. (To add it there: this script
+# installs with Add-AppxPackage, which doesn't exempt the app from loopback isolation as run-windows
+# does, so it would also need `CheckNetIsolation LoopbackExempt -a -n=<package family name>`.)
 set -euo pipefail
 
 if [ $# -ne 3 ] || { [ "$1" != ios ] && [ "$1" != android ] && [ "$1" != windows ]; }; then
@@ -318,5 +324,19 @@ check_db plain
 install plain "$PLAIN_BUILD"
 run_flow 8-plain-opens-decrypted
 check_db plain
+
+if [ "$PLATFORM" != windows ]; then
+  # shellcheck source=ci-start-sync-server.sh
+  source "$ROOT/scripts/ci-start-sync-server.sh"
+  start_sync_server
+  # start_sync_server's trap replaces this script's: keep both
+  trap 'kill "$SYNC_SERVER_PID" 2>/dev/null || true; rm -rf "$WORK"' EXIT
+  if [ "$PLATFORM" = android ]; then
+    adb reverse tcp:3000 tcp:3000
+  fi
+  install encryption "$ENCRYPTION_BUILD"
+  run_flow 9-turbo-sync
+  check_db encrypted
+fi
 
 echo "Upgrade to the encryption build ($PLATFORM): passed"

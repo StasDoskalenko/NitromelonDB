@@ -441,6 +441,17 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
+      - name: Set Node.js version
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+          # Yarn's download cache, so the sync server install rarely needs npm
+          cache: yarn
+          cache-dependency-path: examples/sync-server/yarn.lock
+      # For step 9, the Turbo Login sync (the script starts the server)
+      - name: Install the sync server
+        working-directory: examples/sync-server
+        run: yarn install --immutable
       - name: cache Maestro
         uses: actions/cache@v5
         with:
@@ -708,8 +719,8 @@ jobs:
           if-no-files-found: error
           retention-days: 3
   # Installs the plain build, then the encryption build over it, encrypts the existing database in
-  # place, and decrypts it again (scripts/ci-notesapp-encryption-upgrade.sh,
-  # examples/NotesApp/maestro-encryption)
+  # place, decrypts it again, and re-encrypts it for a Turbo Login sync
+  # (scripts/ci-notesapp-encryption-upgrade.sh, examples/NotesApp/maestro-encryption)
   notesapp-ios-encryption-upgrade:
     needs: [notesapp-ios-build, notesapp-ios-build-encryption]
     runs-on: macos-26
@@ -730,6 +741,17 @@ jobs:
           echo "Booting $name ($udid)"
           echo "SIM_UDID=$udid" >> "$GITHUB_ENV"
           xcrun simctl boot "$udid"
+      - name: Set Node.js version
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+          # Yarn's download cache, so the sync server install rarely needs npm
+          cache: yarn
+          cache-dependency-path: examples/sync-server/yarn.lock
+      # For step 9, the Turbo Login sync (the script starts the server)
+      - name: Install the sync server
+        working-directory: examples/sync-server
+        run: yarn install --immutable
       - name: cache Maestro
         uses: actions/cache@v5
         with:

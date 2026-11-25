@@ -1,7 +1,8 @@
 # Upgrading an install to the encryption build
 
 These flows aren't a suite of their own: `scripts/ci-notesapp-encryption-upgrade.sh` (CI jobs
-`NotesApp iOS (encryption upgrade)` and `NotesApp Android (encryption upgrade)`) runs them one by
+`NotesApp iOS (encryption upgrade)` and `NotesApp Android (encryption upgrade)`; Windows runs steps
+1-8 with `../../NotesApp_windows/e2e-encryption`) runs them one by
 one, switching between the plain build and the encryption build of NotesApp on the same simulator or
 emulator, and checks the database file on disk between steps:
 
@@ -15,6 +16,11 @@ emulator, and checks the database file on disk between steps:
 | 6 | encryption, over it | `4-reopens-encrypted.yaml` again: every note still there | |
 | 7 | | `7-decrypt.yaml`: taps Decrypt, adds "After decryption" | plain SQLite header, the marker readable |
 | 8 | plain, over it | `8-plain-opens-decrypted.yaml`: opens it with every note | plain SQLite header |
+| 9 | encryption, over it | `9-turbo-sync.yaml`: Encrypt again, Delete all, then a Turbo Login first sync into the empty database (`turbo-sync-button`); a cold start shows only the server's note | no SQLite header, no marker anywhere in the files |
+
+Step 9 needs the reference sync server: the script starts it (`scripts/ci-start-sync-server.sh`, so
+`yarn install` in `examples/sync-server` first) and, on Android, runs `adb reverse tcp:3000 tcp:3000`.
+Windows stops after step 8 (its NotesApp has no sync tests).
 
 After every step, the script also fails if `unsafe_DecryptDB()`'s copy
 (`nitromelon-example.db-nitromelon-decrypted`) is in the data folder: decrypt renames it over the
