@@ -1,6 +1,9 @@
 /* eslint-disable global-require */
 
 import DatabaseBridge from '../sqlite-node/DatabaseBridge'
+import { getPath } from '../sqlite-node/DatabaseDriver'
+import { nodeEncryption } from '../sqlite-node/Database'
+import { NODE_SWITCH_HINT, probeFile } from '../sqlite-node/encryption'
 import type { ConnectionTag } from '../../../utils/common'
 import type { ResultCallback } from '../../../utils/fp/Result'
 import type {
@@ -41,6 +44,12 @@ export const makeDispatcher = (
   options: SqliteDispatcherOptions,
 ): SqliteDispatcher => {
   DatabaseBridge.setStoreWholeNumbersAsIntegers(tag, options.storeWholeNumbersAsIntegers)
+  DatabaseBridge.setEncryption(
+    tag,
+    options.passphrase
+      ? { passphrase: options.passphrase, allowUnencrypted: !!options.allowUnencrypted }
+      : null,
+  )
   return new SqliteNodeDispatcher(tag)
 }
 
@@ -48,11 +57,16 @@ export function getDispatcherType(_options: SQLiteAdapterOptions): DispatcherTyp
   return 'asynchronous'
 }
 
-// Encryption is native only for now (iOS, Android, Windows)
+// With better-sqlite3-multiple-ciphers installed (sqlite-node/encryption.ts)
 export function isEncryptionAvailable(): boolean {
-  return false
+  return nodeEncryption().hasCodec
 }
 
-export function getDatabaseEncryptionState(_dbName: string): DatabaseEncryptionState {
-  throw new Error('SQLiteAdapter.getDatabaseEncryptionState() is not supported on Node yet')
+// Why encryption isn't available, for the error SQLiteAdapter throws
+export function encryptionUnavailableHint(): string {
+  return NODE_SWITCH_HINT
+}
+
+export function getDatabaseEncryptionState(dbName: string): DatabaseEncryptionState {
+  return probeFile(getPath(dbName))
 }

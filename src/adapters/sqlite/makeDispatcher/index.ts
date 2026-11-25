@@ -3,4 +3,5 @@ export {
   getDispatcherType,
   isEncryptionAvailable,
   getDatabaseEncryptionState,
+  encryptionUnavailableHint,
 } from './nodeDispatcher'

@@ -1,30 +1,44 @@
+import {
+  NodeEncryption,
+  probeFile,
+  type BetterSqlite3Constructor,
+  type EncryptionConfig,
+  type SqliteDatabase,
+} from './encryption'
+
 const fs = require('fs') as {
   existsSync: (path: string) => boolean
   unlinkSync: (path: string) => void
 }
 
-type SqliteStatement = {
-  run: (args: unknown[]) => unknown
-  get: (args: unknown[]) => unknown
-  all: (args: unknown[]) => unknown[]
+// better-sqlite3-multiple-ciphers if the app installed it (better-sqlite3 with SQLite3 Multiple
+// Ciphers inside, for the `encryption` option), else better-sqlite3
+function loadSqlite(): { Sqlite: BetterSqlite3Constructor; hasCodec: boolean } {
+  try {
+    return {
+      Sqlite: require('better-sqlite3-multiple-ciphers') as BetterSqlite3Constructor,
+      hasCodec: true,
+    }
+  } catch (error) {
+    const { code, message } = error as { code?: string; message?: string }
+    // Installed but broken (e.g. built for another Node or Electron version): say so
+    if (code !== 'MODULE_NOT_FOUND' || !message?.includes("'better-sqlite3-multiple-ciphers'")) {
+      throw error
+    }
+  }
+  return { Sqlite: require('better-sqlite3') as BetterSqlite3Constructor, hasCodec: false }
 }
 
-type SqliteDatabase = {
-  open: boolean
-  memory: boolean
-  transaction: (executeBlock: () => void) => () => void
-  prepare: (query: string) => SqliteStatement
-  exec: (queries: string) => unknown
-  pragma: ((sql: string, options: { simple: boolean }) => unknown) & ((sql: string) => unknown)
-  close: () => void
+let loaded: { Sqlite: BetterSqlite3Constructor; hasCodec: boolean } | undefined
+let encryption: NodeEncryption | undefined
+
+export function nodeEncryption(): NodeEncryption {
+  if (!encryption) {
+    loaded = loaded ?? loadSqlite()
+    encryption = new NodeEncryption(loaded.Sqlite, loaded.hasCodec)
+  }
+  return encryption
 }
-
-type BetterSqlite3Constructor = new (
-  path: string,
-  options?: { verboze?: typeof console.log },
-) => SqliteDatabase
-
-const SQliteDatabase = require('better-sqlite3') as BetterSqlite3Constructor
 
 function isCorruptionError(error: unknown): boolean {
   const code = (error as { code?: unknown }).code
@@ -36,9 +50,21 @@ class Database {
 
   path: string
 
-  constructor(path: string = ':memory:') {
+  // The passphrase this connection was opened with ('' for none): reopening after a decrypt, or a
+  // reset of a corrupt file, needs it
+  passphrase: string
+
+  allowUnencrypted: boolean
+
+  isEncrypted: boolean = false
+
+  constructor(
+    path: string = ':memory:',
+    { passphrase = '', allowUnencrypted = false }: EncryptionConfig = {},
+  ) {
     this.path = path
-    // this.instance = new SQliteDatabase(path);
+    this.passphrase = passphrase
+    this.allowUnencrypted = allowUnencrypted
     this.open()
   }
 
@@ -47,10 +73,15 @@ class Database {
     if (path === 'file::memory:' || path.indexOf('?mode=memory') >= 0) {
       path = ':memory:'
     }
+    const codec = nodeEncryption()
+    // What SqliteDb's constructor does natively: finish an interrupted re-key, look at the file,
+    // then key the connection before anything reads it
+    codec.recoverInterruptedRekey(path, this.passphrase)
+    const state = probeFile(path)
 
     try {
       // eslint-disable-next-line no-console
-      this.instance = new SQliteDatabase(path, { verboze: console.log })
+      this.instance = new codec.Sqlite(path, { verboze: console.log })
     } catch (error) {
       throw new Error(`Failed to open the database. - ${(error as Error).message}`)
     }
@@ -58,6 +89,38 @@ class Database {
     if (!this.instance || !this.instance.open) {
       throw new Error('Failed to open the database.')
     }
+
+    try {
+      this.isEncrypted = codec.openWithKey(
+        this.instance,
+        path,
+        state,
+        this.passphrase,
+        this.allowUnencrypted,
+      )
+    } catch (error) {
+      this.instance.close()
+      throw error
+    }
+  }
+
+  // Encrypts the database with `newPassphrase`, changes its key, or with '' decrypts it. Decrypting
+  // replaces the file, and this connection with one to the new file
+  changeEncryptionKey(newPassphrase: string): void {
+    const reopen = (passphrase: string): SqliteDatabase => {
+      this.passphrase = passphrase
+      this.open()
+      return this.instance
+    }
+    this.instance = nodeEncryption().rekey(
+      this.instance,
+      this.path,
+      this.isEncrypted ? this.passphrase : '',
+      newPassphrase,
+      reopen,
+    )
+    this.passphrase = newPassphrase
+    this.isEncrypted = !!newPassphrase
   }
 
   inTransaction(executeBlock: () => void): void {

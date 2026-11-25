@@ -1,4 +1,4 @@
-import BetterSqlite3 from 'better-sqlite3'
+import { nodeEncryption } from '../Database'
 import {
   createFileAdapter,
   openFileAdapter,
@@ -11,6 +11,10 @@ import Database from '../../../../Database'
 import { databaseSeed } from '../../../../Database/seed'
 import { schemaMigrations, unsafeExecuteSql } from '../../../../Schema/migrations'
 import { testSchema, modelClasses } from '../../../../__tests__/testModels'
+
+// Other connections use the same SQLite library as the adapter (better-sqlite3-multiple-ciphers
+// here): two copies of SQLite in one process don't see each other's locks
+const BetterSqlite3 = nodeEncryption().Sqlite
 
 // A database with tables but schema version 0 used to be set up from scratch on open, silently
 // deleting the tables. Now opening it fails, and database.unsafeResetDatabase() is the explicit way

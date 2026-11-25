@@ -50,6 +50,7 @@ import {
   getDispatcherType,
   isEncryptionAvailable,
   getDatabaseEncryptionState,
+  encryptionUnavailableHint,
 } from './makeDispatcher'
 import HoldingDispatcher from './HoldingDispatcher'
 
@@ -156,7 +157,8 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   _encryptionOptions: EncryptionOptions | undefined
 
   // Whether this build of the app has the codec ("nitromelondb": { "encryption": true } in the app's
-  // package.json). False on web and Node, and in the default native build. See docs/Advanced/Encryption
+  // package.json; on Node, better-sqlite3-multiple-ciphers installed). False on web, and in the
+  // default native build. See docs/Advanced/Encryption
   static isEncryptionAvailable(): boolean {
     return isEncryptionAvailable()
   }
@@ -324,10 +326,17 @@ export default class SQLiteAdapter implements DatabaseAdapter {
         encryption.ifUnencrypted === 'open',
       "SQLiteAdapter: encryption.ifUnencrypted must be 'error' or 'open'",
     )
-    if (this._dispatcherType !== 'nitro' && this._dispatcherType !== 'jsi') {
+    if (this._dispatcherType === 'wa-sqlite') {
       throw encryptionError(
         'encryption_unavailable',
-        `SQLiteAdapter: encryption is supported on iOS, Android and Windows, not with the ${this._dispatcherType} SQLite adapter (web or Node) yet. See ${ENCRYPTION_GUIDE}`,
+        `SQLiteAdapter: encryption is supported on iOS, Android, Windows and Node/Electron, not with the wa-sqlite SQLite adapter (web). See ${ENCRYPTION_GUIDE}`,
+      )
+    }
+    // Node/Electron: with better-sqlite3-multiple-ciphers installed
+    if (this._dispatcherType === 'asynchronous' && !isEncryptionAvailable()) {
+      throw encryptionError(
+        'encryption_unavailable',
+        `SQLiteAdapter: \`encryption\` was passed, but better-sqlite3 has no encryption, so the database would not be encrypted. ${encryptionUnavailableHint()}`,
       )
     }
     // The upstream WatermelonDB PR's bug was a build flag that silently didn't apply, leaving a
@@ -340,8 +349,8 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     }
   }
 
-  // Whether the open connection is encrypted. False without the `encryption` option (and on web and
-  // Node). Waits for setup.
+  // Whether the open connection is encrypted. False without the `encryption` option (and on web).
+  // Waits for setup.
   isEncrypted(callback: ResultCallback<boolean>): void {
     if (!this._holdingDispatcher) {
       callback({ value: false })

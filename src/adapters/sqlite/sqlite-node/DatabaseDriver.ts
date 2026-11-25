@@ -1,4 +1,5 @@
 import Database from './Database'
+import type { EncryptionConfig } from './encryption'
 import type { NativeBridgeBatchOperation, SQLiteArg } from '../type'
 import encodeDestroyMatchingMutation from '../encodeDestroyMatchingMutation'
 import { USER_OBJECTS_QUERY, tablesWithoutVersionError } from '../tablesWithoutVersion'
@@ -80,6 +81,13 @@ class DatabaseDriver {
   // SQLiteAdapter's storeWholeNumbersAsIntegers (set by DatabaseBridge)
   storeWholeNumbersAsIntegers: boolean = false
 
+  // SQLiteAdapter's `encryption` passphrase and ifUnencrypted (set by DatabaseBridge)
+  encryption: EncryptionConfig = {}
+
+  constructor(encryption: EncryptionConfig = {}) {
+    this.encryption = encryption
+  }
+
   cachedRecords: { [table: string]: Set<string> } = {}
 
   isSharedMemory: boolean = false
@@ -114,7 +122,7 @@ class DatabaseDriver {
       }
     }
 
-    const database = new Database(getPath(dbName))
+    const database = new Database(getPath(dbName), this.encryption)
     this.database = database
     if (this.isSharedMemory) {
       DatabaseDriver.sharedMemoryConnections[dbName] = database

@@ -4,6 +4,16 @@ import Database from '../Database'
 
 // Database#unsafeDestroyEverything wipes the database in place instead of deleting the file,
 // so other connections to the same file keep working (#172)
+//
+// With plain better-sqlite3, as most Node apps have it: with better-sqlite3-multiple-ciphers, a file
+// that isn't SQLite may be an encrypted database, which is never recreated (encryption.test.js).
+// Also keeps the other connections here on the same SQLite library as Database's: two copies of
+// SQLite in one process don't see each other's locks.
+jest.mock('better-sqlite3-multiple-ciphers', () => {
+  const error = new Error("Cannot find module 'better-sqlite3-multiple-ciphers'")
+  error.code = 'MODULE_NOT_FOUND'
+  throw error
+})
 
 const MARKER = 'needle-7f3a9c'
 

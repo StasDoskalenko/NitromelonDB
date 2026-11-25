@@ -14,7 +14,7 @@ Using it takes two steps:
 2. [Give `SQLiteAdapter` a passphrase](#open-an-encrypted-database). For an app that already has users with plain databases, [encrypt them in place](#add-encryption-to-an-app-that-already-has-users).
 
 :::note Status
-The encryption build and the passphrase API work on iOS, Android and Windows ([#60](https://github.com/StasDoskalenko/NitromelonDB/issues/60)). Progress events during a long encryption, and Node/Electron support, come next (see [What's next](#whats-next)). The web (LokiJS, wa-sqlite) refuses the `encryption` option with an error.
+The encryption build and the passphrase API work on iOS, Android and Windows, and on Node.js and Electron with [`better-sqlite3-multiple-ciphers`](#nodejs-and-electron) ([#60](https://github.com/StasDoskalenko/NitromelonDB/issues/60)). Progress events during a long encryption come next (see [What's next](#whats-next)). The web (LokiJS, wa-sqlite) refuses the `encryption` option with an error.
 :::
 
 ## At a glance
@@ -24,6 +24,7 @@ The encryption build and the passphrase API work on iOS, Android and Windows ([#
 | How to get it                              | nothing to do                                        | `"nitromelondb": { "encryption": true }` in your app's `package.json`                                         |
 | SQLite on iOS                              | the system `libsqlite3`                              | bundled [SQLite3 Multiple Ciphers](https://github.com/utelle/SQLite3MultipleCiphers) (built on SQLite 3.54.1) |
 | SQLite on Android and Windows              | bundled SQLite 3.54.1                                | bundled SQLite3 Multiple Ciphers (built on SQLite 3.54.1)                                                     |
+| SQLite on Node.js and Electron             | `better-sqlite3`                                     | `better-sqlite3-multiple-ciphers` ([no build switch](#nodejs-and-electron))                                   |
 | Can encrypt a database                     | no: a passphrase fails with `encryption_unavailable` | yes                                                                                                           |
 | Cryptography in your app from NitromelonDB | none                                                 | AES-256, HMAC-SHA512, PBKDF2 (all standard)                                                                   |
 | App size (per arm64 slice)                 | unchanged                                            | about +1.2 MB on iOS, about +110 KB on Android                                                                |
@@ -117,6 +118,26 @@ NITROMELONDB_ENCRYPTION=1 ./gradlew assembleRelease
 On Windows you can also pass the MSBuild property: `msbuild /p:NitromelonDBEncryption=true`. It wins over both.
 
 All builds of one app should agree. Once a database has been encrypted, a build without encryption can't open it: setup fails with `encryption_key_required`, and the file is left alone.
+
+### Node.js and Electron
+
+There's no build switch: install [`better-sqlite3-multiple-ciphers`](https://github.com/m4heshd/better-sqlite3-multiple-ciphers), which is `better-sqlite3` with SQLite3 Multiple Ciphers inside (the same sqlite3mc and SQLite versions as the native encryption build). When it's installed, NitromelonDB uses it instead of `better-sqlite3`, with or without a passphrase, so you can remove `better-sqlite3`.
+
+```bash
+yarn add better-sqlite3-multiple-ciphers
+# Electron: rebuild it for Electron, like better-sqlite3
+npx electron-rebuild -f -w better-sqlite3-multiple-ciphers
+```
+
+`SQLiteAdapter.isEncryptionAvailable()` is then `true`. The `encryption` option, the errors and the file format are the same as in the apps: a database encrypted on Node opens on iOS, Android and Windows with the same passphrase, and the other way around (we test both directions). Three things differ:
+
+- **A file that isn't a plain SQLite database**, opened without a passphrase, fails with `encryption_key_required` and is left alone, as in the apps. With plain `better-sqlite3` it's treated as a damaged database, as before, which `unsafeResetDatabase()` recreates.
+- **Other connections.** Encrypting, changing the passphrase or decrypting fails with `rekey_failed` (changing nothing) while another adapter in the same process has the file open. Connections in other processes can't be detected on Node (the Node adapter doesn't use WAL mode): close them first. See [More than one connection](#more-than-one-connection).
+- **Decrypting** writes an encrypted copy, decrypts the copy, then replaces the database with it. It needs free space for the copy, and takes longer than in the apps.
+
+If your own code also opens the database file with `better-sqlite3` (or another SQLite library), switch that to `better-sqlite3-multiple-ciphers` too, or open the file only through NitromelonDB. On macOS and Linux, two copies of SQLite in one process break each other's file locks: when one closes the file, the other's locks are released too ([SQLite: How To Corrupt](https://sqlite.org/howtocorrupt.html#multiple_copies_of_sqlite_linked_into_the_same_application)), so writes from both can corrupt the database. On every platform, plain `better-sqlite3` can't read an encrypted file anyway (see "Other SQLite libraries in your app" in [What changes in the encryption build](#what-changes-in-the-encryption-build)).
+
+In Electron, SQLite runs in the main process, so that's where the passphrase is read (for example with Electron's `safeStorage`).
 
 ## Check that it worked
 
@@ -341,13 +362,13 @@ What changes with encryption:
 
 Errors from opening or re-keying have a `code`:
 
-| `error.code`              | When                                                                                                                     | What to do                                                                             |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| `encryption_unavailable`  | `encryption` passed to a build without the encryption switch (thrown by the `SQLiteAdapter` constructor), or on web/Node | [Turn on the build](#turn-it-on) and rebuild. See [Troubleshooting](#troubleshooting). |
-| `encryption_key_invalid`  | the passphrase is wrong, or the file isn't a database encrypted by NitromelonDB / SQLCipher 4                            | Use the right passphrase. The file is unchanged.                                       |
-| `encryption_key_required` | the database is encrypted (or damaged), and no passphrase was given: a build or code path without `encryption`           | Pass the passphrase. The file is unchanged.                                            |
-| `database_not_encrypted`  | a passphrase was given, but the database is a plain SQLite file                                                          | Use `ifUnencrypted: 'open'` and `unsafe_EncryptDB()`.                                  |
-| `rekey_failed`            | encrypting, changing the key or decrypting failed (e.g. disk full)                                                       | The database keeps its previous state.                                                 |
+| `error.code`              | When                                                                                                                                                                      | What to do                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `encryption_unavailable`  | `encryption` passed to a build without the encryption switch, or on Node without `better-sqlite3-multiple-ciphers`, or on web (thrown by the `SQLiteAdapter` constructor) | [Turn on the build](#turn-it-on) and rebuild. See [Troubleshooting](#troubleshooting). |
+| `encryption_key_invalid`  | the passphrase is wrong, or the file isn't a database encrypted by NitromelonDB / SQLCipher 4                                                                             | Use the right passphrase. The file is unchanged.                                       |
+| `encryption_key_required` | the database is encrypted (or damaged), and no passphrase was given: a build or code path without `encryption`                                                            | Pass the passphrase. The file is unchanged.                                            |
+| `database_not_encrypted`  | a passphrase was given, but the database is a plain SQLite file                                                                                                           | Use `ifUnencrypted: 'open'` and `unsafe_EncryptDB()`.                                  |
+| `rekey_failed`            | encrypting, changing the key or decrypting failed (e.g. disk full)                                                                                                        | The database keeps its previous state.                                                 |
 
 ```js
 database.readyPromise.catch((error) => {
@@ -360,7 +381,7 @@ database.readyPromise.catch((error) => {
 ## What we test
 
 - **Native, on every CI run, both builds:** opening with the right, wrong and missing passphrase, plain databases with and without `ifUnencrypted`, encrypting, changing the passphrase and decrypting from WAL mode, `unsafeResetDatabase()` on an encrypted database (it stays encrypted with the same passphrase), all three refusing to run while another connection has the file open, and two kinds of interruption: killing the process at points throughout each of them on a 10 MB database, and crashing it exactly at the two moments of the commit where a database is most at risk (right after the first page is rewritten, and right before the journal is deleted). Each time, the database opens, complete, with the old or the new passphrase. The default build must refuse a passphrase.
-- **JavaScript (Jest):** passphrase functions (including ones that fail), the order of calls made before the passphrase arrives and during a re-key, events, error codes, and that keying errors never lead to a reset.
+- **JavaScript (Jest):** passphrase functions (including ones that fail), the order of calls made before the passphrase arrives and during a re-key, events, error codes, and that keying errors never lead to a reset. On Node, against real encrypted files: creating, opening with the right, wrong and missing passphrase (the file unchanged), encrypting, re-keying and decrypting through `Database`, `unsafeResetDatabase()`, refusing a re-key while another connection is open, and opening a database the native build encrypted (and the native test opens one Node encrypted).
 - **On a device (iOS simulator, Android emulator and Windows, CI):** the whole upgrade, with real builds. The plain build of our example app creates a database; the encryption build is installed over it, opens it, and encrypts it; the test then reads the file from the app's data folder to check it has no SQLite header and that a note's text can't be found in any database file; a cold start opens it with the passphrase; the plain build, installed over it, fails with `encryption_key_required` and leaves the file byte for byte unchanged; the encryption build opens it again with every note; decrypting turns it back into a plain SQLite file with every note, leaving no copy behind; the plain build, installed over it, opens it; and on iOS and Android, the encryption build encrypts it again, empties it, and makes its first sync a [Turbo Login](../Sync/Frontend.md#advanced-adopting-turbo-login), which writes the server's records straight into the encrypted file.
 - **By hand on Windows:** when another process holds the database file open, decrypting fails with `rekey_failed` and leaves the database encrypted with the same passphrase.
 
@@ -421,7 +442,6 @@ Where to read more:
 The design is in the [encryption plan](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs/plans/sqlcipher-encryption.md). Still to come:
 
 1. **Progress events** while a big database is encrypted (`onStart` and `onSuccess` exist today).
-2. **Node and Electron** support through `better-sqlite3-multiple-ciphers`.
 
 The web (LokiJS, wa-sqlite) is not part of this work.
 

@@ -13,6 +13,7 @@ jest.mock('../makeDispatcher', () => ({
   getDispatcherType: jest.fn(() => 'nitro'),
   isEncryptionAvailable: jest.fn(() => true),
   getDatabaseEncryptionState: jest.fn(),
+  encryptionUnavailableHint: jest.fn(() => 'Install better-sqlite3-multiple-ciphers.'),
 }))
 
 const schema = appSchema({
@@ -161,11 +162,15 @@ describe('SQLiteAdapter encryption', () => {
     expect(files.size).toBe(0)
   })
 
-  it('is rejected on web and Node instead of being ignored', () => {
+  it('is rejected on web, and on Node without the cipher package, instead of being ignored', () => {
     makeDispatcherModule.getDispatcherType.mockReturnValue('wa-sqlite')
     expect(() => makeAdapter({ passphrase: 'k1' })).toThrow(/not with the wa-sqlite/)
     makeDispatcherModule.getDispatcherType.mockReturnValue('asynchronous')
-    expect(() => makeAdapter({ passphrase: 'k1' })).toThrow(/web or Node/)
+    expect(() => makeAdapter({ passphrase: 'k1' })).not.toThrow()
+    makeDispatcherModule.isEncryptionAvailable.mockReturnValue(false)
+    expect(() => makeAdapter({ passphrase: 'k1' })).toThrow(
+      /better-sqlite3 has no encryption.*Install better-sqlite3-multiple-ciphers/,
+    )
     expect(
       () => new LokiJSAdapter({ schema, encryption: { passphrase: 'k1' }, useWebWorker: false }),
     ).toThrow(/LokiJSAdapter does not support encryption/)
