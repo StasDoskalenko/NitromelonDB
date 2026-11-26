@@ -5795,5 +5795,26 @@
       "ram": 179,
       "fps": 55.3
     }
+  },
+  {
+    "sha": "c375c6e3d32679bb79d3e6be08c057920e6c32a5",
+    "date": "2026-11-26T00:04:29.327Z",
+    "prNumber": 268,
+    "subject": "docs(encryption): README links to the new section; the build switch starts from easy migration (#60) (#268)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 21,
+      "ram": 186,
+      "fps": 54.8
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 19.1,
+      "ram": 186,
+      "fps": 55.6
+    }
   }
 ]
