@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# What encryption costs (native/benchmarks/EncryptionBenchmark.cpp): builds the benchmark against the
+# plain and the encryption SQLite builds, with -O2 like a release build, runs both, and prints a
+# Markdown table. Needs only a C and C++17 compiler. Takes a minute or two.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+BUILD="${NATIVE_BENCHMARK_BUILD_DIR:-$ROOT/node_modules/.cache/native-benchmark}"
+mkdir -p "$BUILD"
+CC="${CC:-cc}"
+CXX="${CXX:-c++}"
+SHARED="$ROOT/native/shared"
+VENDOR="$ROOT/native/vendor"
+
+build() {
+  local variant="$1" source_dir="$2"
+  shift 2
+  local defines=("$@")
+  local obj="$BUILD/$variant-sqlite.o"
+  local amalgamation
+  amalgamation="$(ls "$source_dir"/*.c | head -1)"
+  if [ ! -f "$obj" ] || [ "$amalgamation" -nt "$obj" ] || [ "$SHARED/NitromelonSqlite.c" -nt "$obj" ] \
+    || [ "$SHARED/NitromelonSqliteConfig.h" -nt "$obj" ]; then
+    "$CC" -O2 ${defines[@]+"${defines[@]}"} -I"$SHARED" -I"$source_dir" -c "$SHARED/NitromelonSqlite.c" -o "$obj"
+  fi
+  "$CXX" -std=c++17 -O2 ${defines[@]+"${defines[@]}"} -I"$SHARED" -I"$source_dir" \
+    "$ROOT/native/benchmarks/EncryptionBenchmark.cpp" "$SHARED/SqliteEncryption.cpp" "$obj" -lpthread -ldl -lm \
+    -o "$BUILD/$variant"
+}
+
+build plain "$VENDOR/sqlite"
+build encryption "$VENDOR/sqlite3mc" -DNITROMELON_ENCRYPTION=1
+
+results="$BUILD/results.tsv"
+"$BUILD/plain" > "$results"
+"$BUILD/encryption" >> "$results"
+
+machine="$(uname -sm)"
+if [ "$(uname -s)" = "Darwin" ]; then
+  machine="$(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo "$machine"), macOS $(sw_vers -productVersion)"
+fi
+echo "Machine: $machine. SQLite $(cat "$VENDOR/sqlite/sqlite.version"), SQLite3 Multiple Ciphers $(cat "$VENDOR/sqlite3mc/sqlite3mc.version"). Median ms."
+echo
+node - "$results" <<'NODE'
+const fs = require('fs')
+const rows = fs.readFileSync(process.argv[2], 'utf8').trim().split('\n').map((line) => line.split('\t'))
+const builds = ['plain', 'encryption, no key', 'encryption, with a key']
+const workload = [...new Set(rows.filter(([build]) => builds.includes(build)).map(([, name]) => name))]
+const value = (build, name) => Number(rows.find(([b, n]) => b === build && n === name)?.[2])
+const format = (ms) => (ms >= 100 ? ms.toFixed(0) : ms.toFixed(1))
+console.log('| Operation | Plain build | Encryption build, no key | With a key | Key vs plain |')
+console.log('| --- | --- | --- | --- | --- |')
+for (const name of workload) {
+  const [plain, noKey, keyed] = builds.map((build) => value(build, name))
+  const change = name.startsWith('Open') ? `+${format(keyed - plain)} ms` : `${keyed >= plain ? '+' : ''}${Math.round((keyed / plain - 1) * 100)}%`
+  console.log(`| ${name} | ${format(plain)} | ${format(noKey)} | ${format(keyed)} | ${change} |`)
+}
+console.log()
+console.log('| Operation | Time (ms) |')
+console.log('| --- | --- |')
+for (const [build, name, ms] of rows.filter(([build]) => build === 'encryption')) {
+  console.log(`| ${name} | ${format(Number(ms))} |`)
+}
+NODE
