@@ -19,7 +19,8 @@ std::string resolveDatabasePath(std::string path) {
     }
 }
 
-SqliteDb::SqliteDb(std::string path, const std::string &passphrase, bool allowUnencrypted) {
+SqliteDb::SqliteDb(std::string path, const std::string &passphrase, bool allowUnencrypted, bool plaintextHeader)
+    : plaintextHeader_(plaintextHeader) {
     consoleLog("Will open database...");
     platform::initializeSqlite();
     #ifndef ANDROID
@@ -55,9 +56,11 @@ SqliteDb::SqliteDb(std::string path, const std::string &passphrase, bool allowUn
     assert(sqlite != nullptr);
 
     try {
-        isEncrypted = encryption::openWithKey(sqlite, fileState, passphrase, allowUnencrypted);
+        isEncrypted = encryption::openWithKey(sqlite, fileState, passphrase, allowUnencrypted, plaintextHeader);
         if (isEncrypted) {
             passphrase_ = passphrase;
+            hasPlaintextHeader = fileState == encryption::FileState::EncryptedPlaintextHeader ||
+                                 (fileState == encryption::FileState::Missing && plaintextHeader);
         }
     } catch (...) {
         // The destructor doesn't run when a constructor throws
@@ -72,10 +75,11 @@ SqliteDb::SqliteDb(std::string path, const std::string &passphrase, bool allowUn
 
 void SqliteDb::changeEncryptionKey(const std::string &newPassphrase, bool &reopened,
                                    encryption::RekeyProgress *progress) {
-    encryption::rekey(sqlite, resolvedPath_, passphrase_, newPassphrase, reopened, progress);
+    encryption::rekey(sqlite, resolvedPath_, passphrase_, newPassphrase, reopened, progress, plaintextHeader_);
     std::fill(passphrase_.begin(), passphrase_.end(), '\0');
     passphrase_ = newPassphrase;
     isEncrypted = !newPassphrase.empty();
+    hasPlaintextHeader = isEncrypted && plaintextHeader_;
 }
 
 void SqliteDb::destroy() {

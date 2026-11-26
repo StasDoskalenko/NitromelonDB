@@ -9,7 +9,9 @@
 
 #include "SqliteEncryption.h"
 
+#include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <csignal>
 #include <cstdio>
@@ -18,6 +20,7 @@
 #include <string>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <iterator>
 #include <thread>
 #include <unistd.h>
 #include <vector>
@@ -41,6 +44,8 @@ static void removeDatabase(const std::string &path) {
     for (const char *suffix : {"", "-journal"}) {
         std::remove((path + "-nitromelon-decrypted" + suffix).c_str());
     }
+    std::remove((path + "-nitromelon-salt").c_str());
+    std::remove((path + "-nitromelon-salt-new").c_str());
 }
 
 static std::string tempPath(const char *name) {
@@ -66,12 +71,12 @@ static sqlite3 *rawOpen(const std::string &path) {
 
 // What SqliteDb does: recover, probe, open, key. Returns the error code, or "" if it opened
 static std::string tryOpen(const std::string &path, const std::string &key, bool allowUnencrypted, sqlite3 **out,
-                           bool *encrypted = nullptr) {
+                           bool *encrypted = nullptr, bool plaintextHeader = false) {
     recoverInterruptedRekey(path, key);
     FileState state = probeFile(path);
     sqlite3 *db = rawOpen(path);
     try {
-        bool isEncrypted = openWithKey(db, state, key, allowUnencrypted);
+        bool isEncrypted = openWithKey(db, state, key, allowUnencrypted, plaintextHeader);
         if (encrypted) {
             *encrypted = isEncrypted;
         }
@@ -86,9 +91,10 @@ static std::string tryOpen(const std::string &path, const std::string &key, bool
 }
 
 // encryption::rekey, returning whether it reopened the connection
-static bool rekey(sqlite3 *&db, const std::string &path, const std::string &current, const std::string &next) {
+static bool rekey(sqlite3 *&db, const std::string &path, const std::string &current, const std::string &next,
+                  bool plaintextHeader = false) {
     bool reopened = false;
-    watermelondb::encryption::rekey(db, path, current, next, reopened);
+    watermelondb::encryption::rekey(db, path, current, next, reopened, nullptr, plaintextHeader);
     return reopened;
 }
 
@@ -348,10 +354,10 @@ static void resetKeepsEncryption() {
 }
 
 // Enough rows that a re-key takes a while, so a kill can land in the middle of it
-static void fillDatabase(const std::string &path, const std::string &key, int rows) {
+static void fillDatabase(const std::string &path, const std::string &key, int rows, bool plaintextHeader = false) {
     sqlite3 *db = nullptr;
     removeDatabase(path);
-    CHECK(tryOpen(path, key, false, &db) == "");
+    CHECK(tryOpen(path, key, false, &db, nullptr, plaintextHeader) == "");
     exec(db, "pragma journal_mode = wal; create table t (id integer primary key, v text);");
     exec(db, "begin");
     sqlite3_stmt *insert = nullptr;
@@ -370,9 +376,21 @@ static void fillDatabase(const std::string &path, const std::string &key, int ro
 struct Direction {
     const char *name;
     std::string from, to;
+    // With a plaintext header before and after
+    bool fromHeader = false, toHeader = false;
 };
 
 static const Direction kDirections[] = {{"encrypt", "", "k1"}, {"change key", "k1", "k2"}, {"decrypt", "k1", ""}};
+
+// Into, within and out of the plaintext header layout (a passphrase that stays the same is how a
+// database changes layout)
+static const Direction kLayoutDirections[] = {
+    {"encrypt with a plaintext header", "", "k1", false, true},
+    {"add a plaintext header", "k1", "k1", false, true},
+    {"change key, plaintext header", "k1", "k2", true, true},
+    {"remove the plaintext header", "k1", "k1", true, false},
+    {"decrypt, plaintext header", "k1", "", true, false},
+};
 
 // RekeyProgress, polled from another thread as JS does while the re-key runs on its own: -1 before
 // and after, and in between it only moves forward, stays within 0..1, and passes through the middle.
@@ -428,6 +446,122 @@ static void reportsProgress() {
         sqlite3_close(db);
         removeDatabase(path);
     }
+}
+
+static bool fileContains(const std::string &path, const std::string &text) {
+    std::vector<unsigned char> bytes = readBytes(path, 64 << 20);
+    return std::search(bytes.begin(), bytes.end(), text.begin(), text.end()) != bytes.end();
+}
+
+static std::string readSaltFile(const std::string &path) {
+    std::vector<unsigned char> bytes = readBytes(saltFilePath(path), 64);
+    return std::string(bytes.begin(), bytes.end());
+}
+
+static std::string upper(std::string text) {
+    for (char &c : text) {
+        c = (char)std::toupper((unsigned char)c);
+    }
+    return text;
+}
+
+// `encryption.plaintextHeader` (iOS App Groups): the file starts like a plain SQLite database, so iOS
+// recognizes it, but everything after the first 32 bytes is encrypted, and the salt is in the salt
+// file. It opens in the layout it has, it's never mistaken for a plain database, and without its
+// salt file it fails with its own error and is left alone.
+static void plaintextHeaderLayout() {
+    std::string path = tempPath("plaintext-header");
+    sqlite3 *db = nullptr;
+    CHECK(tryOpen(path, "k1", false, &db, nullptr, true) == "");
+    CHECK(exec(db, "pragma journal_mode = wal; create table t (v); insert into t values ('a secret note');") ==
+          SQLITE_OK);
+    std::string salt = readSaltFile(path);
+    CHECK(salt.size() == 32);
+    CHECK(upper(scalar(db, "pragma cipher_salt")) == upper(salt));
+    sqlite3_close(db);
+
+    std::vector<unsigned char> header = readBytes(path, 100);
+    CHECK(header.size() == 100);
+    CHECK(std::memcmp(header.data(), "SQLite format 3", 16) == 0);
+    CHECK(header[20] == 80); // SQLCipher's reserved bytes, in the plain part
+    CHECK(probeFile(path) == FileState::EncryptedPlaintextHeader);
+    CHECK(std::strcmp(fileStateName(FileState::EncryptedPlaintextHeader), "encrypted") == 0);
+    CHECK(!fileContains(path, "a secret note"));
+
+    // Opens in the layout it has, with or without the option
+    bool encrypted = false;
+    CHECK(tryOpen(path, "k1", false, &db, &encrypted, false) == "");
+    CHECK(encrypted);
+    CHECK(scalar(db, "select v from t") == "a secret note");
+    sqlite3_close(db);
+    CHECK(tryOpen(path, "k2", false, &db) == "encryption_key_invalid");
+    CHECK(tryOpen(path, "", false, &db) == "encryption_key_required");
+    CHECK(tryOpen(path, "", true, &db) == "encryption_key_required");
+
+    // Without its salt file: a clear error, and the file is unchanged
+    std::rename(saltFilePath(path).c_str(), (path + "-moved-salt").c_str());
+    std::vector<unsigned char> before = readBytes(path, 1 << 20);
+    CHECK(tryOpen(path, "k1", false, &db) == "encryption_salt_missing");
+    CHECK(tryOpen(path, "k1", true, &db, nullptr, true) == "encryption_salt_missing");
+    CHECK(readBytes(path, 1 << 20) == before);
+    std::rename((path + "-moved-salt").c_str(), saltFilePath(path).c_str());
+    CHECK(tryOpen(path, "k1", false, &db) == "");
+    sqlite3_close(db);
+    removeDatabase(path);
+}
+
+// Changing layout is a re-key with the passphrase it has: every direction keeps the rows, ends in
+// the layout asked for, and keeps the salt file exactly while the database needs it (with the salt
+// the database already had, unless a plain database is encrypted)
+static void changesLayout() {
+    std::string path = tempPath("layout");
+    sqlite3 *db = nullptr;
+    CHECK(tryOpen(path, "k1", false, &db) == "");
+    CHECK(exec(db, "pragma journal_mode = wal; create table t (v); insert into t values ('kept');") == SQLITE_OK);
+    std::string originalSalt = upper(scalar(db, "pragma cipher_salt"));
+    CHECK(!fileExists(saltFilePath(path)));
+
+    rekey(db, path, "k1", "k1", true);
+    CHECK(probeFile(path) == FileState::EncryptedPlaintextHeader);
+    CHECK(upper(readSaltFile(path)) == originalSalt);
+    CHECK(scalar(db, "pragma journal_mode") == "wal");
+    CHECK(exec(db, "insert into t values ('more')") == SQLITE_OK);
+    sqlite3_close(db);
+    CHECK(tryOpen(path, "k1", false, &db) == "");
+    CHECK(scalar(db, "select count(*) from t") == "2");
+
+    // A key change keeps the layout and the salt
+    rekey(db, path, "k1", "k2", true);
+    CHECK(probeFile(path) == FileState::EncryptedPlaintextHeader);
+    CHECK(upper(readSaltFile(path)) == originalSalt);
+    sqlite3_close(db);
+    CHECK(tryOpen(path, "k1", false, &db) == "encryption_key_invalid");
+    CHECK(tryOpen(path, "k2", false, &db) == "");
+
+    rekey(db, path, "k2", "k2", false);
+    CHECK(probeFile(path) == FileState::Encrypted);
+    CHECK(!fileExists(saltFilePath(path)));
+    sqlite3_close(db);
+    CHECK(tryOpen(path, "k2", false, &db) == "");
+    CHECK(scalar(db, "select count(*) from t") == "2");
+
+    // Decrypting one with a plaintext header, and encrypting a plain one into it (a new salt)
+    rekey(db, path, "k2", "k2", true);
+    CHECK(rekey(db, path, "k2", ""));
+    CHECK(probeFile(path) == FileState::Unencrypted);
+    CHECK(!fileExists(saltFilePath(path)));
+    CHECK(scalar(db, "select count(*) from t") == "2");
+    rekey(db, path, "", "k3", true);
+    CHECK(probeFile(path) == FileState::EncryptedPlaintextHeader);
+    std::string newSalt = upper(readSaltFile(path));
+    CHECK(newSalt.size() == 32 && newSalt != originalSalt);
+    CHECK(upper(scalar(db, "pragma cipher_salt")) == newSalt);
+    sqlite3_close(db);
+    CHECK(tryOpen(path, "k3", false, &db) == "");
+    CHECK(scalar(db, "select count(*) from t") == "2");
+    CHECK(scalar(db, "pragma integrity_check") == "ok");
+    sqlite3_close(db);
+    removeDatabase(path);
 }
 
 // The same format as the Node adapter (better-sqlite3-multiple-ciphers, sqlite-node/encryption.ts):
@@ -522,12 +656,21 @@ static std::string openAfterInterruption(const std::string &path, const Directio
         std::string integrity = scalar(db, "pragma integrity_check");
         sqlite3_close(db);
         std::string resultingKey = encrypted ? key : "";
+        bool header = probeFile(path) == FileState::EncryptedPlaintextHeader;
         if (count != std::to_string(rows) || integrity != "ok") {
             std::fprintf(stderr, "  %s: opened with \"%s\" but count=%s integrity=%s\n", when.c_str(), key.c_str(),
                          count.c_str(), integrity.c_str());
             return "";
         }
-        return resultingKey == direction.from ? "old" : "new";
+        if (resultingKey == direction.to && header == (direction.toHeader && !direction.to.empty())) {
+            return "new";
+        }
+        if (resultingKey == direction.from && header == (direction.fromHeader && !direction.from.empty())) {
+            return "old";
+        }
+        std::fprintf(stderr, "  %s: opened with \"%s\" in neither layout (header: %d)\n", when.c_str(), key.c_str(),
+                     header);
+        return "";
     }
     std::fprintf(stderr, "  %s: opens with no key the app has\n", when.c_str());
     return "";
@@ -537,7 +680,7 @@ static double timeRekey(const std::string &path, const Direction &direction) {
     sqlite3 *db = nullptr;
     CHECK(tryOpen(path, direction.from, true, &db) == "");
     auto start = std::chrono::steady_clock::now();
-    rekey(db, path, direction.from, direction.to);
+    rekey(db, path, direction.from, direction.to, direction.toHeader);
     double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
     sqlite3_close(db);
     return ms;
@@ -564,7 +707,7 @@ static void killDuringRekey(const std::string &path, const Direction &direction,
         if (write(started[1], &byte, 1) != 1) {
             _exit(3);
         }
-        rekey(db, path, direction.from, direction.to);
+        rekey(db, path, direction.from, direction.to, direction.toHeader);
         // Finished before the kill: wait for it, like an app that's still running
         pause();
         _exit(0);
@@ -579,15 +722,16 @@ static void killDuringRekey(const std::string &path, const Direction &direction,
     waitpid(child, &status, 0);
 }
 
-static void survivesKillDuringRekey() {
+static void survivesKillDuringRekey(const Direction *directions, size_t count) {
     const int rows = 40000; // ~10 MB
     std::string path = tempPath("kill");
-    for (const Direction &direction : kDirections) {
-        fillDatabase(path, direction.from, rows);
+    for (size_t i = 0; i < count; i++) {
+        const Direction &direction = directions[i];
+        fillDatabase(path, direction.from, rows, direction.fromHeader);
         double duration = timeRekey(path, direction);
         int oldKey = 0, newKey = 0;
         for (double fraction : {0.0, 0.1, 0.25, 0.4, 0.55, 0.7, 0.85, 1.0, 1.2}) {
-            fillDatabase(path, direction.from, rows);
+            fillDatabase(path, direction.from, rows, direction.fromHeader);
             killDuringRekey(path, direction, duration * fraction);
             std::string when = std::string(direction.name) + " killed at " + std::to_string((int)(duration * fraction)) + " ms";
             std::string opened = openAfterInterruption(path, direction, rows, when);
@@ -635,9 +779,11 @@ static void crashesAtCommit() {
     const int rows = 5000;
     std::string path = tempPath("commit");
     const char *points[] = {"its journal is deleted", "page 1 is written"};
+    std::vector<Direction> directions(std::begin(kDirections), std::end(kDirections));
+    directions.insert(directions.end(), std::begin(kLayoutDirections), std::end(kLayoutDirections));
     for (int point = 0; point < 2; point++) {
-        for (const Direction &direction : kDirections) {
-            fillDatabase(path, direction.from, rows);
+        for (const Direction &direction : directions) {
+            fillDatabase(path, direction.from, rows, direction.fromHeader);
             gCrashPath = path;
             std::fflush(nullptr);
             pid_t child = fork();
@@ -657,7 +803,7 @@ static void crashesAtCommit() {
                 } else {
                     unixVfs->xSetSystemCall(unixVfs, "pwrite", (sqlite3_syscall_ptr)crashAfterPage1Write);
                 }
-                rekey(db, path, direction.from, direction.to);
+                rekey(db, path, direction.from, direction.to, direction.toHeader);
                 _exit(0);
             }
             int status = 0;
@@ -735,12 +881,15 @@ int main() {
     plaintextDatabaseNeedsOptIn();
     rekeysFromWal();
     reportsProgress();
+    plaintextHeaderLayout();
+    changesLayout();
     resetKeepsEncryption();
     rekeyRefusedWhileAnotherConnectionIsOpen();
     readsNodeAdapterDatabase();
     readsSqlcipher4Database();
     crashesAtCommit();
-    survivesKillDuringRekey();
+    survivesKillDuringRekey(kDirections, std::size(kDirections));
+    survivesKillDuringRekey(kLayoutDirections, std::size(kLayoutDirections));
 #else
     CHECK(!isAvailable());
     passphraseFailsLoudly();

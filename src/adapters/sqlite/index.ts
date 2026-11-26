@@ -202,6 +202,9 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     // calls to async, synch NativeModule, or JSI implementation w/ type safety in rest of the impl
     let dispatcher: SqliteDispatcher
     const { encryption } = options
+    // The passphrase the database was opened with, kept only until its layout is checked after
+    // setup (_matchEncryptionLayout)
+    let openedWith = ''
     if (encryption) {
       this._checkEncryptionSupport(encryption)
       this._encryptionOptions = encryption
@@ -209,12 +212,15 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       const holding = new HoldingDispatcher()
       this._holdingDispatcher = holding
       dispatcher = holding
-      const open = (passphrase: string) =>
-        makeDispatcher(this._dispatcherType, this._tag, this.dbName, {
+      const open = (passphrase: string) => {
+        openedWith = passphrase
+        return makeDispatcher(this._dispatcherType, this._tag, this.dbName, {
           ...dispatcherOptions,
           passphrase,
           allowUnencrypted: encryption.ifUnencrypted === 'open',
+          ...(encryption.plaintextHeader ? { plaintextHeader: true } : {}),
         })
+      }
       if (typeof encryption.passphrase === 'function') {
         // Calls wait in `holding` until the passphrase is there; if it can't be had, they fail
         resolvePassphrase(encryption.passphrase)
@@ -249,7 +255,15 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       this._init((result) => {
         if (result.error) {
           this._setUpError = result.error
+        } else if (encryption) {
+          // After the calls already waiting for setup (this callback runs while they're sent on),
+          // and before anything the app calls once it's set up (queued after this)
+          const passphrase = openedWith
+          Promise.resolve().then(() =>
+            this._matchEncryptionLayout(!!encryption.plaintextHeader, passphrase),
+          )
         }
+        openedWith = ''
         callback(result)
         devSetupCallback(result, options.onSetUpError)
       })
@@ -331,6 +345,16 @@ export default class SQLiteAdapter implements DatabaseAdapter {
         encryption.ifUnencrypted === 'open',
       "SQLiteAdapter: encryption.ifUnencrypted must be 'error' or 'open'",
     )
+    invariant(
+      encryption.plaintextHeader === undefined || typeof encryption.plaintextHeader === 'boolean',
+      'SQLiteAdapter: encryption.plaintextHeader must be true or false',
+    )
+    if (encryption.plaintextHeader && this._dispatcherType === 'asynchronous') {
+      throw encryptionError(
+        'encryption_unavailable',
+        `SQLiteAdapter: encryption.plaintextHeader is for iOS App Groups, and works on iOS, Android and Windows, not on Node and Electron. See ${ENCRYPTION_GUIDE}`,
+      )
+    }
     if (this._dispatcherType === 'wa-sqlite') {
       throw encryptionError(
         'encryption_unavailable',
@@ -412,6 +436,35 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       })
     }, 200)
     return () => clearInterval(timer)
+  }
+
+  // encryption.plaintextHeader: an encrypted database in the other layout is re-keyed with the
+  // passphrase it has, which writes the layout the option asks for (encryption::rekey). With the
+  // usual events, so the app can show it; calls made meanwhile wait. If it fails, the database
+  // keeps its layout and works as before, and the next launch tries again.
+  _matchEncryptionLayout(plaintextHeader: boolean, passphrase: string): void {
+    const holding = this._holdingDispatcher
+    if (
+      !holding ||
+      !passphrase ||
+      (this._dispatcherType !== 'nitro' && this._dispatcherType !== 'jsi')
+    ) {
+      return
+    }
+    holding.call<boolean>('isEncrypted', [], (encrypted) => {
+      if (!encrypted.value) {
+        return
+      }
+      holding.call<boolean>('hasPlaintextHeader', [], (header) => {
+        if (header.error || header.value === plaintextHeader) {
+          return
+        }
+        logger.log(
+          `[SQLite] ${plaintextHeader ? 'Adding' : 'Removing'} the database's plaintext header (encryption.plaintextHeader)`,
+        )
+        this.unsafeChangeEncryptionKey(passphrase, () => {})
+      })
+    })
   }
 
   // Whether the open connection is encrypted. False without the `encryption` option (and on web).

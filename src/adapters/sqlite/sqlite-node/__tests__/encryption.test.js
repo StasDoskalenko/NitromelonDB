@@ -286,6 +286,37 @@ describe('SQLiteAdapter encryption on Node', () => {
   })
 })
 
+describe('SQLiteAdapter encryption.plaintextHeader on Node', () => {
+  it('refuses the option, and a database that has one, with a clear error instead of reading it as plain', async () => {
+    expect(() => makeAdapter(tempPath(), { passphrase: 'k1', plaintextHeader: true })).toThrow(
+      expect.objectContaining({ code: 'encryption_unavailable' }),
+    )
+
+    // Written like the apps write one (SqliteEncryption.cpp): SQLCipher 4, a 32-byte plaintext
+    // header, the salt kept outside the file
+    const path = tempPath()
+    // eslint-disable-next-line global-require
+    const Sqlite = require('better-sqlite3-multiple-ciphers')
+    const raw = new Sqlite(path)
+    raw.pragma("cipher = 'sqlcipher'")
+    raw.pragma('legacy = 4')
+    raw.pragma('plaintext_header_size = 32')
+    raw.pragma("cipher_salt = '00112233445566778899aabbccddeeff'")
+    raw.key(Buffer.from('k1'))
+    raw.exec("create table t (v); insert into t values ('with a plaintext header')")
+    raw.close()
+    expect(isPlain(path)).toBe(true) // the first 16 bytes, as iOS reads them
+    const before = fs.readFileSync(path)
+
+    expect(() => new NodeDatabase(path, { passphrase: 'k1' })).toThrow(
+      /encryption_unavailable.*plaintext header/,
+    )
+    expect(() => new NodeDatabase(path)).toThrow(/encryption_unavailable/)
+    expect(await SQLiteAdapter.getDatabaseEncryptionState(path)).toBe('encrypted')
+    expect(fs.readFileSync(path).equals(before)).toBe(true)
+  })
+})
+
 describe('SQLiteAdapter encryption on Node with plain better-sqlite3', () => {
   it('fails loudly instead of writing a plaintext database', () => {
     jest.isolateModules(() => {

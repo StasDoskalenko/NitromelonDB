@@ -25,6 +25,14 @@ namespace {
 
 const char kPlainHeader[16] = "SQLite format 3"; // with the trailing NUL, like the file
 
+// A plain database's header is plain all the way; one with a plaintext header (32 bytes) is
+// encrypted from byte 32 on. Bytes 56-59 are the text encoding: 1, 2 or 3 in a plain database (0
+// in a new one whose schema is still in the WAL), and random in an encrypted one (the chance it
+// looks valid is 1 in a billion). (Not the reserved bytes,
+// header byte 20: a database decrypted with VACUUM INTO keeps SQLCipher's 80.)
+const size_t kTextEncodingOffset = 56;
+const size_t kHeaderBytesToProbe = kTextEncodingOffset + 4;
+
 // The first bytes of a rollback journal with a transaction in it (SQLite's aJournalMagic)
 const unsigned char kJournalMagic[8] = {0xd9, 0xd5, 0x05, 0xf9, 0x20, 0xa1, 0x63, 0xd7};
 
@@ -126,6 +134,8 @@ int64_t fileSize(const std::string &path) {
 #if NITROMELON_ENCRYPTION
 
 const int kOpenFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_URI;
+
+const size_t kSaltHexLength = 32;
 
 // Every keyed connection, as SQLCipher sets up its own: temp files (big sorts, index builds, vacuum)
 // aren't encrypted, so they stay in memory; and deleted content is zeroed rather than left in free
@@ -244,6 +254,69 @@ std::string fileUri(const std::string &path) {
     return uri;
 }
 
+bool isHexSalt(const std::string &salt) {
+    if (salt.size() != kSaltHexLength) {
+        return false;
+    }
+    for (char c : salt) {
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// The salt in a database's salt file, or "" when there's none (or it isn't 32 hex digits)
+std::string readSalt(const std::string &resolvedPath) {
+    char buffer[kSaltHexLength] = {0};
+    if (readStart(saltFilePath(resolvedPath), buffer, sizeof(buffer)) != sizeof(buffer)) {
+        return "";
+    }
+    std::string salt(buffer, sizeof(buffer));
+    return isHexSalt(salt) ? salt : "";
+}
+
+FILE *openForWriting(const std::string &path) {
+#if defined(_WIN32)
+    FILE *file = nullptr;
+    return _wfopen_s(&file, widePath(path).c_str(), L"wb") == 0 ? file : nullptr;
+#else
+    return std::fopen(path.c_str(), "wb");
+#endif
+}
+
+bool syncFile(const std::string &path);
+bool replaceFile(const std::string &from, const std::string &to);
+
+// Writes the salt file, durably and atomically (a new file, flushed, renamed over the old one), so
+// that it's complete on disk before the database depends on it
+bool writeSalt(const std::string &resolvedPath, const std::string &salt) {
+    std::string path = saltFilePath(resolvedPath);
+    std::string temporary = path + "-new";
+    FILE *file = openForWriting(temporary);
+    if (!file) {
+        return false;
+    }
+    bool written = std::fwrite(salt.data(), 1, salt.size(), file) == salt.size();
+    written = std::fclose(file) == 0 && written;
+    if (!written || !syncFile(temporary) || !replaceFile(temporary, path)) {
+        removeFile(temporary);
+        return false;
+    }
+    return true;
+}
+
+// Sets up an unkeyed connection to read (and create) a database with a plaintext header and this
+// salt, or without a plaintext header. Before sqlite3_key_v2: sqlite3mc reads both when keying.
+// (Salts aren't secret, so they can go in SQL; passphrases never do.)
+void configureLayout(sqlite3 *db, bool plaintextHeader, const std::string &salt) {
+    sqlite3mc_config_cipher(db, "sqlcipher", "plaintext_header_size", plaintextHeader ? kPlaintextHeaderSize : 0);
+    if (plaintextHeader) {
+        std::string sql = "pragma cipher_salt = '" + salt + "'"; // isHexSalt: nothing to escape
+        exec(db, sql.c_str());
+    }
+}
+
 // sqlite3mc can't key in-memory or temporary databases (and there's nothing on disk to protect)
 void requireFile(sqlite3 *db) {
     const char *filename = sqlite3_db_filename(db, "main");
@@ -305,7 +378,8 @@ bool replaceFile(const std::string &from, const std::string &to) {
 
 // Rolls back a hot journal with a connection keyed with `passphrase` (or not). Returns whether it's
 // gone. A connection with the wrong key fails to read and changes nothing.
-bool rollBackJournal(const std::string &resolvedPath, const std::string &passphrase) {
+bool rollBackJournal(const std::string &resolvedPath, const std::string &passphrase,
+                     const std::string &plaintextHeaderSalt = "") {
     sqlite3 *db = nullptr;
     // No SQLITE_OPEN_CREATE: the database exists
     if (sqlite3_open_v2(resolvedPath.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_URI, nullptr) != SQLITE_OK) {
@@ -313,6 +387,7 @@ bool rollBackJournal(const std::string &resolvedPath, const std::string &passphr
         return false;
     }
     if (!passphrase.empty()) {
+        configureLayout(db, !plaintextHeaderSalt.empty(), plaintextHeaderSalt);
         sqlite3_key_v2(db, "main", passphrase.data(), static_cast<int>(passphrase.size()));
     }
     // The first read rolls the journal back
@@ -334,7 +409,8 @@ bool leaveWal(sqlite3 *db) {
     return true;
 }
 
-sqlite3 *openKeyed(const std::string &resolvedPath, const std::string &passphrase) {
+sqlite3 *openKeyed(const std::string &resolvedPath, const std::string &passphrase,
+                   const std::string &plaintextHeaderSalt = "") {
     sqlite3 *db = nullptr;
     if (sqlite3_open_v2(resolvedPath.c_str(), &db, kOpenFlags, nullptr) != SQLITE_OK) {
         std::string error = errorMessage(db);
@@ -342,6 +418,7 @@ sqlite3 *openKeyed(const std::string &resolvedPath, const std::string &passphras
         throw std::runtime_error("Couldn't open the database again after changing its encryption key: " + error);
     }
     if (!passphrase.empty()) {
+        configureLayout(db, !plaintextHeaderSalt.empty(), plaintextHeaderSalt);
         sqlite3_key_v2(db, "main", passphrase.data(), static_cast<int>(passphrase.size()));
         exec(db, kKeyedConnectionSql);
     }
@@ -349,7 +426,7 @@ sqlite3 *openKeyed(const std::string &resolvedPath, const std::string &passphras
 }
 
 void decryptByCopy(sqlite3 *&db, const std::string &resolvedPath, const std::string &currentPassphrase,
-                   bool &reopened) {
+                   const std::string &plaintextHeaderSalt, bool &reopened) {
     std::string path = filePath(resolvedPath);
     std::string copy = decryptedCopyPath(resolvedPath);
     removeDatabaseFiles(copy);
@@ -387,11 +464,12 @@ void decryptByCopy(sqlite3 *&db, const std::string &resolvedPath, const std::str
     if (!replaceFile(copy, path)) {
         // Still the encrypted file: open it again as it was
         removeDatabaseFiles(copy);
-        db = openKeyed(resolvedPath, currentPassphrase);
+        db = openKeyed(resolvedPath, currentPassphrase, plaintextHeaderSalt);
         throw EncryptionError("rekey_failed", "Couldn't replace the database with its decrypted copy. The database is "
                                               "still encrypted, with the same passphrase.");
     }
     db = openKeyed(resolvedPath, "");
+    removeFile(saltFilePath(resolvedPath)); // (if it had a plaintext header)
 }
 
 #endif
@@ -468,21 +546,28 @@ std::string decryptedCopyPath(const std::string &resolvedPath) {
     return filePath(resolvedPath) + "-nitromelon-decrypted";
 }
 
+std::string saltFilePath(const std::string &resolvedPath) {
+    return filePath(resolvedPath) + "-nitromelon-salt";
+}
+
 FileState probeFile(const std::string &resolvedPath) {
     std::string path = filePath(resolvedPath);
     if (path.empty()) {
         return FileState::Missing;
     }
-    char header[sizeof(kPlainHeader)] = {0};
+    unsigned char header[kHeaderBytesToProbe] = {0};
     size_t read = readStart(path, header, sizeof(header));
     if (read == 0) {
         // No file, or SQLite created it empty (it writes the header with the first transaction)
         return FileState::Missing;
     }
-    if (read == sizeof(header) && std::memcmp(header, kPlainHeader, sizeof(header)) == 0) {
-        return FileState::Unencrypted;
+    if (read < sizeof(kPlainHeader) || std::memcmp(header, kPlainHeader, sizeof(kPlainHeader)) != 0) {
+        return FileState::Encrypted;
     }
-    return FileState::Encrypted;
+    const unsigned char *encoding = header + kTextEncodingOffset;
+    bool plainEncoding = read == sizeof(header) && encoding[0] == 0 && encoding[1] == 0 && encoding[2] == 0 &&
+                         encoding[3] <= 3;
+    return plainEncoding || read < sizeof(header) ? FileState::Unencrypted : FileState::EncryptedPlaintextHeader;
 }
 
 const char *fileStateName(FileState state) {
@@ -492,6 +577,7 @@ const char *fileStateName(FileState state) {
     case FileState::Unencrypted:
         return "unencrypted";
     case FileState::Encrypted:
+    case FileState::EncryptedPlaintextHeader:
         return "encrypted";
     }
     return "missing";
@@ -520,9 +606,16 @@ void recoverInterruptedRekey(const std::string &resolvedPath, const std::string 
         return;
     }
     // Before an encrypt the database had no key; before a key change, the old one (which the app
-    // may still pass while it saves the new one)
-    if (!passphrase.empty() && rollBackJournal(resolvedPath, passphrase)) {
-        return;
+    // may still pass while it saves the new one), with or without a plaintext header. A change of
+    // layout keeps the salt, and writes the salt file first, so it's there to roll back with
+    if (!passphrase.empty()) {
+        if (rollBackJournal(resolvedPath, passphrase)) {
+            return;
+        }
+        std::string salt = readSalt(resolvedPath);
+        if (!salt.empty() && rollBackJournal(resolvedPath, passphrase, salt)) {
+            return;
+        }
     }
     rollBackJournal(resolvedPath, "");
 #else
@@ -531,9 +624,10 @@ void recoverInterruptedRekey(const std::string &resolvedPath, const std::string 
 #endif
 }
 
-bool openWithKey(sqlite3 *db, FileState state, const std::string &passphrase, bool allowUnencrypted) {
+bool openWithKey(sqlite3 *db, FileState state, const std::string &passphrase, bool allowUnencrypted,
+                 bool plaintextHeader) {
     if (passphrase.empty()) {
-        if (state == FileState::Encrypted) {
+        if (state == FileState::Encrypted || state == FileState::EncryptedPlaintextHeader) {
             throw EncryptionError("encryption_key_required",
                                   "The database is encrypted (or isn't a SQLite database), and no passphrase was given. "
                                   "Pass the passphrase it was encrypted with as `encryption.passphrase`. NitromelonDB "
@@ -562,6 +656,35 @@ bool openWithKey(sqlite3 *db, FileState state, const std::string &passphrase, bo
 
 #if NITROMELON_ENCRYPTION
     requireFile(db);
+    const char *filename = sqlite3_db_filename(db, "main");
+    std::string resolvedPath = filename ? filename : "";
+    if (state == FileState::EncryptedPlaintextHeader) {
+        std::string salt = readSalt(resolvedPath);
+        if (salt.empty()) {
+            throw EncryptionError(
+                "encryption_salt_missing",
+                "The database is encrypted with a plaintext header (encryption.plaintextHeader), and its salt file (" +
+                    saltFilePath(resolvedPath) +
+                    ") is missing or damaged, so it can't be opened. The salt file must stay next to the database: "
+                    "copy, back up and delete them together. NitromelonDB didn't change the file.");
+        }
+        configureLayout(db, true, salt);
+    } else if (state == FileState::Missing && plaintextHeader) {
+        // A new database: its salt is saved before anything is written with it
+        unsigned char raw[kSaltHexLength / 2];
+        sqlite3_randomness(sizeof(raw), raw);
+        static const char *hex = "0123456789abcdef";
+        std::string salt;
+        for (unsigned char byte : raw) {
+            salt += hex[byte >> 4];
+            salt += hex[byte & 15];
+        }
+        if (!writeSalt(resolvedPath, salt)) {
+            throw std::runtime_error("Couldn't write the database's salt file (" + saltFilePath(resolvedPath) +
+                                     "). Is there enough free space?");
+        }
+        configureLayout(db, true, salt);
+    }
     // sqlite3_key_v2, never PRAGMA key: SQL text can end up in error messages and traces
     if (sqlite3_key_v2(db, "main", passphrase.data(), static_cast<int>(passphrase.size())) != SQLITE_OK) {
         throw EncryptionError("encryption_key_invalid", "Couldn't apply the passphrase: " + errorMessage(db));
@@ -569,8 +692,7 @@ bool openWithKey(sqlite3 *db, FileState state, const std::string &passphrase, bo
     // The key is only checked when the first page is read
     int result = exec(db, "select count(*) from sqlite_master");
     if (result == SQLITE_NOTADB) {
-        const char *filename = sqlite3_db_filename(db, "main");
-        bool interrupted = filename && hasHotJournal(filename);
+        bool interrupted = hasHotJournal(resolvedPath);
         throw EncryptionError(
             "encryption_key_invalid",
             interrupted
@@ -587,22 +709,29 @@ bool openWithKey(sqlite3 *db, FileState state, const std::string &passphrase, bo
     return true;
 #else
     (void)db;
+    (void)plaintextHeader;
     return false;
 #endif
 }
 
 void rekey(sqlite3 *&db, const std::string &resolvedPath, const std::string &currentPassphrase,
-           const std::string &newPassphrase, bool &reopened, RekeyProgress *progress) {
+           const std::string &newPassphrase, bool &reopened, RekeyProgress *progress, bool plaintextHeader) {
     reopened = false;
 #if NITROMELON_ENCRYPTION
     requireFile(db);
     if (!sqlite3_get_autocommit(db)) {
         throw EncryptionError("rekey_failed", "Can't change the encryption key while a transaction is open.");
     }
+    // The database's salt, if it has a plaintext header now (the file's header says so; it's on disk
+    // even in WAL mode)
+    std::string currentSalt =
+        !currentPassphrase.empty() && probeFile(resolvedPath) == FileState::EncryptedPlaintextHeader
+            ? readSalt(resolvedPath)
+            : "";
     if (newPassphrase.empty()) {
         if (!currentPassphrase.empty()) {
             ProgressScope scope(progress, db, resolvedPath, RekeyProgress::Operation::Decrypt);
-            decryptByCopy(db, resolvedPath, currentPassphrase, reopened);
+            decryptByCopy(db, resolvedPath, currentPassphrase, currentSalt, reopened);
         }
         return; // (not encrypted: nothing to do)
     }
@@ -611,14 +740,42 @@ void rekey(sqlite3 *&db, const std::string &resolvedPath, const std::string &cur
                         currentPassphrase.empty() ? RekeyProgress::Operation::Encrypt
                                                   : RekeyProgress::Operation::Rekey);
     bool wasWal = leaveWal(db);
+    auto restoreWal = [&]() {
+        if (wasWal) {
+            exec(db, "pragma journal_mode = wal");
+        }
+    };
+    // The layout to write. sqlite3mc resets this after every key change, so it's set every time
+    sqlite3mc_config_cipher(db, "sqlcipher", "plaintext_header_size", plaintextHeader ? kPlaintextHeaderSize : 0);
+    bool newSalt = false;
+    if (plaintextHeader) {
+        // Keep the key's salt (a killed re-key then rolls back with the same salt file); a plain
+        // database has none yet, so it gets a new one, which sqlite3mc uses for the re-key
+        newSalt = currentPassphrase.empty();
+        std::string salt = newSalt ? scalarText(db, "pragma rekey_salt = on") : scalarText(db, "pragma cipher_salt");
+        if (!isHexSalt(salt) || !writeSalt(resolvedPath, salt)) {
+            if (newSalt) {
+                exec(db, "pragma rekey_salt = off");
+            }
+            restoreWal();
+            throw EncryptionError("rekey_failed", "Couldn't write the database's salt file (" +
+                                                      saltFilePath(resolvedPath) +
+                                                      "). The database keeps its previous key.");
+        }
+    }
     int result = sqlite3_rekey_v2(db, "main", newPassphrase.data(), static_cast<int>(newPassphrase.size()));
     std::string error = result == SQLITE_OK ? "" : errorMessage(db);
-    if (wasWal) {
-        exec(db, "pragma journal_mode = wal");
+    if (newSalt) {
+        exec(db, "pragma rekey_salt = off");
     }
+    restoreWal();
     if (result != SQLITE_OK) {
         throw EncryptionError("rekey_failed",
                               "Couldn't change the encryption key: " + error + ". The database keeps its previous key.");
+    }
+    if (!plaintextHeader && !currentSalt.empty()) {
+        // No plaintext header any more: the salt is back in the file
+        removeFile(saltFilePath(resolvedPath));
     }
     exec(db, kKeyedConnectionSql);
 #else
@@ -627,6 +784,7 @@ void rekey(sqlite3 *&db, const std::string &resolvedPath, const std::string &cur
     (void)currentPassphrase;
     (void)newPassphrase;
     (void)progress;
+    (void)plaintextHeader;
     throw EncryptionError("encryption_unavailable",
                           std::string("This build of NitromelonDB has no encryption. ") + kSwitchHint);
 #endif

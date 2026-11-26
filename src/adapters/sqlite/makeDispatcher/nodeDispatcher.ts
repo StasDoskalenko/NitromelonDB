@@ -68,5 +68,6 @@ export function encryptionUnavailableHint(): string {
 }
 
 export function getDatabaseEncryptionState(dbName: string): DatabaseEncryptionState {
-  return probeFile(getPath(dbName))
+  const state = probeFile(getPath(dbName))
+  return state === 'encrypted-plaintext-header' ? 'encrypted' : state
 }

@@ -13,7 +13,11 @@ function codedError(code) {
   return error
 }
 
-export function fakeNative(dbName, { passphrase = '', allowUnencrypted = false }) {
+// A file is { key, version, header }: `header` is whether it has a plaintext header
+export function fakeNative(
+  dbName,
+  { passphrase = '', allowUnencrypted = false, plaintextHeader = false },
+) {
   const { files } = fake
   let open = false
   let encrypted = false
@@ -39,7 +43,11 @@ export function fakeNative(dbName, { passphrase = '', allowUnencrypted = false }
         if (!open && method !== 'changeEncryptionKey') {
           // what SqliteDb's constructor does
           if (!file) {
-            files.set(dbName, { key: passphrase || null, version: 0 })
+            files.set(dbName, {
+              key: passphrase || null,
+              version: 0,
+              header: !!passphrase && plaintextHeader,
+            })
             encrypted = !!passphrase
           } else if (!passphrase) {
             if (file.key) throw codedError('encryption_key_required')
@@ -64,6 +72,9 @@ export function fakeNative(dbName, { passphrase = '', allowUnencrypted = false }
           case 'isEncrypted':
             callback({ value: encrypted })
             return
+          case 'hasPlaintextHeader':
+            callback({ value: encrypted && !!current.header })
+            return
           case 'unsafeQueryRaw':
             callback({ value: [{ pageCount: 3, byteSize: 12288 }] })
             return
@@ -79,6 +90,8 @@ export function fakeNative(dbName, { passphrase = '', allowUnencrypted = false }
               }
               current.key = args[0] || null
               encrypted = !!args[0]
+              // encryption::rekey writes the layout the option asks for
+              current.header = encrypted && plaintextHeader
               callback({ value: undefined })
             }, native.rekeyDelay)
             return

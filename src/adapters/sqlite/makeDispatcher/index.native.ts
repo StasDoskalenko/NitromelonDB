@@ -73,6 +73,7 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
       storeWholeNumbersAsIntegers,
       passphrase = '',
       allowUnencrypted = false,
+      plaintextHeader = false,
     }: SqliteDispatcherOptions,
   ) {
     this._unsafeErrorListener = () => {}
@@ -90,7 +91,7 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
         typeof setEncryption === 'function',
         'SQLiteAdapter: this native build of NitromelonDB is older than its JavaScript and has no encryption. Rebuild the native app.',
       )
-      setEncryption.call(this._db, passphrase, allowUnencrypted)
+      setEncryption.call(this._db, passphrase, allowUnencrypted, plaintextHeader)
     }
     // Before anything is written. Native builds older than the option don't have the method; they
     // keep binding every number as REAL (and the schema leaves number columns untyped either way)
@@ -178,7 +179,7 @@ class SqliteSyncDispatcher implements SqliteDispatcher {
 // Native encryption errors start with their code (`[encryption_key_invalid] ...`, see
 // native/shared/SqliteEncryption.h); Nitro passes only the message, so put it back on error.code
 const ENCRYPTION_ERROR_CODE =
-  /\[(encryption_unavailable|encryption_key_invalid|encryption_key_required|database_not_encrypted|rekey_failed)\]/
+  /\[(encryption_unavailable|encryption_key_invalid|encryption_key_required|database_not_encrypted|rekey_failed|encryption_salt_missing)\]/
 
 function withErrorCode(error: Error): Error {
   const match =

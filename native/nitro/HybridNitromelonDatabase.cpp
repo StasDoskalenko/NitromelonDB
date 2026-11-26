@@ -339,7 +339,7 @@ HybridNitromelonDatabase::HybridNitromelonDatabase(std::string dbName, bool uses
     // Throws if it can't be opened with passphrase_ (wrong key, ...). db_ stays empty then, so the
     // next call tries again and gets the same error: nothing works on a database that didn't open.
     db_ = std::make_shared<::watermelondb::Database>(nullptr, dbName_, usesExclusiveLocking_, passphrase_,
-                                                     allowUnencrypted_);
+                                                     allowUnencrypted_, plaintextHeader_);
     // Not needed after opening: don't keep the key around longer than necessary
     std::fill(passphrase_.begin(), passphrase_.end(), '\0');
     passphrase_.clear();
@@ -390,16 +390,22 @@ void HybridNitromelonDatabase::onMemoryWarning(const std::function<void()>& call
   memoryWarningCallback_ = callback;
 }
 
-void HybridNitromelonDatabase::setEncryption(const std::string& passphrase, bool allowUnencrypted) {
+void HybridNitromelonDatabase::setEncryption(const std::string& passphrase, bool allowUnencrypted,
+                                             bool plaintextHeader) {
   if (db_) {
     throw std::runtime_error("setEncryption() must be called before the database is opened (before any other call)");
   }
   passphrase_ = passphrase;
   allowUnencrypted_ = allowUnencrypted;
+  plaintextHeader_ = plaintextHeader;
 }
 
 bool HybridNitromelonDatabase::isEncrypted() {
   return database().isEncrypted();
+}
+
+bool HybridNitromelonDatabase::hasPlaintextHeader() {
+  return database().hasPlaintextHeader();
 }
 
 std::shared_ptr<Promise<void>> HybridNitromelonDatabase::changeEncryptionKey(const std::string& newPassphrase) {

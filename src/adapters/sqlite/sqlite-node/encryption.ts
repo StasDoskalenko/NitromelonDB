@@ -60,9 +60,12 @@ export type EncryptionConfig = {
   allowUnencrypted?: boolean | undefined
 }
 
-export type FileState = 'missing' | 'unencrypted' | 'encrypted'
+// 'encrypted-plaintext-header': encrypted with a plaintext header (`encryption.plaintextHeader`),
+// which the Node adapter doesn't open (see probeFile)
+export type FileState = 'missing' | 'unencrypted' | 'encrypted' | 'encrypted-plaintext-header'
 
-const GUIDE = 'https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Setup#nodejs-and-electron'
+const GUIDE =
+  'https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Setup#nodejs-and-electron'
 
 export const NODE_SWITCH_HINT = `On Node and Electron, encryption needs better-sqlite3-multiple-ciphers: install it (yarn add better-sqlite3-multiple-ciphers; in Electron, rebuild it for Electron like better-sqlite3), and NitromelonDB uses it instead of better-sqlite3. See ${GUIDE}`
 
@@ -88,6 +91,7 @@ const CIPHER_SQL = "pragma cipher = 'sqlcipher'; pragma legacy = 4;"
 const KEYED_SQL = 'pragma temp_store = memory; pragma secure_delete = on;'
 
 const PLAIN_HEADER = 'SQLite format 3\0'
+const TEXT_ENCODING_OFFSET = 56
 const JOURNAL_MAGIC = [0xd9, 0xd5, 0x05, 0xf9, 0x20, 0xa1, 0x63, 0xd7]
 
 export function isMemoryPath(path: string): boolean {
@@ -140,17 +144,26 @@ export function probeFile(path: string): FileState {
   if (!file) {
     return 'missing'
   }
-  const header = readStart(file, PLAIN_HEADER.length)
+  const header = readStart(file, TEXT_ENCODING_OFFSET + 4)
   if (header.length === 0) {
     return 'missing'
   }
   if (
-    header.length === PLAIN_HEADER.length &&
-    header.every((byte, i) => byte === PLAIN_HEADER.charCodeAt(i))
+    header.length < PLAIN_HEADER.length ||
+    !header.subarray(0, PLAIN_HEADER.length).every((byte, i) => byte === PLAIN_HEADER.charCodeAt(i))
   ) {
-    return 'unencrypted'
+    return 'encrypted'
   }
-  return 'encrypted'
+  // A database with a plaintext header (32 bytes) is encrypted from there on, so its text encoding
+  // (0 to 3 in a plain database) is random. As natively (probeFile in SqliteEncryption.cpp)
+  const encoding = header.subarray(TEXT_ENCODING_OFFSET)
+  const plainEncoding =
+    encoding.length === 4 &&
+    encoding[0] === 0 &&
+    encoding[1] === 0 &&
+    encoding[2] === 0 &&
+    encoding[3] <= 3
+  return plainEncoding || encoding.length < 4 ? 'unencrypted' : 'encrypted-plaintext-header'
 }
 
 export function hasHotJournal(path: string): boolean {
@@ -288,6 +301,12 @@ export class NodeEncryption {
   ): boolean {
     if (this.hasCodec) {
       db.exec(CIPHER_SQL)
+    }
+    if (state === 'encrypted-plaintext-header') {
+      throw new EncryptionError(
+        'encryption_unavailable',
+        "The database is encrypted with a plaintext header (encryption.plaintextHeader, for iOS App Groups), which only iOS, Android and Windows open. To open it here, open it once in the app without `plaintextHeader`, which moves it back to SQLCipher's usual layout. NitromelonDB didn't change the file.",
+      )
     }
     if (!passphrase) {
       // With plain better-sqlite3, a file that isn't SQLite is a damaged database, as it always was

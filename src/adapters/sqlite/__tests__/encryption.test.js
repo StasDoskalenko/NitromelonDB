@@ -343,6 +343,81 @@ describe('SQLiteAdapter encryption progress and listeners', () => {
   })
 })
 
+describe('SQLiteAdapter encryption.plaintextHeader', () => {
+  it('passes it to native, and refuses it on Node and when it is not a boolean', () => {
+    makeAdapter({ passphrase: 'k1', plaintextHeader: true })
+    expect(natives[0].options.plaintextHeader).toBe(true)
+    makeAdapter({ passphrase: 'k1' })
+    expect(natives[1].options.plaintextHeader).toBe(undefined)
+
+    expect(() => makeAdapter({ passphrase: 'k1', plaintextHeader: 'yes' })).toThrow(
+      /plaintextHeader must be true or false/,
+    )
+    makeDispatcherModule.getDispatcherType.mockReturnValue('asynchronous')
+    expect(() => makeAdapter({ passphrase: 'k1', plaintextHeader: true })).toThrow(
+      expect.objectContaining({ code: 'encryption_unavailable' }),
+    )
+  })
+
+  it('re-keys an encrypted database into the layout asked for once it is set up, with events', async () => {
+    files.set('secret', { key: 'k1', version: 1, header: false })
+    const events = { onStart: jest.fn(), onSuccess: jest.fn() }
+    const adapter = makeAdapter({ passphrase: 'k1', plaintextHeader: true, events })
+    await adapter.initializingPromise
+    // Calls made after setup wait for it
+    const local = await new Promise((resolve) => adapter.getLocal('x', resolve))
+    expect(local.value).toBe(null)
+    expect(natives[0].log).toContain('changeEncryptionKey')
+    expect(files.get('secret')).toMatchObject({ key: 'k1', header: true })
+    expect(events.onStart).toHaveBeenCalledWith(expect.objectContaining({ operation: 'rekey' }))
+    expect(events.onSuccess).toHaveBeenCalledWith(expect.objectContaining({ operation: 'rekey' }))
+    expect(natives[0].log.indexOf('changeEncryptionKey')).toBeLessThan(
+      natives[0].log.indexOf('getLocal'),
+    )
+
+    // And back when the option is turned off
+    const plain = makeAdapter({ passphrase: 'k1' })
+    await plain.initializingPromise
+    await new Promise((resolve) => plain.getLocal('x', resolve))
+    expect(files.get('secret')).toMatchObject({ key: 'k1', header: false })
+  })
+
+  it('leaves a database alone when its layout matches, or it is not encrypted', async () => {
+    files.set('secret', { key: 'k1', version: 1, header: true })
+    const adapter = makeAdapter({ passphrase: 'k1', plaintextHeader: true })
+    await adapter.initializingPromise
+    await new Promise((resolve) => adapter.getLocal('x', resolve))
+    expect(natives[0].log).not.toContain('changeEncryptionKey')
+
+    files.set('plain', { key: null, version: 1 })
+    const plain = new SQLiteAdapter({
+      dbName: 'plain',
+      schema,
+      encryption: { passphrase: 'k1', ifUnencrypted: 'open', plaintextHeader: true },
+    })
+    await plain.initializingPromise
+    await new Promise((resolve) => plain.getLocal('x', resolve))
+    expect(natives[1].log).not.toContain('changeEncryptionKey')
+    expect(files.get('plain').key).toBe(null)
+  })
+
+  it('a new database is created with it, and encrypting writes it', async () => {
+    const adapter = makeAdapter({ passphrase: 'k1', plaintextHeader: true })
+    await adapter.initializingPromise
+    expect(files.get('secret')).toMatchObject({ key: 'k1', header: true })
+
+    files.set('plain', { key: null, version: 1 })
+    const plain = new SQLiteAdapter({
+      dbName: 'plain',
+      schema,
+      encryption: { passphrase: 'k1', ifUnencrypted: 'open', plaintextHeader: true },
+    })
+    await plain.initializingPromise
+    await changeKey(plain, 'k1')
+    expect(files.get('plain')).toMatchObject({ key: 'k1', header: true })
+  })
+})
+
 describe('Database encryption', () => {
   const makeDatabase = (encryption) =>
     new Database({ adapter: makeAdapter(encryption), modelClasses: [] })

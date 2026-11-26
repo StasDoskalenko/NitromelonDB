@@ -42,6 +42,13 @@ export type EncryptionOptions = {
   // 'open': opens it unencrypted, so the app can encrypt it with database.unsafe_EncryptDB().
   // New databases are always created encrypted.
   ifUnencrypted?: 'error' | 'open' | undefined
+  // iOS App Groups: keeps the first 32 bytes of the file (SQLite's header) unencrypted, so that iOS
+  // doesn't kill the app when it's suspended while holding the database open in a shared container.
+  // The key's salt then lives in a file next to the database (<database>-nitromelon-salt), which
+  // must stay with it. A new database is created this way; an encrypted one without it is re-keyed
+  // into it (with the same passphrase) once, when it's opened, and turning the option off moves it
+  // back. iOS, Android and Windows. See docs/Encryption/MultipleConnections
+  plaintextHeader?: boolean | undefined
   events?: EncryptionEvents | undefined
 }
 
@@ -52,6 +59,7 @@ export type EncryptionErrorCode =
   | 'encryption_key_required'
   | 'database_not_encrypted'
   | 'rekey_failed'
+  | 'encryption_salt_missing'
 
 export type DatabaseEncryptionState = 'encrypted' | 'unencrypted' | 'missing'
 
@@ -126,6 +134,7 @@ export type SqliteDispatcherOptions = {
   // '' = not encrypted
   passphrase?: string | undefined
   allowUnencrypted?: boolean | undefined
+  plaintextHeader?: boolean | undefined
   storeWholeNumbersAsIntegers: boolean
   experimentalUnsafeNativeReuse: boolean
   web?: SQLiteWebOptions | undefined
@@ -151,6 +160,7 @@ export type SqliteDispatcherMethod =
   | 'isEncrypted'
   | 'changeEncryptionKey'
   | 'encryptionProgress'
+  | 'hasPlaintextHeader'
   // Node/Electron only (see sqlite-node/DatabaseBridge). Native (iOS/Android/
   // Windows Nitro) has no connection lifecycle for JS to manage — the app
   // process owns it — so this is not implemented there.
