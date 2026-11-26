@@ -27,6 +27,10 @@ export type EncryptionEvents = {
   onStart?:
     | ((info: { operation: EncryptionOperation; pageCount: number; byteSize: number }) => void)
     | undefined
+  // While it runs, about every 200 ms when it has moved: `progress` from 0 to 1, an estimate from
+  // what has been written so far (it only moves forward). iOS, Android and Windows; not called on
+  // Node and Electron, where SQLite runs on the JS thread
+  onProgress?: ((info: { operation: EncryptionOperation; progress: number }) => void) | undefined
   onSuccess?: ((info: { operation: EncryptionOperation; durationMs: number }) => void) | undefined
   onError?: ((error: Error) => void) | undefined
 }
@@ -146,6 +150,7 @@ export type SqliteDispatcherMethod =
   // Native only (encryption)
   | 'isEncrypted'
   | 'changeEncryptionKey'
+  | 'encryptionProgress'
   // Node/Electron only (see sqlite-node/DatabaseBridge). Native (iOS/Android/
   // Windows Nitro) has no connection lifecycle for JS to manage — the app
   // process owns it — so this is not implemented there.

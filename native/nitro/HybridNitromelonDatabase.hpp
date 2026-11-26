@@ -50,6 +50,7 @@ public:
   void setEncryption(const std::string& passphrase, bool allowUnencrypted) override;
   bool isEncrypted() override;
   std::shared_ptr<Promise<void>> changeEncryptionKey(const std::string& newPassphrase) override;
+  double encryptionProgress() override;
 
 protected:
   void loadHybridMethods() override;

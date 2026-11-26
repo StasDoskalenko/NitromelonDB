@@ -412,6 +412,11 @@ std::shared_ptr<Promise<void>> HybridNitromelonDatabase::changeEncryptionKey(con
   return Promise<void>::async([db, newPassphrase]() { db->changeEncryptionKey(newPassphrase); });
 }
 
+double HybridNitromelonDatabase::encryptionProgress() {
+  // Never opens the database (or waits for it): a re-key only runs on one that's open
+  return db_ ? db_->encryptionProgress() : -1;
+}
+
 NitromelonInitializeResult HybridNitromelonDatabase::initialize(const std::string& dbName, double expectedVersion) {
   int databaseVersion = database().getUserVersion();
   int expected = static_cast<int>(expectedVersion);

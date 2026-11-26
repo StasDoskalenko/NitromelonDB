@@ -15,7 +15,7 @@ Using it takes two steps:
 2. [Give `SQLiteAdapter` a passphrase](./Passphrase.md). For an app that already has users with plain databases, [encrypt them in place](./ExistingUsers.md).
 
 :::note Status
-The encryption build and the passphrase API work on iOS, Android and Windows, and on Node.js and Electron with [`better-sqlite3-multiple-ciphers`](./Setup.md#nodejs-and-electron) ([#60](https://github.com/StasDoskalenko/NitromelonDB/issues/60)). Progress events during a long encryption come next (see [What's next](#whats-next)). The web (LokiJS, wa-sqlite) refuses the `encryption` option with an error.
+The encryption build and the passphrase API work on iOS, Android and Windows, and on Node.js and Electron with [`better-sqlite3-multiple-ciphers`](./Setup.md#nodejs-and-electron) ([#60](https://github.com/StasDoskalenko/NitromelonDB/issues/60)). The web (LokiJS, wa-sqlite) refuses the `encryption` option with an error.
 :::
 
 ## In this section
@@ -73,6 +73,6 @@ Also keep in mind that iOS and Android already encrypt app storage while the dev
 
 The design is in the [encryption plan](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs/plans/sqlcipher-encryption.md). Still to come:
 
-1. **Progress events** while a big database is encrypted (`onStart` and `onSuccess` exist today).
+1. **iOS App Groups**: a plaintext header, so that iOS doesn't kill an app that keeps an encrypted database open in a shared container (see [More than one connection](./MultipleConnections.md)).
 
 The web (LokiJS, wa-sqlite) is not part of this work.

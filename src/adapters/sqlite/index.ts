@@ -27,6 +27,7 @@ import {
 import type {
   DatabaseEncryptionState,
   DispatcherType,
+  EncryptionEvents,
   EncryptionOptions,
   EncryptionOperation,
   EncryptionPassphrase,
@@ -154,6 +155,9 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   _holdingDispatcher: HoldingDispatcher | null = null
 
   _encryptionEvents: EncryptionOptions['events']
+
+  // Added with subscribeToEncryptionEvents(), called after `encryption.events`
+  _encryptionListeners: Set<{ events: EncryptionEvents }> = new Set()
 
   _encryptionOptions: EncryptionOptions | undefined
 
@@ -350,6 +354,66 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     }
   }
 
+  // Whether the adapter was created with the `encryption` option, which database.unsafe_EncryptDB()
+  // and unsafe_DecryptDB() need (so that the database can be opened again on the next launch)
+  get encryptionEnabled(): boolean {
+    return this._holdingDispatcher !== null
+  }
+
+  // Calls `events` for every database.unsafe_EncryptDB() and unsafe_DecryptDB() from now on, like
+  // `encryption.events` does (useEncryption uses it). Returns a function that unsubscribes.
+  subscribeToEncryptionEvents(events: EncryptionEvents): () => void {
+    const entry = { events }
+    this._encryptionListeners.add(entry)
+    return () => {
+      this._encryptionListeners.delete(entry)
+    }
+  }
+
+  // A listener that throws is logged, and doesn't stop the others or the re-key
+  _emitEncryptionEvent(
+    name: keyof EncryptionEvents,
+    call: (events: EncryptionEvents) => void,
+  ): void {
+    const listeners = [
+      this._encryptionEvents,
+      ...[...this._encryptionListeners].map((entry) => entry.events),
+    ]
+    listeners.forEach((events) => {
+      if (!events) {
+        return
+      }
+      try {
+        call(events)
+      } catch (error) {
+        logger.error(`[SQLite] encryption.events.${String(name)} threw`, error)
+      }
+    })
+  }
+
+  // Native only: the re-key runs on a background thread, and native code tells how far it has come
+  // (encryption::RekeyProgress). On Node, SQLite runs on the JS thread, so nothing could ask meanwhile
+  _pollEncryptionProgress(holding: HoldingDispatcher, operation: EncryptionOperation): () => void {
+    if (this._dispatcherType !== 'nitro' && this._dispatcherType !== 'jsi') {
+      return () => {}
+    }
+    let last = 0
+    const timer = setInterval(() => {
+      holding.callNow<number>('encryptionProgress', [], (result) => {
+        const progress = result.value
+        // -1: not started yet, or already done
+        if (typeof progress !== 'number' || progress < 0 || progress - last < 0.01) {
+          return
+        }
+        last = progress
+        this._emitEncryptionEvent('onProgress', (events) =>
+          events.onProgress?.({ operation, progress }),
+        )
+      })
+    }, 200)
+    return () => clearInterval(timer)
+  }
+
   // Whether the open connection is encrypted. False without the `encryption` option (and on web).
   // Waits for setup.
   isEncrypted(callback: ResultCallback<boolean>): void {
@@ -379,7 +443,6 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       return
     }
 
-    const events = this._encryptionEvents
     // Goes out after anything already called, and before anything called after this
     this._dispatcher.call<boolean>('isEncrypted', [], (encryptedResult) => {
       if (encryptedResult.error) {
@@ -398,15 +461,20 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       }
 
       const release = holding.hold()
+      let stopProgress = () => {}
       const finish = (result: { error?: Error | undefined }, durationMs: number) => {
+        stopProgress()
         release()
-        if (result.error) {
-          logger.error(`[SQLite] Failed to ${operation} the database`, result.error)
-          events?.onError?.(result.error)
-          callback({ error: result.error })
+        const { error } = result
+        if (error) {
+          logger.error(`[SQLite] Failed to ${operation} the database`, error)
+          this._emitEncryptionEvent('onError', (events) => events.onError?.(error))
+          callback({ error })
         } else {
           logger.log(`[SQLite] ${operation} done in ${durationMs} ms`)
-          events?.onSuccess?.({ operation, durationMs })
+          this._emitEncryptionEvent('onSuccess', (events) =>
+            events.onSuccess?.({ operation, durationMs }),
+          )
           callback({ value: undefined })
         }
       }
@@ -419,12 +487,11 @@ export default class SQLiteAdapter implements DatabaseAdapter {
         ],
         (sizeResult) => {
           const size = sizeResult.value?.[0] ?? { pageCount: 0, byteSize: 0 }
-          try {
-            events?.onStart?.({ operation, pageCount: size.pageCount, byteSize: size.byteSize })
-          } catch (error) {
-            logger.error('[SQLite] encryption.events.onStart threw', error)
-          }
+          this._emitEncryptionEvent('onStart', (events) =>
+            events.onStart?.({ operation, pageCount: size.pageCount, byteSize: size.byteSize }),
+          )
           const start = Date.now()
+          stopProgress = this._pollEncryptionProgress(holding, operation)
           holding.callNow<void>('changeEncryptionKey', [newPassphrase], (result) =>
             finish(result, Date.now() - start),
           )

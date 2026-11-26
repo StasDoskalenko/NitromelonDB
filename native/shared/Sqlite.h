@@ -2,6 +2,7 @@
 
 #include <string>
 #include "NitromelonSqlite.h"
+#include "SqliteEncryption.h"
 
 namespace watermelondb {
 
@@ -24,7 +25,8 @@ public:
 
     // Encrypts, re-keys or (empty) decrypts, see encryption::rekey. Sets `reopened` when `sqlite` is a
     // new connection afterwards (also when it throws), which then needs the connection's settings.
-    void changeEncryptionKey(const std::string &newPassphrase, bool &reopened);
+    void changeEncryptionKey(const std::string &newPassphrase, bool &reopened,
+                             encryption::RekeyProgress *progress = nullptr);
 
     SqliteDb &operator=(const SqliteDb &) = delete;
     SqliteDb(const SqliteDb &) = delete;

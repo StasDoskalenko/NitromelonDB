@@ -1,7 +1,9 @@
 #include "SqliteEncryption.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <sys/stat.h>
 
 #if defined(_WIN32)
 #ifndef NOMINMAX
@@ -110,6 +112,17 @@ void removeDatabaseFiles(const std::string &path) {
     }
 }
 
+// 0 when there's no file
+int64_t fileSize(const std::string &path) {
+#if defined(_WIN32)
+    struct _stat64 info;
+    return _wstat64(widePath(path).c_str(), &info) == 0 ? static_cast<int64_t>(info.st_size) : 0;
+#else
+    struct stat info;
+    return stat(path.c_str(), &info) == 0 ? static_cast<int64_t>(info.st_size) : 0;
+#endif
+}
+
 #if NITROMELON_ENCRYPTION
 
 const int kOpenFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_URI;
@@ -143,6 +156,69 @@ std::string scalarText(sqlite3 *db, const char *sql) {
     sqlite3_finalize(statement);
     return result;
 }
+
+int64_t scalarInt(sqlite3 *db, const char *sql) {
+    sqlite3_stmt *statement = nullptr;
+    int64_t result = 0;
+    if (sqlite3_prepare_v2(db, sql, -1, &statement, nullptr) == SQLITE_OK && sqlite3_step(statement) == SQLITE_ROW) {
+        result = sqlite3_column_int64(statement, 0);
+    }
+    sqlite3_finalize(statement);
+    return result;
+}
+
+// Keeps a RekeyProgress up to date for the duration of a rekey(), and marks it done however rekey()
+// ends
+class ProgressScope {
+public:
+    ProgressScope(RekeyProgress *progress, sqlite3 *db, const std::string &resolvedPath,
+                  RekeyProgress::Operation operation)
+        : progress_(progress) {
+        if (!progress_) {
+            return;
+        }
+        int64_t pageSize = scalarInt(db, "pragma page_size");
+        int64_t pageCount = scalarInt(db, "pragma page_count");
+        // A decrypted copy (VACUUM INTO) leaves out the free pages
+        int64_t pages = operation == RekeyProgress::Operation::Decrypt
+                            ? pageCount - scalarInt(db, "pragma freelist_count")
+                            : pageCount;
+        progress_->begin(operation, filePath(resolvedPath), pages * pageSize, pages);
+        if (operation == RekeyProgress::Operation::Encrypt) {
+            db_ = db;
+            // Every 1000 virtual machine instructions of the VACUUM's statements: often enough for a
+            // smooth bar, and a cheap call. The copy over the file that follows runs no statements;
+            // the journal shows that half
+            sqlite3_progress_handler(db, 1000, &ProgressScope::onProgress, this);
+        }
+    }
+
+    ~ProgressScope() {
+        if (db_) {
+            sqlite3_progress_handler(db_, 0, nullptr, nullptr);
+        }
+        if (progress_) {
+            progress_->end();
+        }
+    }
+
+    ProgressScope(const ProgressScope &) = delete;
+    ProgressScope &operator=(const ProgressScope &) = delete;
+
+private:
+    // On the re-key's thread, inside the VACUUM's statements
+    static int onProgress(void *context) {
+        auto *scope = static_cast<ProgressScope *>(context);
+        int pages = nitromelon_sqlite3_vacuum_page_count(scope->db_);
+        if (pages > 0) {
+            scope->progress_->setBuiltPages(pages);
+        }
+        return 0; // (non-zero would interrupt it)
+    }
+
+    RekeyProgress *progress_;
+    sqlite3 *db_ = nullptr;
+};
 
 // A filesystem path as a `file:` URI, for SQL (VACUUM INTO): everything but unreserved characters,
 // '/' and ':' percent-encoded, so it can't break out of the SQL string either
@@ -325,6 +401,61 @@ void decryptByCopy(sqlite3 *&db, const std::string &resolvedPath, const std::str
 EncryptionError::EncryptionError(const std::string &code, const std::string &message)
     : std::runtime_error("[" + code + "] " + message), code(code) {}
 
+void RekeyProgress::begin(Operation operation, const std::string &filePath, int64_t expectedBytes,
+                          int64_t expectedPages) {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    running_ = true;
+    operation_ = operation;
+    filePath_ = filePath;
+    expectedBytes_ = expectedBytes;
+    expectedPages_ = expectedPages;
+    builtPages_ = 0;
+    last_ = 0;
+}
+
+void RekeyProgress::setBuiltPages(int64_t pages) {
+    builtPages_ = pages;
+}
+
+void RekeyProgress::end() {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    running_ = false;
+}
+
+double RekeyProgress::fraction() const {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    if (!running_) {
+        return -1;
+    }
+    auto ratio = [](int64_t done, int64_t total) {
+        return total > 0 ? std::min(1.0, static_cast<double>(done) / static_cast<double>(total)) : 0.0;
+    };
+    double current = 0;
+    switch (operation_) {
+    case Operation::Decrypt:
+        current = ratio(fileSize(filePath_ + "-nitromelon-decrypted"), expectedBytes_);
+        break;
+    case Operation::Rekey:
+        current = ratio(fileSize(filePath_ + "-journal"), expectedBytes_);
+        break;
+    case Operation::Encrypt: {
+        double journaled = ratio(fileSize(filePath_ + "-journal"), expectedBytes_);
+        int64_t built = builtPages_;
+        if (built == 0) {
+            // No VACUUM (yet, or at all: a plain database that already had room for the HMAC is
+            // rewritten in place like a key change)
+            current = journaled;
+        } else {
+            // Once the copy has started, the temporary database is complete
+            current = journaled > 0 ? 0.5 + 0.5 * journaled : 0.5 * ratio(built, expectedPages_);
+        }
+        break;
+    }
+    }
+    last_ = std::max(last_, current);
+    return last_;
+}
+
 bool isAvailable() {
 #if NITROMELON_ENCRYPTION
     return true;
@@ -461,7 +592,7 @@ bool openWithKey(sqlite3 *db, FileState state, const std::string &passphrase, bo
 }
 
 void rekey(sqlite3 *&db, const std::string &resolvedPath, const std::string &currentPassphrase,
-           const std::string &newPassphrase, bool &reopened) {
+           const std::string &newPassphrase, bool &reopened, RekeyProgress *progress) {
     reopened = false;
 #if NITROMELON_ENCRYPTION
     requireFile(db);
@@ -470,11 +601,15 @@ void rekey(sqlite3 *&db, const std::string &resolvedPath, const std::string &cur
     }
     if (newPassphrase.empty()) {
         if (!currentPassphrase.empty()) {
+            ProgressScope scope(progress, db, resolvedPath, RekeyProgress::Operation::Decrypt);
             decryptByCopy(db, resolvedPath, currentPassphrase, reopened);
         }
         return; // (not encrypted: nothing to do)
     }
 
+    ProgressScope scope(progress, db, resolvedPath,
+                        currentPassphrase.empty() ? RekeyProgress::Operation::Encrypt
+                                                  : RekeyProgress::Operation::Rekey);
     bool wasWal = leaveWal(db);
     int result = sqlite3_rekey_v2(db, "main", newPassphrase.data(), static_cast<int>(newPassphrase.size()));
     std::string error = result == SQLITE_OK ? "" : errorMessage(db);
@@ -491,6 +626,7 @@ void rekey(sqlite3 *&db, const std::string &resolvedPath, const std::string &cur
     (void)resolvedPath;
     (void)currentPassphrase;
     (void)newPassphrase;
+    (void)progress;
     throw EncryptionError("encryption_unavailable",
                           std::string("This build of NitromelonDB has no encryption. ") + kSwitchHint);
 #endif

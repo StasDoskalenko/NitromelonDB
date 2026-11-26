@@ -1,6 +1,6 @@
 # SQLCipher-compatible database encryption
 
-**Status:** In progress, not released yet (as of 2026-11-23). Steps 2-4 of the rollout (the opt-in encryption build, native keying, the JS API) are merged (#249, #250), with most of step 6's docs. The upgrade path (plain build → encryption build → encrypt in place) is tested on a device in CI on iOS, Android and Windows (#256-#259), and a reset keeps an encrypted database encrypted (`SqliteEncryptionTest`). Nothing blocks the first release (`0.33.0-alpha.0`); the remaining gaps are in [What's left](#whats-left). Step 5 (Node/Electron, with a real Jest suite) is implemented; progress heartbeats are not started. **Before the release, decide the file format** (see [Risks](#risks-and-things-to-verify), "SQLCipher tool compatibility"). Where the implementation differs from the design below, it says so in *Implemented:* notes. User docs: the [Encryption section](../../docs-website/docs/docs/Encryption/Intro.md).
+**Status:** In progress, not released yet (as of 2026-11-23). Steps 2-4 of the rollout (the opt-in encryption build, native keying, the JS API) are merged (#249, #250), with most of step 6's docs. The upgrade path (plain build → encryption build → encrypt in place) is tested on a device in CI on iOS, Android and Windows (#256-#259), and a reset keeps an encrypted database encrypted (`SqliteEncryptionTest`). Nothing blocks the first release (`0.33.0-alpha.0`); the remaining gaps are in [What's left](#whats-left). Step 5 (Node/Electron, with a real Jest suite) is implemented, and so are progress events (`onProgress`, a fraction) and the `useEncryption` hook. **Before the release, decide the file format** (see [Risks](#risks-and-things-to-verify), "SQLCipher tool compatibility"). Where the implementation differs from the design below, it says so in *Implemented:* notes. User docs: the [Encryption section](../../docs-website/docs/docs/Encryption/Intro.md).
 
 This is the plan of record for #60. It supersedes `plans/database-encryption.md` (Zetetic SQLCipher with export-and-swap), whose safety requirements are folded in below under [Safety requirements](#safety-requirements).
 
@@ -103,7 +103,7 @@ encryption?: EncryptionOptions | undefined
 
 Grouping these under `encryption` keeps `SQLiteAdapterOptions` readable and makes the three settings obviously related. `ifUnencrypted` is a policy, not a handler — the earlier `onPlaintextDatabase` name wrongly implied a callback.
 
-*Implemented:* `onProgress` is not implemented yet; `onStart` also gets `operation` and `onSuccess` gets `{ operation, durationMs }`.
+*Implemented:* `onStart` also gets `operation` and `onSuccess` gets `{ operation, durationMs }`. `onProgress` gets `{ operation, progress }`, a fraction from 0 to 1 instead of a heartbeat (see the *Implemented* note under step 4's progress fidelity).
 
 There is deliberately **no** `'encrypt'` auto-migrate mode. Rekeying can take many seconds; hiding it inside adapter construction makes it hard to show UI or handle failure. Migration is always an explicit call.
 
@@ -232,7 +232,7 @@ void Database::changeEncryptionKey(const std::string &newKey, ProgressCallback o
 }
 ```
 
-*Implemented* as `Database::changeEncryptionKey` + `encryption::rekey`, returned to JS by `Promise<void>::async`. No progress callback yet.
+*Implemented* as `Database::changeEncryptionKey` + `encryption::rekey`, returned to JS by `Promise<void>::async`. Progress isn't a callback: `encryption::RekeyProgress` is updated on the re-key's thread, and JS polls `encryptionProgress()` (a synchronous Nitro method that doesn't take the database mutex) every 200 ms while the promise is pending.
 
 *Crash safety, as found by `SqliteEncryptionTest`* (it crashes the re-key exactly at its commit through the unix VFS's `xSetSystemCall`, besides killing it at random times):
 
@@ -244,6 +244,8 @@ Deliberately do **not** touch `cachedRecords_` — rekey preserves every row, so
 Moving rekey off-thread introduces a genuine concurrency window, which is precisely why write-blocking is required rather than merely defensive. Note that the native layer already provides a hard guarantee: **every** public `Database` method takes `mutex_`, so a concurrent query or batch blocks on the rekey rather than corrupting anything. The JS-side writer block is the graceful layer on top.
 
 Progress fidelity is **indeterminate by design**. sqlite3mc's rekey is a single opaque call whose only hook is `sqlite3_progress_handler`, which fires every N VM steps and reports no page counts. We emit `onStart` with `pageCount`/`byteSize`, then a periodic `onProgress` heartbeat carrying `elapsedMs` and `steps`. That is enough to drive a spinner and prove liveness. A true percentage would require abandoning in-place rekey for a copy-based page-by-page export, reintroducing the temp file and roughly 2x disk usage.
+
+*Implemented:* a real fraction, without giving up the in-place re-key. Each operation writes every page once to a file whose size can be read from another thread: decrypting writes the copy (`VACUUM INTO`); changing the key journals every page before rewriting it (rollback journal, since WAL is left first); encrypting is sqlite3mc's VACUUM into a temporary database (to make room for the HMAC), whose page count a `sqlite3_progress_handler` reads through `nitromelon_sqlite3_vacuum_page_count` (SQLite internals, next to the amalgamation in `NitromelonSqlite.c`), then a copy over the file that journals every page. `RekeyProgress::fraction()` turns these into 0..1 (encrypting: first half the temporary pages, second half the journal) and never moves back. `SqliteEncryptionTest` polls it from another thread in each direction and checks it's ordered, within 0..1, and passes through both halves. Node gets no progress: better-sqlite3 runs on the JS thread.
 
 ### Nitro spec
 

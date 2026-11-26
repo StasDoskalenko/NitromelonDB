@@ -9,6 +9,7 @@
 
 #include "SqliteEncryption.h"
 
+#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdio>
@@ -373,6 +374,62 @@ struct Direction {
 
 static const Direction kDirections[] = {{"encrypt", "", "k1"}, {"change key", "k1", "k2"}, {"decrypt", "k1", ""}};
 
+// RekeyProgress, polled from another thread as JS does while the re-key runs on its own: -1 before
+// and after, and in between it only moves forward, stays within 0..1, and passes through the middle.
+// Encrypting is two halves (building the encrypted copy, then journaling over the file): both show.
+static void reportsProgress() {
+    for (const Direction &direction : kDirections) {
+        std::string path = tempPath("progress");
+        fillDatabase(path, direction.from, 60000);
+        sqlite3 *db = nullptr;
+        CHECK(tryOpen(path, direction.from, false, &db) == "");
+
+        RekeyProgress progress;
+        CHECK(progress.fraction() == -1);
+        std::atomic<bool> done{false};
+        std::string error;
+        std::thread worker([&]() {
+            try {
+                bool reopened = false;
+                rekey(db, path, direction.from, direction.to, reopened, &progress);
+            } catch (const std::exception &e) {
+                error = e.what();
+            }
+            done = true;
+        });
+        std::vector<double> samples;
+        while (!done) {
+            double value = progress.fraction();
+            if (value >= 0) {
+                samples.push_back(value);
+            }
+            std::this_thread::sleep_for(std::chrono::microseconds(200));
+        }
+        worker.join();
+        CHECK(error == "");
+        CHECK(progress.fraction() == -1);
+
+        bool ordered = true, inRange = true, firstHalf = false, secondHalf = false;
+        for (size_t i = 0; i < samples.size(); i++) {
+            inRange = inRange && samples[i] >= 0 && samples[i] <= 1;
+            ordered = ordered && (i == 0 || samples[i] >= samples[i - 1]);
+            firstHalf = firstHalf || (samples[i] > 0.02 && samples[i] < 0.48);
+            secondHalf = secondHalf || (samples[i] > 0.52 && samples[i] < 0.98);
+        }
+        if (!(ordered && inRange && firstHalf && secondHalf)) {
+            std::fprintf(stderr, "%s progress: %zu samples, last %.3f\n", direction.name, samples.size(),
+                         samples.empty() ? -1.0 : samples.back());
+        }
+        CHECK(ordered);
+        CHECK(inRange);
+        CHECK(firstHalf);
+        CHECK(secondHalf);
+        CHECK(scalar(db, "select count(*) from t") == "60000");
+        sqlite3_close(db);
+        removeDatabase(path);
+    }
+}
+
 // The same format as the Node adapter (better-sqlite3-multiple-ciphers, sqlite-node/encryption.ts):
 // fixtures/node-encrypted-k1.db was written there with passphrase "k1". The Node tests read a file
 // written here (src/adapters/sqlite/sqlite-node/__tests__/fixtures/native-encrypted-k1.db)
@@ -677,6 +734,7 @@ int main() {
     inMemoryDatabasesCantBeEncrypted();
     plaintextDatabaseNeedsOptIn();
     rekeysFromWal();
+    reportsProgress();
     resetKeepsEncryption();
     rekeyRefusedWhileAnotherConnectionIsOpen();
     readsNodeAdapterDatabase();
