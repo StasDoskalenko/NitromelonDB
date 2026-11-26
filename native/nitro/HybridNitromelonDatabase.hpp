@@ -47,9 +47,11 @@ public:
   void unsafeResetDatabase(const std::string& schema, double schemaVersion) override;
   void unsafeClose() override;
   void onMemoryWarning(const std::function<void()>& callback) override;
-  void setEncryption(const std::string& passphrase, bool allowUnencrypted) override;
+  void setEncryption(const std::string& passphrase, bool allowUnencrypted, bool plaintextHeader) override;
+  bool hasPlaintextHeader() override;
   bool isEncrypted() override;
   std::shared_ptr<Promise<void>> changeEncryptionKey(const std::string& newPassphrase) override;
+  double encryptionProgress() override;
 
 protected:
   void loadHybridMethods() override;
@@ -75,6 +77,7 @@ private:
   // From setEncryption(), used once to open db_, then cleared
   std::string passphrase_;
   bool allowUnencrypted_ = false;
+  bool plaintextHeader_ = false;
   // From setStoreWholeNumbersAsIntegers(), applied when db_ opens
   bool storeWholeNumbersAsIntegers_ = false;
   std::function<void()> memoryWarningCallback_;

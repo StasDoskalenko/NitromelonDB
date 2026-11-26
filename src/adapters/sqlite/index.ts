@@ -27,6 +27,7 @@ import {
 import type {
   DatabaseEncryptionState,
   DispatcherType,
+  EncryptionEvents,
   EncryptionOptions,
   EncryptionOperation,
   EncryptionPassphrase,
@@ -155,6 +156,9 @@ export default class SQLiteAdapter implements DatabaseAdapter {
 
   _encryptionEvents: EncryptionOptions['events']
 
+  // Added with subscribeToEncryptionEvents(), called after `encryption.events`
+  _encryptionListeners: Set<{ events: EncryptionEvents }> = new Set()
+
   _encryptionOptions: EncryptionOptions | undefined
 
   // Whether this build of the app has the codec ("nitromelondb": { "encryption": true } in the app's
@@ -198,6 +202,9 @@ export default class SQLiteAdapter implements DatabaseAdapter {
     // calls to async, synch NativeModule, or JSI implementation w/ type safety in rest of the impl
     let dispatcher: SqliteDispatcher
     const { encryption } = options
+    // The passphrase the database was opened with, kept only until its layout is checked after
+    // setup (_matchEncryptionLayout)
+    let openedWith = ''
     if (encryption) {
       this._checkEncryptionSupport(encryption)
       this._encryptionOptions = encryption
@@ -205,12 +212,15 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       const holding = new HoldingDispatcher()
       this._holdingDispatcher = holding
       dispatcher = holding
-      const open = (passphrase: string) =>
-        makeDispatcher(this._dispatcherType, this._tag, this.dbName, {
+      const open = (passphrase: string) => {
+        openedWith = passphrase
+        return makeDispatcher(this._dispatcherType, this._tag, this.dbName, {
           ...dispatcherOptions,
           passphrase,
           allowUnencrypted: encryption.ifUnencrypted === 'open',
+          ...(encryption.plaintextHeader ? { plaintextHeader: true } : {}),
         })
+      }
       if (typeof encryption.passphrase === 'function') {
         // Calls wait in `holding` until the passphrase is there; if it can't be had, they fail
         resolvePassphrase(encryption.passphrase)
@@ -245,7 +255,15 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       this._init((result) => {
         if (result.error) {
           this._setUpError = result.error
+        } else if (encryption) {
+          // After the calls already waiting for setup (this callback runs while they're sent on),
+          // and before anything the app calls once it's set up (queued after this)
+          const passphrase = openedWith
+          Promise.resolve().then(() =>
+            this._matchEncryptionLayout(!!encryption.plaintextHeader, passphrase),
+          )
         }
+        openedWith = ''
         callback(result)
         devSetupCallback(result, options.onSetUpError)
       })
@@ -327,6 +345,16 @@ export default class SQLiteAdapter implements DatabaseAdapter {
         encryption.ifUnencrypted === 'open',
       "SQLiteAdapter: encryption.ifUnencrypted must be 'error' or 'open'",
     )
+    invariant(
+      encryption.plaintextHeader === undefined || typeof encryption.plaintextHeader === 'boolean',
+      'SQLiteAdapter: encryption.plaintextHeader must be true or false',
+    )
+    if (encryption.plaintextHeader && this._dispatcherType === 'asynchronous') {
+      throw encryptionError(
+        'encryption_unavailable',
+        `SQLiteAdapter: encryption.plaintextHeader is for iOS App Groups, and works on iOS, Android and Windows, not on Node and Electron. See ${ENCRYPTION_GUIDE}`,
+      )
+    }
     if (this._dispatcherType === 'wa-sqlite') {
       throw encryptionError(
         'encryption_unavailable',
@@ -348,6 +376,95 @@ export default class SQLiteAdapter implements DatabaseAdapter {
         `SQLiteAdapter: \`encryption\` was passed, but this build of the app has no encryption, so the database would not be encrypted. Turn on the encryption build with "nitromelondb": { "encryption": true } in the app's package.json (or NITROMELONDB_ENCRYPTION=1), then rebuild the native app (on iOS, run pod install again). If it's already on, look for "SQLite encryption build" in the build log: the switch may be in a package.json that isn't the app's, or NITROMELONDB_ENCRYPTION=0 may be set. See ${ENCRYPTION_SETUP_GUIDE}`,
       )
     }
+  }
+
+  // Whether the adapter was created with the `encryption` option, which database.unsafe_EncryptDB()
+  // and unsafe_DecryptDB() need (so that the database can be opened again on the next launch)
+  get encryptionEnabled(): boolean {
+    return this._holdingDispatcher !== null
+  }
+
+  // Calls `events` for every database.unsafe_EncryptDB() and unsafe_DecryptDB() from now on, like
+  // `encryption.events` does (useEncryption uses it). Returns a function that unsubscribes.
+  subscribeToEncryptionEvents(events: EncryptionEvents): () => void {
+    const entry = { events }
+    this._encryptionListeners.add(entry)
+    return () => {
+      this._encryptionListeners.delete(entry)
+    }
+  }
+
+  // A listener that throws is logged, and doesn't stop the others or the re-key
+  _emitEncryptionEvent(
+    name: keyof EncryptionEvents,
+    call: (events: EncryptionEvents) => void,
+  ): void {
+    const listeners = [
+      this._encryptionEvents,
+      ...[...this._encryptionListeners].map((entry) => entry.events),
+    ]
+    listeners.forEach((events) => {
+      if (!events) {
+        return
+      }
+      try {
+        call(events)
+      } catch (error) {
+        logger.error(`[SQLite] encryption.events.${String(name)} threw`, error)
+      }
+    })
+  }
+
+  // Native only: the re-key runs on a background thread, and native code tells how far it has come
+  // (encryption::RekeyProgress). On Node, SQLite runs on the JS thread, so nothing could ask meanwhile
+  _pollEncryptionProgress(holding: HoldingDispatcher, operation: EncryptionOperation): () => void {
+    if (this._dispatcherType !== 'nitro' && this._dispatcherType !== 'jsi') {
+      return () => {}
+    }
+    let last = 0
+    const timer = setInterval(() => {
+      holding.callNow<number>('encryptionProgress', [], (result) => {
+        const progress = result.value
+        // -1: not started yet, or already done
+        if (typeof progress !== 'number' || progress < 0 || progress - last < 0.01) {
+          return
+        }
+        last = progress
+        this._emitEncryptionEvent('onProgress', (events) =>
+          events.onProgress?.({ operation, progress }),
+        )
+      })
+    }, 200)
+    return () => clearInterval(timer)
+  }
+
+  // encryption.plaintextHeader: an encrypted database in the other layout is re-keyed with the
+  // passphrase it has, which writes the layout the option asks for (encryption::rekey). With the
+  // usual events, so the app can show it; calls made meanwhile wait. If it fails, the database
+  // keeps its layout and works as before, and the next launch tries again.
+  _matchEncryptionLayout(plaintextHeader: boolean, passphrase: string): void {
+    const holding = this._holdingDispatcher
+    if (
+      !holding ||
+      !passphrase ||
+      (this._dispatcherType !== 'nitro' && this._dispatcherType !== 'jsi')
+    ) {
+      return
+    }
+    holding.call<boolean>('isEncrypted', [], (encrypted) => {
+      if (!encrypted.value) {
+        return
+      }
+      holding.call<boolean>('hasPlaintextHeader', [], (header) => {
+        if (header.error || header.value === plaintextHeader) {
+          return
+        }
+        logger.log(
+          `[SQLite] ${plaintextHeader ? 'Adding' : 'Removing'} the database's plaintext header (encryption.plaintextHeader)`,
+        )
+        this.unsafeChangeEncryptionKey(passphrase, () => {})
+      })
+    })
   }
 
   // Whether the open connection is encrypted. False without the `encryption` option (and on web).
@@ -379,7 +496,6 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       return
     }
 
-    const events = this._encryptionEvents
     // Goes out after anything already called, and before anything called after this
     this._dispatcher.call<boolean>('isEncrypted', [], (encryptedResult) => {
       if (encryptedResult.error) {
@@ -398,15 +514,20 @@ export default class SQLiteAdapter implements DatabaseAdapter {
       }
 
       const release = holding.hold()
+      let stopProgress = () => {}
       const finish = (result: { error?: Error | undefined }, durationMs: number) => {
+        stopProgress()
         release()
-        if (result.error) {
-          logger.error(`[SQLite] Failed to ${operation} the database`, result.error)
-          events?.onError?.(result.error)
-          callback({ error: result.error })
+        const { error } = result
+        if (error) {
+          logger.error(`[SQLite] Failed to ${operation} the database`, error)
+          this._emitEncryptionEvent('onError', (events) => events.onError?.(error))
+          callback({ error })
         } else {
           logger.log(`[SQLite] ${operation} done in ${durationMs} ms`)
-          events?.onSuccess?.({ operation, durationMs })
+          this._emitEncryptionEvent('onSuccess', (events) =>
+            events.onSuccess?.({ operation, durationMs }),
+          )
           callback({ value: undefined })
         }
       }
@@ -419,12 +540,11 @@ export default class SQLiteAdapter implements DatabaseAdapter {
         ],
         (sizeResult) => {
           const size = sizeResult.value?.[0] ?? { pageCount: 0, byteSize: 0 }
-          try {
-            events?.onStart?.({ operation, pageCount: size.pageCount, byteSize: size.byteSize })
-          } catch (error) {
-            logger.error('[SQLite] encryption.events.onStart threw', error)
-          }
+          this._emitEncryptionEvent('onStart', (events) =>
+            events.onStart?.({ operation, pageCount: size.pageCount, byteSize: size.byteSize }),
+          )
           const start = Date.now()
+          stopProgress = this._pollEncryptionProgress(holding, operation)
           holding.callNow<void>('changeEncryptionKey', [newPassphrase], (result) =>
             finish(result, Date.now() - start),
           )

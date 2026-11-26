@@ -17,6 +17,7 @@ Errors from opening or re-keying have a `code`:
 | `encryption_key_invalid`  | the passphrase is wrong, or the file isn't a database encrypted by NitromelonDB / SQLCipher 4                                                                             | Use the right passphrase. The file is unchanged.                                      |
 | `encryption_key_required` | the database is encrypted (or damaged), and no passphrase was given: a build or code path without `encryption`                                                            | Pass the passphrase. The file is unchanged.                                           |
 | `database_not_encrypted`  | a passphrase was given, but the database is a plain SQLite file                                                                                                           | Use `ifUnencrypted: 'open'` and `unsafe_EncryptDB()`.                                 |
+| `encryption_salt_missing` | the database has a plaintext header (`plaintextHeader`), and its salt file next to it is missing or damaged                                                               |
 | `rekey_failed`            | encrypting, changing the key or decrypting failed (e.g. disk full)                                                                                                        | The database keeps its previous state.                                                |
 
 ```js

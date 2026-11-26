@@ -34,7 +34,9 @@ namespace margelo::nitro::watermelondb {
       prototype.registerHybridMethod("onMemoryWarning", &HybridNitromelonDatabaseSpec::onMemoryWarning);
       prototype.registerHybridMethod("setEncryption", &HybridNitromelonDatabaseSpec::setEncryption);
       prototype.registerHybridMethod("isEncrypted", &HybridNitromelonDatabaseSpec::isEncrypted);
+      prototype.registerHybridMethod("hasPlaintextHeader", &HybridNitromelonDatabaseSpec::hasPlaintextHeader);
       prototype.registerHybridMethod("changeEncryptionKey", &HybridNitromelonDatabaseSpec::changeEncryptionKey);
+      prototype.registerHybridMethod("encryptionProgress", &HybridNitromelonDatabaseSpec::encryptionProgress);
     });
   }
 

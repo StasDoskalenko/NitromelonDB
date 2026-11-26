@@ -52,13 +52,20 @@ export interface NitromelonDatabase extends HybridObject<{ ios: 'c++'; android: 
   onMemoryWarning(callback: () => void): void
   // SQLiteAdapter's `encryption` option. Must come before any other call: the connection opens on
   // first use. `passphrase` '' means none. Opening throws `[code] message` errors (see
-  // native/shared/SqliteEncryption.h), never changing the file.
-  setEncryption(passphrase: string, allowUnencrypted: boolean): void
+  // native/shared/SqliteEncryption.h), never changing the file. `plaintextHeader`: a new database
+  // is created with one, and re-keying writes that layout.
+  setEncryption(passphrase: string, allowUnencrypted: boolean, plaintextHeader: boolean): void
   // Whether the open connection is encrypted
   isEncrypted(): boolean
+  // Whether the database has a plaintext header now (it keeps its layout until it's re-keyed)
+  hasPlaintextHeader(): boolean
   // Encrypts, re-keys or ('' ) decrypts in place, on a background thread. Every other call waits
   // for it (the native mutex), so JS holds them back meanwhile (see SQLiteAdapter).
   changeEncryptionKey(newPassphrase: string): Promise<void>
+  // How far a changeEncryptionKey() has come: 0 to 1, or -1 when none is running. Returns at once,
+  // even while changeEncryptionKey() holds every other call (SQLiteAdapter polls it for
+  // encryption.events.onProgress)
+  encryptionProgress(): number
 }
 
 export interface Nitromelon extends HybridObject<{ ios: 'c++'; android: 'c++' }> {

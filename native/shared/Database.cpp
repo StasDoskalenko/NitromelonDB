@@ -9,10 +9,10 @@ using platform::consoleError;
 using platform::consoleLog;
 
 Database::Database(jsi::Runtime *runtime, std::string path, bool usesExclusiveLocking, const std::string &passphrase,
-                   bool allowUnencrypted)
+                   bool allowUnencrypted, bool plaintextHeader)
     : runtime_(runtime), mutex_() {
     // Keyed (if at all) before anything below touches the file
-    db_ = std::make_unique<SqliteDb>(path, passphrase, allowUnencrypted);
+    db_ = std::make_unique<SqliteDb>(path, passphrase, allowUnencrypted, plaintextHeader);
 
     std::string initSql = "";
 
@@ -107,6 +107,11 @@ bool Database::isEncrypted() {
     return db_ && db_->isEncrypted;
 }
 
+bool Database::hasPlaintextHeader() {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    return db_ && db_->hasPlaintextHeader;
+}
+
 void Database::changeEncryptionKey(const std::string &newPassphrase) {
     const std::lock_guard<std::mutex> lock(mutex_);
     if (isDestroyed_ || !db_) {
@@ -122,13 +127,17 @@ void Database::changeEncryptionKey(const std::string &newPassphrase) {
         }
     };
     try {
-        db_->changeEncryptionKey(newPassphrase, reopened);
+        db_->changeEncryptionKey(newPassphrase, reopened, &rekeyProgress_);
     } catch (...) {
         reconfigureIfReopened();
         throw;
     }
     reconfigureIfReopened();
     consoleLog(newPassphrase.empty() ? "Decrypted the database" : "Changed the database's encryption key");
+}
+
+double Database::encryptionProgress() const {
+    return rekeyProgress_.fraction();
 }
 
 bool Database::isCached(std::string cacheKey) {

@@ -323,6 +323,7 @@ export const database = new Database({
 - `dbName`: pick one for the app and never change it after release. Changing it starts an empty database.
 - Don't add `jsi: true` / `jsi: false`. They're WatermelonDB options: `jsi: false` throws.
 - Don't add `seed` unless the user wants demo or fixture data. On a database that already has data, every seed step still runs. See https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/Seeding.md.
+- Don't add `encryption` here. It's opt-in, needs a native build switch and a passphrase in the Keychain, and changes the App Store export-compliance answers. If the user wants it, finish this skill first, then run `nitromelondb-encryption`.
 
 **Web without Expo (Vite, Webpack):** use `LokiJSAdapter`. `nitromelondb/adapters/sqlite` picks its browser build (wa-sqlite) through Metro's `.web.js` files, which Vite and Webpack don't read: there it loads the Node build and fails on `better-sqlite3`. wa-sqlite on those bundlers needs hand-made worker and WASM setup and isn't a supported target yet ([wa-sqlite web adapter](https://stasdoskalenko.github.io/NitromelonDB/docs/Implementation/WaSQLiteAdapter.md)). Don't attempt it unless the user asks.
 
@@ -499,7 +500,7 @@ Then tell the user, without doing it:
 - **Before the first release** the schema can still change at version 1: reinstall the app (or clear its data) after each change, so the local database is created again. **After the release**, every schema change needs a migration and a version bump.
 - **Expo Go** no longer runs the app. Use the development build, or EAS Build.
 - **EAS Update** ships model, schema and migration changes over the air. Upgrading `nitromelondb` or `react-native-nitro-modules` needs a new build.
-- **Next:** `nitromelondb-schema` for every schema change from now on (it writes the migration), `nitromelondb-sync` to sync with a backend, `nitromelondb-indexes` once tables hold real data, and `nitromelondb-audit` once there's real data code.
+- **Next:** `nitromelondb-schema` for every schema change from now on (it writes the migration), `nitromelondb-sync` to sync with a backend, `nitromelondb-indexes` once tables hold real data, `nitromelondb-audit` once there's real data code, and `nitromelondb-encryption` if the data must be encrypted on the device.
 
 ## Checklist
 

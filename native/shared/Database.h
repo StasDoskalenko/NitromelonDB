@@ -56,8 +56,9 @@ public:
 #endif
     // `passphrase` empty: not encrypted. Throws encryption::EncryptionError (see SqliteEncryption.h)
     // when the database can't be opened with it; the file is never changed then.
+    // `plaintextHeader`: see SqliteDb.
     Database(jsi::Runtime *runtime, std::string path, bool usesExclusiveLocking, const std::string &passphrase = "",
-             bool allowUnencrypted = false);
+             bool allowUnencrypted = false, bool plaintextHeader = false);
     ~Database();
     void destroy();
     // Releases as much of SQLite's own internal heap memory as possible for this
@@ -112,10 +113,15 @@ public:
 
     // Whether the open connection is encrypted (keyed), as opposed to what the file looked like
     bool isEncrypted();
+    // Whether the database has a plaintext header (`encryption.plaintextHeader`) now
+    bool hasPlaintextHeader();
     // Encrypts, re-keys or (empty passphrase) decrypts the database in place. Blocks every other call
     // (mutex_) until it's done, which can take seconds on a big database. Records are unchanged, so
     // cachedRecords_ stays valid. Throws encryption::EncryptionError; the old key stays then.
     void changeEncryptionKey(const std::string &newPassphrase);
+    // How far a changeEncryptionKey() running on another thread has come: 0 to 1, or -1 when none
+    // is. Doesn't wait for it (no mutex_), so JS can poll it meanwhile. See encryption::RekeyProgress.
+    double encryptionProgress() const;
 
     int getUserVersion();
     // Whether the database has any tables, indexes, views or triggers of its own (not SQLite's)
@@ -131,6 +137,7 @@ private:
     // The connection's settings (journal mode, ...), applied again when decrypting reopens it
     std::string connectionSql_;
     std::unique_ptr<SqliteDb> db_;
+    encryption::RekeyProgress rekeyProgress_;
     StatementCache cachedStatements_; // bounded, LRU-evicting -- see StatementCache.h
     std::unordered_set<std::string> cachedRecords_;
 

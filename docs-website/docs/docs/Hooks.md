@@ -4,7 +4,7 @@ description: "React hooks from nitromelondb/hooks: useQuery, useRecord, useWrite
 
 # React Hooks
 
-`withObservables` (see [Connecting Components](./Components.md)) is a higher-order component — a good fit if your components are plain functions of their props and you're happy wrapping them. If you'd rather subscribe from inside a hooks-based component, `nitromelondb/hooks` (or `nitromelondb/react`) ships hooks that cover the same ground for reads (`useRecord`, `useQuery`, `useObservable`), `useWriter`/`useAtomicWriter` for writes, and `useDatabaseReady` for gating your own UI on database readiness.
+`withObservables` (see [Connecting Components](./Components.md)) is a higher-order component — a good fit if your components are plain functions of their props and you're happy wrapping them. If you'd rather subscribe from inside a hooks-based component, `nitromelondb/hooks` (or `nitromelondb/react`) ships hooks that cover the same ground for reads (`useRecord`, `useQuery`, `useObservable`), `useWriter`/`useAtomicWriter` for writes, `useDatabaseReady` for gating your own UI on database readiness, and `useEncryption` for encryption state and progress.
 
 ```js
 import {
@@ -14,6 +14,7 @@ import {
   useWriter,
   useAtomicWriter,
   useDatabaseReady,
+  useEncryption,
 } from 'nitromelondb/hooks'
 ```
 
@@ -220,6 +221,46 @@ Returns a plain `boolean` — no context required, unlike `useAtomicWriter`. `da
 See [`Database#readyPromise` / `Database#isReady`](./Setup.md#database-initialization) for the
 non-hook equivalent this wraps.
 
+## useEncryption — encryption state and progress
+
+For a settings screen that encrypts the database, or a progress bar while it happens. Needs a
+`SQLiteAdapter` with the [`encryption`](./Encryption/Intro.md) option (with `ifUnencrypted: 'open'`
+to encrypt a database that isn't encrypted yet). Uses the database from `<DatabaseProvider>`, or the
+one you pass: `useEncryption(database)`.
+
+```js
+function EncryptionSettings() {
+  const { state, operation, progress, error, encrypt, decrypt } = useEncryption()
+  if (operation) {
+    // 'encrypt', 'rekey' or 'decrypt'
+    return <ProgressBar value={progress} />
+  }
+  return (
+    <>
+      {error ? <Text>{error.message}</Text> : null}
+      <Button
+        title="Encrypt"
+        disabled={state !== 'unencrypted'}
+        onPress={async () => encrypt(await getPassphrase())}
+      />
+    </>
+  )
+}
+```
+
+- `state`: `'loading'` until the database has answered, then `'encrypted'` or `'unencrypted'`.
+  `'unavailable'` when the adapter can't encrypt (no `encryption` option, or LokiJS).
+- `operation` and `progress`: what's running and how far it has come (0 to 1, an estimate), for
+  every `unsafe_EncryptDB()` and `unsafe_DecryptDB()`, not only the ones this hook starts. On Node
+  and Electron, `progress` stays at 0 until it's done. See
+  [Show progress](./Encryption/ExistingUsers.md#show-progress).
+- `encrypt(passphrase)`: runs `database.unsafe_EncryptDB(passphrase)` in a writer. On a database
+  that's already encrypted, it changes the passphrase. Save the passphrase first (e.g. in the
+  Keychain): from then on the database opens only with it.
+- `decrypt()`: runs `database.unsafe_DecryptDB()` in a writer.
+- `error`: set when one of them fails (they also reject, like `useWriter`), cleared when the next
+  one starts. The database keeps its previous state then.
+
 ## Which one should I use?
 
 - Observing one record → `useRecord`
@@ -229,4 +270,5 @@ non-hook equivalent this wraps.
 - Writing, scoped to one record, with other logic/records/tables involved → `useWriter`
 - Writing with no natural record to anchor it to → `database.write()` directly
 - Gating your UI on the database being fully set up (schema/migrations/seed) → `useDatabaseReady`
+- Showing whether the database is encrypted, encrypting it, or a progress bar meanwhile → `useEncryption`
 - Prefer subscribing from outside your render tree, or component classes → [`withObservables`](./Components.md)

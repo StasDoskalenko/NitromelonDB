@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native'
+import { useEncryption } from 'nitromelondb/hooks'
 import { ComposerDock } from '../components/ComposerDock'
 import { NotesComposer } from '../components/NotesComposer'
 import { NotesHeader } from '../components/NotesHeader'
@@ -43,10 +44,11 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
   // Turbo Login is for an install's first sync, into an empty database (src/sync.ts)
   const [canTurboSync, setCanTurboSync] = useState(false)
 
-  // Encryption build only: whether the database is encrypted, or what encrypting it is doing
-  const [encryptionStatus, setEncryptionStatus] = useState<string | null>(null)
-  const [canEncrypt, setCanEncrypt] = useState(false)
-  const [canDecrypt, setCanDecrypt] = useState(false)
+  // Encryption build only ('unavailable' in the plain one, which has no `encryption` option)
+  const encryption = useEncryption(db.database)
+  const encryptionStatus = describeEncryption(encryption)
+  const canEncrypt = encryption.state === 'unencrypted' && !encryption.operation
+  const canDecrypt = encryption.state === 'encrypted' && !encryption.operation
 
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
@@ -59,30 +61,6 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
         }
       },
       () => {},
-    )
-    return () => {
-      stale = true
-    }
-  }, [db])
-
-  useEffect(() => {
-    if (!db.encryptionAvailable) {
-      return
-    }
-    let stale = false
-    db.database.isDBEncrypted().then(
-      (encrypted) => {
-        if (!stale) {
-          setEncryptionStatus(encrypted ? 'Encrypted' : 'Not encrypted')
-          setCanEncrypt(!encrypted)
-          setCanDecrypt(encrypted)
-        }
-      },
-      (error: unknown) => {
-        if (!stale) {
-          setEncryptionStatus(`Encryption state unknown: ${String(error)}`)
-        }
-      },
     )
     return () => {
       stale = true
@@ -151,45 +129,15 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
     }
   }
 
-  // An install from the plain build, opened with ifUnencrypted: 'open' (see database.ts)
-  const encrypt = async () => {
-    setCanEncrypt(false)
-    setCanDecrypt(false)
-    setEncryptionStatus('Encrypting…')
-    try {
-      await db.database.write(async () => {
-        await db.database.unsafe_EncryptDB(DEMO_PASSPHRASE)
-      })
-      const encrypted = await db.database.isDBEncrypted()
-      setEncryptionStatus(encrypted ? 'Encrypted' : 'Not encrypted')
-      setCanDecrypt(encrypted)
-    } catch (encryptError) {
-      setCanEncrypt(true)
-      setEncryptionStatus(
-        `Encryption failed: ${encryptError instanceof Error ? encryptError.message : String(encryptError)}`,
-      )
-    }
+  // An install from the plain build, opened with ifUnencrypted: 'open' (see database.ts). Failures
+  // show in the status (encryption.error)
+  const encrypt = () => {
+    encryption.encrypt(DEMO_PASSPHRASE).catch(() => {})
   }
 
   // Back to a plain database (copy, sync, replace the file, reopen: see unsafe_DecryptDB)
-  const decrypt = async () => {
-    setCanEncrypt(false)
-    setCanDecrypt(false)
-    setEncryptionStatus('Decrypting…')
-    try {
-      await db.database.write(async () => {
-        await db.database.unsafe_DecryptDB()
-      })
-      const encrypted = await db.database.isDBEncrypted()
-      setEncryptionStatus(encrypted ? 'Encrypted' : 'Not encrypted')
-      setCanEncrypt(!encrypted)
-      setCanDecrypt(encrypted)
-    } catch (decryptError) {
-      setCanDecrypt(true)
-      setEncryptionStatus(
-        `Decryption failed: ${decryptError instanceof Error ? decryptError.message : String(decryptError)}`,
-      )
-    }
+  const decrypt = () => {
+    encryption.decrypt().catch(() => {})
   }
 
   const deleteAllNotes = async () => {
@@ -225,8 +173,8 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
         onTurboSync={canTurboSync && totalCount === 0 ? () => void sync(true) : null}
         syncStatus={syncStatus}
         encryptionStatus={encryptionStatus}
-        onEncrypt={canEncrypt ? () => void encrypt() : null}
-        onDecrypt={canDecrypt ? () => void decrypt() : null}
+        onEncrypt={canEncrypt ? encrypt : null}
+        onDecrypt={canDecrypt ? decrypt : null}
       />
 
       <Pressable
@@ -270,6 +218,24 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
       </ComposerDock>
     </View>
   )
+}
+
+// "Encrypting… 42%", "Encrypted", "Not encrypted" (the Maestro flows in maestro-encryption read it)
+function describeEncryption({ state, operation, progress, error }: ReturnType<typeof useEncryption>) {
+  if (operation) {
+    const verb = operation === 'decrypt' ? 'Decrypting' : 'Encrypting'
+    return `${verb}… ${Math.round((progress ?? 0) * 100)}%`
+  }
+  if (error) {
+    return `Encryption failed: ${error.message}`
+  }
+  if (state === 'encrypted') {
+    return 'Encrypted'
+  }
+  if (state === 'unencrypted') {
+    return 'Not encrypted'
+  }
+  return null
 }
 
 const styles = StyleSheet.create({

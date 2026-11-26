@@ -15,19 +15,21 @@ Using it takes two steps:
 2. [Give `SQLiteAdapter` a passphrase](./Passphrase.md). For an app that already has users with plain databases, [encrypt them in place](./ExistingUsers.md).
 
 :::note Status
-The encryption build and the passphrase API work on iOS, Android and Windows, and on Node.js and Electron with [`better-sqlite3-multiple-ciphers`](./Setup.md#nodejs-and-electron) ([#60](https://github.com/StasDoskalenko/NitromelonDB/issues/60)). Progress events during a long encryption come next (see [What's next](#whats-next)). The web (LokiJS, wa-sqlite) refuses the `encryption` option with an error.
+The encryption build and the passphrase API work on iOS, Android and Windows, and on Node.js and Electron with [`better-sqlite3-multiple-ciphers`](./Setup.md#nodejs-and-electron) ([#60](https://github.com/StasDoskalenko/NitromelonDB/issues/60)). The web (LokiJS, wa-sqlite) refuses the `encryption` option with an error.
 :::
 
 ## In this section
 
 - [Turn it on](./Setup.md): the `package.json` switch, rebuilding, Node.js and Electron, and checking that it worked.
 - [Open an encrypted database](./Passphrase.md): the `encryption` option, and where to keep the passphrase.
-- [Existing users](./ExistingUsers.md): encrypt plain databases from earlier versions of your app in place, and check the state.
+- [Existing users](./ExistingUsers.md): encrypt plain databases from earlier versions of your app in place, show progress (`useEncryption`), and check the state.
 - [Change, decrypt, log out](./ChangePassphrase.md): change the passphrase, go back to a plain file, and wipe the data when a user logs out.
-- [More than one connection](./MultipleConnections.md): app extensions, widgets and second adapters.
+- [More than one connection](./MultipleConnections.md): app extensions, widgets and second adapters, and a plaintext header for iOS App Groups.
 - [Errors and troubleshooting](./Troubleshooting.md): error codes, and common problems.
 - [How it works](./HowItWorks.md): what the encryption build changes, the file format, and what we test.
 - [App Store and export compliance](./ExportCompliance.md): what to answer Apple.
+
+With an AI coding agent, the [`nitromelondb-encryption`](../AgentSkills.md) skill walks through this section in your app.
 
 ## At a glance
 
@@ -71,8 +73,4 @@ Also keep in mind that iOS and Android already encrypt app storage while the dev
 
 ## What's next
 
-The design is in the [encryption plan](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs/plans/sqlcipher-encryption.md). Still to come:
-
-1. **Progress events** while a big database is encrypted (`onStart` and `onSuccess` exist today).
-
-The web (LokiJS, wa-sqlite) is not part of this work.
+The design is in the [encryption plan](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs/plans/sqlcipher-encryption.md), and everything in it is implemented. The web (LokiJS, wa-sqlite) is not part of this work.

@@ -76,9 +76,11 @@ namespace margelo::nitro::watermelondb {
       virtual void unsafeResetDatabase(const std::string& schema, double schemaVersion) = 0;
       virtual void unsafeClose() = 0;
       virtual void onMemoryWarning(const std::function<void()>& callback) = 0;
-      virtual void setEncryption(const std::string& passphrase, bool allowUnencrypted) = 0;
+      virtual void setEncryption(const std::string& passphrase, bool allowUnencrypted, bool plaintextHeader) = 0;
       virtual bool isEncrypted() = 0;
+      virtual bool hasPlaintextHeader() = 0;
       virtual std::shared_ptr<Promise<void>> changeEncryptionKey(const std::string& newPassphrase) = 0;
+      virtual double encryptionProgress() = 0;
 
     protected:
       // Hybrid Setup
