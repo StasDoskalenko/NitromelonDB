@@ -119,3 +119,19 @@ Finish with: safe to turn on as is, or safe after the listed fixes. No raw SQL m
 ## S10. Logging
 
 Low, informational. NitromelonDB logs setup, query timing and warnings (stuck writers, early access, decorators) through `nitromelondb/utils/common/logger`. In production those are lost unless `logger.warn` / `logger.error` are forwarded to the app's error reporting. Mention it if the app has an error reporter and doesn't forward them.
+
+## S11. Encryption
+
+Skip unless an adapter has `encryption` (or the app uses `unsafe_EncryptDB` / `useEncryption`). Rules: https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Intro.md
+
+- **High: a passphrase in the code.** A string literal passed as `encryption.passphrase`, or one that comes from a constant, `app.json` / `app.config.*`, `.env*` or anything bundled. Anyone can read the bundle. It must be generated on the device and read from the Keychain / Keystore (`expo-secure-store`, `react-native-keychain`).
+- **High: a reset on encryption errors.** `onSetUpError`, a `readyPromise` catch, or error handling around opening that calls `unsafeResetDatabase()`, deletes the file or changes `dbName` without checking `error.code`. For `encryption_key_invalid`, `encryption_key_required`, `database_not_encrypted` and `encryption_salt_missing` the data is intact; a reset destroys it.
+- **High: a new passphrase when the old one is missing.** A `getPassphrase()` that generates and saves a new passphrase whenever the Keychain has none, without checking `SQLiteAdapter.getDatabaseEncryptionState()` first. Over an existing encrypted database the new one can't open it, and the old one is gone.
+- **High: the passphrase replaced before a change finished.** The Keychain item overwritten before `unsafe_EncryptDB(newPassphrase)` resolved (if it's cut off, the database still has the old one), or not saved anywhere before the call.
+- **Medium: an App Group without `plaintextHeader`.** The database path is in an App Group container (`appGroupPath`, `group.` identifiers, `react-native-shared-group-preferences`, `Info.plist` `AppGroup` keys) and `encryption` has no `plaintextHeader: true` in every target. iOS kills the app when it's suspended with the database open.
+- **Medium: a passphrase that background work can't read.** Headless JS, background fetch or notification handlers open the database, but the Keychain item uses a "when unlocked" accessibility class (`WHEN_UNLOCKED`, `kSecAttrAccessibleWhenUnlocked`). Use "after first unlock".
+- **Medium: logout keeps the passphrase.** A logout that calls `unsafeResetDatabase()` but keeps the passphrase, when the data belongs to one user. See https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/ChangePassphrase.md
+- **Medium: the option without the build switch.** `encryption` is passed, but the app's `package.json` has no `"nitromelondb": { "encryption": true }` (on Node: no `better-sqlite3-multiple-ciphers`). Setup fails with `encryption_unavailable`.
+- **Low: the passphrase logged.** The passphrase, or the result of the function that returns it, passed to `console.*`, a logger or an analytics call.
+
+Fixes that change stored data (encrypting, decrypting, a new passphrase, `plaintextHeader` on an existing database) need the user's explicit yes. The `nitromelondb-encryption` skill does them step by step.

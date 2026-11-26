@@ -7,7 +7,8 @@ description: >
   missing migrations or onSetUpError, startup work that races database
   readiness (early auth listeners, observers and writes), models that
   drifted from the schema, fetching where the UI should observe, unsafe raw
-  SQL, and sync mistakes. Produces a report with file:line findings ranked by
+  SQL, encryption mistakes (a passphrase in code, resets on key errors), and
+  sync mistakes. Produces a report with file:line findings ranked by
   severity, then fixes the ones the user picks. Invoke with
   `/nitromelondb-audit`.
 license: MIT
@@ -67,6 +68,7 @@ See [references/setup-checks.md](references/setup-checks.md) for what to look fo
 | S8 | Decorators are compiled correctly for the platform | High |
 | S9 | `storeWholeNumbersAsIntegers` is on, or the raw SQL that blocks it is listed | Low |
 | S10 | The logger is routed to the app's error reporting | Low |
+| S11 | Encryption, if the adapter has `encryption`: no passphrase in code, kept in the Keychain / Keystore, no reset on encryption errors, `plaintextHeader` in App Groups | High / Medium |
 
 ### 3. Writer and reader checks
 

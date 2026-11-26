@@ -1,7 +1,7 @@
 ---
 title: Agent skills
 hide_title: true
-description: "Skills for AI coding agents (Claude Code, Cursor, Codex and others): install NitromelonDB in an app, design and change its schema, build sync, migrate from WatermelonDB, move to standard decorators, audit an app's setup, and find missing indexes."
+description: "Skills for AI coding agents (Claude Code, Cursor, Codex and others): install NitromelonDB in an app, design and change its schema, build sync, encrypt the database, migrate from WatermelonDB, move to standard decorators, audit an app's setup, and find missing indexes."
 ---
 
 # Agent skills
@@ -23,13 +23,14 @@ Every skill builds on what NitromelonDB adds over WatermelonDB (hooks, batched w
 | --- | --- | --- |
 | [`nitromelondb-schema`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/skills/nitromelondb-schema) | Designs the schema from your app's own types, API responses and stored state: tables, columns, one-to-many and many-to-many relations, JSON fields, indexes, what to keep out of the database, and what sync needs. Writes the schema, migrations and typed models. For an app that has shipped, makes every change as a migration with a version bump, and tests an upgrade and a fresh install. Follows [Schema](./Schema.md) and [Migrations](./Advanced/Migrations.md). | After you agree to the proposal |
 | [`nitromelondb-sync`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/skills/nitromelondb-sync) | Builds sync on both sides. The backend: pull and push endpoints with change tracking, a monotonic clock, consistent pulls, transactional pushes with conflict detection, paginated pulls, migration syncs and per-user scoping, starting from the [reference server](https://github.com/StasDoskalenko/NitromelonDB/tree/master/examples/sync-server). The app: a sync engine around `synchronize()` (one sync at a time, retry, triggers on launch, foreground and local changes, logout). Tests two devices converging. Follows [Sync](./Sync/Intro.md). | Yes |
+| [`nitromelondb-encryption`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/skills/nitromelondb-encryption) | Adds database encryption: decides with you whether the app needs it, turns on the encryption build, keeps a random passphrase in the Keychain / Keystore, opens the database with it, encrypts existing users' databases in place with progress (`useEncryption`), handles setup errors without ever resetting, changes the passphrase on logout, sets up app extensions and App Groups (`plaintextHeader`), and checks the file on disk. Follows [Encryption](./Encryption/Intro.md). | Yes, and asks before anything that changes data on disk |
 | [`nitromelondb-migrate-decorators`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/skills/nitromelondb-migrate-decorators) | Moves models from legacy decorators to [standard decorators](./Advanced/StandardDecorators.md): Babel config, `tsconfig`, `accessor` on fields, `@lazy` getters. Stops first if another library still needs legacy decorators. | Yes |
 
 ## Checking the app
 
 | Skill | What it does | Changes your code? |
 | --- | --- | --- |
-| [`nitromelondb-audit`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/skills/nitromelondb-audit) | Reviews how the app uses NitromelonDB and reports problems by severity, with `file:line`: nested writers that deadlock, slow work inside writers, unbatched writes, missing migrations, startup work that races database readiness, models that drifted from the schema, fetching where the UI should observe, unsafe raw SQL, sync mistakes (including deletes that never sync). | Only what you pick from the report |
+| [`nitromelondb-audit`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/skills/nitromelondb-audit) | Reviews how the app uses NitromelonDB and reports problems by severity, with `file:line`: nested writers that deadlock, slow work inside writers, unbatched writes, missing migrations, startup work that races database readiness, models that drifted from the schema, fetching where the UI should observe, unsafe raw SQL, encryption mistakes (a passphrase in code, resets on key errors, App Groups without `plaintextHeader`), sync mistakes (including deletes that never sync). | Only what you pick from the report |
 | [`nitromelondb-indexes`](https://github.com/StasDoskalenko/NitromelonDB/tree/master/skills/nitromelondb-indexes) | Lists every query, observer and relation, finds columns that should be indexed (and indexes nothing uses), checks them with `EXPLAIN QUERY PLAN` when it can reach a database file, and writes the schema change with its migration. | Only after you approve the list |
 
 ## Install

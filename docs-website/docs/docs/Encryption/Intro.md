@@ -22,12 +22,14 @@ The encryption build and the passphrase API work on iOS, Android and Windows, an
 
 - [Turn it on](./Setup.md): the `package.json` switch, rebuilding, Node.js and Electron, and checking that it worked.
 - [Open an encrypted database](./Passphrase.md): the `encryption` option, and where to keep the passphrase.
-- [Existing users](./ExistingUsers.md): encrypt plain databases from earlier versions of your app in place, and check the state.
+- [Existing users](./ExistingUsers.md): encrypt plain databases from earlier versions of your app in place, show progress (`useEncryption`), and check the state.
 - [Change, decrypt, log out](./ChangePassphrase.md): change the passphrase, go back to a plain file, and wipe the data when a user logs out.
-- [More than one connection](./MultipleConnections.md): app extensions, widgets and second adapters.
+- [More than one connection](./MultipleConnections.md): app extensions, widgets and second adapters, and a plaintext header for iOS App Groups.
 - [Errors and troubleshooting](./Troubleshooting.md): error codes, and common problems.
 - [How it works](./HowItWorks.md): what the encryption build changes, the file format, and what we test.
 - [App Store and export compliance](./ExportCompliance.md): what to answer Apple.
+
+With an AI coding agent, the [`nitromelondb-encryption`](../AgentSkills.md) skill walks through this section in your app.
 
 ## At a glance
 
