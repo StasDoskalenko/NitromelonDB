@@ -1,12 +1,11 @@
-// SQLiteAdapter's `encryption` option, against a fake native dispatcher that follows the rules of
-// native/shared/SqliteEncryption.cpp (which `yarn test:native-unit` tests for real). Files are kept
-// in `files` by name, so a second adapter "reopens" what the first one left.
+// SQLiteAdapter's `encryption` option, against a fake native dispatcher (fakeEncryptionNative.js)
 
 import { appSchema, tableSchema } from '../../../Schema'
 import Database from '../../../Database'
 import LokiJSAdapter from '../../lokijs'
 import SQLiteAdapter from '../index'
 import * as makeDispatcherModule from '../makeDispatcher'
+import { fake, installFakeNatives } from './fakeEncryptionNative'
 
 jest.mock('../makeDispatcher', () => ({
   makeDispatcher: jest.fn(),
@@ -24,92 +23,9 @@ const schema = appSchema({
 let files
 let natives
 
-function codedError(code) {
-  const error = new Error(`[${code}] fake native error`)
-  error.code = code
-  return error
-}
-
-function fakeNative(dbName, { passphrase = '', allowUnencrypted = false }) {
-  let open = false
-  let encrypted = false
-  const native = {
-    log: [],
-    rekeyDelay: 5,
-    failRekey: false,
-    call(method, args, callback) {
-      native.log.push(method)
-      try {
-        const file = files.get(dbName)
-        if (!open && method !== 'changeEncryptionKey') {
-          // what SqliteDb's constructor does
-          if (!file) {
-            files.set(dbName, { key: passphrase || null, version: 0 })
-            encrypted = !!passphrase
-          } else if (!passphrase) {
-            if (file.key) throw codedError('encryption_key_required')
-          } else if (!file.key) {
-            if (!allowUnencrypted) throw codedError('database_not_encrypted')
-          } else if (file.key !== passphrase) {
-            throw codedError('encryption_key_invalid')
-          } else {
-            encrypted = true
-          }
-          open = true
-        }
-        const current = files.get(dbName)
-        switch (method) {
-          case 'initialize':
-            callback({ value: { code: current.version === args[1] ? 'ok' : 'schema_needed' } })
-            return
-          case 'setUpWithSchema':
-            current.version = args[2]
-            callback({ value: undefined })
-            return
-          case 'isEncrypted':
-            callback({ value: encrypted })
-            return
-          case 'unsafeQueryRaw':
-            callback({ value: [{ pageCount: 3, byteSize: 12288 }] })
-            return
-          case 'changeEncryptionKey':
-            // a native background thread
-            setTimeout(() => {
-              if (native.failRekey) {
-                callback({ error: codedError('rekey_failed') })
-                return
-              }
-              current.key = args[0] || null
-              encrypted = !!args[0]
-              callback({ value: undefined })
-            }, native.rekeyDelay)
-            return
-          case 'count':
-            callback({ value: 0 })
-            return
-          default:
-            callback({ value: method === 'getLocal' ? null : [] })
-        }
-      } catch (error) {
-        callback({ error })
-      }
-    },
-  }
-  return native
-}
-
 beforeEach(() => {
-  files = new Map()
-  natives = []
-  makeDispatcherModule.isEncryptionAvailable.mockReturnValue(true)
-  makeDispatcherModule.getDispatcherType.mockReturnValue('nitro')
-  makeDispatcherModule.makeDispatcher.mockReset()
-  makeDispatcherModule.makeDispatcher.mockImplementation((_type, _tag, dbName, options) => {
-    const native = fakeNative(dbName, options)
-    native.options = options
-    natives.push(native)
-    return native
-  })
+  installFakeNatives(makeDispatcherModule)
+  ;({ files, natives } = fake)
 })
 
 const makeAdapter = (encryption, extra = {}) =>
@@ -329,6 +245,101 @@ describe('SQLiteAdapter encryption', () => {
     expect(makeDispatcherModule.getDatabaseEncryptionState).toHaveBeenCalledWith('watermelon')
     await SQLiteAdapter.getDatabaseEncryptionState('other')
     expect(makeDispatcherModule.getDatabaseEncryptionState).toHaveBeenLastCalledWith('other')
+  })
+})
+
+describe('SQLiteAdapter encryption progress and listeners', () => {
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  it('polls native progress while the key changes, and reports when it moved', async () => {
+    jest.useFakeTimers()
+    const onProgress = jest.fn()
+    const adapter = makeAdapter({ passphrase: 'k1', events: { onProgress } })
+    await adapter.initializingPromise
+    const native = natives[0]
+    native.rekeyDelay = 1000
+    // -1 until native has started; 0.305 moved less than 0.01 from 0.3, so it's skipped
+    native.progressSteps = [-1, 0.1, 0.3, 0.305, 0.8]
+
+    const done = changeKey(adapter, 'k2')
+    jest.advanceTimersByTime(1000)
+    await done
+    expect(onProgress.mock.calls.map(([info]) => info)).toEqual([
+      { operation: 'rekey', progress: 0.1 },
+      { operation: 'rekey', progress: 0.3 },
+      { operation: 'rekey', progress: 0.8 },
+    ])
+
+    // Stops polling when it's done
+    onProgress.mockClear()
+    jest.advanceTimersByTime(1000)
+    expect(onProgress).not.toHaveBeenCalled()
+  })
+
+  it("doesn't poll on Node, where SQLite runs on the JS thread", async () => {
+    jest.useFakeTimers()
+    makeDispatcherModule.getDispatcherType.mockReturnValue('asynchronous')
+    const onProgress = jest.fn()
+    const adapter = makeAdapter({ passphrase: 'k1', events: { onProgress } })
+    await adapter.initializingPromise
+    natives[0].rekeyDelay = 1000
+    natives[0].progressSteps = [0.5]
+    const done = changeKey(adapter, 'k2')
+    jest.advanceTimersByTime(1000)
+    await done
+    expect(onProgress).not.toHaveBeenCalled()
+  })
+
+  it('calls subscribers after encryption.events, until they unsubscribe', async () => {
+    const order = []
+    const adapter = makeAdapter({
+      passphrase: 'k1',
+      events: { onStart: () => order.push('options'), onSuccess: () => order.push('options done') },
+    })
+    await adapter.initializingPromise
+    expect(adapter.encryptionEnabled).toBe(true)
+    const unsubscribe = adapter.subscribeToEncryptionEvents({
+      onStart: (info) => order.push(`subscriber ${info.operation}`),
+      onSuccess: (info) => order.push(`subscriber done ${info.operation}`),
+    })
+    await changeKey(adapter, 'k2')
+    expect(order).toEqual(['options', 'subscriber rekey', 'options done', 'subscriber done rekey'])
+
+    unsubscribe()
+    order.length = 0
+    await changeKey(adapter, '')
+    expect(order).toEqual(['options', 'options done'])
+  })
+
+  it("a listener that throws doesn't stop the others, or the re-key", async () => {
+    const onSuccess = jest.fn()
+    const onError = jest.fn()
+    const adapter = makeAdapter({
+      passphrase: 'k1',
+      events: {
+        onStart: () => {
+          throw new Error('listener bug')
+        },
+        onSuccess: () => {
+          throw new Error('listener bug')
+        },
+      },
+    })
+    await adapter.initializingPromise
+    adapter.subscribeToEncryptionEvents({ onSuccess, onError })
+    await changeKey(adapter, 'k2')
+    expect(files.get('secret').key).toBe('k2')
+    expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ operation: 'rekey' }))
+
+    natives[0].failRekey = true
+    await expect(changeKey(adapter, 'k3')).rejects.toMatchObject({ code: 'rekey_failed' })
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'rekey_failed' }))
+  })
+
+  it('is not enabled without the encryption option', () => {
+    expect(makeAdapter(undefined).encryptionEnabled).toBe(false)
   })
 })
 

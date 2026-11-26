@@ -70,8 +70,9 @@ SqliteDb::SqliteDb(std::string path, const std::string &passphrase, bool allowUn
     consoleLog(std::string(isEncrypted ? "Opened encrypted database at " : "Opened database at ") + resolvedPath);
 }
 
-void SqliteDb::changeEncryptionKey(const std::string &newPassphrase, bool &reopened) {
-    encryption::rekey(sqlite, resolvedPath_, passphrase_, newPassphrase, reopened);
+void SqliteDb::changeEncryptionKey(const std::string &newPassphrase, bool &reopened,
+                                   encryption::RekeyProgress *progress) {
+    encryption::rekey(sqlite, resolvedPath_, passphrase_, newPassphrase, reopened, progress);
     std::fill(passphrase_.begin(), passphrase_.end(), '\0');
     passphrase_ = newPassphrase;
     isEncrypted = !newPassphrase.empty();

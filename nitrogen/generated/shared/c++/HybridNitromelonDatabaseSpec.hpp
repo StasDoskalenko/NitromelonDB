@@ -79,6 +79,7 @@ namespace margelo::nitro::watermelondb {
       virtual void setEncryption(const std::string& passphrase, bool allowUnencrypted) = 0;
       virtual bool isEncrypted() = 0;
       virtual std::shared_ptr<Promise<void>> changeEncryptionKey(const std::string& newPassphrase) = 0;
+      virtual double encryptionProgress() = 0;
 
     protected:
       // Hybrid Setup

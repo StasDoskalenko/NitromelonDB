@@ -4,6 +4,9 @@
 // SQLite, not JSI or the platform layer, so `yarn test:native-unit` tests it directly
 // (native/tests/SqliteEncryptionTest.cpp). docs/plans/sqlcipher-encryption.md has the design.
 
+#include <atomic>
+#include <cstdint>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include "NitromelonSqlite.h"
@@ -64,6 +67,41 @@ void recoverInterruptedRekey(const std::string &resolvedPath, const std::string 
 // - database_not_encrypted: a passphrase, but the file is plain SQLite and !allowUnencrypted
 bool openWithKey(sqlite3 *db, FileState state, const std::string &passphrase, bool allowUnencrypted);
 
+// How far a rekey() has come, for SQLiteAdapter's `encryption.events.onProgress`. rekey() updates
+// it on its own thread, and fraction() can be called from any other one meanwhile: JS polls it while
+// every other database call waits for the re-key.
+//
+// SQLite reports no progress for a re-key, so it's estimated from what has been written so far:
+// - decrypting: the size of the decrypted copy, against the pages in use
+// - changing the key: the size of the rollback journal, which gets every page before it's rewritten
+// - encrypting: sqlite3mc first builds the encrypted database in a temporary one (a VACUUM, to make
+//   room for SQLCipher's per-page HMAC), then copies it over the file, journaling every page. The
+//   first half is the temporary database's pages, the second the journal.
+// Good enough for a progress bar: it only moves forward, and ends near 1.
+class RekeyProgress {
+public:
+    // 0 to 1 while a rekey() runs, -1 otherwise
+    double fraction() const;
+
+    // (rekey() only)
+    enum class Operation { Encrypt, Rekey, Decrypt };
+    void begin(Operation operation, const std::string &filePath, int64_t expectedBytes, int64_t expectedPages);
+    void setBuiltPages(int64_t pages);
+    void end();
+
+private:
+    mutable std::mutex mutex_;
+    bool running_ = false;
+    Operation operation_ = Operation::Encrypt;
+    std::string filePath_;
+    int64_t expectedBytes_ = 0;
+    int64_t expectedPages_ = 0;
+    std::atomic<int64_t> builtPages_{0};
+    // The last answer, so a file that shrinks for a moment (the journal is deleted at the commit)
+    // can't move it back
+    mutable double last_ = 0;
+};
+
 // Changes the key of the database `db` has open at `resolvedPath`, which is keyed with
 // `currentPassphrase` (empty: none):
 // - encrypt or change the key: in place (sqlite3_rekey_v2), in one transaction. Killed in the
@@ -79,8 +117,9 @@ bool openWithKey(sqlite3 *db, FileState state, const std::string &passphrase, bo
 // settings again (journal mode, ...); also when it throws. (Don't compare pointers: the new
 // connection can get the old one's address.) Throws EncryptionError (encryption_unavailable,
 // rekey_failed); the database keeps its previous key then, and `db` is a working connection.
+// `progress` (optional) is kept up to date meanwhile, see RekeyProgress.
 void rekey(sqlite3 *&db, const std::string &resolvedPath, const std::string &currentPassphrase,
-           const std::string &newPassphrase, bool &reopened);
+           const std::string &newPassphrase, bool &reopened, RekeyProgress *progress = nullptr);
 
 // Where rekey() writes the decrypted copy
 std::string decryptedCopyPath(const std::string &resolvedPath);

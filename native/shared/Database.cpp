@@ -122,13 +122,17 @@ void Database::changeEncryptionKey(const std::string &newPassphrase) {
         }
     };
     try {
-        db_->changeEncryptionKey(newPassphrase, reopened);
+        db_->changeEncryptionKey(newPassphrase, reopened, &rekeyProgress_);
     } catch (...) {
         reconfigureIfReopened();
         throw;
     }
     reconfigureIfReopened();
     consoleLog(newPassphrase.empty() ? "Decrypted the database" : "Changed the database's encryption key");
+}
+
+double Database::encryptionProgress() const {
+    return rekeyProgress_.fraction();
 }
 
 bool Database::isCached(std::string cacheKey) {

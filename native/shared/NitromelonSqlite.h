@@ -23,6 +23,14 @@ extern "C" {
 // the process (SQLite does not copy it).
 void nitromelon_sqlite3_set_temp_directory(char *path);
 
+#if NITROMELON_ENCRYPTION
+// How many pages the temporary database of a running VACUUM has so far (0: none running). For
+// encryption progress (encryption::RekeyProgress): sqlite3mc encrypts a plain database by vacuuming it
+// into one with room for SQLCipher's per-page HMAC. Uses SQLite's internals, so it lives next to the
+// amalgamation. Call it on the connection's own thread, e.g. from its progress handler.
+int nitromelon_sqlite3_vacuum_page_count(sqlite3 *db);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

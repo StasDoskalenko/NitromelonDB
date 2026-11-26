@@ -38,6 +38,21 @@
 #pragma clang diagnostic pop
 #endif
 
+int nitromelon_sqlite3_vacuum_page_count(sqlite3 *db) {
+    int count = 0;
+    int i;
+    for (i = 2; i < db->nDb; i++) {
+        Btree *btree = db->aDb[i].pBt;
+        if (btree && db->aDb[i].zDbSName && sqlite3_strnicmp(db->aDb[i].zDbSName, "vacuum_", 7) == 0) {
+            sqlite3BtreeEnter(btree);
+            sqlite3PagerPagecount(sqlite3BtreePager(btree), &count);
+            sqlite3BtreeLeave(btree);
+            break;
+        }
+    }
+    return count;
+}
+
 #elif !NITROMELON_SYSTEM_SQLITE
 
 #if defined(__clang__)

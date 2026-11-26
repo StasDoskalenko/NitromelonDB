@@ -116,6 +116,9 @@ public:
     // (mutex_) until it's done, which can take seconds on a big database. Records are unchanged, so
     // cachedRecords_ stays valid. Throws encryption::EncryptionError; the old key stays then.
     void changeEncryptionKey(const std::string &newPassphrase);
+    // How far a changeEncryptionKey() running on another thread has come: 0 to 1, or -1 when none
+    // is. Doesn't wait for it (no mutex_), so JS can poll it meanwhile. See encryption::RekeyProgress.
+    double encryptionProgress() const;
 
     int getUserVersion();
     // Whether the database has any tables, indexes, views or triggers of its own (not SQLite's)
@@ -131,6 +134,7 @@ private:
     // The connection's settings (journal mode, ...), applied again when decrypting reopens it
     std::string connectionSql_;
     std::unique_ptr<SqliteDb> db_;
+    encryption::RekeyProgress rekeyProgress_;
     StatementCache cachedStatements_; // bounded, LRU-evicting -- see StatementCache.h
     std::unordered_set<std::string> cachedRecords_;
 
