@@ -9,10 +9,10 @@ using platform::consoleError;
 using platform::consoleLog;
 
 Database::Database(jsi::Runtime *runtime, std::string path, bool usesExclusiveLocking, const std::string &passphrase,
-                   bool allowUnencrypted)
+                   bool allowUnencrypted, bool plaintextHeader)
     : runtime_(runtime), mutex_() {
     // Keyed (if at all) before anything below touches the file
-    db_ = std::make_unique<SqliteDb>(path, passphrase, allowUnencrypted);
+    db_ = std::make_unique<SqliteDb>(path, passphrase, allowUnencrypted, plaintextHeader);
 
     std::string initSql = "";
 
@@ -105,6 +105,11 @@ void Database::fitStatementCacheToSchemaLocked() {
 bool Database::isEncrypted() {
     const std::lock_guard<std::mutex> lock(mutex_);
     return db_ && db_->isEncrypted;
+}
+
+bool Database::hasPlaintextHeader() {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    return db_ && db_->hasPlaintextHeader;
 }
 
 void Database::changeEncryptionKey(const std::string &newPassphrase) {

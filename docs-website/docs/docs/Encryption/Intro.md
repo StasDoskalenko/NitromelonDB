@@ -71,8 +71,4 @@ Also keep in mind that iOS and Android already encrypt app storage while the dev
 
 ## What's next
 
-The design is in the [encryption plan](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs/plans/sqlcipher-encryption.md). Still to come:
-
-1. **iOS App Groups**: a plaintext header, so that iOS doesn't kill an app that keeps an encrypted database open in a shared container (see [More than one connection](./MultipleConnections.md)).
-
-The web (LokiJS, wa-sqlite) is not part of this work.
+The design is in the [encryption plan](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs/plans/sqlcipher-encryption.md), and everything in it is implemented. The web (LokiJS, wa-sqlite) is not part of this work.
