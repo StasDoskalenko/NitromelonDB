@@ -6688,6 +6688,21 @@
         "realistic": 10,
         "stress": 5
       }
+    },
+    "android": {
+      "iterationCount": 5,
+      "score": 94,
+      "cpu": 30.9,
+      "ram": 177,
+      "fps": 52.8
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 30.6,
+      "ram": 181,
+      "fps": 53.5
     }
   }
 ]
