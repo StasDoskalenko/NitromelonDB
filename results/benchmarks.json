@@ -6105,5 +6105,26 @@
       "ram": 178,
       "fps": 55.4
     }
+  },
+  {
+    "sha": "74c48c002797d35fa83a90d5744764c58873f958",
+    "date": "2026-11-26T21:58:03.984Z",
+    "prNumber": 270,
+    "subject": "feat(encryption): a plaintext header for iOS App Groups (#60) (#270)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 19.5,
+      "ram": 179,
+      "fps": 55.1
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 19.6,
+      "ram": 177,
+      "fps": 55.4
+    }
   }
 ]
