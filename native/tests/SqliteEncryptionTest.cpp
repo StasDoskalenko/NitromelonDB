@@ -754,12 +754,16 @@ static std::string gCrashPath;
 static ino_t gCrashInode = 0;
 static sqlite3_syscall_ptr gRealUnlink = nullptr, gRealPwrite = nullptr;
 
-// The commit point of a rollback journal: every page is written, the journal is about to go
+// The commit point of a rollback journal: every page is written, the journal is about to go. A
+// re-key commits several: leaving WAL, the re-key itself, going back to WAL. Crashes at the
+// gCrashAtJournal-th (from 1)
+static int gCrashAtJournal = 1, gJournalsDeleted = 0;
 static int crashAtJournalDelete(const char *path) {
     // By name: SQLite normalizes the directory part (e.g. a doubled slash from TMPDIR)
     std::string name = gCrashPath.substr(gCrashPath.rfind('/') + 1) + "-journal";
     std::string deleted = path;
-    if (deleted.size() >= name.size() && deleted.compare(deleted.size() - name.size(), name.size(), name) == 0) {
+    if (deleted.size() >= name.size() && deleted.compare(deleted.size() - name.size(), name.size(), name) == 0 &&
+        ++gJournalsDeleted == gCrashAtJournal) {
         _exit(9);
     }
     return ((int (*)(const char *))gRealUnlink)(path);
@@ -778,47 +782,57 @@ static ssize_t crashAfterPage1Write(int fd, const void *buffer, size_t size, off
 static void crashesAtCommit() {
     const int rows = 5000;
     std::string path = tempPath("commit");
-    const char *points[] = {"its journal is deleted", "page 1 is written"};
     std::vector<Direction> directions(std::begin(kDirections), std::end(kDirections));
     directions.insert(directions.end(), std::begin(kLayoutDirections), std::end(kLayoutDirections));
+    // Point 0: each journal's delete in turn, until the re-key gets through. Point 1: page 1 written
     for (int point = 0; point < 2; point++) {
         for (const Direction &direction : directions) {
-            fillDatabase(path, direction.from, rows, direction.fromHeader);
-            gCrashPath = path;
-            std::fflush(nullptr);
-            pid_t child = fork();
-            if (child == 0) {
-                sqlite3 *db = nullptr;
-                if (tryOpen(path, direction.from, true, &db) != "") {
-                    _exit(2);
+            for (int journal = 1;; journal++) {
+                fillDatabase(path, direction.from, rows, direction.fromHeader);
+                gCrashPath = path;
+                gCrashAtJournal = journal;
+                gJournalsDeleted = 0;
+                std::fflush(nullptr);
+                pid_t child = fork();
+                if (child == 0) {
+                    sqlite3 *db = nullptr;
+                    if (tryOpen(path, direction.from, true, &db) != "") {
+                        _exit(2);
+                    }
+                    struct stat st;
+                    stat(path.c_str(), &st);
+                    gCrashInode = st.st_ino;
+                    sqlite3_vfs *unixVfs = sqlite3_vfs_find("unix");
+                    gRealUnlink = unixVfs->xGetSystemCall(unixVfs, "unlink");
+                    gRealPwrite = unixVfs->xGetSystemCall(unixVfs, "pwrite");
+                    if (point == 0) {
+                        unixVfs->xSetSystemCall(unixVfs, "unlink", (sqlite3_syscall_ptr)crashAtJournalDelete);
+                    } else {
+                        unixVfs->xSetSystemCall(unixVfs, "pwrite", (sqlite3_syscall_ptr)crashAfterPage1Write);
+                    }
+                    rekey(db, path, direction.from, direction.to, direction.toHeader);
+                    _exit(0);
                 }
-                struct stat st;
-                stat(path.c_str(), &st);
-                gCrashInode = st.st_ino;
-                sqlite3_vfs *unixVfs = sqlite3_vfs_find("unix");
-                gRealUnlink = unixVfs->xGetSystemCall(unixVfs, "unlink");
-                gRealPwrite = unixVfs->xGetSystemCall(unixVfs, "pwrite");
-                if (point == 0) {
-                    unixVfs->xSetSystemCall(unixVfs, "unlink", (sqlite3_syscall_ptr)crashAtJournalDelete);
-                } else {
-                    unixVfs->xSetSystemCall(unixVfs, "pwrite", (sqlite3_syscall_ptr)crashAfterPage1Write);
+                int status = 0;
+                waitpid(child, &status, 0);
+                bool crashed = WIFEXITED(status) && WEXITSTATUS(status) == 9;
+                std::string when = std::string(direction.name) + ", crashed when " +
+                                   (point == 0 ? "journal " + std::to_string(journal) + " is deleted"
+                                               : std::string("page 1 is written"));
+                // In place, the re-key's own commit is reached. Decrypting by copy never commits
+                // through the original's journal (it writes page 1 only while leaving WAL, before
+                // the copy)
+                if (!direction.to.empty() && journal == 1) {
+                    CHECK(crashed);
                 }
-                rekey(db, path, direction.from, direction.to, direction.toHeader);
-                _exit(0);
-            }
-            int status = 0;
-            waitpid(child, &status, 0);
-            bool crashed = WIFEXITED(status) && WEXITSTATUS(status) == 9;
-            std::string when = std::string(direction.name) + ", crashed when " + points[point];
-            // In place, both points are reached. Decrypting by copy never commits through the
-            // original's journal (it writes page 1 only while leaving WAL, before the copy)
-            if (!direction.to.empty()) {
-                CHECK(crashed);
-            }
-            std::string opened = openAfterInterruption(path, direction, rows, when);
-            CHECK(!opened.empty());
-            if (crashed) {
-                std::printf("  %s: opened with the %s key\n", when.c_str(), opened.c_str());
+                std::string opened = openAfterInterruption(path, direction, rows, when);
+                CHECK(!opened.empty());
+                if (crashed) {
+                    std::printf("  %s: opened with the %s key\n", when.c_str(), opened.c_str());
+                }
+                if (!crashed || point == 1) {
+                    break;
+                }
             }
         }
     }

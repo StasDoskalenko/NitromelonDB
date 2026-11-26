@@ -66,10 +66,11 @@ bool hasHotJournal(const std::string &resolvedPath);
 
 // Call before opening a database (and before probeFile). Finishes what a killed re-key left:
 // - a hot journal is rolled back by a connection set up like the one that wrote it, i.e. as the
-//   database was before the re-key: with `passphrase` (without, then with a plaintext header, if
-//   there's a salt file), else without a key. A wrong attempt changes nothing
-//   (SqliteEncryptionTest checks), so all are tried. If neither works (a passphrase change
-//   was cut off, and the app has only the new passphrase), the journal stays for the right key.
+//   database was before the re-key: with `passphrase` (and if there's a salt file, also with its
+//   salt, with and without a plaintext header: adding one overwrites the salt in page 1 at the
+//   commit), else without a key. A wrong attempt changes nothing (SqliteEncryptionTest checks), so
+//   all are tried. If none works (a passphrase change was cut off, and the app has only the new
+//   passphrase), the journal stays for the right key.
 // - a leftover decrypted copy (see rekey) is deleted. The database itself was never touched then.
 void recoverInterruptedRekey(const std::string &resolvedPath, const std::string &passphrase);
 

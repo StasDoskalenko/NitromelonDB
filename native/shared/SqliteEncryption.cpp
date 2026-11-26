@@ -306,12 +306,13 @@ bool writeSalt(const std::string &resolvedPath, const std::string &salt) {
     return true;
 }
 
-// Sets up an unkeyed connection to read (and create) a database with a plaintext header and this
-// salt, or without a plaintext header. Before sqlite3_key_v2: sqlite3mc reads both when keying.
-// (Salts aren't secret, so they can go in SQL; passphrases never do.)
+// Sets up an unkeyed connection to read (and create) a database with or without a plaintext header,
+// keyed with this salt (empty: the one in page 1, which a database with a plaintext header doesn't
+// have). Before sqlite3_key_v2: sqlite3mc reads both when keying. (Salts aren't secret, so they can
+// go in SQL; passphrases never do.)
 void configureLayout(sqlite3 *db, bool plaintextHeader, const std::string &salt) {
     sqlite3mc_config_cipher(db, "sqlcipher", "plaintext_header_size", plaintextHeader ? kPlaintextHeaderSize : 0);
-    if (plaintextHeader) {
+    if (!salt.empty()) {
         std::string sql = "pragma cipher_salt = '" + salt + "'"; // isHexSalt: nothing to escape
         exec(db, sql.c_str());
     }
@@ -378,8 +379,8 @@ bool replaceFile(const std::string &from, const std::string &to) {
 
 // Rolls back a hot journal with a connection keyed with `passphrase` (or not). Returns whether it's
 // gone. A connection with the wrong key fails to read and changes nothing.
-bool rollBackJournal(const std::string &resolvedPath, const std::string &passphrase,
-                     const std::string &plaintextHeaderSalt = "") {
+bool rollBackJournal(const std::string &resolvedPath, const std::string &passphrase, const std::string &salt = "",
+                     bool plaintextHeader = false) {
     sqlite3 *db = nullptr;
     // No SQLITE_OPEN_CREATE: the database exists
     if (sqlite3_open_v2(resolvedPath.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_URI, nullptr) != SQLITE_OK) {
@@ -387,7 +388,7 @@ bool rollBackJournal(const std::string &resolvedPath, const std::string &passphr
         return false;
     }
     if (!passphrase.empty()) {
-        configureLayout(db, !plaintextHeaderSalt.empty(), plaintextHeaderSalt);
+        configureLayout(db, plaintextHeader, salt);
         sqlite3_key_v2(db, "main", passphrase.data(), static_cast<int>(passphrase.size()));
     }
     // The first read rolls the journal back
@@ -607,13 +608,17 @@ void recoverInterruptedRekey(const std::string &resolvedPath, const std::string 
     }
     // Before an encrypt the database had no key; before a key change, the old one (which the app
     // may still pass while it saves the new one), with or without a plaintext header. A change of
-    // layout keeps the salt, and writes the salt file first, so it's there to roll back with
+    // layout keeps the salt, and writes the salt file first, so it's there to roll back with:
+    // - with a plaintext header, the salt is only in that file
+    // - adding a plaintext header: the database had none, but the commit already overwrote the salt
+    //   in page 1 with the plaintext header, so the salt comes from the file here too
     if (!passphrase.empty()) {
         if (rollBackJournal(resolvedPath, passphrase)) {
             return;
         }
         std::string salt = readSalt(resolvedPath);
-        if (!salt.empty() && rollBackJournal(resolvedPath, passphrase, salt)) {
+        if (!salt.empty() && (rollBackJournal(resolvedPath, passphrase, salt, true) ||
+                              rollBackJournal(resolvedPath, passphrase, salt, false))) {
             return;
         }
     }
