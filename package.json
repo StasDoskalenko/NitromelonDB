@@ -18,6 +18,7 @@
     "test": "jest --config=./jest.config.js --forceExit",
     "test:sync-e2e": "jest --config=./jest.sync-e2e.config.js --forceExit",
     "test:native-unit": "scripts/test-native-unit",
+    "benchmark:encryption": "scripts/benchmark-encryption",
     "benchmark:destroy-all": "jest --config=./jest.config.js --forceExit --testMatch '**/destroyAll.benchmark.js'",
     "test:web": "yarn --cwd examples/NotesApp test:web",
     "ci": "yarn ci:check",

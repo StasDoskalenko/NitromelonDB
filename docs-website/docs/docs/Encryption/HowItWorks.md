@@ -35,3 +35,33 @@ description: 'What the encryption build changes (engine, iOS SQLite settings, fi
 - **JavaScript (Jest):** passphrase functions (including ones that fail), the order of calls made before the passphrase arrives and during a re-key, events (including progress and extra listeners), the `useEncryption` hook, error codes, and that keying errors never lead to a reset. On Node, against real encrypted files: creating, opening with the right, wrong and missing passphrase (the file unchanged), encrypting, re-keying and decrypting through `Database`, `unsafeResetDatabase()`, refusing a re-key while another connection is open, and opening a database the native build encrypted (and the native test opens one Node encrypted).
 - **On a device (iOS simulator, Android emulator and Windows, CI):** the whole upgrade, with real builds. The plain build of our example app creates a database; the encryption build is installed over it, opens it, and encrypts it; the test then reads the file from the app's data folder to check it has no SQLite header and that a note's text can't be found in any database file; a cold start opens it with the passphrase; the plain build, installed over it, fails with `encryption_key_required` and leaves the file byte for byte unchanged; the encryption build opens it again with every note; decrypting turns it back into a plain SQLite file with every note, leaving no copy behind; the plain build, installed over it, opens it; and on iOS and Android, the encryption build encrypts it again, empties it, and makes its first sync a [Turbo Login](../Sync/Frontend.md#advanced-adopting-turbo-login), which writes the server's records straight into the encrypted file.
 - **By hand on Windows:** when another process holds the database file open, decrypting fails with `rekey_failed` and leaves the database encrypted with the same passphrase.
+
+## What it costs
+
+Measured with `yarn benchmark:encryption` ([`native/benchmarks/EncryptionBenchmark.cpp`](https://github.com/StasDoskalenko/NitromelonDB/blob/master/native/benchmarks/EncryptionBenchmark.cpp)): the same workload on the default build, on the encryption build without a key, and with a key. The connection is set up as on iOS (WAL, `synchronous = NORMAL`), and the table is shaped like a NitromelonDB table. It holds 20,000 notes (13 MB), more than SQLite's page cache (2 MB), so most reads go to the file, as they do in a big app. Apple M5 Pro, macOS, SQLite 3.54.1, SQLite3 Multiple Ciphers 2.7.1, median of 5 runs, in milliseconds:
+
+| Operation                                  | Default build | Encryption build, no key | With a key | Key vs default |
+| ------------------------------------------ | ------------- | ------------------------ | ---------- | -------------- |
+| Open (first read)                          | 0.4           | 0.4                      | 79         | +79 ms         |
+| Insert 20,000 rows, one transaction        | 78            | 76                       | 160        | +104%          |
+| 2,000 lookups by id                        | 3.9           | 3.9                      | 18.7       | +379%          |
+| 2,000 lookups by id, all in the page cache | 1.8           | 1.9                      | 1.9        | +6%            |
+| 500 indexed range queries (50 rows each)   | 3.8           | 3.7                      | 26         | +584%          |
+| 10 full scans (`LIKE` on 20,000 rows)      | 82            | 79                       | 307        | +277%          |
+| 1,000 updates, one transaction each        | 27            | 26                       | 59         | +120%          |
+
+| Operation               | 20,000 rows (13 MB) | 100,000 rows (71 MB) |
+| ----------------------- | ------------------- | -------------------- |
+| `unsafe_EncryptDB()`    | 166                 | 520                  |
+| Changing the passphrase | 185                 | 619                  |
+| `unsafe_DecryptDB()`    | 45                  | 199                  |
+
+What this means:
+
+- **The switch alone costs nothing.** Without a key, the encryption build is as fast as the default build.
+- **Opening costs the key derivation once**: PBKDF2-HMAC-SHA512 with 256,000 iterations, SQLCipher 4's default, which is what makes guessing a passphrase slow. It's pure CPU, so it grows the most on a slow phone: expect several times the desktop figure there, and measure it on the slowest device you support. It happens once per launch, while the database opens.
+- **Each page read from the file is decrypted and its HMAC checked**, about 7 µs per 4 KB page here. Pages in SQLite's page cache are already decrypted, so the queries a screen repeats (indexes, recent records) cost the same as without encryption. Queries that read pages that aren't in the cache take four to seven times as long (full scans about four times). In absolute terms they stay small: a lookup by id went from 2 µs to 9 µs, a 50-row range query from 7 µs to 52 µs.
+- **Writes** encrypt and authenticate each page written, about twice the time here. On Android, NitromelonDB commits with `synchronous = FULL` in both builds, so commits wait for the disk, and the cipher's share of a write is smaller.
+- **Encrypting an existing database** takes about 0.7 seconds per 100 MB here: it rewrites every page (see [Existing users](./ExistingUsers.md)).
+
+Run `yarn benchmark:encryption` in a clone of the repository to measure on your own machine. It prints these tables.
