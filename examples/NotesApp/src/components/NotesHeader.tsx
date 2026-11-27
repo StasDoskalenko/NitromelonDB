@@ -20,6 +20,11 @@ type NotesHeaderProps = {
   onEncrypt?: (() => void) | null
   // Shown while the database is encrypted
   onDecrypt?: (() => void) | null
+  // Encryption build, for maestro-encryption/12-progress.yaml: adds filler notes (src/fillerNotes.ts)
+  onFill?: (() => void) | null
+  fillStatus?: string | null
+  // What onProgress reported in the last encrypt / decrypt (src/hooks/useEncryptionProgressLog.ts)
+  progressLog?: string | null
 }
 
 export function NotesHeader({
@@ -33,6 +38,9 @@ export function NotesHeader({
   encryptionStatus,
   onEncrypt,
   onDecrypt,
+  onFill,
+  fillStatus,
+  progressLog,
 }: NotesHeaderProps) {
   const insets = useScreenInsets()
 
@@ -95,6 +103,25 @@ export function NotesHeader({
             </Pressable>
           ) : null}
         </View>
+      ) : null}
+      {encryptionStatus ? (
+        <View style={styles.encryptionRow}>
+          {fillStatus ? (
+            <Text style={styles.subtitle} testID="fill-status" accessible>
+              {fillStatus}
+            </Text>
+          ) : null}
+          {onFill ? (
+            <Pressable onPress={onFill} testID="fill-button" accessibilityRole="button" hitSlop={8}>
+              <Text style={styles.encryptButton}>Add filler notes</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      {progressLog ? (
+        <Text style={styles.subtitle} testID="encryption-progress" accessible>
+          {progressLog}
+        </Text>
       ) : null}
     </View>
   )

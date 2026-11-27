@@ -725,7 +725,7 @@ jobs:
     needs: [notesapp-ios-build, notesapp-ios-build-encryption]
     runs-on: macos-26
     name: NotesApp iOS (encryption upgrade)
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       # See the notesapp-ios job
       MAESTRO_DRIVER_STARTUP_TIMEOUT: 300000
@@ -899,7 +899,9 @@ jobs:
         with:
           node-version: '24.19.0'
           cache: yarn
-          cache-dependency-path: examples/NotesApp_windows/yarn.lock
+          cache-dependency-path: |
+            examples/NotesApp_windows/yarn.lock
+            examples/sync-server/yarn.lock
       - name: Cache NuGet packages
         uses: actions/cache@v5
         with:
@@ -908,6 +910,10 @@ jobs:
             ${{ github.workspace }}/examples/NotesApp_windows/windows/packages
           key: nuget-notesapp-windows-${{ hashFiles('examples/NotesApp_windows/windows/**/*.vcxproj', 'native/windows/**/*.vcxproj') }}
       - name: Install NotesApp Windows
+        run: yarn install --immutable
+      # For step 9, the Turbo Login sync (the script starts the server)
+      - name: Install the sync server
+        working-directory: examples/sync-server
         run: yarn install --immutable
       - name: Set display resolution
         # See the `windows` job

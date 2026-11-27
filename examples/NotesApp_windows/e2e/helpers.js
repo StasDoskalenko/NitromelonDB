@@ -46,6 +46,12 @@ async function waitForNoteCount(count, timeout = 60000) {
   })
 }
 
+// Whether the subtitle's note count is below `limit` (e2e-encryption/12-progress.test.js)
+async function noteCountBelow(limit) {
+  const count = await noteCount()
+  return count !== null && count < limit
+}
+
 async function waitForSeeded() {
   await waitForSubtitle()
   await waitForNoteCount(100)
@@ -351,6 +357,7 @@ module.exports = {
   deleteNote,
   dismissKeyboard,
   killAndRelaunch,
+  noteCountBelow,
   pinNote,
   waitForPinned,
   scrollUntilText,

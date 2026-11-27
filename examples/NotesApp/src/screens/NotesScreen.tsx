@@ -8,6 +8,8 @@ import { NotesList, type NotesListHandle } from '../components/NotesList'
 import { NotesPager } from '../components/NotesPager'
 import { PAGE_SIZE } from '../constants'
 import { DEMO_PASSPHRASE, type ExampleDatabase } from '../database'
+import { addFillerNotes, FILLER_NOTE_COUNT } from '../fillerNotes'
+import { useEncryptionProgressLog } from '../hooks/useEncryptionProgressLog'
 import { useNotes } from '../hooks/useNotes'
 import { useScreenInsets } from '../hooks/useScreenInsets'
 import Note from '../model/Note'
@@ -49,6 +51,10 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
   const encryptionStatus = describeEncryption(encryption)
   const canEncrypt = encryption.state === 'unencrypted' && !encryption.operation
   const canDecrypt = encryption.state === 'encrypted' && !encryption.operation
+  // What onProgress reported in the last encrypt / decrypt, and the filler that makes the database
+  // big enough to report any (maestro-encryption/12-progress.yaml)
+  const progressLog = useEncryptionProgressLog(db.database)
+  const [fillStatus, setFillStatus] = useState<string | null>(null)
 
   const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
@@ -140,6 +146,18 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
     encryption.decrypt().catch(() => {})
   }
 
+  const fill = async () => {
+    setFillStatus('Adding notes…')
+    try {
+      await addFillerNotes(db.database)
+      setFillStatus(`Added ${FILLER_NOTE_COUNT} notes`)
+    } catch (fillError) {
+      setFillStatus(
+        `Adding notes failed: ${fillError instanceof Error ? fillError.message : String(fillError)}`,
+      )
+    }
+  }
+
   const deleteAllNotes = async () => {
     if (deletingAll) {
       return
@@ -175,6 +193,9 @@ export function NotesScreen({ db, onOpenNestedWriterChecks }: NotesScreenProps) 
         encryptionStatus={encryptionStatus}
         onEncrypt={canEncrypt ? encrypt : null}
         onDecrypt={canDecrypt ? decrypt : null}
+        onFill={fillStatus === null ? () => void fill() : null}
+        fillStatus={fillStatus}
+        progressLog={progressLog}
       />
 
       <Pressable

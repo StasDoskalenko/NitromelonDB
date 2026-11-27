@@ -1,7 +1,7 @@
 import type { Collection } from 'nitromelondb'
 import { Database } from 'nitromelondb'
 import { databaseSeed } from 'nitromelondb/Database/seed'
-import { Platform } from 'react-native'
+import { Platform, Settings } from 'react-native'
 import SQLiteAdapter from 'nitromelondb/adapters/sqlite'
 import Note from './model/Note'
 import { migrations } from './model/migrations'
@@ -22,6 +22,15 @@ export type ExampleDatabase = {
 // can read it there. See docs/Encryption/Intro.
 export const DEMO_PASSPHRASE = 'nitromelon-notes-demo-passphrase'
 
+// encryption.plaintextHeader, for iOS App Groups (docs/Encryption/MultipleConnections). This app's
+// database isn't in an App Group, so it's off; the encryption upgrade test turns it on for one
+// launch with a launch argument (maestro-encryption/10-plaintext-header.yaml), which iOS puts in
+// the user defaults that `Settings` reads. Opened without it, the database goes back to the usual
+// layout. Only read on iOS: React Native's `Settings` is iOS-only.
+function plaintextHeaderRequested(): boolean {
+  return Platform.OS === 'ios' && String(Settings.get('nitromelonPlaintextHeader')) === 'true'
+}
+
 export function createExampleDatabase(): ExampleDatabase {
   // The encryption build: "nitromelondb": { "encryption": true } in package.json, or
   // NITROMELONDB_ENCRYPTION=1 at pod install / Gradle build (CI builds one to test upgrading an
@@ -39,7 +48,13 @@ export function createExampleDatabase(): ExampleDatabase {
       console.error('[NitromelonDB] Failed to set up SQLite', error)
     },
     ...(encryptionAvailable
-      ? { encryption: { passphrase: () => DEMO_PASSPHRASE, ifUnencrypted: 'open' as const } }
+      ? {
+          encryption: {
+            passphrase: () => DEMO_PASSPHRASE,
+            ifUnencrypted: 'open' as const,
+            plaintextHeader: plaintextHeaderRequested(),
+          },
+        }
       : {}),
   })
 
