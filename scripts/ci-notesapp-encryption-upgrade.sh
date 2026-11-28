@@ -14,8 +14,14 @@
 #   6 encryption build again: every note still there
 #   7 Decrypt button (unsafe_DecryptDB), adds a note        -> plain SQLite again, no copy left
 #   8 plain build over it: opens it, every note there       -> plain SQLite
-#   9 encryption build over it (iOS, Android): Encrypt      -> no SQLite header, marker nowhere
-#     again, then a Turbo Login first sync into it
+#   9 encryption build over it: Encrypt again, then a       -> no SQLite header, marker nowhere
+#     Turbo Login first sync into it
+#  10 (iOS) opened with encryption.plaintextHeader: the     -> plain SQLite header (32 bytes), the
+#     database moves to the App Groups layout                  rest encrypted, salt file, note nowhere
+#  11 (iOS) opened without it again: back to the usual      -> no SQLite header, no salt file
+#     layout
+#  12 adds ~135 MB of notes, then decrypts and encrypts:    -> no SQLite header
+#     both report progress, only forward
 #
 # Usage:
 #   bash scripts/ci-notesapp-encryption-upgrade.sh ios <NotesApp.app.zip> <NotesApp-encryption.app.zip>
@@ -29,9 +35,8 @@
 # each Release build's windows/NitromelonWindows.Package/bin/x64/Release/AppX, and WinAppDriver (as
 # for the e2e); it removes the installed NitromelonWindows package and its data first. Step 9 needs
 # the reference sync server's dependencies (`yarn install` in examples/sync-server); it starts the
-# server itself. Not on Windows: its NotesApp has no sync tests yet. (To add it there: this script
-# installs with Add-AppxPackage, which doesn't exempt the app from loopback isolation as run-windows
-# does, so it would also need `CheckNetIsolation LoopbackExempt -a -n=<package family name>`.)
+# server itself. On Windows, Add-AppxPackage (unlike run-windows) doesn't exempt the app from
+# loopback isolation, so this does it with CheckNetIsolation (the runner is an administrator).
 set -euo pipefail
 
 if [ $# -ne 3 ] || { [ "$1" != ios ] && [ "$1" != android ] && [ "$1" != windows ]; }; then
@@ -52,6 +57,9 @@ trap 'rm -rf "$WORK"' EXIT
 # unsafe_DecryptDB's plain copy (SqliteEncryption.cpp decryptedCopyPath), renamed over the database
 # when it's done: one left behind after a decrypt, or next to an encrypted database, is a failure
 DECRYPTED_COPY=-nitromelon-decrypted
+# encryption.plaintextHeader's salt file (SqliteEncryption.cpp saltFilePath): only next to a
+# database in that layout
+SALT_FILE=-nitromelon-salt
 
 # --- Platform: prepare, codec_strings <build>, install <label> <build>, stop_app, pull_db <dir>
 
@@ -98,7 +106,7 @@ if [ "$PLATFORM" = ios ]; then
   pull_db() {
     local path suffix
     path="$(xcrun simctl get_app_container "$SIM_UDID" "$APP_ID" data)/Documents/$DB_NAME"
-    for suffix in "" -wal -journal "$DECRYPTED_COPY"; do
+    for suffix in "" -wal -journal "$DECRYPTED_COPY" "$SALT_FILE"; do
       if [ -f "$path$suffix" ]; then cp "$path$suffix" "$1/$DB_NAME$suffix"; fi
     done
   }
@@ -138,7 +146,7 @@ elif [ "$PLATFORM" = windows ]; then
   pull_db() {
     local dir suffix
     dir="$(cygpath -u "$LOCALAPPDATA")/Packages/$(winps "(Get-AppxPackage -Name $APP_PACKAGE).PackageFamilyName")/LocalState"
-    for suffix in "" -wal -journal "$DECRYPTED_COPY"; do
+    for suffix in "" -wal -journal "$DECRYPTED_COPY" "$SALT_FILE"; do
       if [ -f "$dir/$DB_NAME$suffix" ]; then cp "$dir/$DB_NAME$suffix" "$1/$DB_NAME$suffix"; fi
     done
   }
@@ -174,7 +182,7 @@ else
   }
   pull_db() {
     local suffix
-    for suffix in "" -wal -journal "$DECRYPTED_COPY"; do
+    for suffix in "" -wal -journal "$DECRYPTED_COPY" "$SALT_FILE"; do
       if adb shell "test -f '$DEVICE_DB$suffix'"; then
         adb exec-out cat "$DEVICE_DB$suffix" >"$1/$DB_NAME$suffix"
       fi
@@ -199,11 +207,13 @@ echo "Builds: plain has no codec, encryption has SQLite3 Multiple Ciphers"
 
 prepare
 
-# check_db plain|encrypted: the file's first 16 bytes, and whether the marker note's title can be
-# read anywhere in the database files (main file, WAL, journal). The app is stopped first, so
-# nothing writes meanwhile. Leaves the copies in $WORK/db for db_checksum.
+# check_db plain|encrypted|header [title]: the file's first bytes, the salt file, and whether the
+# marker note's title (and `title`, if given) can be read anywhere in the database files (main file,
+# WAL, journal). `header` is encryption.plaintextHeader's layout: SQLite's header in the first 32
+# bytes, everything after encrypted, and a salt file. The app is stopped first, so nothing writes
+# meanwhile. Leaves the copies in $WORK/db for db_checksum.
 check_db() {
-  local expected=$1 dir="$WORK/db" path header marker_files
+  local expected=$1 extra_title=${2:-} dir="$WORK/db" path header marker_files encoding salt
   stop_app
   rm -rf "$dir" && mkdir -p "$dir"
   pull_db "$dir"
@@ -218,7 +228,37 @@ check_db() {
     exit 1
   fi
   marker_files=$(grep -l -a -F "$MARKER" "$dir"/* 2>/dev/null || true)
-  if [ "$expected" = plain ]; then
+  if [ "$expected" != header ] && [ -f "$dir/$DB_NAME$SALT_FILE" ]; then
+    echo "::error::$DB_NAME$SALT_FILE (encryption.plaintextHeader's salt file) is next to a database without a plaintext header" >&2
+    exit 1
+  fi
+  if [ -n "$extra_title" ] && grep -q -a -F "$extra_title" "$dir/$DB_NAME"*; then
+    echo "::error::\"$extra_title\" is readable in the encrypted database's files" >&2
+    exit 1
+  fi
+  if [ "$expected" = header ]; then
+    # Bytes 56-59, the text encoding: 1-3 in a plain database, encrypted (so almost surely more)
+    # with a plaintext header, which keeps only the first 32 bytes plain (SqliteEncryption.cpp probeFile)
+    encoding=$(head -c 60 "$path" | tail -c 4 | xxd -p)
+    salt=$(cat "$dir/$DB_NAME$SALT_FILE" 2>/dev/null || true)
+    if [ "$header" != "SQLite format 3" ]; then
+      echo "::error::Expected SQLite's header in a plaintext header database, but it starts with: $(head -c 16 "$path" | xxd -p)" >&2
+      exit 1
+    fi
+    if [ "$encoding" = 00000001 ] || [ "$encoding" = 00000002 ] || [ "$encoding" = 00000003 ]; then
+      echo "::error::Expected a database encrypted after its first 32 bytes, but its header is plain SQLite's" >&2
+      exit 1
+    fi
+    if ! [[ "$salt" =~ ^[0-9a-fA-F]{32}$ ]]; then
+      echo "::error::Expected $DB_NAME$SALT_FILE with 32 hex digits next to the database, found: ${salt:-(no file)}" >&2
+      exit 1
+    fi
+    if [ -n "$marker_files" ]; then
+      echo "::error::\"$MARKER\" is readable in the encrypted database's files: $(basename "$marker_files" | tr '\n' ' ')" >&2
+      exit 1
+    fi
+    echo "On disk: SQLite's header, encrypted from byte 32, salt file with 32 hex digits ($(du -h "$path" | cut -f1))"
+  elif [ "$expected" = plain ]; then
     if [ "$header" != "SQLite format 3" ]; then
       echo "::error::Expected a plain SQLite database, but the header is: $(head -c 16 "$path" | xxd -p)" >&2
       exit 1
@@ -325,18 +365,33 @@ install plain "$PLAIN_BUILD"
 run_flow 8-plain-opens-decrypted
 check_db plain
 
-if [ "$PLATFORM" != windows ]; then
-  # shellcheck source=ci-start-sync-server.sh
-  source "$ROOT/scripts/ci-start-sync-server.sh"
-  start_sync_server
-  # start_sync_server's trap replaces this script's: keep both
-  trap 'kill "$SYNC_SERVER_PID" 2>/dev/null || true; rm -rf "$WORK"' EXIT
-  if [ "$PLATFORM" = android ]; then
-    adb reverse tcp:3000 tcp:3000
-  fi
-  install encryption "$ENCRYPTION_BUILD"
-  run_flow 9-turbo-sync
-  check_db encrypted
+# shellcheck source=ci-start-sync-server.sh
+source "$ROOT/scripts/ci-start-sync-server.sh"
+start_sync_server
+# start_sync_server's trap replaces this script's: keep both
+trap 'kill "$SYNC_SERVER_PID" 2>/dev/null || true; rm -rf "$WORK"' EXIT
+if [ "$PLATFORM" = android ]; then
+  adb reverse tcp:3000 tcp:3000
 fi
+install encryption "$ENCRYPTION_BUILD"
+if [ "$PLATFORM" = windows ]; then
+  # Let the AppX reach the sync server on 127.0.0.1
+  family=$(winps "(Get-AppxPackage -Name $APP_PACKAGE).PackageFamilyName")
+  CheckNetIsolation.exe LoopbackExempt -a "-n=$family"
+fi
+run_flow 9-turbo-sync
+check_db encrypted
+
+# encryption.plaintextHeader is for iOS App Groups (Settings, which NotesApp reads it from, is
+# iOS-only); the layout itself is tested on every platform by native/tests
+if [ "$PLATFORM" = ios ]; then
+  run_flow 10-plaintext-header
+  check_db header "With a plaintext header"
+  run_flow 11-plaintext-header-off
+  check_db encrypted "Without a plaintext header"
+fi
+
+run_flow 12-progress
+check_db encrypted
 
 echo "Upgrade to the encryption build ($PLATFORM): passed"

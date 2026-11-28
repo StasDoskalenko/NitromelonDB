@@ -1,0 +1,40 @@
+# Step 10 (iOS, encryption build, encrypted database): opened with encryption.plaintextHeader (a
+# launch argument, see src/database.ts), the database is re-keyed into the plaintext header layout
+# for iOS App Groups. A note added after that waits for the re-key (writes wait for it), so seeing
+# it proves the re-key finished. A cold start with the option opens it again. See README.md.
+appId: com.nitromelondb.example
+---
+- launchApp:
+    stopApp: true
+    arguments:
+      nitromelonPlaintextHeader: "true"
+
+- extendedWaitUntil:
+    visible:
+      id: "encryption-status"
+      text: "Encrypted"
+    timeout: 60000
+
+# Not on a retry after it was already added
+- runFlow:
+    when:
+      notVisible:
+        text: "With a plaintext header"
+    file: ../maestro-commands/add-note.yaml
+    env:
+      TITLE: "With a plaintext header"
+
+- launchApp:
+    stopApp: true
+    arguments:
+      nitromelonPlaintextHeader: "true"
+
+- extendedWaitUntil:
+    visible:
+      id: "encryption-status"
+      text: "Encrypted"
+    timeout: 60000
+- assertVisible:
+    text: "With a plaintext header"
+- assertVisible:
+    text: "From the server"

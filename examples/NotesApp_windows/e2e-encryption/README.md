@@ -6,6 +6,8 @@ Not a suite of its own: `scripts/ci-notesapp-encryption-upgrade.sh windows` (CI 
 `Windows NotesApp (encryption upgrade)`) runs them one at a time, switching between the plain and
 the encryption build, and checks the database file in `LocalState` between steps. Step 7
 (`7-decrypt`) is where Windows differs most: decrypt replaces the database file with `MoveFileExW`.
+Steps 10 and 11 (`plaintextHeader`) are iOS-only. Step 9 talks to the sync server from the test
+(`sync-server.js`), which the script starts and exempts the app from loopback isolation for.
 `jest.e2e-encryption.config.js` is `jest.e2e.config.js` without the LocalState wipe, since each step
 runs against the database the previous one left.
 
