@@ -6,9 +6,10 @@ Read by `SqliteEncryptionTest.cpp` (and, for the first two, by
 | File | Written by | Passphrase | Contents |
 | --- | --- | --- | --- |
 | `sqlcipher-4.0-testkey.db` | SQLCipher 4.0 itself: `sqlcipher-resources/sqlcipher-4.0-testkey.db` from [sqlcipher/sqlcipher](https://github.com/sqlcipher/sqlcipher), the file SQLCipher's own `sqlcipher-compatibility.test` opens | `testkey` | table `t1`, 78536 rows |
+| `sqlcipher-3.0-testkey.db` | SQLCipher 3.0: `sqlcipher-resources/sqlcipher-3.0-testkey.db` from [sqlcipher/sqlcipher](https://github.com/sqlcipher/sqlcipher), which SQLCipher's compatibility test opens with SQLCipher 3's settings and converts with `PRAGMA cipher_migrate` | `testkey` | table `t1`, 78536 rows (SQLCipher 3's defaults: NitromelonDB refuses it, see `refusesSqlcipher3Database`) |
 | `node-encrypted-k1.db` | the Node adapter (better-sqlite3-multiple-ciphers, `sqlite-node/encryption.ts`) | `k1` | table `t`, one row `'from node'` |
 
-`sqlcipher-4.0-testkey.db` is copyright Zetetic LLC, redistributed under SQLCipher's license:
+`sqlcipher-4.0-testkey.db` and `sqlcipher-3.0-testkey.db` are copyright Zetetic LLC, redistributed under SQLCipher's license:
 
 ```
 Copyright (c) 2025, ZETETIC LLC
