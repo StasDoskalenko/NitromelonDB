@@ -6704,5 +6704,26 @@
       "ram": 181,
       "fps": 53.5
     }
+  },
+  {
+    "sha": "8634bb0ab84c51c8d98f7778b284477d54d1e9ce",
+    "date": "2026-11-28T01:38:15.579Z",
+    "prNumber": 273,
+    "subject": "docs(encryption): Coming from SQLCipher, raw keys, and the web's error code (#60) (#273)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 20.1,
+      "ram": 179,
+      "fps": 55.2
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 20.5,
+      "ram": 180,
+      "fps": 55
+    }
   }
 ]
