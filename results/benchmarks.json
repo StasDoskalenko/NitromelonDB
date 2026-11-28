@@ -6993,5 +6993,26 @@
         "stress": 5
       }
     }
+  },
+  {
+    "sha": "5149cafbebd79649952edb6fd1a87b835e4baa3e",
+    "date": "2026-11-28T06:26:17.082Z",
+    "prNumber": 275,
+    "subject": "docs(encryption): name the version that adds it, and a changelog highlight (#60) (#275)",
+    "android": {
+      "iterationCount": 5,
+      "score": 96,
+      "cpu": 28.7,
+      "ram": 178,
+      "fps": 54.6
+    },
+    "androidReference": {
+      "reference": "v0.32.0",
+      "iterationCount": 5,
+      "score": 95,
+      "cpu": 27.7,
+      "ram": 179,
+      "fps": 54.5
+    }
   }
 ]
