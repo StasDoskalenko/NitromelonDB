@@ -15,7 +15,7 @@ Using it takes two steps:
 2. [Give `SQLiteAdapter` a passphrase](./Passphrase.md). For an app that already has users with plain databases, [encrypt them in place](./ExistingUsers.md).
 
 :::note Status
-The encryption build and the passphrase API work on iOS, Android and Windows, and on Node.js and Electron with [`better-sqlite3-multiple-ciphers`](./Setup.md#nodejs-and-electron) ([#60](https://github.com/StasDoskalenko/NitromelonDB/issues/60)). The web (LokiJS, wa-sqlite) refuses the `encryption` option with an error.
+Encryption is available from **0.33.0-alpha.0** (`npm i nitromelondb@alpha`). Earlier versions don't know the `encryption` option: they ignore it and write a plain database, so check the version you have installed. The encryption build and the passphrase API work on iOS, Android and Windows, and on Node.js and Electron with [`better-sqlite3-multiple-ciphers`](./Setup.md#nodejs-and-electron) ([#60](https://github.com/StasDoskalenko/NitromelonDB/issues/60)). The web (LokiJS, wa-sqlite) refuses the `encryption` option with an error.
 :::
 
 ## In this section

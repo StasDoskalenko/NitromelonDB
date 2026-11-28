@@ -1,5 +1,7 @@
 ### Highlights
 
+- **Database encryption, opt-in** (#60): the database file can be encrypted in SQLCipher 4's format (AES-256) on iOS, Android, Windows, Node and Electron. Turn on one switch in your app's `package.json`, rebuild, and give `SQLiteAdapter` a passphrase (it can come from the Keychain or Keystore asynchronously). Existing users' plain databases can be encrypted in place, with progress events and a `useEncryption()` hook, and an interrupted encryption never damages the file. Databases from other SQLCipher 4 libraries open with their passphrase. Apps that don't turn it on ship no cryptography from NitromelonDB, so their export-compliance answer stays the same. See [Encryption](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Intro). The web (LokiJS, wa-sqlite) doesn't support it yet.
+
 ### BREAKING CHANGES
 
 ### Deprecations
