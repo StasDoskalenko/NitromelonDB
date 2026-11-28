@@ -54,6 +54,7 @@ const sidebars = {
       'docs/Encryption/ExistingUsers',
       'docs/Encryption/ChangePassphrase',
       'docs/Encryption/MultipleConnections',
+      'docs/Encryption/ComingFromSqlcipher',
       'docs/Encryption/Troubleshooting',
       'docs/Encryption/HowItWorks',
       'docs/Encryption/ExportCompliance',

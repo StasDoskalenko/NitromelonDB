@@ -19,7 +19,7 @@ metadata:
 
 Encrypt the app's local database (SQLCipher 4 format), keep the passphrase safe, and leave existing users' data intact.
 
-References (plain Markdown): [Encryption](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Intro.md), [Setup](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Setup.md), [Open with a passphrase](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Passphrase.md), [Existing users](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/ExistingUsers.md), [Changing the passphrase](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/ChangePassphrase.md), [More than one connection](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/MultipleConnections.md), [Troubleshooting](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Troubleshooting.md). Full index: https://stasdoskalenko.github.io/NitromelonDB/llms.txt
+References (plain Markdown): [Encryption](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Intro.md), [Setup](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Setup.md), [Open with a passphrase](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Passphrase.md), [Existing users](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/ExistingUsers.md), [Changing the passphrase](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/ChangePassphrase.md), [More than one connection](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/MultipleConnections.md), [Coming from SQLCipher](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/ComingFromSqlcipher.md), [Troubleshooting](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/Troubleshooting.md). Full index: https://stasdoskalenko.github.io/NitromelonDB/llms.txt
 
 ## Rules
 
@@ -43,6 +43,7 @@ Find and read:
 - `package.json`: the `nitromelondb` version (encryption needs 0.33 or later), Expo or bare React Native, whether a `"nitromelondb"` key exists.
 - Every `new SQLiteAdapter({ ... })`, its `dbName`, and whether it's in an App Group container (iOS extensions, widgets: [Sharing database across targets](https://stasdoskalenko.github.io/NitromelonDB/docs/Advanced/SharingDatabaseAcrossTargets.md)).
 - How the app has shipped so far: does it have users with a plain database? (Any release before this change means yes.)
+- Whether the app already encrypts with SQLCipher (a patched or forked WatermelonDB, a `passphrase` or `key` option, `PRAGMA key`, a SQLCipher pod or Gradle dependency). Then its databases are already encrypted: reuse the passphrase it keeps (never generate a new one), skip step 6, and check the settings it uses against [Coming from SQLCipher](https://stasdoskalenko.github.io/NitromelonDB/docs/Encryption/ComingFromSqlcipher.md). SQLCipher 4 with default settings, or a raw key, opens as it is; SQLCipher 3 or changed settings must be converted by the app's current library in an earlier release. Tell the user which case applies before changing anything.
 - The secure storage library, if any: `expo-secure-store`, `react-native-keychain`.
 - `onSetUpError`, and any code that calls `unsafeResetDatabase()` on errors.
 - The logout flow, if there is one.

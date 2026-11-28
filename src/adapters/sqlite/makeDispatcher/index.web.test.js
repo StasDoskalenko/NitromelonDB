@@ -1,6 +1,6 @@
 jest.mock('../sqlite-wasm/wa-sqlite-async.wasm', () => '/assets/wa-sqlite-async.wasm')
 
-import { getDispatcherType, makeDispatcher } from './index.web'
+import { getDatabaseEncryptionState, getDispatcherType, makeDispatcher } from './index.web'
 
 describe('wa-sqlite web dispatcher', () => {
   afterEach(() => {
@@ -10,6 +10,12 @@ describe('wa-sqlite web dispatcher', () => {
 
   it('reports its public dispatcher type', () => {
     expect(getDispatcherType({})).toBe('wa-sqlite')
+  })
+
+  it('has no encryption: getDatabaseEncryptionState throws encryption_unavailable', () => {
+    expect(() => getDatabaseEncryptionState('test')).toThrow(
+      expect.objectContaining({ code: 'encryption_unavailable' }),
+    )
   })
 
   it('is safe to initialize during SSR and rejects server operations', () => {

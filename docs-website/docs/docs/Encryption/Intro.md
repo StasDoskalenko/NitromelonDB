@@ -25,6 +25,7 @@ The encryption build and the passphrase API work on iOS, Android and Windows, an
 - [Existing users](./ExistingUsers.md): encrypt plain databases from earlier versions of your app in place, show progress (`useEncryption`), and check the state.
 - [Change, decrypt, log out](./ChangePassphrase.md): change the passphrase, go back to a plain file, and wipe the data when a user logs out.
 - [More than one connection](./MultipleConnections.md): app extensions, widgets and second adapters, and a plaintext header for iOS App Groups.
+- [Coming from SQLCipher](./ComingFromSqlcipher.md): databases your app already encrypted with SQLCipher (a patched WatermelonDB, Room, expo-sqlite, op-sqlite), and migrating the ones in older formats.
 - [Errors and troubleshooting](./Troubleshooting.md): error codes, and common problems.
 - [How it works](./HowItWorks.md): what the encryption build changes, the file format, and what we test.
 - [App Store and export compliance](./ExportCompliance.md): what to answer Apple.
@@ -71,6 +72,10 @@ It does **not** protect against:
 
 Also keep in mind that iOS and Android already encrypt app storage while the device is locked (iOS Data Protection, Android file-based encryption). Database encryption adds protection on top of that, mostly while the device is unlocked, in backups, and on compromised devices. If none of the cases above apply to your app, you probably don't need it.
 
-## What's next
+## Limits
 
-The design is in the [encryption plan](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs/plans/sqlcipher-encryption.md), and everything in it is implemented. The web (LokiJS, wa-sqlite) is not part of this work.
+The design is in the [encryption plan](https://github.com/StasDoskalenko/NitromelonDB/blob/master/docs/plans/sqlcipher-encryption.md), and everything in it is implemented. What it doesn't do:
+
+- **The web** (LokiJS, wa-sqlite) has no encryption: the `encryption` option, `getDatabaseEncryptionState()` and the encryption calls fail with `encryption_unavailable`.
+- **One format: SQLCipher 4 with its default settings.** A passphrase or a [raw key](./ComingFromSqlcipher.md#a-raw-key), but no other SQLCipher settings (`kdf_iter`, page size, SQLCipher 3 compatibility). A database in another format must be converted first: [Coming from SQLCipher](./ComingFromSqlcipher.md).
+- **`plaintextHeader`** is for iOS App Groups, where it is needed; it works on Android and Windows too, but not on Node and Electron, which refuse it.

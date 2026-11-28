@@ -246,6 +246,11 @@ export function encryptionUnavailableHint(): string {
   return ''
 }
 
+// Like every other encryption call here: `encryption_unavailable`, with a code apps can check
 export function getDatabaseEncryptionState(_dbName: string): DatabaseEncryptionState {
-  throw new Error('SQLiteAdapter.getDatabaseEncryptionState() is not supported on web yet')
+  const error = new Error(
+    'SQLiteAdapter.getDatabaseEncryptionState(): the web (wa-sqlite) has no encryption, so there is no encrypted database to check. Use SQLiteAdapter.isEncryptionAvailable() to tell where it is available.',
+  ) as Error & { code: string }
+  error.code = 'encryption_unavailable'
+  throw error
 }

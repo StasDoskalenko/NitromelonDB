@@ -171,7 +171,7 @@ export default class SQLiteAdapter implements DatabaseAdapter {
   // What the database file looks like, before an adapter opens it: 'missing' (a new install),
   // 'unencrypted' (a plain SQLite file), or 'encrypted' (anything else: a damaged file looks the same,
   // so only opening it with the passphrase proves it). Reads the first bytes of the file only.
-  // iOS, Android and Windows.
+  // iOS, Android, Windows, Node and Electron; on the web it rejects with `encryption_unavailable`.
   static async getDatabaseEncryptionState(dbName?: string): Promise<DatabaseEncryptionState> {
     return getDatabaseEncryptionState(dbName || 'watermelon')
   }

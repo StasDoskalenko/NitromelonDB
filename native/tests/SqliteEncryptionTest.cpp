@@ -594,6 +594,59 @@ static void readsSqlcipher4Database() {
     removeDatabase(path);
 }
 
+// A raw key, as SQLCipher takes it: a passphrase written x'<64 hex digits>' is the key itself, with
+// no key derivation, and x'<96 hex digits>' is the key followed by the salt. SQLCipher parses this
+// for every way of passing the key, sqlite3_key() included (sqlcipher_cipher_ctx_key_derive in its
+// sqlcipher.c), and sqlite3mc does too. The key below is the one SQLCipher derived for the 4.0
+// fixture: PBKDF2-HMAC-SHA512 of "testkey" with the salt in its first 16 bytes, 256,000 iterations.
+static void opensWithRawKey() {
+    const std::string key = "a880be464199392c1a8ea25b02f16a1ceac943f61ac5500213bfe3aaf672fd54";
+    const std::string salt = "7c51d8eec8a8e1a7657556ee7f9af2b6";
+    for (const std::string &passphrase : {"x'" + key + "'", "x'" + upper(key) + "'", "x'" + key + salt + "'"}) {
+        std::string path = copyFixture("sqlcipher-4.0-testkey.db");
+        sqlite3 *db = nullptr;
+        bool encrypted = false;
+        CHECK(tryOpen(path, passphrase, false, &db, &encrypted) == "");
+        CHECK(encrypted);
+        CHECK(scalar(db, "select count(*) from t1") == "78536");
+        sqlite3_close(db);
+        removeDatabase(path);
+    }
+    // One digit off is a wrong key, and the file is left alone
+    std::string path = copyFixture("sqlcipher-4.0-testkey.db");
+    std::vector<unsigned char> before = readBytes(path, 64 << 20);
+    sqlite3 *db = nullptr;
+    CHECK(tryOpen(path, "x'b" + key.substr(1) + "'", false, &db) == "encryption_key_invalid");
+    CHECK(readBytes(path, 64 << 20) == before);
+    removeDatabase(path);
+
+    // A new database with a raw key: opens with the same raw key, not with its text as a passphrase
+    path = tempPath("raw-key");
+    CHECK(tryOpen(path, "x'" + key + "'", false, &db) == "");
+    CHECK(exec(db, "create table t (v); insert into t values ('raw');") == SQLITE_OK);
+    sqlite3_close(db);
+    CHECK(tryOpen(path, "x'" + key + "'", false, &db) == "");
+    CHECK(scalar(db, "select v from t") == "raw");
+    sqlite3_close(db);
+    CHECK(tryOpen(path, key, false, &db) == "encryption_key_invalid");
+    removeDatabase(path);
+}
+
+// A SQLCipher 3 database (SQLCipher's own fixtures/README.md): SQLCipher 4's defaults can't read it,
+// so the right passphrase fails with encryption_key_invalid, like a wrong one, and the file is left
+// alone. The Encryption docs' "Coming from SQLCipher" page explains migrating it with SQLCipher's
+// PRAGMA cipher_migrate before moving to NitromelonDB.
+static void refusesSqlcipher3Database() {
+    std::string path = copyFixture("sqlcipher-3.0-testkey.db");
+    std::vector<unsigned char> before = readBytes(path, 64 << 20);
+    sqlite3 *db = nullptr;
+    CHECK(probeFile(path) == FileState::Encrypted);
+    CHECK(tryOpen(path, "testkey", false, &db) == "encryption_key_invalid");
+    CHECK(tryOpen(path, "testkey", true, &db) == "encryption_key_invalid");
+    CHECK(readBytes(path, 64 << 20) == before);
+    removeDatabase(path);
+}
+
 // Another connection to the same file (an app extension, a widget, a second adapter): encrypting,
 // changing the key and decrypting all leave WAL first, which SQLite refuses while another
 // connection has the database open. So each fails with rekey_failed and changes nothing, instead
@@ -901,6 +954,8 @@ int main() {
     rekeyRefusedWhileAnotherConnectionIsOpen();
     readsNodeAdapterDatabase();
     readsSqlcipher4Database();
+    opensWithRawKey();
+    refusesSqlcipher3Database();
     crashesAtCommit();
     survivesKillDuringRekey(kDirections, std::size(kDirections));
     survivesKillDuringRekey(kLayoutDirections, std::size(kLayoutDirections));

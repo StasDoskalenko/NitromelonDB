@@ -248,6 +248,35 @@ describe('SQLiteAdapter encryption on Node', () => {
     db.instance.close()
   })
 
+  it("opens with a raw key x'...', as SQLCipher does", () => {
+    // The key SQLCipher derived for its test database (native/tests/SqliteEncryptionTest.cpp,
+    // opensWithRawKey): PBKDF2-HMAC-SHA512 of "testkey" with the file's salt, 256,000 iterations
+    const key = 'a880be464199392c1a8ea25b02f16a1ceac943f61ac5500213bfe3aaf672fd54'
+    const fixture = `${__dirname}/../../../../../native/tests/fixtures/sqlcipher-4.0-testkey.db`
+    for (const passphrase of [`x'${key}'`, `x'${key}7c51d8eec8a8e1a7657556ee7f9af2b6'`]) {
+      const path = tempPath()
+      fs.copyFileSync(fixture, path)
+      const db = new NodeDatabase(path, { passphrase })
+      expect(db.count('select count(*) as count from t1')).toBe(78536)
+      db.instance.close()
+    }
+  })
+
+  it('refuses a SQLCipher 3 database without changing it', () => {
+    // SQLCipher's own 3.0 test database: SQLCipher 4's defaults can't read it (docs: Encryption,
+    // Coming from SQLCipher)
+    const path = tempPath()
+    fs.copyFileSync(
+      `${__dirname}/../../../../../native/tests/fixtures/sqlcipher-3.0-testkey.db`,
+      path,
+    )
+    const before = fs.readFileSync(path)
+    expect(() => new NodeDatabase(path, { passphrase: 'testkey' })).toThrow(
+      /encryption_key_invalid/,
+    )
+    expect(fs.readFileSync(path).equals(before)).toBe(true)
+  })
+
   it('zeroes deleted content on an encrypted connection, as SQLCipher does', async () => {
     const path = tempPath()
     const keyed = new NodeDatabase(path, { passphrase: 'k1' })
